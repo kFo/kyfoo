@@ -1,0 +1,7 @@
+stdout = 1
+
+print(x : string) =>
+    write stdout x
+
+main() =>
+    print "hello"

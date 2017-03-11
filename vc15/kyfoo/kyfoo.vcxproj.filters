@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{b2cb98f8-7a21-46dd-8852-618d73fc3319}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{770863ab-32ee-4cae-9bf9-110e946a91a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo">
+      <UniqueIdentifier>{c764dc95-d891-42aa-8c26-cb8f3574f78a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\lexer">
+      <UniqueIdentifier>{c3c81cd9-9ac1-404b-8f07-d37376b20179}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\parser">
+      <UniqueIdentifier>{a54d3972-092c-4931-9958-7b6e3c5af41d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\lexer">
+      <UniqueIdentifier>{b8b2a90f-df5c-4678-a8cb-372088627826}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\parser">
+      <UniqueIdentifier>{0c6369dc-37c5-4334-851d-46f58f3767f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\ast">
+      <UniqueIdentifier>{c445ff48-af7e-4c4f-a6b2-f79ffa8f4e88}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ast">
+      <UniqueIdentifier>{1d328116-3756-485e-aab3-4e793d56bc37}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp">
+      <Filter>include\kyfoo\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp">
+      <Filter>include\kyfoo\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp">
+      <Filter>include\kyfoo\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Types.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Error.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\GrammarStatic.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\lexer\Scanner.cpp">
+      <Filter>src\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lexer\Token.cpp">
+      <Filter>src\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lexer\TokenKind.cpp">
+      <Filter>src\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Declarations.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Expressions.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Scopes.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Module.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\parser\Parse.cpp">
+      <Filter>src\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\parser\Productions.cpp">
+      <Filter>src\parser</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
