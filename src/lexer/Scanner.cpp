@@ -214,7 +214,7 @@ Token Scanner::readNext()
         do lexeme += nextChar();
         while ( isLetter(peekChar()) || isNumber(peekChar()) );
 
-        return Token(identifierKind(lexeme), myLine, myColumn, lexeme);
+        return Token(identifierKind(lexeme), myLine, column, lexeme);
     }
     else if ( isNumber(c) ) {
         do lexeme += nextChar();
