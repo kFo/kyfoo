@@ -1,0 +1,3 @@
+bin/*
+vc15/*/*/*
+*.vcxproj.user
