@@ -22,5 +22,14 @@ Module::Module(const char* name,
 
 Module::~Module() = default;
 
+
+void Module::io(IStream& stream)
+{
+    stream.openGroup("module");
+    stream.next("name", myName);
+    stream.next("scope", myScope);
+    stream.closeGroup();
+}
+
     } // namespace ast
 } // namespace kyfoo

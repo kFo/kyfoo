@@ -2,10 +2,12 @@
 
 #include <vector>
 
+#include <kyfoo/ast/Node.hpp>
+
 namespace kyfoo {
     namespace ast {
 
-class Type
+class Type : public INode
 {
 public:
     explicit Type() = default;
@@ -13,6 +15,12 @@ public:
     explicit Type(lexer::Token const& identifier)
         : myIdentifier(identifier)
     {
+    }
+
+public:
+    void io(IStream& stream) override
+    {
+        stream.next("identifier", myIdentifier);
     }
 
 private:
@@ -27,6 +35,13 @@ public:
         : myParameters(std::move(parameterTypes))
         , myReturn(std::move(returnType))
     {
+    }
+
+public:
+    void io(IStream& stream) override
+    {
+        stream.next("parameter", myParameters);
+        stream.next("return", myReturn);
     }
 
 private:

@@ -23,6 +23,12 @@ Declaration::Declaration(DeclarationScope const* parent)
 
 Declaration::~Declaration() = default;
 
+void Declaration::io(IStream& stream)
+{
+    std::string declkind = typeid(*this).name();
+    stream.next("declkind", declkind);
+}
+
 void Declaration::setParent(DeclarationScope& parent)
 {
     if ( myParent )
@@ -43,6 +49,13 @@ SymbolDeclaration::SymbolDeclaration(lexer::Token identifier,
 
 SymbolDeclaration::~SymbolDeclaration() = default;
 
+void SymbolDeclaration::io(IStream& stream)
+{
+    Declaration::io(stream);
+    stream.next("identifier", myIdentifier);
+    stream.next("value", myValue);
+}
+
 //
 // ProcedureDeclaration
 
@@ -54,6 +67,14 @@ ProcedureDeclaration::ProcedureDeclaration(lexer::Token identifier,
 }
 
 ProcedureDeclaration::~ProcedureDeclaration() = default;
+
+void ProcedureDeclaration::io(IStream& stream)
+{
+    Declaration::io(stream);
+    stream.next("identifier", myIdentifier);
+    stream.next("parameters", myParameters);
+    stream.next("definition", myDefinition);
+}
 
 ProcedureScope* ProcedureDeclaration::definition()
 {

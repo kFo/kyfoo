@@ -3,6 +3,8 @@
 #include <memory>
 #include <string>
 
+#include <kyfoo/ast/Node.hpp>
+
 namespace kyfoo {
 
     namespace lexer {
@@ -13,11 +15,13 @@ namespace kyfoo {
 
 class DeclarationScope;
 
-class Module
+class Module : public INode
 {
 public:
     Module(const char* name, std::unique_ptr<DeclarationScope> scope);
     ~Module();
+
+    void io(IStream& stream) override;
 
 private:
     std::string myName;
