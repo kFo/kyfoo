@@ -18,7 +18,7 @@ class Token
     std::string myLexeme;
 
 public:
-    Token();
+    explicit Token();
     Token(TokenKind kind,
           line_index_t line,
           column_index_t column,
