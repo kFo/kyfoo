@@ -5,6 +5,7 @@
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/parser/Parse.hpp>
 #include <kyfoo/ast/Module.hpp>
+#include <kyfoo/ast/Node.hpp>
 
 int runScannerDump(kyfoo::lexer::Scanner& scanner)
 {
@@ -42,6 +43,8 @@ int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
 {
     try {
         auto main = kyfoo::parser::parseModule(file, scanner);
+        kyfoo::ast::JsonOutput output(std::cout);
+        main->io(output);
     }
     catch (kyfoo::Error const& e) {
         std::cout << file << e;

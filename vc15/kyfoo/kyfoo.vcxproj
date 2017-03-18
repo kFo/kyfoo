@@ -135,6 +135,7 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Node.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Types.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Error.hpp" />

@@ -11,11 +11,14 @@ namespace kyfoo {
 
 class ProceduralScope;
 
-class Expression
+class Expression : public INode
 {
 public:
     Expression();
     ~Expression();
+
+public:
+    void io(IStream& stream) override;
 
 private:
     std::unique_ptr<Type> myType;
@@ -24,13 +27,13 @@ private:
 class PrimaryExpression : public Expression
 {
 public:
-    explicit PrimaryExpression(lexer::Token token)
-        : myToken(token)
-    {
-    }
+    explicit PrimaryExpression(lexer::Token token);
 
 public:
-    lexer::Token token() const { return myToken; }
+    void io(IStream& stream) override;
+
+public:
+    lexer::Token token() const;
 
 private:
     lexer::Token myToken;
@@ -44,40 +47,20 @@ enum TupleKind
     Closed
 };
 
-inline TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
-{
-    if ( open == lexer::TokenKind::OpenParen ) {
-        if ( close == lexer::TokenKind::CloseParen )
-            return Open;
-        else if ( close == lexer::TokenKind::CloseBracket )
-            return HalfOpenLeft;
-    }
-    else if ( open == lexer::TokenKind::OpenBracket ) {
-        if ( close == lexer::TokenKind::CloseParen )
-            return HalfOpenRight;
-        else if ( close == lexer::TokenKind::CloseBracket )
-            return Closed;
-    }
-
-    throw std::runtime_error("invalid tuple expression syntax");
-}
+TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close);
+std::string to_string(TupleKind kind);
 
 class TupleExpression : public Expression
 {
 public:
-    explicit TupleExpression(std::vector<std::unique_ptr<Expression>> expressions)
-        : myKind(Open)
-        , myExpressions(std::move(expressions))
-    {
-    }
+    explicit TupleExpression(std::vector<std::unique_ptr<Expression>> expressions);
 
     TupleExpression(lexer::Token open,
                     lexer::Token close,
-                    std::vector<std::unique_ptr<Expression>> expressions)
-        : TupleExpression(std::move(expressions))
-    {
+                    std::vector<std::unique_ptr<Expression>> expressions);
 
-    }
+public:
+    void io(IStream& stream) override;
 
 private:
     TupleKind myKind;
@@ -88,18 +71,15 @@ class ApplyExpression : public Expression
 {
 public:
     explicit ApplyExpression(lexer::Token subject,
-                             std::unique_ptr<TupleExpression> arguments)
-        : mySubject(subject)
-        , myArguments(std::move(arguments))
-    {
-    }
+                             std::unique_ptr<TupleExpression> arguments);
+
+public:
+    void io(IStream& stream) override;
 
 private:
     lexer::Token mySubject;
     std::unique_ptr<TupleExpression> myArguments;
 };
-
-std::unique_ptr<Expression> parseExpression(lexer::Scanner& scanner);
 
     } // namespace ast
 } // namespace kyfoo

@@ -10,6 +10,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Types.hpp>
 
 namespace kyfoo {
@@ -34,11 +35,20 @@ class Declaration;
 class SymbolDeclaration;
 class ProcedureDeclaration;
 
-class DeclarationScope
+class DeclarationScope : public INode
 {
 public:
     DeclarationScope(DeclarationScope* parent);
     ~DeclarationScope();
+
+public:
+    void io(IStream& stream) override
+    {
+        stream.openArray("declarations");
+        for ( auto&& e : myDeclarations )
+            stream.next("declaration", e);
+        stream.closeArray();
+    }
 
 public:
     void append(std::unique_ptr<Declaration> declaration);
@@ -63,6 +73,13 @@ class ProcedureScope : public DeclarationScope
 public:
     explicit ProcedureScope(DeclarationScope* parent);
     ~ProcedureScope();
+
+public:
+    void io(IStream& stream) override
+    {
+        DeclarationScope::io(stream);
+        stream.next("expressions", myExpressions);
+    }
 
 public:
     void append(std::unique_ptr<Expression> expression);

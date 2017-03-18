@@ -4,6 +4,7 @@
 
 #include <kyfoo/lexer/Token.hpp>
 
+#include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Types.hpp>
 
 namespace kyfoo {
@@ -18,7 +19,7 @@ class DeclarationScope;
 class ProcedureScope;
 class Expression;
 
-class Declaration
+class Declaration : public INode
 {
 protected:
     Declaration();
@@ -26,6 +27,8 @@ protected:
 
 public:
     ~Declaration();
+
+    void io(IStream& stream) override;
 
 public:
     void setParent(DeclarationScope& parent);
@@ -41,12 +44,15 @@ public:
                       std::unique_ptr<Expression> value);
     ~SymbolDeclaration();
 
+public:
+    void io(IStream& stream) override;
+
 private:
     lexer::Token myIdentifier;
     std::unique_ptr<Expression> myValue;
 };
 
-class ProcedureParameter
+class ProcedureParameter : public INode
 {
 public:
     explicit ProcedureParameter(lexer::Token identifier)
@@ -61,6 +67,13 @@ public:
     {
     }
 
+public:
+    void io(IStream& stream) override
+    {
+        stream.next("identifier", myIdentifier);
+        stream.next("type", myType);
+    }
+
 private:
     lexer::Token myIdentifier;
     std::unique_ptr<Type> myType;
@@ -72,6 +85,9 @@ public:
     ProcedureDeclaration(lexer::Token identifier,
                          std::vector<std::unique_ptr<ProcedureParameter>> parameters);
     ~ProcedureDeclaration();
+
+public:
+    void io(IStream& stream) override;
 
 public:
     ProcedureScope* definition();
