@@ -197,7 +197,7 @@ struct ProcedureDeclaration : public
         if ( factor<4>().capture() )
             returnType = factor<4>().capture()->factor<1>().make();
 
-        return std::make_unique<ast::ProcedureDeclaration>(factor<1>().token(), std::move(parameters));
+        return std::make_unique<ast::ProcedureDeclaration>(factor<0>().token(), std::move(parameters));
     }
 };
 
