@@ -4,17 +4,10 @@
 
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
     namespace ast {
-
-// 
-// SymbolTable
-
-void SymbolTable::append(lexer::Token const& token, Type const& type)
-{
-    mySymbols[token.lexeme()].push_back(std::make_tuple(&token, &type));
-}
 
 //
 // DeclarationScope
@@ -27,6 +20,20 @@ DeclarationScope::DeclarationScope(DeclarationScope* parent)
 }
 
 DeclarationScope::~DeclarationScope() = default;
+
+void DeclarationScope::io(IStream& stream)
+{
+    stream.next("declarations", myDeclarations);
+}
+
+void DeclarationScope::resolveSymbols(Semantics& semantics)
+{
+    semantics.pushScope();
+    for ( auto&& e : myDeclarations ) {
+        e->resolveSymbols(semantics);
+    }
+    semantics.popScope();
+}
 
 void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
 {
@@ -65,6 +72,18 @@ ProcedureScope::ProcedureScope(DeclarationScope* parent)
 }
 
 ProcedureScope::~ProcedureScope() = default;
+
+void ProcedureScope::io(IStream& stream)
+{
+    DeclarationScope::io(stream);
+    stream.next("expressions", myExpressions);
+}
+
+void ProcedureScope::resolveSymbols(Semantics& semantics)
+{
+    for ( auto&& e : myExpressions )
+        e->resolveSymbols(semantics);
+}
 
 void ProcedureScope::append(std::unique_ptr<Expression> expression)
 {

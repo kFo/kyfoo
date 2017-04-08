@@ -25,6 +25,8 @@ using openParen = g::Terminal<TokenKind::OpenParen>;
 using closeParen = g::Terminal<TokenKind::CloseParen>;
 using openBracket = g::Terminal<TokenKind::OpenBracket>;
 using closeBracket = g::Terminal<TokenKind::CloseBracket>;
+using openAngle = g::Terminal<TokenKind::OpenAngle>;
+using closeAngle = g::Terminal<TokenKind::CloseAngle>;
 
 struct TupleOpen : public
     g::Or<openParen, openBracket>
@@ -151,30 +153,29 @@ struct Apply : public
     }
 };
 
-struct SymbolDeclaration : public
-    g::And<id, equal, Compound>
+class TypeExpression
 {
-    std::unique_ptr<ast::SymbolDeclaration> make() const
-    {
-        return std::make_unique<ast::SymbolDeclaration>(factor<0>().token(), factor<2>().make());
-    }
-};
+public:
+    TypeExpression();
+    TypeExpression(TypeExpression const& rhs);
+    TypeExpression(TypeExpression&&) = delete;
+    ~TypeExpression();
 
-// TODO: expand on types
-struct Type : public id
-{
-    std::unique_ptr<ast::Type> make() const
-    {
-        return std::make_unique<ast::Type>(token());
-    }
+public:
+    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);
+    std::unique_ptr<ast::TypeExpression> make() const;
+
+private:
+    struct impl;
+    std::unique_ptr<impl> myGrammar;
 };
 
 struct Parameter : public
-    g::And<id, g::Opt<g::And<colon, Type>>>
+    g::And<id, g::Opt<g::And<colon, TypeExpression>>>
 {
     std::unique_ptr<ast::ProcedureParameter> make() const
     {
-        std::unique_ptr<ast::Type> type;
+        std::unique_ptr<ast::TypeExpression> type;
         if ( factor<1>().capture() )
             type = factor<1>().capture()->factor<1>().make();
 
@@ -183,9 +184,7 @@ struct Parameter : public
 };
 
 struct ProcedureDeclaration : public
-    g::And<id, openParen, g::Repeat2<Parameter, comma>, closeParen,
-           g::Opt<g::And<colon, Type>>
-          >
+    g::And<id, openParen, g::Repeat2<Parameter, comma>, closeParen, g::Opt<g::And<colon, TypeExpression>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
@@ -193,11 +192,25 @@ struct ProcedureDeclaration : public
         for (auto&& e : factor<2>().captures())
             parameters.emplace_back(e.make());
 
-        std::unique_ptr<ast::Type> returnType;
+        std::unique_ptr<ast::TypeExpression> returnTypeExpression;
         if ( factor<4>().capture() )
-            returnType = factor<4>().capture()->factor<1>().make();
+            returnTypeExpression = factor<4>().capture()->factor<1>().make();
 
-        return std::make_unique<ast::ProcedureDeclaration>(factor<0>().token(), std::move(parameters));
+        return std::make_unique<ast::ProcedureDeclaration>(factor<0>().token(), std::move(parameters), std::move(returnTypeExpression));
+    }
+};
+
+struct SymbolDeclaration : public
+    g::And<id, equal, g::Long<Compound, TypeExpression>>
+{
+    std::unique_ptr<ast::SymbolDeclaration> make() const
+    {
+        switch (factor<2>().index()) {
+        case 0: return std::make_unique<ast::SymbolDeclaration>(factor<0>().token(), factor<2>().term<0>().make());
+        case 1: return std::make_unique<ast::SymbolDeclaration>(factor<0>().token(), factor<2>().term<1>().make());
+        }
+
+        throw std::runtime_error("invalid SymbolDeclaration");
     }
 };
 

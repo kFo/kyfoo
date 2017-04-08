@@ -5,6 +5,8 @@
 
 #include <kyfoo/Error.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Scopes.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -36,6 +38,24 @@ void PrimaryExpression::io(IStream& stream)
     stream.next("primary", myToken);
 }
 
+void PrimaryExpression::resolveSymbols(Semantics& semantics)
+{
+    if ( token().kind() == lexer::TokenKind::Identifier )
+    {
+        auto decl = semantics.scope()->lookup(token().lexeme());
+        if ( !decl )
+            throw Error(token()) << "undefined identifier";
+
+        switch (decl->kind()) {
+        case DeclKind::Symbol:
+            return;
+
+        default:
+            throw Error(token()) << "does not refer to a symbol or variable declaration";
+        }
+    }
+}
+
 lexer::Token PrimaryExpression::token() const
 {
     return myToken;
@@ -48,15 +68,15 @@ TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
 {
     if ( open == lexer::TokenKind::OpenParen ) {
         if ( close == lexer::TokenKind::CloseParen )
-            return Open;
+            return TupleKind::Open;
         else if ( close == lexer::TokenKind::CloseBracket )
-            return HalfOpenLeft;
+            return TupleKind::HalfOpenLeft;
     }
     else if ( open == lexer::TokenKind::OpenBracket ) {
         if ( close == lexer::TokenKind::CloseParen )
-            return HalfOpenRight;
+            return TupleKind::HalfOpenRight;
         else if ( close == lexer::TokenKind::CloseBracket )
-            return Closed;
+            return TupleKind::Closed;
     }
 
     throw std::runtime_error("invalid tuple expression syntax");
@@ -65,17 +85,17 @@ TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
 std::string to_string(TupleKind kind)
 {
     switch (kind) {
-    case Open: return "Open";
-    case HalfOpenRight: return "HalfOpenRight";
-    case HalfOpenLeft: return "HalfOpenLeft";
-    case Closed: return "Closed";
+    case TupleKind::Open: return "Open";
+    case TupleKind::HalfOpenRight: return "HalfOpenRight";
+    case TupleKind::HalfOpenLeft: return "HalfOpenLeft";
+    case TupleKind::Closed: return "Closed";
     }
 
     throw std::runtime_error("invalid tuple kind");
 }
 
 TupleExpression::TupleExpression(std::vector<std::unique_ptr<Expression>> expressions)
-    : myKind(Open)
+    : myKind(TupleKind::Open)
     , myExpressions(std::move(expressions))
 {
 }
@@ -100,6 +120,12 @@ void TupleExpression::io(IStream& stream)
     stream.closeArray();
 }
 
+void TupleExpression::resolveSymbols(Semantics& semantics)
+{
+    for ( auto&& e : myExpressions )
+        e->resolveSymbols(semantics);
+}
+
 //
 // ApplyExpression
 
@@ -116,6 +142,21 @@ void ApplyExpression::io(IStream& stream)
 
     stream.next("subject", mySubject);
     stream.next("arguments", myArguments);
+}
+
+void ApplyExpression::resolveSymbols(Semantics& semantics)
+{
+    if ( mySubject.kind() != lexer::TokenKind::Identifier )
+        throw std::logic_error("ApplyExpression subject must be an identifier");
+
+    auto decl = semantics.scope()->lookup(mySubject.lexeme());
+    if ( !decl )
+        throw Error(mySubject) << "undefined identifier";
+
+    if ( decl->kind() != DeclKind::Procedure )
+        throw Error(mySubject) << "does not refer to a procedure";
+
+    myArguments->resolveSymbols(semantics);
 }
 
     } // namespace parser

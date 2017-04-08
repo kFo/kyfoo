@@ -4,12 +4,16 @@
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
+#include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Tuples.hpp>
 #include <kyfoo/ast/Types.hpp>
 
 namespace kyfoo {
     namespace ast {
 
 class ProceduralScope;
+class Semantics;
+class TypeExpression;
 
 class Expression : public INode
 {
@@ -17,11 +21,12 @@ public:
     Expression();
     ~Expression();
 
+    // IIO
 public:
     void io(IStream& stream) override;
 
-private:
-    std::unique_ptr<Type> myType;
+public:
+    virtual void resolveSymbols(Semantics& semantics) = 0;
 };
 
 class PrimaryExpression : public Expression
@@ -29,8 +34,12 @@ class PrimaryExpression : public Expression
 public:
     explicit PrimaryExpression(lexer::Token token);
 
+    // IIO
 public:
     void io(IStream& stream) override;
+
+public:
+    void resolveSymbols(Semantics& semantics);
 
 public:
     lexer::Token token() const;
@@ -38,17 +47,6 @@ public:
 private:
     lexer::Token myToken;
 };
-
-enum TupleKind
-{
-    Open,
-    HalfOpenRight,
-    HalfOpenLeft,
-    Closed
-};
-
-TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close);
-std::string to_string(TupleKind kind);
 
 class TupleExpression : public Expression
 {
@@ -59,8 +57,12 @@ public:
                     lexer::Token close,
                     std::vector<std::unique_ptr<Expression>> expressions);
 
+    // IIO
 public:
     void io(IStream& stream) override;
+
+public:
+    void resolveSymbols(Semantics& semantics) override;
 
 private:
     TupleKind myKind;
@@ -73,8 +75,12 @@ public:
     explicit ApplyExpression(lexer::Token subject,
                              std::unique_ptr<TupleExpression> arguments);
 
+    // IIO
 public:
     void io(IStream& stream) override;
+
+public:
+    void resolveSymbols(Semantics& semantics) override;
 
 private:
     lexer::Token mySubject;

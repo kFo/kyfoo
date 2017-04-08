@@ -239,7 +239,7 @@ public:
 
         std::size_t m = 0;
         if ( std::get<0>(myTerms).match(scan, m) ) {
-            length = m0;
+            length = m;
         }
 
         subMatch<1>(scan, longest, length);
@@ -290,7 +290,7 @@ private:
                                 std::size_t&,
                                 std::size_t&)
     {
-        return false;
+        // nop
     }
 
     bool match_nth(std::size_t index,
@@ -308,13 +308,13 @@ private:
         if ( N == index )
             return std::get<N>(myTerms).match(scan, matches);
 
-        return match_nth<N + 1>(index, scan, matches);
+        return match_nth_impl<N + 1>(index, scan, matches);
     }
 
     template <>
-    bool match_nth_impl<sizeof...(T)>(std::size_t index,
-                                      kyfoo::lexer::ScanPoint& scan,
-                                      std::size_t& matches)
+    bool match_nth_impl<sizeof...(T)>(std::size_t,
+                                      kyfoo::lexer::ScanPoint&,
+                                      std::size_t&)
     {
         return false;
     }
