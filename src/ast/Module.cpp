@@ -31,5 +31,10 @@ void Module::io(IStream& stream)
     stream.closeGroup();
 }
 
+void Module::resolveSymbols(Semantics& semantic)
+{
+    myScope->resolveSymbols(semantic);
+}
+
     } // namespace ast
 } // namespace kyfoo

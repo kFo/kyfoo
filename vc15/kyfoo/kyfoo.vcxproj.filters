@@ -72,6 +72,15 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Node.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -103,6 +112,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\parser\Productions.cpp">
       <Filter>src\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Semantics.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Types.cpp">
+      <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -9,6 +9,7 @@
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
 
+#include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Types.hpp>
@@ -17,19 +18,6 @@ namespace kyfoo {
     namespace ast {
 
 using scope_depth_t = int;
-
-class SymbolTable
-{
-public:
-    using symbol_t = std::tuple<lexer::Token const*, Type const*>;
-    using symbol_list_t = std::vector<symbol_t>;
-
-public:
-    void append(lexer::Token const& token, Type const& type);
-
-private:
-    std::map<std::string, symbol_list_t> mySymbols;
-};
 
 class Declaration;
 class SymbolDeclaration;
@@ -41,14 +29,13 @@ public:
     DeclarationScope(DeclarationScope* parent);
     ~DeclarationScope();
 
+    // IIO
 public:
-    void io(IStream& stream) override
-    {
-        stream.openArray("declarations");
-        for ( auto&& e : myDeclarations )
-            stream.next("declaration", e);
-        stream.closeArray();
-    }
+    void io(IStream& stream) override;
+
+    // INode
+public:
+    void resolveSymbols(Semantics& semantics) override;
 
 public:
     void append(std::unique_ptr<Declaration> declaration);
@@ -62,7 +49,6 @@ public:
 private:
     DeclarationScope* myParent = nullptr;
 
-    SymbolTable mySymbols;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
     scope_depth_t myDepth = 0;               // Always defined by the parent scope
     lexer::indent_width_t myIndentWidth = 0; // Comes from the lexer's first token
@@ -74,12 +60,13 @@ public:
     explicit ProcedureScope(DeclarationScope* parent);
     ~ProcedureScope();
 
+    // IIO
 public:
-    void io(IStream& stream) override
-    {
-        DeclarationScope::io(stream);
-        stream.next("expressions", myExpressions);
-    }
+    void io(IStream& stream) override;
+
+    // INode
+public:
+    void resolveSymbols(Semantics& semantics) override;
 
 public:
     void append(std::unique_ptr<Expression> expression);

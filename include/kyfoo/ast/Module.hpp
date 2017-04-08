@@ -21,7 +21,13 @@ public:
     Module(const char* name, std::unique_ptr<DeclarationScope> scope);
     ~Module();
 
+    // IIO
+public:
     void io(IStream& stream) override;
+
+    // INode
+public:
+    void resolveSymbols(Semantics& semantic) override;
 
 private:
     std::string myName;

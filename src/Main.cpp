@@ -6,6 +6,7 @@
 #include <kyfoo/parser/Parse.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 int runScannerDump(kyfoo::lexer::Scanner& scanner)
 {
@@ -54,10 +55,25 @@ int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
     return EXIT_SUCCESS;
 }
 
+int runSemanticsTest(const char* file, kyfoo::lexer::Scanner& scanner)
+{
+    try {
+        auto main = kyfoo::parser::parseModule(file, scanner);
+        kyfoo::ast::Semantics sem;
+        main->resolveSymbols(sem);
+    }
+    catch (kyfoo::Error const& e) {
+        std::cout << file << e;
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char* argv[])
 {
     if ( argc != 3 ) {
-        std::cout << "only expected 2 argument" << std::endl;
+        std::cout << "only expected 2 arguments" << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -75,4 +91,9 @@ int main(int argc, char* argv[])
         return runScannerDump(scanner);
     else if ( command == "parse" )
         return runParserTest(file.c_str(), scanner);
+    else if ( command == "semantics" )
+        return runSemanticsTest(file.c_str(), scanner);
+
+    std::cout << "Unknown option: " << command << std::endl;
+    return EXIT_FAILURE;
 }
