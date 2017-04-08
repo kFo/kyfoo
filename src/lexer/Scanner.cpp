@@ -273,7 +273,12 @@ Token Scanner::readNext()
         while ( !isLineBreak(c = nextChar()) )
             lexeme += c;
 
-        return TOK(Comment);
+        if ( isLineBreak(peekChar()) )
+            nextChar();
+
+        bumpLine();
+
+        return readNext();
     }
     else if ( c == '\'' ) {
         do lexeme += nextChar();
