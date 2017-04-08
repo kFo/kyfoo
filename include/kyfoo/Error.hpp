@@ -52,7 +52,13 @@ private:
 
 inline std::ostream& operator << (std::ostream& sink, Error const& err)
 {
-    return sink << '(' << err.token().line() << ", " << err.token().column() << "): error: " << err.what() << std::endl;
+    sink << '(' << err.token().line() << ", " << err.token().column() << "): error: ";
+    if ( !err.token().lexeme().empty() )
+        sink << "'" << err.token().lexeme() << "' ";
+
+    sink << err.what() << std::endl;
+
+    return sink;
 }
 
 } // namespace kyfoo
