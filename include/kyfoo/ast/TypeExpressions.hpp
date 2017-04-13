@@ -11,7 +11,7 @@ namespace kyfoo {
 
 class TypeDeclaration;
 class TypeExpression;
-class Expression;
+class ValueExpression;
 
 class TypeExpression : public INode
 {
@@ -30,14 +30,24 @@ public:
     enum class Kind
     {
         TypeExpression,
-        Expression,
+        ValueExpression,
     };
+
+    static const char* to_string(Kind kind)
+    {
+        switch (kind) {
+        case Kind::TypeExpression: return "TypeExpression";
+        case Kind::ValueExpression: return "ValueExpression";
+        }
+
+        throw std::runtime_error("invalid type parameter");
+    }
 
 public:
     explicit TypeParameter(std::unique_ptr<TypeExpression> typeExpression);
     explicit TypeParameter(TypeExpression* typeExpression);
-    explicit TypeParameter(std::unique_ptr<Expression> expression);
-    explicit TypeParameter(Expression* expression);
+    explicit TypeParameter(std::unique_ptr<ValueExpression> expression);
+    explicit TypeParameter(ValueExpression* expression);
 
     TypeParameter(TypeParameter const&) = delete;
 
@@ -49,7 +59,7 @@ public:
 public:
     Kind kind() const;
     TypeExpression const* typeExpression() const;
-    Expression const* expression() const;
+    ValueExpression const* valueExpression() const;
 
 private:
     Kind myKind;
@@ -57,11 +67,11 @@ private:
         Ptr() : any(nullptr) {}
         Ptr(void* rhs) : any(rhs) {}
         Ptr(TypeExpression* rhs) : asTypeExpression(rhs) {}
-        Ptr(Expression* rhs) : asExpression(rhs) {}
+        Ptr(ValueExpression* rhs) : asExpression(rhs) {}
 
         void* any;
         TypeExpression* asTypeExpression;
-        Expression* asExpression;
+        ValueExpression* asExpression;
     } myPtr;
 };
 

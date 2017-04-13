@@ -133,14 +133,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\ValueExpressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Node.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\ast\Types.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\TypeExpressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Error.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
@@ -154,11 +154,11 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />
     <ClCompile Include="..\..\src\ast\Declarations.cpp" />
-    <ClCompile Include="..\..\src\ast\Expressions.cpp" />
+    <ClCompile Include="..\..\src\ast\ValueExpressions.cpp" />
     <ClCompile Include="..\..\src\ast\Module.cpp" />
     <ClCompile Include="..\..\src\ast\Scopes.cpp" />
     <ClCompile Include="..\..\src\ast\Semantics.cpp" />
-    <ClCompile Include="..\..\src\ast\Types.cpp" />
+    <ClCompile Include="..\..\src\ast\TypeExpressions.cpp" />
     <ClCompile Include="..\..\src\lexer\Scanner.cpp" />
     <ClCompile Include="..\..\src\lexer\Token.cpp" />
     <ClCompile Include="..\..\src\lexer\TokenKind.cpp" />

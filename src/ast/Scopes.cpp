@@ -3,7 +3,7 @@
 #include <cassert>
 
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -70,7 +70,7 @@ void ProcedureScope::resolveSymbols(Diagnostics&)
 
 }
 
-void ProcedureScope::append(std::unique_ptr<Expression> expression)
+void ProcedureScope::append(std::unique_ptr<ValueExpression> expression)
 {
     myExpressions.emplace_back(std::move(expression));
 }

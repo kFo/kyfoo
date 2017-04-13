@@ -67,9 +67,9 @@ std::unique_ptr<ast::SymbolDeclaration> parseSymbolDeclaration(lexer::Scanner& s
     return nullptr;
 }
 
-std::unique_ptr<ast::Expression> parseExpression(lexer::Scanner& scanner)
+std::unique_ptr<ast::ValueExpression> parseExpression(lexer::Scanner& scanner)
 {
-    Compound grammar;
+    ValueExpression grammar;
     if ( parse(scanner, grammar) )
         return grammar.make();
 

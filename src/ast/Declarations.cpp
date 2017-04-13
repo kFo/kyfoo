@@ -4,10 +4,10 @@
 
 #include <kyfoo/lexer/Scanner.hpp>
 
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
-#include <kyfoo/ast/Types.hpp>
+#include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -82,7 +82,7 @@ void TypeDeclaration::resolveSymbols(Diagnostics&)
 // SymbolDeclaration
 
 SymbolDeclaration::SymbolDeclaration(lexer::Token const& identifier,
-                                     std::unique_ptr<Expression> expression)
+                                     std::unique_ptr<ValueExpression> expression)
     : Declaration(DeclKind::Symbol, identifier, nullptr)
     , myKind(Kind::Expression)
     , myNode(std::move(expression))
@@ -113,10 +113,10 @@ void SymbolDeclaration::resolveSymbols(Diagnostics&)
 
 }
 
-Expression* SymbolDeclaration::expression()
+ValueExpression* SymbolDeclaration::expression()
 {
     if ( myKind == Kind::Expression )
-        return static_cast<Expression*>(myNode.get());
+        return static_cast<ValueExpression*>(myNode.get());
 
     return nullptr;
 }
@@ -134,7 +134,7 @@ TypeExpression* SymbolDeclaration::typeExpression()
 
 VariableDeclaration::VariableDeclaration(lexer::Token const& identifier,
                                          std::unique_ptr<TypeExpression> typeExpression,
-                                         std::unique_ptr<Expression> expression)
+                                         std::unique_ptr<ValueExpression> expression)
     : Declaration(DeclKind::Variable, identifier, nullptr)
     , myTypeExpression(std::move(typeExpression))
     , myExpression(std::move(expression))
@@ -142,7 +142,7 @@ VariableDeclaration::VariableDeclaration(lexer::Token const& identifier,
 }
 
 VariableDeclaration::VariableDeclaration(lexer::Token const& identifier,
-                                         std::unique_ptr<Expression> expression)
+                                         std::unique_ptr<ValueExpression> expression)
     : VariableDeclaration(identifier, nullptr, std::move(expression))
 {
 }
@@ -170,7 +170,7 @@ TypeExpression const* VariableDeclaration::typeExpression() const
     return myTypeExpression.get();
 }
 
-Expression const* VariableDeclaration::expression() const
+ValueExpression const* VariableDeclaration::expression() const
 {
     return myExpression.get();
 }

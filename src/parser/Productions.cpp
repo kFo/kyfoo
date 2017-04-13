@@ -4,12 +4,12 @@ namespace kyfoo {
     namespace parser {
 
 //
-// Compound
+// ValueExpression
 
-struct Compound::impl : public
+struct ValueExpression::impl : public
     g::Or<Tuple, Apply, Primary>
 {
-    std::unique_ptr<ast::Expression> make() const
+    std::unique_ptr<ast::ValueExpression> make() const
     {
         switch (index()) {
         case 0: return term<0>().make();
@@ -21,18 +21,18 @@ struct Compound::impl : public
     }
 };
 
-Compound::Compound()
+ValueExpression::ValueExpression()
 {
 }
 
-Compound::Compound(Compound const& rhs)
+ValueExpression::ValueExpression(ValueExpression const& rhs)
     : myGrammar(rhs.myGrammar ? std::make_unique<impl>(*rhs.myGrammar) : nullptr)
 {
 }
 
-Compound::~Compound() = default;
+ValueExpression::~ValueExpression() = default;
 
-bool Compound::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+bool ValueExpression::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
 {
     if ( !myGrammar )
         myGrammar = std::make_unique<impl>();
@@ -43,7 +43,7 @@ bool Compound::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
     return false;
 }
 
-std::unique_ptr<ast::Expression> Compound::make() const
+std::unique_ptr<ast::ValueExpression> ValueExpression::make() const
 {
     return myGrammar->make();
 }
@@ -54,7 +54,7 @@ std::unique_ptr<ast::Expression> Compound::make() const
 struct TypeSubExpression : public
     g::Or<
           TypeExpression
-        , Compound
+        , ValueExpression
          >
 {
     ast::TypeParameter make() const

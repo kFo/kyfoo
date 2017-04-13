@@ -4,7 +4,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/Error.hpp>
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -12,12 +12,12 @@ namespace kyfoo {
     namespace ast {
 
 //
-// Expression
+// ValueExpression
 
-Expression::Expression() = default;
-Expression::~Expression() = default;
+ValueExpression::ValueExpression() = default;
+ValueExpression::~ValueExpression() = default;
 
-void Expression::io(IStream& stream)
+void ValueExpression::io(IStream& stream)
 {
     std::string exprkind = typeid(*this).name();
     stream.next("exprkind", exprkind);
@@ -33,7 +33,7 @@ PrimaryExpression::PrimaryExpression(lexer::Token const& token)
 
 void PrimaryExpression::io(IStream& stream)
 {
-    Expression::io(stream);
+    ValueExpression::io(stream);
 
     stream.next("primary", myToken);
 }
@@ -81,7 +81,7 @@ std::string to_string(TupleKind kind)
     throw std::runtime_error("invalid tuple kind");
 }
 
-TupleExpression::TupleExpression(std::vector<std::unique_ptr<Expression>> expressions)
+TupleExpression::TupleExpression(std::vector<std::unique_ptr<ValueExpression>> expressions)
     : myKind(TupleKind::Open)
     , myExpressions(std::move(expressions))
 {
@@ -89,7 +89,7 @@ TupleExpression::TupleExpression(std::vector<std::unique_ptr<Expression>> expres
 
 TupleExpression::TupleExpression(lexer::Token open,
                                  lexer::Token close,
-                                 std::vector<std::unique_ptr<Expression>> expressions)
+                                 std::vector<std::unique_ptr<ValueExpression>> expressions)
     : TupleExpression(std::move(expressions))
 {
 
@@ -97,7 +97,7 @@ TupleExpression::TupleExpression(lexer::Token open,
 
 void TupleExpression::io(IStream& stream)
 {
-    Expression::io(stream);
+    ValueExpression::io(stream);
 
     auto kind = to_string(myKind);
     stream.next("kind", kind);
@@ -124,7 +124,7 @@ ApplyExpression::ApplyExpression(lexer::Token subject,
 
 void ApplyExpression::io(IStream& stream)
 {
-    Expression::io(stream);
+    ValueExpression::io(stream);
 
     stream.next("subject", mySubject);
     stream.next("arguments", myArguments);
