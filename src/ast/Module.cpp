@@ -18,6 +18,7 @@ Module::Module(const char* name,
     : myName(name)
     , myScope(std::move(scope))
 {
+
 }
 
 Module::~Module() = default;
@@ -31,9 +32,14 @@ void Module::io(IStream& stream)
     stream.closeGroup();
 }
 
-void Module::resolveSymbols(Semantics& semantic)
+void Module::resolveSymbols(Diagnostics&)
 {
-    myScope->resolveSymbols(semantic);
+
+}
+
+std::string const& Module::name() const
+{
+    return myName;
 }
 
     } // namespace ast

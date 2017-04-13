@@ -5,13 +5,13 @@
 namespace kyfoo {
     namespace ast {
 
-class Semantics;
+class Diagnostics;
 class INode : public IIO
 {
 public:
     virtual ~INode() = default;
 
-    virtual void resolveSymbols(Semantics& semantic) = 0;
+    virtual void resolveSymbols(Diagnostics& dgn) = 0;
 };
 
     } // namespace ast

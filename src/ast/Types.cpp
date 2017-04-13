@@ -31,16 +31,9 @@ void PrimaryTypeExpression::io(IStream& stream)
     stream.next("identifier", myIdentifier);
 }
 
-void PrimaryTypeExpression::resolveSymbols(Semantics& semantics)
+void PrimaryTypeExpression::resolveSymbols(Diagnostics&)
 {
-    if ( !isSpecified() )
-        return; // intended to be inferred
 
-    if ( auto d = semantics.scope()->lookup(myIdentifier.lexeme()) )
-        if ( d->kind() != DeclKind::Type )
-            throw Error(myIdentifier) << "does not refer to a type declaration";
-
-    throw Error(myIdentifier) << "undeclared type";
 }
 
 lexer::Token const& PrimaryTypeExpression::identifier() const
@@ -155,7 +148,7 @@ void TypeExpressionTuple::io(IStream& stream)
     stream.closeArray();
 }
 
-void TypeExpressionTuple::resolveSymbols(Semantics& /*semantics*/)
+void TypeExpressionTuple::resolveSymbols(Diagnostics&)
 {
     // TODO
 }
@@ -176,12 +169,9 @@ void ProcedureTypeExpression::io(IStream& stream)
     stream.next("return", myReturn);
 }
 
-void ProcedureTypeExpression::resolveSymbols(Semantics& semantics)
+void ProcedureTypeExpression::resolveSymbols(Diagnostics&)
 {
-    for ( auto&& e : myParameters )
-        e->resolveSymbols(semantics);
 
-    myReturn->resolveSymbols(semantics);
 }
 
     } // namespace ast

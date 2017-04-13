@@ -149,8 +149,10 @@
     <ClInclude Include="..\..\include\kyfoo\parser\GrammarStatic.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
+    <ClInclude Include="..\..\src\ast\Axioms.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\ast\Axioms.cpp" />
     <ClCompile Include="..\..\src\ast\Declarations.cpp" />
     <ClCompile Include="..\..\src\ast\Expressions.cpp" />
     <ClCompile Include="..\..\src\ast\Module.cpp" />

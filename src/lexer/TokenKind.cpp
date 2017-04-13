@@ -5,10 +5,10 @@
 namespace kyfoo {
     namespace lexer {
 
-#define X(A,B) #A,
+#define X(A,B) B,
 const char* g_tokenKindStringTable[] =
 {
-TOKEN_DEFINITIONS
+TOKEN_DEFINITIONS(X)
 };
 #undef X
 

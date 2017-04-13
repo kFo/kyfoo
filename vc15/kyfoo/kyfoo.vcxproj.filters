@@ -81,6 +81,9 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ast\Axioms.hpp">
+      <Filter>src\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -117,6 +120,9 @@
       <Filter>src\ast</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ast\Types.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Axioms.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>

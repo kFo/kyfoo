@@ -4,6 +4,7 @@
 
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
@@ -14,8 +15,6 @@ namespace kyfoo {
 
 DeclarationScope::DeclarationScope(DeclarationScope* parent)
     : myParent(parent)
-    , myDepth(-1)
-    , myIndentWidth(0)
 {
 }
 
@@ -26,13 +25,9 @@ void DeclarationScope::io(IStream& stream)
     stream.next("declarations", myDeclarations);
 }
 
-void DeclarationScope::resolveSymbols(Semantics& semantics)
+void DeclarationScope::resolveSymbols(Diagnostics&)
 {
-    semantics.pushScope();
-    for ( auto&& e : myDeclarations ) {
-        e->resolveSymbols(semantics);
-    }
-    semantics.popScope();
+    
 }
 
 void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
@@ -40,27 +35,18 @@ void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
     myDeclarations.emplace_back(std::move(declaration));
 }
 
+void DeclarationScope::import(Module& module)
+{
+    for ( auto&& e : myImports )
+        if ( e.module == &module )
+            throw std::runtime_error("module imported twice: " + module.name());
+
+    myImports.push_back({&module, nullptr});
+}
+
 DeclarationScope* DeclarationScope::parent()
 {
     return myParent;
-}
-
-scope_depth_t DeclarationScope::depth() const
-{
-    return myDepth;
-}
-
-lexer::indent_width_t DeclarationScope::indent() const
-{
-    return myIndentWidth;
-}
-
-void DeclarationScope::setIndentWidth(lexer::indent_width_t width)
-{
-    if ( myIndentWidth )
-        throw std::runtime_error("indent width assigned twice");
-
-    myIndentWidth = width;
 }
 
 //
@@ -79,10 +65,9 @@ void ProcedureScope::io(IStream& stream)
     stream.next("expressions", myExpressions);
 }
 
-void ProcedureScope::resolveSymbols(Semantics& semantics)
+void ProcedureScope::resolveSymbols(Diagnostics&)
 {
-    for ( auto&& e : myExpressions )
-        e->resolveSymbols(semantics);
+
 }
 
 void ProcedureScope::append(std::unique_ptr<Expression> expression)

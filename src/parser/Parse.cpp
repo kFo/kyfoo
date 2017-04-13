@@ -49,6 +49,15 @@ DeclarationScopeParser::IndentChange DeclarationScopeParser::indentChange(lexer:
     return Decrease;
 }
 
+std::unique_ptr<ast::ImportDeclaration> parseImportDeclaration(lexer::Scanner& scanner)
+{
+    ImportDeclaration grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
 std::unique_ptr<ast::SymbolDeclaration> parseSymbolDeclaration(lexer::Scanner& scanner)
 {
     SymbolDeclaration grammar;
@@ -117,7 +126,11 @@ DeclarationScopeParser::parseProcedureDeclaration(lexer::Scanner& scanner)
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DeclarationScopeParser::parseNext(lexer::Scanner& scanner)
 {
-    if ( auto symDecl = parseSymbolDeclaration(scanner) ) {
+    if ( auto importDecl = parseImportDeclaration(scanner) ) {
+        myScope->append(std::move(importDecl));
+        return std::make_tuple(true, nullptr);
+    }
+    else if ( auto symDecl = parseSymbolDeclaration(scanner) ) {
         myScope->append(std::move(symDecl));
         return std::make_tuple(true, nullptr);
     }

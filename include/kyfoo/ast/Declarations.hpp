@@ -22,6 +22,7 @@ enum class DeclKind
     Symbol,
     Procedure,
     Variable,
+    Import,
 };
 
 class DeclarationScope;
@@ -44,7 +45,7 @@ public:
 
     // INode
 public:
-    virtual void resolveSymbols(Semantics& semantics) = 0;
+    virtual void resolveSymbols(Diagnostics& dgn) = 0;
 
 public:
     DeclKind kind() const;
@@ -63,6 +64,8 @@ class TypeDeclaration : public Declaration
 {
 public:
     explicit TypeDeclaration(lexer::Token const& identifier);
+    TypeDeclaration(lexer::Token const& identifier,
+                    std::vector<TypeParameter>&& parameters);
     ~TypeDeclaration();
 
     // IIO
@@ -71,7 +74,10 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
+
+private:
+    std::vector<TypeParameter> myParameters;
 };
 
 class SymbolDeclaration : public Declaration
@@ -96,7 +102,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     Expression* expression();
@@ -125,7 +131,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     TypeExpression const* typeExpression() const;
@@ -149,13 +155,13 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 };
 
 class ProcedureDeclaration : public Declaration
 {
 public:
-    ProcedureDeclaration(lexer::Token identifier,
+    ProcedureDeclaration(lexer::Token const& identifier,
                          std::vector<std::unique_ptr<ProcedureParameter>> parameters,
                          std::unique_ptr<ast::TypeExpression> returnTypeExpression);
     ~ProcedureDeclaration();
@@ -166,7 +172,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     ProcedureScope* definition();
@@ -178,5 +184,19 @@ private:
     std::unique_ptr<ProcedureScope> myDefinition;
 };
 
+class ImportDeclaration : public Declaration
+{
+public:
+    explicit ImportDeclaration(lexer::Token const& identifier);
+    ~ImportDeclaration();
+
+    // IIO
+public:
+    void io(IStream& stream) override;
+
+    // INode
+public:
+    void resolveSymbols(Diagnostics& dgn) override;
+};
     } // namespace ast
 } // namespace kyfoo
