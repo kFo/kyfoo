@@ -22,6 +22,13 @@ using scope_depth_t = int;
 class Declaration;
 class SymbolDeclaration;
 class ProcedureDeclaration;
+class Module;
+
+struct Import
+{
+    Module* module;
+    lexer::Token const* token;
+};
 
 class DeclarationScope : public INode
 {
@@ -35,23 +42,19 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
+    void import(Module& module);
     void append(std::unique_ptr<Declaration> declaration);
 
     DeclarationScope* parent();
-    scope_depth_t depth() const;
-    lexer::indent_width_t indent() const;
-
-    void setIndentWidth(lexer::indent_width_t width);
 
 private:
     DeclarationScope* myParent = nullptr;
-
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
-    scope_depth_t myDepth = 0;               // Always defined by the parent scope
-    lexer::indent_width_t myIndentWidth = 0; // Comes from the lexer's first token
+
+    std::vector<Import> myImports;
 };
 
 class ProcedureScope : public DeclarationScope
@@ -66,7 +69,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     void append(std::unique_ptr<Expression> expression);

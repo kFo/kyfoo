@@ -27,7 +27,10 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantic) override;
+    void resolveSymbols(Diagnostics& dgn) override;
+
+public:
+    std::string const& name() const;
 
 private:
     std::string myName;

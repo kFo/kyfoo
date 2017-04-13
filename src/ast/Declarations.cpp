@@ -55,7 +55,14 @@ void Declaration::setParent(DeclarationScope& parent)
 // TypeDeclaration
 
 TypeDeclaration::TypeDeclaration(lexer::Token const& identifier)
+    : TypeDeclaration(identifier, {})
+{
+}
+
+TypeDeclaration::TypeDeclaration(lexer::Token const& identifier,
+                                 std::vector<TypeParameter>&& parameters)
     : Declaration(DeclKind::Type, identifier, nullptr)
+    , myParameters(std::move(parameters))
 {
 }
 
@@ -66,12 +73,9 @@ void TypeDeclaration::io(IStream& stream)
     Declaration::io(stream);
 }
 
-void TypeDeclaration::resolveSymbols(Semantics& semantics)
+void TypeDeclaration::resolveSymbols(Diagnostics&)
 {
-    if ( auto d = semantics.scope()->lookup(identifier().lexeme()) )
-        throw Error(identifier()) << "already defined as " << d->identifier();
 
-    semantics.scope()->append(this);
 }
 
 //
@@ -104,13 +108,9 @@ void SymbolDeclaration::io(IStream& stream)
         stream.next("value", typeExpression());
 }
 
-void SymbolDeclaration::resolveSymbols(Semantics& semantics)
+void SymbolDeclaration::resolveSymbols(Diagnostics&)
 {
-    if ( auto d = semantics.scope()->find(identifier().lexeme()) ) {
-        throw Error(identifier()) << "already defined at " << d->identifier();
-    }
-    semantics.scope()->append(this);
-    myNode->resolveSymbols(semantics);
+
 }
 
 Expression* SymbolDeclaration::expression()
@@ -160,12 +160,9 @@ void VariableDeclaration::io(IStream& stream)
     stream.next("value", myExpression);
 }
 
-void VariableDeclaration::resolveSymbols(Semantics& semantics)
+void VariableDeclaration::resolveSymbols(Diagnostics&)
 {
-    if ( auto d = semantics.scope()->find(identifier().lexeme()) )
-        throw Error(identifier()) << "already defined as " << d->identifier();
 
-    semantics.scope()->append(this);
 }
 
 TypeExpression const* VariableDeclaration::typeExpression() const
@@ -197,18 +194,15 @@ void ProcedureParameter::io(IStream& stream)
     VariableDeclaration::io(stream);
 }
 
-void ProcedureParameter::resolveSymbols(Semantics& semantics)
+void ProcedureParameter::resolveSymbols(Diagnostics&)
 {
-    if ( auto d = semantics.scope()->find(myIdentifier.lexeme()) )
-        throw Error(myIdentifier) << "already defined at " << d->identifier();
 
-    semantics.scope()->append(this);
 }
 
 //
 // ProcedureDeclaration
 
-ProcedureDeclaration::ProcedureDeclaration(lexer::Token identifier,
+ProcedureDeclaration::ProcedureDeclaration(lexer::Token const& identifier,
                                            std::vector<std::unique_ptr<ProcedureParameter>> parameters,
                                            std::unique_ptr<TypeExpression> returnTypeExpression)
     : Declaration(DeclKind::Procedure, identifier, nullptr)
@@ -230,19 +224,9 @@ void ProcedureDeclaration::io(IStream& stream)
         stream.next("definition", myDefinition);
 }
 
-void ProcedureDeclaration::resolveSymbols(Semantics& semantics)
+void ProcedureDeclaration::resolveSymbols(Diagnostics&)
 {
-    if ( auto d = semantics.scope()->find(identifier().lexeme()) ) {
-        throw Error(identifier()) << "already defined at " << d->identifier();
-    }
-    semantics.scope()->append(this);
-    if ( definition() ) {
-        semantics.pushScope();
-        for ( auto&& e : myParameters )
-            e->resolveSymbols(semantics);
-        definition()->resolveSymbols(semantics);
-        semantics.popScope();
-    }
+
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
@@ -256,6 +240,27 @@ void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
         throw std::runtime_error("procedure " + myIdentifier.lexeme() + " is already defined");
 
     myDefinition = std::move(definition);
+}
+
+//
+// ImportDeclaration
+
+ImportDeclaration::ImportDeclaration(lexer::Token const& identifier)
+    : Declaration(DeclKind::Import, identifier, nullptr)
+{
+}
+
+ImportDeclaration::~ImportDeclaration()
+{
+}
+
+void ImportDeclaration::io(IStream& stream)
+{
+    Declaration::io(stream);
+}
+
+void ImportDeclaration::resolveSymbols(Diagnostics&)
+{
 }
 
     } // namespace ast

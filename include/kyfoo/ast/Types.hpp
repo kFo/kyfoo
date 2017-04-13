@@ -21,7 +21,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) = 0;
+    void resolveSymbols(Diagnostics& dgn) = 0;
 };
 
 class TypeParameter
@@ -79,7 +79,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     lexer::Token const& identifier() const;
@@ -105,7 +105,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 private:
     TupleKind myKind;
@@ -124,7 +124,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 private:
     std::vector<std::unique_ptr<TypeExpression>> myParameters;

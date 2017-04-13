@@ -27,6 +27,7 @@ using openBracket = g::Terminal<TokenKind::OpenBracket>;
 using closeBracket = g::Terminal<TokenKind::CloseBracket>;
 using openAngle = g::Terminal<TokenKind::OpenAngle>;
 using closeAngle = g::Terminal<TokenKind::CloseAngle>;
+using _import = g::Terminal<TokenKind::_import>;
 
 struct TupleOpen : public
     g::Or<openParen, openBracket>
@@ -211,6 +212,15 @@ struct SymbolDeclaration : public
         }
 
         throw std::runtime_error("invalid SymbolDeclaration");
+    }
+};
+
+struct ImportDeclaration : public
+    g::And<_import, id>
+{
+    std::unique_ptr<ast::ImportDeclaration> make() const
+    {
+        return std::make_unique<ast::ImportDeclaration>(factor<1>().token());
     }
 };
 

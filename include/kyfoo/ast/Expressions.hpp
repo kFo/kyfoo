@@ -26,20 +26,20 @@ public:
     void io(IStream& stream) override;
 
 public:
-    virtual void resolveSymbols(Semantics& semantics) = 0;
+    virtual void resolveSymbols(Diagnostics& dgn) override = 0;
 };
 
 class PrimaryExpression : public Expression
 {
 public:
-    explicit PrimaryExpression(lexer::Token token);
+    explicit PrimaryExpression(lexer::Token const& token);
 
     // IIO
 public:
     void io(IStream& stream) override;
 
 public:
-    void resolveSymbols(Semantics& semantics);
+    void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     lexer::Token token() const;
@@ -62,7 +62,7 @@ public:
     void io(IStream& stream) override;
 
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 private:
     TupleKind myKind;
@@ -80,7 +80,7 @@ public:
     void io(IStream& stream) override;
 
 public:
-    void resolveSymbols(Semantics& semantics) override;
+    void resolveSymbols(Diagnostics& dgn) override;
 
 private:
     lexer::Token mySubject;

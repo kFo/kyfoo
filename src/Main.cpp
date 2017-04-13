@@ -57,10 +57,10 @@ int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
 
 int runSemanticsTest(const char* file, kyfoo::lexer::Scanner& scanner)
 {
+    kyfoo::ast::Diagnostics dgn;
     try {
         auto main = kyfoo::parser::parseModule(file, scanner);
-        kyfoo::ast::Semantics sem;
-        main->resolveSymbols(sem);
+        main->resolveSymbols(dgn);
     }
     catch (kyfoo::Error const& e) {
         std::cout << file << e;

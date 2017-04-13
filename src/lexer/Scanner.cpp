@@ -57,12 +57,8 @@ namespace
     {
         static std::map<std::string, TokenKind> map;
         static struct _init_map { _init_map(std::map<std::string, TokenKind>& map) {
-            map["if"] = TokenKind::_if;
-            map["var"] = TokenKind::_var;
-            map["type"] = TokenKind::_type;
-            map["else"] = TokenKind::_else;
-            map["is"] = TokenKind::_is;
-            map["in"] = TokenKind::_in;
+            for ( int i = (int)TokenKind::_keywordStart + 1; i != (int)TokenKind::_keywordEnd; ++i )
+                map[toString((TokenKind)i)] = (TokenKind)i;
         } } init_map(map);
 
         auto e = map.find(lexeme);

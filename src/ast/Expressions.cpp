@@ -26,7 +26,7 @@ void Expression::io(IStream& stream)
 //
 // PrimaryExpression
 
-PrimaryExpression::PrimaryExpression(lexer::Token token)
+PrimaryExpression::PrimaryExpression(lexer::Token const& token)
     : myToken(token)
 {
 }
@@ -38,22 +38,9 @@ void PrimaryExpression::io(IStream& stream)
     stream.next("primary", myToken);
 }
 
-void PrimaryExpression::resolveSymbols(Semantics& semantics)
+void PrimaryExpression::resolveSymbols(Diagnostics&)
 {
-    if ( token().kind() == lexer::TokenKind::Identifier )
-    {
-        auto decl = semantics.scope()->lookup(token().lexeme());
-        if ( !decl )
-            throw Error(token()) << "undefined identifier";
 
-        switch (decl->kind()) {
-        case DeclKind::Symbol:
-            return;
-
-        default:
-            throw Error(token()) << "does not refer to a symbol or variable declaration";
-        }
-    }
 }
 
 lexer::Token PrimaryExpression::token() const
@@ -120,10 +107,9 @@ void TupleExpression::io(IStream& stream)
     stream.closeArray();
 }
 
-void TupleExpression::resolveSymbols(Semantics& semantics)
+void TupleExpression::resolveSymbols(Diagnostics&)
 {
-    for ( auto&& e : myExpressions )
-        e->resolveSymbols(semantics);
+
 }
 
 //
@@ -144,19 +130,9 @@ void ApplyExpression::io(IStream& stream)
     stream.next("arguments", myArguments);
 }
 
-void ApplyExpression::resolveSymbols(Semantics& semantics)
+void ApplyExpression::resolveSymbols(Diagnostics&)
 {
-    if ( mySubject.kind() != lexer::TokenKind::Identifier )
-        throw std::logic_error("ApplyExpression subject must be an identifier");
 
-    auto decl = semantics.scope()->lookup(mySubject.lexeme());
-    if ( !decl )
-        throw Error(mySubject) << "undefined identifier";
-
-    if ( decl->kind() != DeclKind::Procedure )
-        throw Error(mySubject) << "does not refer to a procedure";
-
-    myArguments->resolveSymbols(semantics);
 }
 
     } // namespace parser

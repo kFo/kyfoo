@@ -1,3 +1,4 @@
+import axioms
 stdout = 1
 char = integer<7>
 string = array<char>
