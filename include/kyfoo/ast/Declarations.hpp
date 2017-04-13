@@ -5,7 +5,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Node.hpp>
-#include <kyfoo/ast/Types.hpp>
+#include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
 
@@ -27,7 +27,7 @@ enum class DeclKind
 
 class DeclarationScope;
 class ProcedureScope;
-class Expression;
+class ValueExpression;
 
 class Declaration : public INode
 {
@@ -91,7 +91,7 @@ public:
 
 public:
     SymbolDeclaration(lexer::Token const& identifier,
-                      std::unique_ptr<Expression> expression);
+                      std::unique_ptr<ValueExpression> expression);
     SymbolDeclaration(lexer::Token const& identifier,
                       std::unique_ptr<TypeExpression> typeExpression);
     ~SymbolDeclaration();
@@ -105,7 +105,7 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    Expression* expression();
+    ValueExpression* expression();
     TypeExpression* typeExpression();
 
 private:
@@ -118,9 +118,9 @@ class VariableDeclaration : public Declaration
 public:
     VariableDeclaration(lexer::Token const& identifier,
                         std::unique_ptr<TypeExpression> type,
-                        std::unique_ptr<Expression> expression);
+                        std::unique_ptr<ValueExpression> expression);
     VariableDeclaration(lexer::Token const& identifier,
-                        std::unique_ptr<Expression> expression);
+                        std::unique_ptr<ValueExpression> expression);
     explicit VariableDeclaration(lexer::Token const& identifier);
 
     ~VariableDeclaration();
@@ -135,11 +135,11 @@ public:
 
 public:
     TypeExpression const* typeExpression() const;
-    Expression const* expression() const;
+    ValueExpression const* expression() const;
 
 private:
     std::unique_ptr<TypeExpression> myTypeExpression;
-    std::unique_ptr<Expression> myExpression;
+    std::unique_ptr<ValueExpression> myExpression;
 };
 
 class ProcedureParameter : public VariableDeclaration

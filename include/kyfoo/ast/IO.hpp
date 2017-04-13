@@ -13,7 +13,7 @@
 namespace kyfoo {
     namespace ast {
 
-#define primitive_types(X) \
+#define PRIMITIVE_TYPES(X) \
     X(char) \
     X(unsigned char) \
     X(short) \
@@ -48,10 +48,11 @@ public:
     virtual void closeArray() = 0;
 
 #define X(a) virtual void next(const char* name, a& prim) = 0;
-    primitive_types(X);
+    PRIMITIVE_TYPES(X);
 #undef X
 
     virtual void next(const char* name, std::string& string) = 0;
+    virtual void next(const char* name, const char* string) = 0;
     virtual void next(const char* name, IIO& io) = 0;
     virtual void next(const char* name, IIO* io) = 0;
     virtual void next(const char* name, lexer::Token& token) = 0;
@@ -140,10 +141,15 @@ public:
         *myStream << prim; \
     }
 
-    primitive_types(X)
+    PRIMITIVE_TYPES(X)
 #undef X
 
     void next(const char* name, std::string& string) override
+    {
+        next(name, string.c_str());
+    }
+
+    void next(const char* name, const char* string) override
     {
         newLine();
         key(name);

@@ -10,9 +10,9 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Node.hpp>
-#include <kyfoo/ast/Types.hpp>
+#include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -72,10 +72,10 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    void append(std::unique_ptr<Expression> expression);
+    void append(std::unique_ptr<ValueExpression> expression);
 
 private:
-    std::vector<std::unique_ptr<Expression>> myExpressions;
+    std::vector<std::unique_ptr<ValueExpression>> myExpressions;
 };
 
     } // namespace ast

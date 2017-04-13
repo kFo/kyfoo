@@ -5,7 +5,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 
 namespace kyfoo {
     namespace parser {
@@ -73,17 +73,17 @@ struct Primary : public
     }
 };
 
-class Compound
+class ValueExpression
 {
 public:
-    Compound();
-    Compound(Compound const& rhs);
-    Compound(Compound&&) = delete;
-    ~Compound();
+    ValueExpression();
+    ValueExpression(ValueExpression const& rhs);
+    ValueExpression(ValueExpression&&) = delete;
+    ~ValueExpression();
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);
-    std::unique_ptr<ast::Expression> make() const;
+    std::unique_ptr<ast::ValueExpression> make() const;
 
 private:
     struct impl;
@@ -93,14 +93,14 @@ private:
 struct Tuple : public
     g::Or<
         g::And<openParen, closeParen>
-      , g::And<TupleOpen, g::Repeat2<Compound, comma>, TupleClose>
+      , g::And<TupleOpen, g::Repeat2<ValueExpression, comma>, TupleClose>
         >
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
         Token open;
         Token close;
-        std::vector<std::unique_ptr<ast::Expression>> expressions;
+        std::vector<std::unique_ptr<ast::ValueExpression>> expressions;
 
         switch (index()) {
         case 0:
@@ -127,11 +127,11 @@ struct Tuple : public
 };
 
 struct ImplicitTuple : public
-    g::OneOrMore<Compound>
+    g::OneOrMore<ValueExpression>
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
-        std::vector<std::unique_ptr<ast::Expression>> expressions;
+        std::vector<std::unique_ptr<ast::ValueExpression>> expressions;
         for (auto&& e : captures())
             expressions.emplace_back(e.make());
 
@@ -202,7 +202,7 @@ struct ProcedureDeclaration : public
 };
 
 struct SymbolDeclaration : public
-    g::And<id, equal, g::Long<Compound, TypeExpression>>
+    g::And<id, equal, g::Long<ValueExpression, TypeExpression>>
 {
     std::unique_ptr<ast::SymbolDeclaration> make() const
     {

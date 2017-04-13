@@ -1,9 +1,9 @@
-#include <kyfoo/ast/Types.hpp>
+#include <kyfoo/ast/TypeExpressions.hpp>
 
 #include <kyfoo/Error.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
@@ -29,6 +29,15 @@ PrimaryTypeExpression::PrimaryTypeExpression(lexer::Token const& identifier,
 void PrimaryTypeExpression::io(IStream& stream)
 {
     stream.next("identifier", myIdentifier);
+    stream.openArray("parameters");
+    for ( auto&& e : myParameters ) {
+        stream.next("kind", TypeParameter::to_string(e.kind()));
+        if ( auto t = e.typeExpression() )
+            stream.next("typeExpression", const_cast<TypeExpression*>(t));
+        else
+            stream.next("valueExpression", const_cast<ValueExpression*>(e.valueExpression()));
+    }
+    stream.closeArray();
 }
 
 void PrimaryTypeExpression::resolveSymbols(Diagnostics&)
@@ -65,13 +74,13 @@ TypeParameter::TypeParameter(TypeExpression* typeExpression)
 {
 }
 
-TypeParameter::TypeParameter(std::unique_ptr<Expression> expression)
+TypeParameter::TypeParameter(std::unique_ptr<ValueExpression> expression)
     : TypeParameter(expression.release())
 {
 }
 
-TypeParameter::TypeParameter(Expression* expression)
-    : myKind(Kind::Expression)
+TypeParameter::TypeParameter(ValueExpression* expression)
+    : myKind(Kind::ValueExpression)
     , myPtr(expression)
 {
 }
@@ -112,9 +121,9 @@ TypeExpression const* TypeParameter::typeExpression() const
     return nullptr;
 }
 
-Expression const* TypeParameter::expression() const
+ValueExpression const* TypeParameter::valueExpression() const
 {
-    if ( myKind == Kind::Expression )
+    if ( myKind == Kind::ValueExpression )
         return myPtr.asExpression;
 
     return nullptr;

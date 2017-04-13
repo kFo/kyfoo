@@ -6,7 +6,7 @@
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Tuples.hpp>
-#include <kyfoo/ast/Types.hpp>
+#include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -15,11 +15,11 @@ class ProceduralScope;
 class Semantics;
 class TypeExpression;
 
-class Expression : public INode
+class ValueExpression : public INode
 {
 public:
-    Expression();
-    ~Expression();
+    ValueExpression();
+    ~ValueExpression();
 
     // IIO
 public:
@@ -29,7 +29,7 @@ public:
     virtual void resolveSymbols(Diagnostics& dgn) override = 0;
 };
 
-class PrimaryExpression : public Expression
+class PrimaryExpression : public ValueExpression
 {
 public:
     explicit PrimaryExpression(lexer::Token const& token);
@@ -48,14 +48,14 @@ private:
     lexer::Token myToken;
 };
 
-class TupleExpression : public Expression
+class TupleExpression : public ValueExpression
 {
 public:
-    explicit TupleExpression(std::vector<std::unique_ptr<Expression>> expressions);
+    explicit TupleExpression(std::vector<std::unique_ptr<ValueExpression>> expressions);
 
     TupleExpression(lexer::Token open,
                     lexer::Token close,
-                    std::vector<std::unique_ptr<Expression>> expressions);
+                    std::vector<std::unique_ptr<ValueExpression>> expressions);
 
     // IIO
 public:
@@ -66,10 +66,10 @@ public:
 
 private:
     TupleKind myKind;
-    std::vector<std::unique_ptr<Expression>> myExpressions;
+    std::vector<std::unique_ptr<ValueExpression>> myExpressions;
 };
 
-class ApplyExpression : public Expression
+class ApplyExpression : public ValueExpression
 {
 public:
     explicit ApplyExpression(lexer::Token subject,

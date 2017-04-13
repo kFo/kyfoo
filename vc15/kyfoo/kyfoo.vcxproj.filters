@@ -42,13 +42,7 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp">
-      <Filter>include\kyfoo\ast</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp">
-      <Filter>include\kyfoo\ast</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\ast\Types.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Error.hpp">
@@ -84,6 +78,12 @@
     <ClInclude Include="..\..\src\ast\Axioms.hpp">
       <Filter>src\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\ValueExpressions.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\TypeExpressions.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -101,9 +101,6 @@
     <ClCompile Include="..\..\src\ast\Declarations.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ast\Expressions.cpp">
-      <Filter>src\ast</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ast\Scopes.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
@@ -119,10 +116,13 @@
     <ClCompile Include="..\..\src\ast\Semantics.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ast\Types.cpp">
+    <ClCompile Include="..\..\src\ast\Axioms.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ast\Axioms.cpp">
+    <ClCompile Include="..\..\src\ast\ValueExpressions.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\TypeExpressions.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>

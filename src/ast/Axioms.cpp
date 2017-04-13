@@ -1,6 +1,6 @@
 #include "Axioms.hpp"
 
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
