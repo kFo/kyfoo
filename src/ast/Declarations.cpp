@@ -1,6 +1,6 @@
 #include <kyfoo/ast/Declarations.hpp>
 
-#include <kyfoo/Error.hpp>
+#include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 
@@ -14,6 +14,17 @@ namespace kyfoo {
 
 //
 // Declaration
+
+const char* to_string(DeclKind kind)
+{
+    static const char* s[] = {
+#define X(a,b) b,
+        DECLARATION_KINDS(X)
+#undef X
+    };
+
+    return s[static_cast<std::size_t>(kind)];
+}
 
 Declaration::Declaration(DeclKind kind,
                          lexer::Token const& identifier,
@@ -137,7 +148,7 @@ VariableDeclaration::VariableDeclaration(lexer::Token const& identifier,
                                          std::unique_ptr<ValueExpression> expression)
     : Declaration(DeclKind::Variable, identifier, nullptr)
     , myTypeExpression(std::move(typeExpression))
-    , myExpression(std::move(expression))
+    , myValueExpression(std::move(expression))
 {
 }
 
@@ -157,7 +168,7 @@ VariableDeclaration::~VariableDeclaration() = default;
 void VariableDeclaration::io(IStream& stream)
 {
     Declaration::io(stream);
-    stream.next("value", myExpression);
+    stream.next("value", myValueExpression);
 }
 
 void VariableDeclaration::resolveSymbols(Diagnostics&)
@@ -170,9 +181,9 @@ TypeExpression const* VariableDeclaration::typeExpression() const
     return myTypeExpression.get();
 }
 
-ValueExpression const* VariableDeclaration::expression() const
+ValueExpression const* VariableDeclaration::valueExpression() const
 {
-    return myExpression.get();
+    return myValueExpression.get();
 }
 
 //
@@ -216,7 +227,6 @@ ProcedureDeclaration::~ProcedureDeclaration() = default;
 void ProcedureDeclaration::io(IStream& stream)
 {
     Declaration::io(stream);
-    stream.next("identifier", myIdentifier);
     stream.next("parameters", myParameters);
     stream.next("return", myReturnTypeExpression);
 
@@ -224,9 +234,12 @@ void ProcedureDeclaration::io(IStream& stream)
         stream.next("definition", myDefinition);
 }
 
-void ProcedureDeclaration::resolveSymbols(Diagnostics&)
+void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 {
+    if ( !definition() )
+        return;
 
+    definition()->resolveSymbols(dgn);
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
@@ -240,6 +253,16 @@ void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
         throw std::runtime_error("procedure " + myIdentifier.lexeme() + " is already defined");
 
     myDefinition = std::move(definition);
+}
+
+std::vector<std::unique_ptr<ProcedureParameter>> const& ProcedureDeclaration::parameters() const
+{
+    return myParameters;
+}
+
+TypeExpression const* ProcedureDeclaration::returnType() const
+{
+    return myReturnTypeExpression.get();
 }
 
 //

@@ -7,11 +7,15 @@
 #include <kyfoo/ast/Node.hpp>
 
 namespace kyfoo {
+    class Diagnostics;
+
     namespace ast {
 
 class TypeDeclaration;
 class TypeExpression;
 class ValueExpression;
+
+class Resolver;
 
 class TypeExpression : public INode
 {
@@ -19,9 +23,8 @@ class TypeExpression : public INode
 public:
     void io(IStream& stream) = 0;
 
-    // INode
 public:
-    void resolveSymbols(Diagnostics& dgn) = 0;
+    virtual void resolveSymbols(Diagnostics& dgn, Resolver& resolver) = 0;
 };
 
 class TypeParameter
@@ -89,7 +92,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 public:
     lexer::Token const& identifier() const;
@@ -115,7 +118,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 private:
     TupleKind myKind;
@@ -134,7 +137,7 @@ public:
 
     // INode
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 private:
     std::vector<std::unique_ptr<TypeExpression>> myParameters;

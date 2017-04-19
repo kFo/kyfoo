@@ -6,6 +6,8 @@
 #include <kyfoo/parser/Productions.hpp>
 
 namespace kyfoo {
+    class Diagnostics;
+
     namespace lexer {
         class Scanner;
     }
@@ -24,14 +26,16 @@ public:
     ~DeclarationScopeParser();
 
 public:
-    std::unique_ptr<DeclarationScopeParser> next(lexer::Scanner& scanner);
+    std::unique_ptr<DeclarationScopeParser> next(Diagnostics& dgn, lexer::Scanner& scanner);
     lexer::indent_width_t indent() const;
 
     std::unique_ptr<ast::ProcedureDeclaration> parseProcedureDeclaration(lexer::Scanner& scanner);
-    std::tuple<std::unique_ptr<ast::ProcedureScope>, lexer::indent_width_t> parseProcedureDefinition(lexer::Scanner& scanner);
+    std::tuple<std::unique_ptr<ast::ProcedureScope>, lexer::indent_width_t> parseProcedureDefinition(Diagnostics& dgn,
+                                                                                                     lexer::Scanner& scanner,
+                                                                                                     ast::ProcedureDeclaration& declaration);
 
 protected:
-    virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(lexer::Scanner& scanner);
+    virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner);
 
     enum IndentChange { Same, Increase, Decrease };
     IndentChange indentChange(lexer::indent_width_t indent) const;
@@ -49,13 +53,14 @@ public:
     ~ProcedureScopeParser();
 
 protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(lexer::Scanner& scanner) override;
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
 
 private:
     ast::ProcedureScope* scope();
 };
 
-std::unique_ptr<ast::Module> parseModule(const char* moduleName,
+std::unique_ptr<ast::Module> parseModule(Diagnostics& dgn,
+                                         const char* moduleName,
                                          lexer::Scanner& scanner);
 
     } // namespace parser

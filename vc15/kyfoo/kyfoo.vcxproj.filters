@@ -45,9 +45,6 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\Error.hpp">
-      <Filter>include\kyfoo</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
@@ -83,6 +80,9 @@
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\TypeExpressions.hpp">
       <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp">
+      <Filter>include\kyfoo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -124,6 +124,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ast\TypeExpressions.cpp">
       <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Diagnostics.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

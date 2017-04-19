@@ -1,23 +1,24 @@
 #pragma once
 
 #include <string>
-#include <map>
-#include <memory>
-#include <vector>
 
 namespace kyfoo {
     namespace ast {
 
-class Diagnostics
+class Declaration;
+class DeclarationScope;
+
+class Resolver
 {
 public:
-    // TODO: error and diagnostics
-};
+    explicit Resolver(DeclarationScope* scope);
 
-class SymbolResolver
-{
 public:
+    Declaration* inScope(std::string const& symbol);
+    Declaration* lookup(std::string const& symbol);
 
+private:
+    DeclarationScope* myScope = nullptr;
 };
 
     } // namespace ast

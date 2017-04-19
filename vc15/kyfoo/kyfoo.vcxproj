@@ -141,7 +141,7 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\TypeExpressions.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\Error.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp" />
@@ -159,6 +159,7 @@
     <ClCompile Include="..\..\src\ast\Scopes.cpp" />
     <ClCompile Include="..\..\src\ast\Semantics.cpp" />
     <ClCompile Include="..\..\src\ast\TypeExpressions.cpp" />
+    <ClCompile Include="..\..\src\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\lexer\Scanner.cpp" />
     <ClCompile Include="..\..\src\lexer\Token.cpp" />
     <ClCompile Include="..\..\src\lexer\TokenKind.cpp" />

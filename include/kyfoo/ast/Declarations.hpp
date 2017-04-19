@@ -15,15 +15,21 @@ namespace kyfoo {
 
     namespace ast {
 
+#define DECLARATION_KINDS(X) \
+    X(Type, "type") \
+    X(Symbol, "symbol") \
+    X(Procedure, "procedure") \
+    X(Variable, "variable") \
+    X(Import, "import")
 
 enum class DeclKind
 {
-    Type,
-    Symbol,
-    Procedure,
-    Variable,
-    Import,
+#define X(a,b) a,
+    DECLARATION_KINDS(X)
+#undef X
 };
+
+const char* to_string(DeclKind kind);
 
 class DeclarationScope;
 class ProcedureScope;
@@ -135,11 +141,11 @@ public:
 
 public:
     TypeExpression const* typeExpression() const;
-    ValueExpression const* expression() const;
+    ValueExpression const* valueExpression() const;
 
 private:
     std::unique_ptr<TypeExpression> myTypeExpression;
-    std::unique_ptr<ValueExpression> myExpression;
+    std::unique_ptr<ValueExpression> myValueExpression;
 };
 
 class ProcedureParameter : public VariableDeclaration
@@ -170,13 +176,16 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
     ProcedureScope* definition();
     void define(std::unique_ptr<ProcedureScope> definition);
+
+    std::vector<std::unique_ptr<ProcedureParameter>> const& parameters() const;
+    TypeExpression const* returnType() const;
 
 private:
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;

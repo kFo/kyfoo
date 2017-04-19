@@ -1,6 +1,6 @@
 #include <kyfoo/ast/TypeExpressions.hpp>
 
-#include <kyfoo/Error.hpp>
+#include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/ValueExpressions.hpp>
@@ -40,7 +40,7 @@ void PrimaryTypeExpression::io(IStream& stream)
     stream.closeArray();
 }
 
-void PrimaryTypeExpression::resolveSymbols(Diagnostics&)
+void PrimaryTypeExpression::resolveSymbols(Diagnostics&, Resolver&)
 {
 
 }
@@ -157,7 +157,7 @@ void TypeExpressionTuple::io(IStream& stream)
     stream.closeArray();
 }
 
-void TypeExpressionTuple::resolveSymbols(Diagnostics&)
+void TypeExpressionTuple::resolveSymbols(Diagnostics&, Resolver&)
 {
     // TODO
 }
@@ -178,7 +178,7 @@ void ProcedureTypeExpression::io(IStream& stream)
     stream.next("return", myReturn);
 }
 
-void ProcedureTypeExpression::resolveSymbols(Diagnostics&)
+void ProcedureTypeExpression::resolveSymbols(Diagnostics&, Resolver&)
 {
 
 }

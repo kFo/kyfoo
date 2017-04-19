@@ -7,6 +7,8 @@
 
 namespace kyfoo {
 
+    class Diagnostics;
+
     namespace lexer {
         class Scanner;
     }
@@ -25,12 +27,10 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
-public:
-    void resolveSymbols(Diagnostics& dgn) override;
-
 public:
     std::string const& name() const;
+
+    void semantics(Diagnostics& dgn);
 
 private:
     std::string myName;
