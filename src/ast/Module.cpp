@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-#include <kyfoo/Error.hpp>
+#include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
@@ -23,7 +23,6 @@ Module::Module(const char* name,
 
 Module::~Module() = default;
 
-
 void Module::io(IStream& stream)
 {
     stream.openGroup("module");
@@ -32,14 +31,14 @@ void Module::io(IStream& stream)
     stream.closeGroup();
 }
 
-void Module::resolveSymbols(Diagnostics&)
-{
-
-}
-
 std::string const& Module::name() const
 {
     return myName;
+}
+
+void Module::semantics(Diagnostics& dgn)
+{
+    myScope->resolveSymbols(dgn);
 }
 
     } // namespace ast

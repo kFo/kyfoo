@@ -1,9 +1,10 @@
 #include <tuple>
 
+#include <kyfoo/Diagnostics.hpp>
+
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
 
-#include <kyfoo/Error.hpp>
 #include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
@@ -38,9 +39,28 @@ void PrimaryExpression::io(IStream& stream)
     stream.next("primary", myToken);
 }
 
-void PrimaryExpression::resolveSymbols(Diagnostics&)
+void PrimaryExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
+    if ( myToken.kind() != lexer::TokenKind::Identifier )
+        return;
 
+    auto d = resolver.lookup(myToken.lexeme());
+    if ( !d ) {
+        dgn.undeclared(myToken);
+        return;
+    }
+
+    switch (d->kind()) {
+    case DeclKind::Procedure:
+    case DeclKind::Variable:
+        break;
+    default:
+        {
+            auto& err = dgn.error(myToken) << "identifier must refer to either a procedure or variable declaration";
+            err.see(d);
+        }
+        return;
+    }
 }
 
 lexer::Token PrimaryExpression::token() const
@@ -82,17 +102,21 @@ std::string to_string(TupleKind kind)
 }
 
 TupleExpression::TupleExpression(std::vector<std::unique_ptr<ValueExpression>> expressions)
-    : myKind(TupleKind::Open)
-    , myExpressions(std::move(expressions))
+    : TupleExpression(TupleKind::Open, std::move(expressions))
 {
 }
 
-TupleExpression::TupleExpression(lexer::Token open,
-                                 lexer::Token close,
+TupleExpression::TupleExpression(lexer::Token const& open,
+                                 lexer::Token const& close,
                                  std::vector<std::unique_ptr<ValueExpression>> expressions)
-    : TupleExpression(std::move(expressions))
+    : TupleExpression(toTupleKind(open.kind(), close.kind()), std::move(expressions))
 {
+}
 
+TupleExpression::TupleExpression(TupleKind kind, std::vector<std::unique_ptr<ValueExpression>> expressions)
+    : myKind(kind)
+    , myExpressions(std::move(expressions))
+{
 }
 
 void TupleExpression::io(IStream& stream)
@@ -107,19 +131,22 @@ void TupleExpression::io(IStream& stream)
     stream.closeArray();
 }
 
-void TupleExpression::resolveSymbols(Diagnostics&)
+void TupleExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
-
+    for ( auto&& e : myExpressions )
+        e->resolveSymbols(dgn, resolver);
 }
 
 //
 // ApplyExpression
 
-ApplyExpression::ApplyExpression(lexer::Token subject,
+ApplyExpression::ApplyExpression(lexer::Token const & subject,
                                  std::unique_ptr<TupleExpression> arguments)
     : mySubject(subject)
     , myArguments(std::move(arguments))
 {
+    if ( mySubject.kind() != lexer::TokenKind::Identifier )
+        throw std::runtime_error("subject of an apply expression must be an identifier");
 }
 
 void ApplyExpression::io(IStream& stream)
@@ -130,9 +157,19 @@ void ApplyExpression::io(IStream& stream)
     stream.next("arguments", myArguments);
 }
 
-void ApplyExpression::resolveSymbols(Diagnostics&)
+void ApplyExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
+    auto d = resolver.lookup(mySubject.lexeme());
+    if ( !d ) {
+        dgn.undeclared(mySubject);
+        return;
+    }
 
+    if ( d->kind() != DeclKind::Procedure ) {
+        auto& err = dgn.error(mySubject) << "identifier must refer to a procedure";
+        err.see(d);
+        return;
+    }
 }
 
     } // namespace parser

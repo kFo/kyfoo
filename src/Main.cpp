@@ -1,9 +1,12 @@
 #include <iostream>
 #include <fstream>
 
-#include <kyfoo/Error.hpp>
+#include <kyfoo/Diagnostics.hpp>
+
 #include <kyfoo/lexer/Scanner.hpp>
+
 #include <kyfoo/parser/Parse.hpp>
+
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Semantics.hpp>
@@ -42,30 +45,48 @@ int runScannerDump(kyfoo::lexer::Scanner& scanner)
 
 int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
 {
+    kyfoo::Diagnostics dgn;
     try {
-        auto main = kyfoo::parser::parseModule(file, scanner);
+        auto main = kyfoo::parser::parseModule(dgn, file, scanner);
         kyfoo::ast::JsonOutput output(std::cout);
         main->io(output);
     }
-    catch (kyfoo::Error const& e) {
-        std::cout << file << e;
+    catch (kyfoo::Diagnostics*) {
+        // Handled below
+    }
+    catch (std::exception const& e) {
+        std::cout << file << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
+
+    dgn.dumpErrors(std::cout);
+
+    if ( dgn.errorCount() )
+        return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
 
 int runSemanticsTest(const char* file, kyfoo::lexer::Scanner& scanner)
 {
-    kyfoo::ast::Diagnostics dgn;
+    kyfoo::Diagnostics dgn;
     try {
-        auto main = kyfoo::parser::parseModule(file, scanner);
-        main->resolveSymbols(dgn);
+        auto main = kyfoo::parser::parseModule(dgn, file, scanner);
+        main->semantics(dgn);
     }
-    catch (kyfoo::Error const& e) {
-        std::cout << file << e;
+    catch (kyfoo::Diagnostics*) {
+        // Handled below
+    }
+    catch (std::exception const& e) {
+        std::cout << file << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
+
+    dgn.dumpErrors(std::cout);
+    std::cout << file << ": completed with " << dgn.errorCount() << " errors" << std::endl;
+
+    if ( dgn.errorCount() )
+        return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
@@ -87,9 +108,9 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    if ( command == "scan" )
+    if ( command == "scan" || command == "lex" || command == "lexer" )
         return runScannerDump(scanner);
-    else if ( command == "parse" )
+    else if ( command == "parse" || command == "grammar" )
         return runParserTest(file.c_str(), scanner);
     else if ( command == "semantics" )
         return runSemanticsTest(file.c_str(), scanner);

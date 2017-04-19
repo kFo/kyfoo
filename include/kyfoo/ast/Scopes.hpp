@@ -4,7 +4,7 @@
 #include <memory>
 #include <tuple>
 
-#include <kyfoo/Error.hpp>
+#include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
@@ -24,12 +24,6 @@ class SymbolDeclaration;
 class ProcedureDeclaration;
 class Module;
 
-struct Import
-{
-    Module* module;
-    lexer::Token const* token;
-};
-
 class DeclarationScope : public INode
 {
 public:
@@ -40,9 +34,9 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    virtual void resolveSymbols(Diagnostics& dgn);
+    virtual Declaration* find(std::string const& identifier);
 
 public:
     void import(Module& module);
@@ -54,27 +48,33 @@ private:
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
-    std::vector<Import> myImports;
+    std::map<std::string, TypeDeclaration*> myTypes;
+    std::map<std::string, SymbolDeclaration*> mySymbols;
+    std::map<std::string, ProcedureDeclaration*> myProcedures;
+    std::map<std::string, VariableDeclaration*> myVariables;
+    std::map<std::string, ImportDeclaration*> myImports;
 };
 
 class ProcedureScope : public DeclarationScope
 {
 public:
-    explicit ProcedureScope(DeclarationScope* parent);
+    ProcedureScope(DeclarationScope* parent, ProcedureDeclaration& declaration);
     ~ProcedureScope();
 
     // IIO
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // DeclarationScope
 public:
     void resolveSymbols(Diagnostics& dgn) override;
+    Declaration* find(std::string const& identifier) override;
 
 public:
     void append(std::unique_ptr<ValueExpression> expression);
 
 private:
+    ProcedureDeclaration* myDeclaration = nullptr;
     std::vector<std::unique_ptr<ValueExpression>> myExpressions;
 };
 

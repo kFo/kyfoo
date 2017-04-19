@@ -9,11 +9,13 @@
 #include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
+    class Diagnostics;
+
     namespace ast {
 
 class ProceduralScope;
-class Semantics;
 class TypeExpression;
+class Resolver;
 
 class ValueExpression : public INode
 {
@@ -26,7 +28,7 @@ public:
     void io(IStream& stream) override;
 
 public:
-    virtual void resolveSymbols(Diagnostics& dgn) override = 0;
+    virtual void resolveSymbols(Diagnostics& dgn, Resolver& resolver) = 0;
 };
 
 class PrimaryExpression : public ValueExpression
@@ -38,8 +40,9 @@ public:
 public:
     void io(IStream& stream) override;
 
+    // ValueExpression
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 public:
     lexer::Token token() const;
@@ -53,16 +56,19 @@ class TupleExpression : public ValueExpression
 public:
     explicit TupleExpression(std::vector<std::unique_ptr<ValueExpression>> expressions);
 
-    TupleExpression(lexer::Token open,
-                    lexer::Token close,
+    TupleExpression(lexer::Token const& open,
+                    lexer::Token const& close,
                     std::vector<std::unique_ptr<ValueExpression>> expressions);
+
+    TupleExpression(TupleKind kind, std::vector<std::unique_ptr<ValueExpression>> expressions);
 
     // IIO
 public:
     void io(IStream& stream) override;
 
+    // ValueExpression
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 private:
     TupleKind myKind;
@@ -72,15 +78,16 @@ private:
 class ApplyExpression : public ValueExpression
 {
 public:
-    explicit ApplyExpression(lexer::Token subject,
+    explicit ApplyExpression(lexer::Token const & subject,
                              std::unique_ptr<TupleExpression> arguments);
 
     // IIO
 public:
     void io(IStream& stream) override;
 
+    // ValueExpression
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 private:
     lexer::Token mySubject;
