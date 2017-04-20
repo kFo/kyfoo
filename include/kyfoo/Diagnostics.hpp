@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <sstream>
 #include <vector>
@@ -11,6 +12,31 @@ namespace kyfoo {
         class Module;
         class Declaration;
     }
+
+class StopWatch
+{
+public:
+    StopWatch()
+        : myStart(std::chrono::system_clock::now())
+    {
+    }
+
+    std::chrono::duration<double> elapsed()
+    {
+        return std::chrono::system_clock::now() - myStart;
+    }
+
+    std::chrono::duration<double> reset()
+    {
+        auto now = std::chrono::system_clock::now();
+        auto elapsed = now - myStart;
+        myStart = now;
+        return elapsed;
+    }
+
+private:
+    std::chrono::system_clock::time_point myStart;
+};
 
 class Error
 {
