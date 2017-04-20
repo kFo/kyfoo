@@ -7,7 +7,7 @@ namespace kyfoo {
 
 class Module;
 
-std::unique_ptr<Module> importAxioms();
+std::unique_ptr<Module> createAxiomsModule();
 
     } // namespace ast
 } // namespace kyfoo

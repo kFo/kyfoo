@@ -22,7 +22,8 @@ namespace kyfoo {
 class DeclarationScopeParser
 {
 public:
-    DeclarationScopeParser(ast::DeclarationScope* scope, lexer::indent_width_t indent);
+    DeclarationScopeParser(ast::DeclarationScope* scope,
+                           lexer::indent_width_t indent);
     ~DeclarationScopeParser();
 
 public:
@@ -58,10 +59,6 @@ protected:
 private:
     ast::ProcedureScope* scope();
 };
-
-std::unique_ptr<ast::Module> parseModule(Diagnostics& dgn,
-                                         const char* moduleName,
-                                         lexer::Scanner& scanner);
 
     } // namespace parser
 } // namespace kyfoo

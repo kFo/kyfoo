@@ -40,7 +40,7 @@ class Declaration : public INode
 protected:
     Declaration(DeclKind kind,
                 lexer::Token const& identifier,
-                DeclarationScope const* parent);
+                DeclarationScope* scope);
 
 public:
     ~Declaration();
@@ -49,7 +49,6 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
 public:
     virtual void resolveSymbols(Diagnostics& dgn) = 0;
 
@@ -58,12 +57,13 @@ public:
     lexer::Token const& identifier() const;
 
 public:
-    void setParent(DeclarationScope& parent);
+    DeclarationScope* scope();
+    void setScope(DeclarationScope& parent);
 
 protected:
     DeclKind myKind;
     lexer::Token myIdentifier;
-    DeclarationScope const* myParent = nullptr;
+    DeclarationScope* myScope = nullptr;
 };
 
 class TypeDeclaration : public Declaration
@@ -78,7 +78,7 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
@@ -91,7 +91,7 @@ class SymbolDeclaration : public Declaration
 public:
     enum class Kind
     {
-        Expression,
+        ValueExpression,
         TypeExpression,
     };
 
@@ -106,12 +106,12 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    ValueExpression* expression();
+    ValueExpression* valueExpression();
     TypeExpression* typeExpression();
 
 private:
@@ -135,19 +135,20 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    TypeExpression const* typeExpression() const;
-    ValueExpression const* valueExpression() const;
+    TypeExpression* typeExpression();
+    ValueExpression* valueExpression();
 
 private:
     std::unique_ptr<TypeExpression> myTypeExpression;
     std::unique_ptr<ValueExpression> myValueExpression;
 };
 
+class ProcedureDeclaration;
 class ProcedureParameter : public VariableDeclaration
 {
 public:
@@ -159,9 +160,16 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
+
+public:
+    void setParent(ProcedureDeclaration* procDecl);
+    ProcedureDeclaration* parent();
+
+private:
+    ProcedureDeclaration* myParent = nullptr;
 };
 
 class ProcedureDeclaration : public Declaration
@@ -184,8 +192,8 @@ public:
     ProcedureScope* definition();
     void define(std::unique_ptr<ProcedureScope> definition);
 
-    std::vector<std::unique_ptr<ProcedureParameter>> const& parameters() const;
-    TypeExpression const* returnType() const;
+    std::vector<std::unique_ptr<ProcedureParameter>>& parameters();
+    TypeExpression* returnType();
 
 private:
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
@@ -203,7 +211,7 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 };

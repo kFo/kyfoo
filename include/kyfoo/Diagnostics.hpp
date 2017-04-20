@@ -8,6 +8,7 @@
 
 namespace kyfoo {
     namespace ast {
+        class Module;
         class Declaration;
     }
 
@@ -21,13 +22,16 @@ public:
     };
 
 public:
-    explicit Error(lexer::Token const& token);
-    explicit Error(lexer::Token const& token, Code code);
+    explicit Error(ast::Module* module);
+    Error(ast::Module* module, lexer::Token const& token);
+    Error(ast::Module* module, lexer::Token const& token, Code code);
     Error(Error& rhs) = delete;
 
 public:
+    ast::Module* module() const;
     std::string what() const;
     lexer::Token const& token() const;
+    Code code() const;
     std::vector<ast::Declaration const*> const& references() const;
 
 public:
@@ -38,6 +42,7 @@ public:
     Error& operator << (std::string const& rhs);
 
 private:
+    ast::Module* myModule = nullptr;
     lexer::Token myToken;
     Code myCode;
     std::ostringstream myInfo;
@@ -51,8 +56,9 @@ class Diagnostics
 public:
     void die();
 
-    Error& error(lexer::Token const& token);
-    Error& undeclared(lexer::Token const& token);
+    Error& error(ast::Module* module);
+    Error& error(ast::Module* module, lexer::Token const& token);
+    Error& undeclared(ast::Module* module, lexer::Token const& token);
 
     void dumpErrors(std::ostream& stream);
 

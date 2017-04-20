@@ -46,7 +46,7 @@ void PrimaryExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 
     auto d = resolver.lookup(myToken.lexeme());
     if ( !d ) {
-        dgn.undeclared(myToken);
+        dgn.undeclared(resolver.module(), myToken);
         return;
     }
 
@@ -56,7 +56,7 @@ void PrimaryExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
         break;
     default:
         {
-            auto& err = dgn.error(myToken) << "identifier must refer to either a procedure or variable declaration";
+            auto& err = dgn.error(resolver.module(), myToken) << "identifier must refer to either a procedure or variable declaration";
             err.see(d);
         }
         return;
@@ -161,12 +161,12 @@ void ApplyExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
     auto d = resolver.lookup(mySubject.lexeme());
     if ( !d ) {
-        dgn.undeclared(mySubject);
+        dgn.undeclared(resolver.module(), mySubject);
         return;
     }
 
     if ( d->kind() != DeclKind::Procedure ) {
-        auto& err = dgn.error(mySubject) << "identifier must refer to a procedure";
+        auto& err = dgn.error(resolver.module(), mySubject) << "identifier must refer to a procedure";
         err.see(d);
         return;
     }

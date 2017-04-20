@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -20,7 +21,8 @@ class DeclarationScope;
 class Module : public INode
 {
 public:
-    Module(const char* name, std::unique_ptr<DeclarationScope> scope);
+    explicit Module(std::string const& name);
+    Module(std::experimental::filesystem::path const& path);
     ~Module();
 
     // IIO
@@ -29,10 +31,15 @@ public:
 
 public:
     std::string const& name() const;
+    std::experimental::filesystem::path const& path() const;
 
+
+public:
+    void parse(Diagnostics& dgn);
     void semantics(Diagnostics& dgn);
 
 private:
+    std::experimental::filesystem::path myPath;
     std::string myName;
     std::unique_ptr<DeclarationScope> myScope;
 };

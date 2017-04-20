@@ -28,8 +28,8 @@ const char* to_string(DeclKind kind)
 
 Declaration::Declaration(DeclKind kind,
                          lexer::Token const& identifier,
-                         DeclarationScope const* parent)
-    : myParent(parent)
+                         DeclarationScope* scope)
+    : myScope(scope)
     , myKind(kind)
     , myIdentifier(identifier)
 {
@@ -54,12 +54,17 @@ lexer::Token const& Declaration::identifier() const
     return myIdentifier;
 }
 
-void Declaration::setParent(DeclarationScope& parent)
+DeclarationScope* Declaration::scope()
 {
-    if ( myParent )
-        throw std::logic_error("declaration parent set twice");
+    return myScope;
+}
 
-    myParent = &parent;
+void Declaration::setScope(DeclarationScope& scope)
+{
+    if ( myScope )
+        throw std::runtime_error("declaration parent set twice");
+
+    myScope = &scope;
 }
 
 //
@@ -86,7 +91,7 @@ void TypeDeclaration::io(IStream& stream)
 
 void TypeDeclaration::resolveSymbols(Diagnostics&)
 {
-
+    // TODO
 }
 
 //
@@ -95,7 +100,7 @@ void TypeDeclaration::resolveSymbols(Diagnostics&)
 SymbolDeclaration::SymbolDeclaration(lexer::Token const& identifier,
                                      std::unique_ptr<ValueExpression> expression)
     : Declaration(DeclKind::Symbol, identifier, nullptr)
-    , myKind(Kind::Expression)
+    , myKind(Kind::ValueExpression)
     , myNode(std::move(expression))
 {
 }
@@ -113,20 +118,20 @@ SymbolDeclaration::~SymbolDeclaration() = default;
 void SymbolDeclaration::io(IStream& stream)
 {
     Declaration::io(stream);
-    if ( auto p = expression() )
+    if ( auto p = valueExpression() )
         stream.next("value", p);
     else
         stream.next("value", typeExpression());
 }
 
-void SymbolDeclaration::resolveSymbols(Diagnostics&)
+void SymbolDeclaration::resolveSymbols(Diagnostics& /*dgn*/)
 {
-
+    // Must resolve symbols in the scope in which they are instantiated
 }
 
-ValueExpression* SymbolDeclaration::expression()
+ValueExpression* SymbolDeclaration::valueExpression()
 {
-    if ( myKind == Kind::Expression )
+    if ( myKind == Kind::ValueExpression )
         return static_cast<ValueExpression*>(myNode.get());
 
     return nullptr;
@@ -171,17 +176,23 @@ void VariableDeclaration::io(IStream& stream)
     stream.next("value", myValueExpression);
 }
 
-void VariableDeclaration::resolveSymbols(Diagnostics&)
+void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
+    Resolver resolver(scope());
 
+    if ( typeExpression() )
+        typeExpression()->resolveSymbols(dgn, resolver);
+
+    if ( valueExpression() )
+        valueExpression()->resolveSymbols(dgn, resolver);
 }
 
-TypeExpression const* VariableDeclaration::typeExpression() const
+TypeExpression* VariableDeclaration::typeExpression()
 {
     return myTypeExpression.get();
 }
 
-ValueExpression const* VariableDeclaration::valueExpression() const
+ValueExpression* VariableDeclaration::valueExpression()
 {
     return myValueExpression.get();
 }
@@ -205,9 +216,23 @@ void ProcedureParameter::io(IStream& stream)
     VariableDeclaration::io(stream);
 }
 
-void ProcedureParameter::resolveSymbols(Diagnostics&)
+void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
+    Resolver resolver(parent()->scope());
+    typeExpression()->resolveSymbols(dgn, resolver);
+}
 
+void ProcedureParameter::setParent(ProcedureDeclaration* procDecl)
+{
+    if ( parent() )
+        throw std::runtime_error("procedure parameter can only belong to one procedure");
+
+    myParent = procDecl;
+}
+
+ProcedureDeclaration* ProcedureParameter::parent()
+{
+    return myParent;
 }
 
 //
@@ -220,6 +245,8 @@ ProcedureDeclaration::ProcedureDeclaration(lexer::Token const& identifier,
     , myParameters(std::move(parameters))
     , myReturnTypeExpression(std::move(returnTypeExpression))
 {
+    for ( auto& p : myParameters )
+        p->setParent(this);
 }
 
 ProcedureDeclaration::~ProcedureDeclaration() = default;
@@ -236,10 +263,15 @@ void ProcedureDeclaration::io(IStream& stream)
 
 void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    if ( !definition() )
-        return;
+    for ( auto&& p : myParameters )
+        p->resolveSymbols(dgn);
+    
+    Resolver resolver(scope());
+    if ( returnType() )
+        returnType()->resolveSymbols(dgn, resolver);
 
-    definition()->resolveSymbols(dgn);
+    if ( definition() )
+        definition()->resolveSymbols(dgn);
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
@@ -253,14 +285,17 @@ void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
         throw std::runtime_error("procedure " + myIdentifier.lexeme() + " is already defined");
 
     myDefinition = std::move(definition);
+
+    for ( auto& p : myParameters )
+        p->setScope(*myDefinition);
 }
 
-std::vector<std::unique_ptr<ProcedureParameter>> const& ProcedureDeclaration::parameters() const
+std::vector<std::unique_ptr<ProcedureParameter>>& ProcedureDeclaration::parameters()
 {
     return myParameters;
 }
 
-TypeExpression const* ProcedureDeclaration::returnType() const
+TypeExpression* ProcedureDeclaration::returnType()
 {
     return myReturnTypeExpression.get();
 }
@@ -284,6 +319,7 @@ void ImportDeclaration::io(IStream& stream)
 
 void ImportDeclaration::resolveSymbols(Diagnostics&)
 {
+    // nop
 }
 
     } // namespace ast

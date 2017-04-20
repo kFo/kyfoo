@@ -13,8 +13,15 @@ namespace kyfoo {
 //
 // DeclarationScope
 
+DeclarationScope::DeclarationScope(Module* module)
+    : myModule(module)
+    , myParent(nullptr)
+{
+}
+
 DeclarationScope::DeclarationScope(DeclarationScope* parent)
-    : myParent(parent)
+    : myModule(parent->module())
+    , myParent(parent)
 {
 }
 
@@ -33,7 +40,7 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         // Ensure identifier is unique
         for ( std::size_t j = 0; j < i; ++j ) {
             if ( myDeclarations[j]->identifier().lexeme() == d->identifier().lexeme() ) {
-                auto& err = dgn.error(myDeclarations[i]->identifier()) << "identifier already declared";
+                auto& err = dgn.error(module(), myDeclarations[i]->identifier()) << "identifier already declared";
                 err.see(myDeclarations[i].get());
                 dgn.die();
             }
@@ -73,11 +80,17 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
 {
     myDeclarations.emplace_back(std::move(declaration));
+    myDeclarations.back()->setScope(*this);
 }
 
 void DeclarationScope::import(Module& module)
 {
     append(std::make_unique<ImportDeclaration>(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name())));
+}
+
+Module* DeclarationScope::module()
+{
+    return myModule;
 }
 
 DeclarationScope* DeclarationScope::parent()
@@ -97,7 +110,8 @@ Declaration* DeclarationScope::find(std::string const& identifier)
 //
 // ProcedureScope
 
-ProcedureScope::ProcedureScope(DeclarationScope* parent, ProcedureDeclaration& declaration)
+ProcedureScope::ProcedureScope(DeclarationScope* parent,
+                               ProcedureDeclaration& declaration)
     : DeclarationScope(parent)
     , myDeclaration(&declaration)
 {

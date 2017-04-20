@@ -14,6 +14,11 @@ Resolver::Resolver(DeclarationScope* scope)
 {
 }
 
+Module* Resolver::module()
+{
+    return myScope->module();
+}
+
 Declaration* Resolver::inScope(std::string const& symbol)
 {
     return myScope->find(symbol);

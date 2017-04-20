@@ -1,5 +1,6 @@
 #include <kyfoo/Diagnostics.hpp>
 
+#include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 
 namespace kyfoo {
@@ -7,15 +8,29 @@ namespace kyfoo {
 //
 // Error
 
-Error::Error(lexer::Token const& token)
-    : Error(token, General)
+Error::Error(ast::Module* module)
+    : myModule(module)
 {
 }
 
-Error::Error(lexer::Token const& token, Error::Code code)
-    : myToken(token)
+Error::Error(ast::Module* module,
+             lexer::Token const& token)
+    : Error(module, token, General)
+{
+}
+
+Error::Error(ast::Module* module,
+             lexer::Token const& token,
+             Error::Code code)
+    : myModule(module)
+    , myToken(token)
     , myCode(code)
 {
+}
+
+ast::Module* Error::module() const
+{
+    return myModule;
 }
 
 std::string Error::what() const
@@ -26,6 +41,11 @@ std::string Error::what() const
 lexer::Token const& Error::token() const
 {
     return myToken;
+}
+
+Error::Code Error::code() const
+{
+    return myCode;
 }
 
 std::vector<ast::Declaration const*> const& Error::references() const
@@ -52,15 +72,35 @@ Error& Error::operator << (std::string const& rhs)
 
 std::ostream& operator << (std::ostream& sink, Error const& err)
 {
-    sink << '(' << err.token().line() << ", " << err.token().column() << "): error: ";
-    if ( !err.token().lexeme().empty() )
-        sink << "'" << err.token().lexeme() << "' ";
+    auto startLine = [&] {
+        if ( !err.module()->path().empty() )
+            sink << err.module()->path().generic_string();
+        else
+            sink << err.module()->name();
+    };
+    startLine();
+    sink << "(" << err.token().line() << ", " << err.token().column() << "): error: ";
 
-    sink << err.what() << std::endl;
+    switch (err.code()) {
+    case Error::General:
+        if ( !err.token().lexeme().empty() )
+            sink << "'" << err.token().lexeme() << "' ";
+
+        sink << err.what() << std::endl;
+        break;
+
+    case Error::Undeclared:
+        sink << "'" << err.token().lexeme() << "': undeclared identifier" << std::endl;
+        break;
+
+    default:
+        throw std::runtime_error("unknown error");
+    }
 
     for ( auto&& e : err.references() ) {
+        startLine();
         auto const& id = e->identifier();
-        sink << '(' << id.line() << ", " << id.column() << "):     see '" << id.lexeme() << "' declared as " << to_string(e->kind()) << std::endl;
+        sink << "(" << id.line() << ", " << id.column() << "):     see '" << id.lexeme() << "' declared as " << to_string(e->kind()) << std::endl;
     }
 
     return sink;
@@ -74,15 +114,21 @@ void Diagnostics::die()
     throw this;
 }
 
-Error& Diagnostics::error(lexer::Token const& token)
+Error& Diagnostics::error(ast::Module* module)
 {
-    myErrors.emplace_back(std::make_unique<Error>(token));
+    myErrors.emplace_back(std::make_unique<Error>(module));
     return *myErrors.back();
 }
 
-Error& Diagnostics::undeclared(lexer::Token const& token)
+Error& Diagnostics::error(ast::Module* module, lexer::Token const& token)
 {
-    myErrors.emplace_back(std::make_unique<Error>(token, Error::Undeclared));
+    myErrors.emplace_back(std::make_unique<Error>(module, token));
+    return *myErrors.back();
+}
+
+Error& Diagnostics::undeclared(ast::Module* module, lexer::Token const& token)
+{
+    myErrors.emplace_back(std::make_unique<Error>(module, token, Error::Undeclared));
     return *myErrors.back();
 }
 

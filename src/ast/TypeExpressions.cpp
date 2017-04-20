@@ -40,9 +40,35 @@ void PrimaryTypeExpression::io(IStream& stream)
     stream.closeArray();
 }
 
-void PrimaryTypeExpression::resolveSymbols(Diagnostics&, Resolver&)
+void PrimaryTypeExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
+    if ( !isSpecified() )
+        return;
 
+    auto d = resolver.lookup(identifier().lexeme());
+    if ( !d ) {
+        dgn.undeclared(resolver.module(), identifier());
+        return;
+    }
+
+    if ( d->kind() == DeclKind::Symbol ) {
+        auto s = static_cast<SymbolDeclaration*>(d);
+        if ( !s->typeExpression() ) {
+            auto& err = dgn.error(resolver.module(), identifier()) << "is not a type";
+            err.see(s);
+        }
+
+        s->typeExpression()->resolveSymbols(dgn, resolver);
+    }
+    else if ( d->kind() != DeclKind::Type ) {
+        auto& err = dgn.error(resolver.module(), identifier()) << "is not a type";
+        err.see(d);
+    }
+
+    for ( auto&& p : myParameters ) {
+        if ( auto t = p.typeExpression() )
+            t->resolveSymbols(dgn, resolver);
+    }
 }
 
 lexer::Token const& PrimaryTypeExpression::identifier() const
@@ -113,7 +139,7 @@ TypeParameter::Kind TypeParameter::kind() const
     return myKind;
 }
 
-TypeExpression const* TypeParameter::typeExpression() const
+TypeExpression* TypeParameter::typeExpression()
 {
     if ( myKind == Kind::TypeExpression )
         return myPtr.asTypeExpression;
@@ -121,7 +147,7 @@ TypeExpression const* TypeParameter::typeExpression() const
     return nullptr;
 }
 
-ValueExpression const* TypeParameter::valueExpression() const
+ValueExpression* TypeParameter::valueExpression()
 {
     if ( myKind == Kind::ValueExpression )
         return myPtr.asExpression;
@@ -157,9 +183,10 @@ void TypeExpressionTuple::io(IStream& stream)
     stream.closeArray();
 }
 
-void TypeExpressionTuple::resolveSymbols(Diagnostics&, Resolver&)
+void TypeExpressionTuple::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
-    // TODO
+    for ( auto&& e : myMembers )
+        e->resolveSymbols(dgn, resolver);
 }
 
 //
@@ -178,9 +205,12 @@ void ProcedureTypeExpression::io(IStream& stream)
     stream.next("return", myReturn);
 }
 
-void ProcedureTypeExpression::resolveSymbols(Diagnostics&, Resolver&)
+void ProcedureTypeExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
+    for ( auto&& e : myParameters )
+        e->resolveSymbols(dgn, resolver);
 
+    myReturn->resolveSymbols(dgn, resolver);
 }
 
     } // namespace ast
