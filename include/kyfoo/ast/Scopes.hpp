@@ -27,7 +27,8 @@ class Module;
 class DeclarationScope : public INode
 {
 public:
-    DeclarationScope(DeclarationScope* parent);
+    explicit DeclarationScope(Module* module);
+    explicit DeclarationScope(DeclarationScope* parent);
     ~DeclarationScope();
 
     // IIO
@@ -42,12 +43,15 @@ public:
     void import(Module& module);
     void append(std::unique_ptr<Declaration> declaration);
 
+    Module* module();
     DeclarationScope* parent();
 
 private:
+    Module* myModule = nullptr;
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
+    // Indices
     std::map<std::string, TypeDeclaration*> myTypes;
     std::map<std::string, SymbolDeclaration*> mySymbols;
     std::map<std::string, ProcedureDeclaration*> myProcedures;
@@ -58,7 +62,8 @@ private:
 class ProcedureScope : public DeclarationScope
 {
 public:
-    ProcedureScope(DeclarationScope* parent, ProcedureDeclaration& declaration);
+    ProcedureScope(DeclarationScope* parent,
+                   ProcedureDeclaration& declaration);
     ~ProcedureScope();
 
     // IIO

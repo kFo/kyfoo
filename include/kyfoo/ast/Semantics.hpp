@@ -5,6 +5,7 @@
 namespace kyfoo {
     namespace ast {
 
+class Module;
 class Declaration;
 class DeclarationScope;
 
@@ -14,6 +15,7 @@ public:
     explicit Resolver(DeclarationScope* scope);
 
 public:
+    Module* module();
     Declaration* inScope(std::string const& symbol);
     Declaration* lookup(std::string const& symbol);
 

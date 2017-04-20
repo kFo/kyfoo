@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 
 #include <kyfoo/Diagnostics.hpp>
 
@@ -11,8 +12,17 @@
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
-int runScannerDump(kyfoo::lexer::Scanner& scanner)
+namespace fs = std::experimental::filesystem;
+
+int runScannerDump(fs::path const& file)
 {
+    std::ifstream fin(file);
+    kyfoo::lexer::Scanner scanner(fin);
+    if ( !scanner ) {
+        std::cout << "could not open file: " << file << std::endl;
+        return EXIT_FAILURE;
+    }
+
     while (scanner)
     {
         auto token = scanner.next();
@@ -43,11 +53,12 @@ int runScannerDump(kyfoo::lexer::Scanner& scanner)
     return EXIT_SUCCESS;
 }
 
-int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
+int runParserTest(fs::path const& filepath)
 {
     kyfoo::Diagnostics dgn;
+    auto main = std::make_unique<kyfoo::ast::Module>(filepath);
     try {
-        auto main = kyfoo::parser::parseModule(dgn, file, scanner);
+        main->parse(dgn);
         kyfoo::ast::JsonOutput output(std::cout);
         main->io(output);
     }
@@ -55,7 +66,7 @@ int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
         // Handled below
     }
     catch (std::exception const& e) {
-        std::cout << file << ": ICE: " << e.what() << std::endl;
+        std::cout << filepath << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -67,23 +78,25 @@ int runParserTest(const char* file, kyfoo::lexer::Scanner& scanner)
     return EXIT_SUCCESS;
 }
 
-int runSemanticsTest(const char* file, kyfoo::lexer::Scanner& scanner)
+int runSemanticsTest(fs::path const& filepath)
 {
     kyfoo::Diagnostics dgn;
+    auto main = std::make_unique<kyfoo::ast::Module>(filepath);
     try {
-        auto main = kyfoo::parser::parseModule(dgn, file, scanner);
-        main->semantics(dgn);
+        main->parse(dgn);
+        if ( dgn.errorCount() == 0 )
+            main->semantics(dgn);
     }
     catch (kyfoo::Diagnostics*) {
         // Handled below
     }
     catch (std::exception const& e) {
-        std::cout << file << ": ICE: " << e.what() << std::endl;
+        std::cout << filepath << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     dgn.dumpErrors(std::cout);
-    std::cout << file << ": completed with " << dgn.errorCount() << " errors" << std::endl;
+    std::cout << main->path().generic_string() << ": completed with " << dgn.errorCount() << " errors" << std::endl;
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -100,20 +113,13 @@ int main(int argc, char* argv[])
 
     std::string command = argv[1];
     std::string file = argv[2];
-    
-    std::ifstream fin(file);
-    kyfoo::lexer::Scanner scanner(fin);
-    if ( !scanner ) {
-        std::cout << "could not open file: " << file << std::endl;
-        return EXIT_FAILURE;
-    }
 
     if ( command == "scan" || command == "lex" || command == "lexer" )
-        return runScannerDump(scanner);
+        return runScannerDump(file);
     else if ( command == "parse" || command == "grammar" )
-        return runParserTest(file.c_str(), scanner);
+        return runParserTest(file);
     else if ( command == "semantics" )
-        return runSemanticsTest(file.c_str(), scanner);
+        return runSemanticsTest(file);
 
     std::cout << "Unknown option: " << command << std::endl;
     return EXIT_FAILURE;

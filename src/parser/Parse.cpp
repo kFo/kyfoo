@@ -1,9 +1,14 @@
 #include <kyfoo/parser/Parse.hpp>
 
+#include <filesystem>
+#include <fstream>
+
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
+
+namespace fs = std::experimental::filesystem;
 
 namespace kyfoo {
     namespace parser {
@@ -32,7 +37,8 @@ void discardEmptyLines(lexer::Scanner& scanner)
 //
 // DeclarationScopeParser
 
-DeclarationScopeParser::DeclarationScopeParser(ast::DeclarationScope* scope, lexer::indent_width_t indent)
+DeclarationScopeParser::DeclarationScopeParser(ast::DeclarationScope* scope,
+                                               lexer::indent_width_t indent)
     : myScope(scope)
     , myIndent(indent)
 {
@@ -89,7 +95,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
         if ( scanner.peek().kind() != TokenKind::LineBreak ) {
             auto expr = parseExpression(scanner);
             if ( !expr ) {
-                dgn.error(scanner.peek()) << "expected expression following procedure declaration";
+                dgn.error(myScope->module(), scanner.peek()) << "expected expression following procedure declaration";
                 dgn.die();
             }
 
@@ -99,7 +105,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
 
         scanner.next(); // linebreak
         if ( scanner.peek().kind() != TokenKind::Indent ) {
-            dgn.error(scanner.peek()) << "expected new scope for procedure definition";
+            dgn.error(myScope->module(), scanner.peek()) << "expected new scope for procedure definition";
             dgn.die();
         }
 
@@ -108,7 +114,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
         switch ( indentChange(nextIndentWidth) ) {
         case Same:
         case Decrease:
-            dgn.error(nextIndent) << "expected new scope for procedure definition", dgn.die();
+            dgn.error(myScope->module(), nextIndent) << "expected new scope for procedure definition", dgn.die();
         case Increase:
             return make_tuple(std::move(scope), nextIndentWidth);
         }
@@ -171,7 +177,7 @@ std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics
         std::tie(success, newScopeParser) = parseNext(dgn, scanner);
 
         if ( !success ) {
-            dgn.error(scanner.peek()) << "grammar at this point is not recognized";
+            dgn.error(myScope->module(), scanner.peek()) << "grammar at this point is not recognized";
             dgn.die();
         }
         
@@ -195,7 +201,7 @@ std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics
             case Same:
                 break;
             case Increase:
-                dgn.error(scanner.peek()) << "unexpected scope opening", dgn.die();
+                dgn.error(myScope->module(), scanner.peek()) << "unexpected scope opening", dgn.die();
             case Decrease:
                 return nullptr;
             }
@@ -204,7 +210,7 @@ std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics
         }
 
         default:
-            dgn.error(scanner.peek()) << "expected end of line", dgn.die();
+            dgn.error(myScope->module(), scanner.peek()) << "expected end of line", dgn.die();
         }
     }
 
@@ -249,44 +255,6 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 ast::ProcedureScope* ProcedureScopeParser::scope()
 {
     return static_cast<ast::ProcedureScope*>(myScope);
-}
-
-std::unique_ptr<ast::Module> parseModule(Diagnostics& dgn,
-                                         const char* moduleName,
-                                         lexer::Scanner& scanner)
-{
-    using lexer::TokenKind;
-
-    auto moduleScope = std::make_unique<ast::DeclarationScope>(nullptr);
-    
-    std::vector<std::unique_ptr<DeclarationScopeParser>> scopeStack;
-    scopeStack.emplace_back(std::make_unique<DeclarationScopeParser>(moduleScope.get(), 0));
-
-    while ( scanner ) {
-        auto nextScope = scopeStack.back()->next(dgn, scanner);
-        if ( nextScope ) {
-            scopeStack.push_back(std::move(nextScope));
-        }
-        else {
-            if ( scanner.peek().kind() == TokenKind::EndOfFile )
-                break;
-
-            lexer::indent_width_t nextIndentWidth = 0;
-            if ( scanner.peek().kind() == TokenKind::Indent )
-                nextIndentWidth = scanner.next().lexeme().size();
-
-            while ( !scopeStack.empty() && scopeStack.back()->indent() != nextIndentWidth ) {
-                scopeStack.pop_back();
-            }
-
-            if ( scopeStack.empty() ) {
-                dgn.error(scanner.peek()) << "indentation doesn't match an existing scope";
-                dgn.die();
-            }
-        }
-    }
-
-    return std::make_unique<ast::Module>(moduleName, std::move(moduleScope));
 }
 
     } // namespace parser

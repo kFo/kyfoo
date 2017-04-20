@@ -61,8 +61,8 @@ public:
 
 public:
     Kind kind() const;
-    TypeExpression const* typeExpression() const;
-    ValueExpression const* valueExpression() const;
+    TypeExpression* typeExpression();
+    ValueExpression* valueExpression();
 
 private:
     Kind myKind;
@@ -90,7 +90,7 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // TypeExpression
 public:
     void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
@@ -116,7 +116,7 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // TypeExpression
 public:
     void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
@@ -135,7 +135,7 @@ public:
 public:
     void io(IStream& stream) override;
 
-    // INode
+    // TypeExpression
 public:
     void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
