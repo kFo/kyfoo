@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <vector>
 
 #include <kyfoo/Diagnostics.hpp>
 
@@ -78,48 +79,102 @@ int runParserTest(fs::path const& filepath)
     return EXIT_SUCCESS;
 }
 
-int runSemanticsTest(fs::path const& filepath)
+int runSemanticsTest(std::vector<fs::path> const& files)
 {
-    kyfoo::Diagnostics dgn;
-    auto main = std::make_unique<kyfoo::ast::Module>(filepath);
-    try {
-        main->parse(dgn);
-        if ( dgn.errorCount() == 0 )
-            main->semantics(dgn);
-    }
-    catch (kyfoo::Diagnostics*) {
-        // Handled below
-    }
-    catch (std::exception const& e) {
-        std::cout << filepath << ": ICE: " << e.what() << std::endl;
-        return EXIT_FAILURE;
+    auto ret = EXIT_SUCCESS;
+    std::vector<std::unique_ptr<kyfoo::ast::Module>> modules;
+
+    for ( auto& f : files ) {
+        kyfoo::Diagnostics dgn;
+        auto modFile = canonical(f).make_preferred().string();
+        std::chrono::duration<double> parseTime;
+        std::chrono::duration<double> semTime;
+        try {
+            for ( auto const& m : modules )
+                if ( m->path() == f )
+                    goto L_nextFile;
+
+            kyfoo::StopWatch sw;
+
+            modules.emplace_back(std::make_unique<kyfoo::ast::Module>(f));
+            auto& m = modules.back();
+            m->parse(dgn);
+
+            parseTime = sw.reset();
+
+            if ( dgn.errorCount() == 0 )
+                m->semantics(dgn);
+
+            semTime = sw.elapsed();
+        }
+        catch (kyfoo::Diagnostics*) {
+            // Handled below
+        }
+        catch (std::exception const& e) {
+            std::cout << modFile << ": ICE: " << e.what() << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        dgn.dumpErrors(std::cout);
+        std::cout << modFile << ": done; errors: " << dgn.errorCount() << "; parse: " << parseTime.count() << "; sem: " << semTime.count() << std::endl;
+
+        if ( dgn.errorCount() )
+            ret = EXIT_FAILURE;
+
+    L_nextFile:
+        continue;
     }
 
-    dgn.dumpErrors(std::cout);
-    std::cout << main->path().generic_string() << ": completed with " << dgn.errorCount() << " errors" << std::endl;
+    return ret;
+}
 
-    if ( dgn.errorCount() )
-        return EXIT_FAILURE;
+void printHelp(fs::path const& arg0)
+{
+    auto cmd = arg0.filename().string();
 
-    return EXIT_SUCCESS;
+    std::cout << cmd <<
+        " COMMAND FILE [FILE2 FILE3 ...]\n"
+        "\n"
+        "COMMAND:\n"
+        "  scan, lex, lexer    Prints the lexer output of the module\n"
+        " parse, grammar       Prints the parse tree as JSON\n"
+        " semantics            Checks the module for semantic errors"
+        << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
-    if ( argc != 3 ) {
-        std::cout << "only expected 2 arguments" << std::endl;
+    if ( argc < 3 ) {
+        printHelp(argv[0]);
         return EXIT_FAILURE;
     }
 
     std::string command = argv[1];
     std::string file = argv[2];
 
-    if ( command == "scan" || command == "lex" || command == "lexer" )
+    if ( command == "scan" || command == "lex" || command == "lexer" ) {
+        if ( argc != 3 ) {
+            printHelp(argv[0]);
+            return EXIT_FAILURE;
+        }
+
         return runScannerDump(file);
-    else if ( command == "parse" || command == "grammar" )
+    }
+    else if ( command == "parse" || command == "grammar" ) {
+        if ( argc != 3 ) {
+            printHelp(argv[0]);
+            return EXIT_FAILURE;
+        }
+
         return runParserTest(file);
-    else if ( command == "semantics" )
-        return runSemanticsTest(file);
+    }
+    else if ( command == "semantics" ) {
+        std::vector<fs::path> files;
+        for ( int i = 2; i != argc; ++i )
+            files.push_back(argv[i]);
+
+        return runSemanticsTest(files);
+    }
 
     std::cout << "Unknown option: " << command << std::endl;
     return EXIT_FAILURE;

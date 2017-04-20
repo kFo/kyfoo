@@ -28,7 +28,7 @@ Module::Module(std::string const& name)
 Module::Module(fs::path const& path)
     : myPath(canonical(path).make_preferred())
 {
-    myName = path.filename().generic_string();
+    myName = path.filename().string();
 }
 
 Module::~Module() = default;
