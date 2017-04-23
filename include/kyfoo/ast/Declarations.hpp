@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include <kyfoo/lexer/Token.hpp>
 
@@ -16,15 +17,15 @@ namespace kyfoo {
     namespace ast {
 
 #define DECLARATION_KINDS(X) \
-    X(Type, "type") \
-    X(Symbol, "symbol") \
-    X(Procedure, "procedure") \
-    X(Variable, "variable") \
-    X(Import, "import")
+    X(Type     , "type"     , TypeDeclaration) \
+    X(Symbol   , "symbol"   , SymbolDeclaration) \
+    X(Procedure, "procedure", ProcedureDeclaration) \
+    X(Variable , "variable" , VariableDeclaration) \
+    X(Import   , "import"   , ImportDeclaration)
 
 enum class DeclKind
 {
-#define X(a,b) a,
+#define X(a,b,c) a,
     DECLARATION_KINDS(X)
 #undef X
 };
@@ -56,6 +57,8 @@ public:
     DeclKind kind() const;
     lexer::Token const& identifier() const;
 
+    template <typename T> T* as() = delete;
+
 public:
     DeclarationScope* scope();
     void setScope(DeclarationScope& parent);
@@ -66,12 +69,26 @@ protected:
     DeclarationScope* myScope = nullptr;
 };
 
+class TypeParameter
+{
+public:
+    explicit TypeParameter(std::unique_ptr<ValueExpression> valueExpression);
+    explicit TypeParameter(std::unique_ptr<TypeExpression> typeExpression);
+    TypeParameter(TypeArgument expression,
+                  std::unique_ptr<TypeExpression> typeConstraint);
+    ~TypeParameter();
+
+private:
+    std::optional<TypeArgument> myLhs;
+    std::unique_ptr<TypeExpression> myRhs;
+};
+
 class TypeDeclaration : public Declaration
 {
 public:
     explicit TypeDeclaration(lexer::Token const& identifier);
     TypeDeclaration(lexer::Token const& identifier,
-                    std::vector<TypeParameter>&& parameters);
+                    std::vector<std::unique_ptr<TypeParameter>>&& parameters);
     ~TypeDeclaration();
 
     // IIO
@@ -82,8 +99,13 @@ public:
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
+public:
+    void define(std::unique_ptr<DeclarationScope> scope);
+    DeclarationScope* definition();
+
 private:
-    std::vector<TypeParameter> myParameters;
+    std::vector<std::unique_ptr<TypeParameter>> myParameters;
+    std::unique_ptr<DeclarationScope> myDefinition;
 };
 
 class SymbolDeclaration : public Declaration
@@ -215,5 +237,11 @@ public:
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 };
+
+// sugar to avoid switching on DeclKind
+#define X(a,b,c) template<> inline c* Declaration::as<c>() { return myKind == DeclKind::a ? static_cast<c*>(this) : nullptr; }
+    DECLARATION_KINDS(X)
+#undef X
+
     } // namespace ast
 } // namespace kyfoo

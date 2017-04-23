@@ -28,6 +28,7 @@ using closeBracket = g::Terminal<TokenKind::CloseBracket>;
 using openAngle = g::Terminal<TokenKind::OpenAngle>;
 using closeAngle = g::Terminal<TokenKind::CloseAngle>;
 using _import = g::Terminal<TokenKind::_import>;
+using _type = g::Terminal<TokenKind::_type>;
 
 struct TupleOpen : public
     g::Or<openParen, openBracket>
@@ -221,6 +222,81 @@ struct ImportDeclaration : public
     std::unique_ptr<ast::ImportDeclaration> make() const
     {
         return std::make_unique<ast::ImportDeclaration>(factor<1>().token());
+    }
+};
+
+struct TypeParameters : public
+    g::And<
+        openAngle
+      , g::Repeat2<
+            g::Or<
+                 g::And<g::Long<ValueExpression, TypeExpression>, g::Opt<g::And<colon, TypeExpression>>>
+               , g::And<ValueExpression, colon>
+               , g::And<colon, TypeExpression>
+                 >
+            , comma>
+      , closeAngle>
+{
+    std::vector<std::unique_ptr<ast::TypeParameter>> make() const
+    {
+        std::vector<std::unique_ptr<ast::TypeParameter>> typeParameters;
+        auto const& params = factor<1>().captures();
+        for ( auto&& p : params ) {
+            switch (p.index()) {
+            case 0:
+            {
+                auto const& t = p.term<0>();
+                auto c = t.factor<1>().capture();
+                std::unique_ptr<ast::TypeExpression> typeConstraint =
+                    c ? c->factor<1>().make() : nullptr;
+                if ( t.factor<0>().index() == 0 )
+                    typeParameters.emplace_back(
+                        std::make_unique<ast::TypeParameter>(
+                            ast::TypeArgument(t.factor<0>().term<0>().make()), std::move(typeConstraint)));
+                else
+                    typeParameters.emplace_back(
+                        std::make_unique<ast::TypeParameter>(
+                            ast::TypeArgument(t.factor<0>().term<1>().make()), std::move(typeConstraint)));
+
+                break;
+            }
+
+            case 1:
+            {
+                auto const& t = p.term<1>();
+                typeParameters.emplace_back(
+                    std::make_unique<ast::TypeParameter>(t.factor<0>().make()));
+                break;
+            }
+
+            case 2:
+            {
+                auto const& t = p.term<2>();
+                typeParameters.emplace_back(
+                    std::make_unique<ast::TypeParameter>(t.factor<1>().make()));
+                break;
+            }
+
+            default:
+                throw std::runtime_error("invalid type declaration");
+            }
+        }
+
+        return typeParameters;
+    }
+};
+
+struct TypeDeclaration : public
+    g::And<_type, id, g::Opt<TypeParameters>>
+{
+    std::unique_ptr<ast::TypeDeclaration> make() const
+    {
+        auto typeName = factor<1>().token();
+        std::vector<std::unique_ptr<ast::TypeParameter>> typeParameters;
+        if ( auto p = factor<2>().capture() )
+            typeParameters = p->make();
+
+        return std::make_unique<ast::TypeDeclaration>(typeName, std::move(typeParameters));
     }
 };
 

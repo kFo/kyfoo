@@ -60,6 +60,26 @@ private:
     std::map<std::string, ImportDeclaration*> myImports;
 };
 
+class TypeScope : public DeclarationScope
+{
+public:
+    TypeScope(DeclarationScope* parent,
+              TypeDeclaration& declaration);
+    ~TypeScope();
+
+    // IIO
+public:
+    void io(IStream& stream) override;
+
+    // DeclarationScope
+public:
+    void resolveSymbols(Diagnostics& dgn) override;
+    Declaration* find(std::string const& identifier) override;
+
+private:
+    TypeDeclaration* myTypeDeclaration = nullptr;
+};
+
 class ProcedureScope : public DeclarationScope
 {
 public:

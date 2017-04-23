@@ -57,18 +57,18 @@ struct TypeSubExpression : public
         , ValueExpression
          >
 {
-    ast::TypeParameter make() const
+    ast::TypeArgument make() const
     {
         switch (index()) {
         case 0:
         {
-            return ast::TypeParameter(term<0>().make());
+            return ast::TypeArgument(term<0>().make());
         }
         break;
 
         case 1:
         {
-            return ast::TypeParameter(term<1>().make());
+            return ast::TypeArgument(term<1>().make());
         }
         break;
         }

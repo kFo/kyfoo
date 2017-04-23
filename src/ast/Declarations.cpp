@@ -18,7 +18,7 @@ namespace kyfoo {
 const char* to_string(DeclKind kind)
 {
     static const char* s[] = {
-#define X(a,b) b,
+#define X(a,b,c) b,
         DECLARATION_KINDS(X)
 #undef X
     };
@@ -68,6 +68,28 @@ void Declaration::setScope(DeclarationScope& scope)
 }
 
 //
+// TypeParameter
+
+TypeParameter::TypeParameter(std::unique_ptr<ValueExpression> valueExpression)
+    : myLhs(std::move(valueExpression))
+{
+}
+
+TypeParameter::TypeParameter(std::unique_ptr<TypeExpression> typeExpression)
+    : myRhs(std::move(typeExpression))
+{
+}
+
+TypeParameter::TypeParameter(TypeArgument expression,
+                             std::unique_ptr<TypeExpression> typeConstraint)
+    : myLhs(std::move(expression))
+    , myRhs(std::move(typeConstraint))
+{
+}
+
+TypeParameter::~TypeParameter() = default;
+
+//
 // TypeDeclaration
 
 TypeDeclaration::TypeDeclaration(lexer::Token const& identifier)
@@ -76,7 +98,7 @@ TypeDeclaration::TypeDeclaration(lexer::Token const& identifier)
 }
 
 TypeDeclaration::TypeDeclaration(lexer::Token const& identifier,
-                                 std::vector<TypeParameter>&& parameters)
+                                 std::vector<std::unique_ptr<TypeParameter>>&& parameters)
     : Declaration(DeclKind::Type, identifier, nullptr)
     , myParameters(std::move(parameters))
 {
@@ -92,6 +114,19 @@ void TypeDeclaration::io(IStream& stream)
 void TypeDeclaration::resolveSymbols(Diagnostics&)
 {
     // TODO
+}
+
+void TypeDeclaration::define(std::unique_ptr<DeclarationScope> scope)
+{
+    if ( myDefinition )
+        throw std::runtime_error("type declaration defined more than once");
+
+    myDefinition = std::move(scope);
+}
+
+DeclarationScope* TypeDeclaration::definition()
+{
+    return myDefinition.get();
 }
 
 //
