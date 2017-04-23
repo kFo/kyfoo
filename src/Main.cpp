@@ -196,8 +196,8 @@ void printHelp(fs::path const& arg0)
         "\n"
         "COMMAND:\n"
         "  scan, lex, lexer    Prints the lexer output of the module\n"
-        " parse, grammar       Prints the parse tree as JSON\n"
-        " semantics            Checks the module for semantic errors"
+        "  parse, grammar      Prints the parse tree as JSON\n"
+        "  semantics           Checks the module for semantic errors"
         << std::endl;
 }
 
@@ -236,5 +236,7 @@ int main(int argc, char* argv[])
     }
 
     std::cout << "Unknown option: " << command << std::endl;
+    printHelp(argv[0]);
+
     return EXIT_FAILURE;
 }

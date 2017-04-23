@@ -50,7 +50,7 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         for ( std::size_t j = 0; j < i; ++j ) {
             if ( myDeclarations[j]->identifier().lexeme() == d->identifier().lexeme() ) {
                 auto& err = dgn.error(module(), myDeclarations[i]->identifier()) << "identifier already declared";
-                err.see(myDeclarations[i].get());
+                err.see(myDeclarations[j].get());
                 dgn.die();
             }
         }
