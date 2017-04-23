@@ -27,7 +27,7 @@ public:
     virtual void resolveSymbols(Diagnostics& dgn, Resolver& resolver) = 0;
 };
 
-class TypeParameter
+class TypeArgument
 {
 public:
     enum class Kind
@@ -47,17 +47,17 @@ public:
     }
 
 public:
-    explicit TypeParameter(std::unique_ptr<TypeExpression> typeExpression);
-    explicit TypeParameter(TypeExpression* typeExpression);
-    explicit TypeParameter(std::unique_ptr<ValueExpression> expression);
-    explicit TypeParameter(ValueExpression* expression);
+    explicit TypeArgument(std::unique_ptr<TypeExpression> typeExpression);
+    explicit TypeArgument(TypeExpression* typeExpression);
+    explicit TypeArgument(std::unique_ptr<ValueExpression> expression);
+    explicit TypeArgument(ValueExpression* expression);
 
-    TypeParameter(TypeParameter const&) = delete;
+    TypeArgument(TypeArgument const&) = delete;
 
-    TypeParameter(TypeParameter&& rhs);
-    TypeParameter& operator = (TypeParameter&& rhs);
+    TypeArgument(TypeArgument&& rhs);
+    TypeArgument& operator = (TypeArgument&& rhs);
 
-    ~TypeParameter();
+    ~TypeArgument();
 
 public:
     Kind kind() const;
@@ -84,7 +84,7 @@ public:
     explicit PrimaryTypeExpression();
     explicit PrimaryTypeExpression(lexer::Token const& identifier);
     PrimaryTypeExpression(lexer::Token const& identifier,
-                          std::vector<TypeParameter>&& parameters);
+                          std::vector<TypeArgument>&& parameters);
 
     // IIO
 public:
@@ -101,7 +101,7 @@ public:
 
 private:
     lexer::Token myIdentifier;
-    std::vector<TypeParameter> myParameters;
+    std::vector<TypeArgument> myParameters;
     TypeDeclaration const* myTypeDeclaration = nullptr;
 };
 

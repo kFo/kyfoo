@@ -83,6 +83,31 @@ std::unique_ptr<ast::ValueExpression> parseExpression(lexer::Scanner& scanner)
     return nullptr;
 }
 
+std::tuple<std::unique_ptr<ast::TypeScope>, lexer::indent_width_t>
+DeclarationScopeParser::parseTypeDefinition(Diagnostics& /*dgn*/,
+                                            lexer::Scanner& scanner,
+                                            ast::TypeDeclaration& declaration)
+{
+    // Check if type definition follows
+    if ( scanner.peek().kind() != TokenKind::LineBreak ||
+        scanner.peek(1).kind() != TokenKind::Indent )
+    {
+        return std::make_tuple(nullptr, 0);
+    }
+
+    auto nextIndent = scanner.peek(1);
+    auto nextIndentWidth = nextIndent.lexeme().size();
+    switch ( indentChange(nextIndentWidth) ) {
+    case Same:
+    case Decrease:
+        return std::make_tuple(nullptr, 0);
+    }
+
+    scanner.next(); // LineBreak
+    scanner.next(); // Indent
+    return std::make_tuple(std::make_unique<ast::TypeScope>(myScope, declaration), nextIndentWidth);
+}
+
 std::tuple<std::unique_ptr<ast::ProcedureScope>, lexer::indent_width_t>
 DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
                                                  lexer::Scanner& scanner,
@@ -125,6 +150,16 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
     return std::make_tuple(nullptr, 0);
 }
 
+std::unique_ptr<ast::TypeDeclaration>
+DeclarationScopeParser::parseTypeDeclaration(lexer::Scanner& scanner)
+{
+    TypeDeclaration grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
 std::unique_ptr<ast::ProcedureDeclaration>
 DeclarationScopeParser::parseProcedureDeclaration(lexer::Scanner& scanner)
 {
@@ -146,6 +181,21 @@ DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
     else if ( auto symDecl = parseSymbolDeclaration(scanner) ) {
         myScope->append(std::move(symDecl));
         return std::make_tuple(true, nullptr);
+    }
+    else if ( auto typeDecl = parseTypeDeclaration(scanner) ) {
+        std::unique_ptr<ast::DeclarationScope> defn;
+        lexer::indent_width_t indent;
+        std::tie(defn, indent) = parseTypeDefinition(dgn, scanner, *typeDecl);
+        if ( defn )
+            typeDecl->define(std::move(defn));
+
+        std::unique_ptr<DeclarationScopeParser> newScopeParser;
+        if ( indent )
+            newScopeParser = std::make_unique<DeclarationScopeParser>(typeDecl->definition(), indent);
+
+        myScope->append(std::move(typeDecl));
+
+        return std::make_tuple(true, std::move(newScopeParser));
     }
     else if ( auto procDecl = parseProcedureDeclaration(scanner) ) {
         std::unique_ptr<ast::ProcedureScope> defn;

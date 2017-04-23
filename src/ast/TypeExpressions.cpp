@@ -20,7 +20,7 @@ PrimaryTypeExpression::PrimaryTypeExpression(lexer::Token const& identifier)
 }
 
 PrimaryTypeExpression::PrimaryTypeExpression(lexer::Token const& identifier,
-                                             std::vector<TypeParameter>&& parameters)
+                                             std::vector<TypeArgument>&& parameters)
     : myIdentifier(identifier)
     , myParameters(std::move(parameters))
 {
@@ -31,7 +31,7 @@ void PrimaryTypeExpression::io(IStream& stream)
     stream.next("identifier", myIdentifier);
     stream.openArray("parameters");
     for ( auto&& e : myParameters ) {
-        stream.next("kind", TypeParameter::to_string(e.kind()));
+        stream.next("kind", TypeArgument::to_string(e.kind()));
         if ( auto t = e.typeExpression() )
             stream.next("typeExpression", const_cast<TypeExpression*>(t));
         else
@@ -87,46 +87,46 @@ bool PrimaryTypeExpression::isSpecified() const
 }
 
 //
-// TypeParameter
+// TypeArgument
 
-TypeParameter::TypeParameter(std::unique_ptr<TypeExpression> typeExpression)
-    : TypeParameter(typeExpression.release())
+TypeArgument::TypeArgument(std::unique_ptr<TypeExpression> typeExpression)
+    : TypeArgument(typeExpression.release())
 {
 }
 
-TypeParameter::TypeParameter(TypeExpression* typeExpression)
+TypeArgument::TypeArgument(TypeExpression* typeExpression)
     : myKind(Kind::TypeExpression)
     , myPtr(typeExpression)
 {
 }
 
-TypeParameter::TypeParameter(std::unique_ptr<ValueExpression> expression)
-    : TypeParameter(expression.release())
+TypeArgument::TypeArgument(std::unique_ptr<ValueExpression> expression)
+    : TypeArgument(expression.release())
 {
 }
 
-TypeParameter::TypeParameter(ValueExpression* expression)
+TypeArgument::TypeArgument(ValueExpression* expression)
     : myKind(Kind::ValueExpression)
     , myPtr(expression)
 {
 }
 
-TypeParameter::TypeParameter(TypeParameter&& rhs)
+TypeArgument::TypeArgument(TypeArgument&& rhs)
     : myKind(rhs.myKind)
     , myPtr(rhs.myPtr.any)
 {
     rhs.myPtr.any = nullptr;
 }
 
-TypeParameter& TypeParameter::operator = (TypeParameter&& rhs)
+TypeArgument& TypeArgument::operator = (TypeArgument&& rhs)
 {
-    this->~TypeParameter();
-    new (this) TypeParameter(std::move(rhs));
+    this->~TypeArgument();
+    new (this) TypeArgument(std::move(rhs));
 
     return *this;
 }
 
-TypeParameter::~TypeParameter()
+TypeArgument::~TypeArgument()
 {
     if ( myKind == Kind::TypeExpression )
         delete myPtr.asTypeExpression;
@@ -134,12 +134,12 @@ TypeParameter::~TypeParameter()
         delete myPtr.asExpression;
 }
 
-TypeParameter::Kind TypeParameter::kind() const
+TypeArgument::Kind TypeArgument::kind() const
 {
     return myKind;
 }
 
-TypeExpression* TypeParameter::typeExpression()
+TypeExpression* TypeArgument::typeExpression()
 {
     if ( myKind == Kind::TypeExpression )
         return myPtr.asTypeExpression;
@@ -147,7 +147,7 @@ TypeExpression* TypeParameter::typeExpression()
     return nullptr;
 }
 
-ValueExpression* TypeParameter::valueExpression()
+ValueExpression* TypeArgument::valueExpression()
 {
     if ( myKind == Kind::ValueExpression )
         return myPtr.asExpression;

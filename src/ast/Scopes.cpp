@@ -117,6 +117,33 @@ Declaration* DeclarationScope::find(std::string const& identifier)
 }
 
 //
+// TypeScope
+
+TypeScope::TypeScope(DeclarationScope* parent,
+                     TypeDeclaration& declaration)
+    : DeclarationScope(parent)
+    , myTypeDeclaration(&declaration)
+{
+}
+
+TypeScope::~TypeScope() = default;
+
+void TypeScope::io(IStream& stream)
+{
+    DeclarationScope::io(stream);
+}
+
+void TypeScope::resolveSymbols(Diagnostics& dgn)
+{
+    DeclarationScope::resolveSymbols(dgn);
+}
+
+Declaration* TypeScope::find(std::string const& identifier)
+{
+    return DeclarationScope::find(identifier);
+}
+
+//
 // ProcedureScope
 
 ProcedureScope::ProcedureScope(DeclarationScope* parent,

@@ -14,6 +14,9 @@ namespace kyfoo {
 
     namespace ast {
         class Module;
+        class DeclarationScope;
+        class TypeScope;
+        class ProcedureScope;
     }
 
     namespace parser {
@@ -30,7 +33,12 @@ public:
     std::unique_ptr<DeclarationScopeParser> next(Diagnostics& dgn, lexer::Scanner& scanner);
     lexer::indent_width_t indent() const;
 
+    std::unique_ptr<ast::TypeDeclaration> parseTypeDeclaration(lexer::Scanner& scanner);
     std::unique_ptr<ast::ProcedureDeclaration> parseProcedureDeclaration(lexer::Scanner& scanner);
+
+    std::tuple<std::unique_ptr<ast::TypeScope>, lexer::indent_width_t> parseTypeDefinition(Diagnostics& dgn,
+                                                                                           lexer::Scanner& scanner,
+                                                                                           ast::TypeDeclaration& declaration);
     std::tuple<std::unique_ptr<ast::ProcedureScope>, lexer::indent_width_t> parseProcedureDefinition(Diagnostics& dgn,
                                                                                                      lexer::Scanner& scanner,
                                                                                                      ast::ProcedureDeclaration& declaration);
