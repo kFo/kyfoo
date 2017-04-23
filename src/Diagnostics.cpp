@@ -74,7 +74,7 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
 {
     auto startLine = [&] {
         if ( !err.module()->path().empty() )
-            sink << err.module()->path().generic_string();
+            sink << err.module()->path().string();
         else
             sink << err.module()->name();
     };
