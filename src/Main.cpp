@@ -1,6 +1,8 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <queue>
+#include <set>
 #include <vector>
 
 #include <kyfoo/Diagnostics.hpp>
@@ -12,6 +14,8 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+
+#include "ast/Axioms.hpp"
 
 namespace fs = std::experimental::filesystem;
 
@@ -57,7 +61,8 @@ int runScannerDump(fs::path const& file)
 int runParserTest(fs::path const& filepath)
 {
     kyfoo::Diagnostics dgn;
-    auto main = std::make_unique<kyfoo::ast::Module>(filepath);
+    kyfoo::ast::ModuleSet moduleSet;
+    auto main = moduleSet.create(filepath);
     try {
         main->parse(dgn);
         kyfoo::ast::JsonOutput output(std::cout);
@@ -82,47 +87,101 @@ int runParserTest(fs::path const& filepath)
 int runSemanticsTest(std::vector<fs::path> const& files)
 {
     auto ret = EXIT_SUCCESS;
-    std::vector<std::unique_ptr<kyfoo::ast::Module>> modules;
+    kyfoo::ast::ModuleSet moduleSet;
+    try {
+        createAxiomsModule(&moduleSet);
+    }
+    catch (std::exception const& e) {
+        std::cout << "ICE: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    for ( auto& f : files ) {
+    std::set<kyfoo::ast::Module*> visited;
+    std::queue<kyfoo::ast::Module*> queue;
+
+    auto append = [&](kyfoo::ast::Module* m) {
+        if ( visited.find(m) == end(visited) )
+            queue.push(m);
+    };
+
+    auto take = [&] {
+        auto ret = queue.front();
+        queue.pop();
+        visited.insert(ret);
+        return ret;
+    };
+
+    // seed with modules created directly from input files
+    for ( auto const& f : files )
+        append(moduleSet.create(f));
+
+    // parse and imports extraction
+    // Every module will be parsed before the semantics pass so that symbols
+    // may be resolved across module boundaries
+
+    // TODO: lazily parse when this consumes too much memory
+    std::chrono::duration<double> parseTime;
+    while ( !queue.empty() ) {
+        auto m = take();
+
         kyfoo::Diagnostics dgn;
-        auto modFile = canonical(f).make_preferred().string();
-        std::chrono::duration<double> parseTime;
-        std::chrono::duration<double> semTime;
+        kyfoo::StopWatch sw;
         try {
-            for ( auto const& m : modules )
-                if ( m->path() == f )
-                    goto L_nextFile;
+            if ( m->parsed() )
+                continue;
 
-            kyfoo::StopWatch sw;
-
-            modules.emplace_back(std::make_unique<kyfoo::ast::Module>(f));
-            auto& m = modules.back();
             m->parse(dgn);
-
-            parseTime = sw.reset();
-
-            if ( dgn.errorCount() == 0 )
-                m->semantics(dgn);
-
-            semTime = sw.elapsed();
+            m->resolveImports(dgn);
+            for ( auto const& i : m->imports() )
+                append(i);
         }
         catch (kyfoo::Diagnostics*) {
             // Handled below
         }
         catch (std::exception const& e) {
-            std::cout << modFile << ": ICE: " << e.what() << std::endl;
+            std::cout << m->path() << ": ICE: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
 
+        parseTime = sw.reset();
         dgn.dumpErrors(std::cout);
-        std::cout << modFile << ": done; errors: " << dgn.errorCount() << "; parse: " << parseTime.count() << "; sem: " << semTime.count() << std::endl;
+        std::cout << "parse: " << m->path() << "; errors: " << dgn.errorCount() << "; time: " << parseTime.count() << std::endl;
 
         if ( dgn.errorCount() )
             ret = EXIT_FAILURE;
+    }
 
-    L_nextFile:
-        continue;
+    if ( ret != EXIT_SUCCESS )
+        return ret;
+
+    // semantic pass
+    for ( auto const& v : visited )
+        queue.push(v);
+    visited.clear();
+
+    std::chrono::duration<double> semTime;
+    while ( !queue.empty() ) {
+        auto m = take();
+
+        kyfoo::Diagnostics dgn;
+        kyfoo::StopWatch sw;
+        try {
+            m->semantics(dgn);
+        }
+        catch (kyfoo::Diagnostics*) {
+            // Handled below
+        }
+        catch (std::exception const& e) {
+            std::cout << m->path() << ": ICE: " << e.what() << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        semTime = sw.reset();
+        dgn.dumpErrors(std::cout);
+        std::cout << "semantics: " << m->path() << "; errors: " << dgn.errorCount() << "; parse: " << semTime.count() << std::endl;
+
+        if ( dgn.errorCount() )
+            ret = EXIT_FAILURE;
     }
 
     return ret;

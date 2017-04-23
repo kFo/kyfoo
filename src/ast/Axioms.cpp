@@ -1,3 +1,21 @@
+auto source = R"axioms(
+type integer
+
+wordSize = 32
+type integer<n : integer>
+
+type integer<wordSize>
+
+type pointer<:T>
+
+staticSize(p : pointer T) => wordSize
+ssize = staticSize
+
+type array<:T>
+    ;ptr : pointer T
+    ;count : integer wordSize
+)axioms";
+
 #include "Axioms.hpp"
 
 #include <kyfoo/ast/ValueExpressions.hpp>
@@ -8,19 +26,24 @@
 namespace kyfoo {
     namespace ast {
 
-lexer::Token identifier(const char* name) { return lexer::Token(lexer::TokenKind::Identifier, 0, 0, name); }
-lexer::Token integer(int value) { return lexer::Token(lexer::TokenKind::Integer, 0, 0, std::to_string(value)); }
-
-std::unique_ptr<Module> createAxiomsModule()
+Module* createAxiomsModule(ModuleSet* moduleSet)
 {
-    auto module = std::make_unique<Module>(std::string("axioms"));
-    auto scope = std::make_unique<DeclarationScope>(module.get());
+    std::stringstream s(source);
+    auto module = moduleSet->create(std::string("axioms"));
+    Diagnostics dgn;
+    try {
+        module->parse(dgn, s);
+        if ( !dgn.errorCount() )
+            return module;
+    }
+    catch (Diagnostics*) {
+        // fall through
+    }
+    catch (std::exception const&) {
+        // fall through
+    }
 
-    std::vector<TypeParameter> params;
-    params.emplace_back(std::make_unique<PrimaryExpression>(integer(32)));
-    scope->append(std::make_unique<TypeDeclaration>(identifier("integer"), std::move(params)));
-
-    return module;
+    throw std::runtime_error("axioms module contains errors");
 }
 
     } // namespace ast

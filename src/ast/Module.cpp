@@ -20,15 +20,68 @@ namespace fs = std::experimental::filesystem;
 namespace kyfoo {
     namespace ast {
 
-Module::Module(std::string const& name)
-    : myName(name)
+//
+// ModuleSet
+
+ModuleSet::ModuleSet() = default;
+
+ModuleSet::~ModuleSet() = default;
+
+Module* ModuleSet::create(std::string const& name)
+{
+    auto m = find(name);
+    if ( m )
+        return m;
+
+    myModules.emplace_back(std::make_unique<Module>(this, name));
+    return myModules.back().get();
+}
+
+Module* ModuleSet::create(fs::path const& path)
+{
+    auto m = find(path);
+    if ( m )
+        return m;
+
+    myModules.emplace_back(std::make_unique<Module>(this, path));
+    return myModules.back().get();
+}
+
+Module* ModuleSet::find(std::string const& name)
+{
+    for ( auto& m : myModules )
+        if ( m->name() == name )
+            return m.get();
+
+    return nullptr;
+}
+
+Module* ModuleSet::find(std::experimental::filesystem::path const& path)
+{
+    auto normalPath = canonical(path).make_preferred();
+    for ( auto& m : myModules )
+        if ( m->path() == normalPath )
+            return m.get();
+
+    return nullptr;
+}
+
+//
+// Module
+
+Module::Module(ModuleSet* moduleSet,
+               std::string const& name)
+    : myModuleSet(moduleSet)
+    , myName(name)
 {
 }
 
-Module::Module(fs::path const& path)
-    : myPath(canonical(path).make_preferred())
+Module::Module(ModuleSet* moduleSet,
+               fs::path const& path)
+    : myModuleSet(moduleSet)
+    , myPath(canonical(path).make_preferred())
 {
-    myName = path.filename().string();
+    myName = path.filename().replace_extension("").string();
 }
 
 Module::~Module() = default;
@@ -59,7 +112,12 @@ void Module::parse(Diagnostics& dgn)
         dgn.die();
     }
 
-    lexer::Scanner scanner(fin);
+    parse(dgn, fin);
+}
+
+void Module::parse(Diagnostics& dgn, std::istream& stream)
+{
+    lexer::Scanner scanner(stream);
 
     using lexer::TokenKind;
 
@@ -91,13 +149,56 @@ void Module::parse(Diagnostics& dgn)
             }
         }
     }
+}
 
-    return ;
+void Module::resolveImports(Diagnostics& dgn)
+{
+    myScope->resolveImports(dgn);
 }
 
 void Module::semantics(Diagnostics& dgn)
 {
     myScope->resolveSymbols(dgn);
+}
+
+void Module::import(Diagnostics& dgn, lexer::Token const& token)
+{
+    auto mod = myModuleSet->create(token.lexeme());
+    if ( !mod ) {
+        fs::path importPath = myPath;
+        importPath.replace_filename(token.lexeme());
+        importPath.replace_extension(".kf");
+
+        if ( !exists(importPath) ) {
+            dgn.error(this, token) << "import does not exist: " << importPath.string();
+            return;
+        }
+
+        mod = myModuleSet->create(importPath);
+        if ( !mod )
+            throw std::runtime_error("failed to create module");
+    }
+
+    for ( auto& m : myImports )
+        if ( m == mod )
+            return;
+
+    myImports.push_back(mod);
+}
+
+std::vector<Module*> const& Module::imports() const
+{
+    return myImports;
+}
+
+bool Module::imports(Module* module) const
+{
+    return find(begin(myImports), end(myImports), module) != end(myImports);
+}
+
+bool Module::parsed() const
+{
+    return myScope.get() != nullptr;
 }
 
     } // namespace ast

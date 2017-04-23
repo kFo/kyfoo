@@ -1,13 +1,12 @@
 #pragma once
 
-#include <memory>
-
 namespace kyfoo {
     namespace ast {
 
+class ModuleSet;
 class Module;
 
-std::unique_ptr<Module> createAxiomsModule();
+Module* createAxiomsModule(ModuleSet* moduleSet);
 
     } // namespace ast
 } // namespace kyfoo
