@@ -81,7 +81,13 @@ struct TypeExpression::impl : public
     g::Or<
         g::And<openParen, closeParen>
       , g::And<TupleOpen, g::Repeat2<TypeExpression, comma>, TupleClose>
-      , g::And<id, g::Opt<g::And<openAngle, g::Repeat2<TypeSubExpression, comma>, closeAngle>>>
+      , g::And<
+               id
+             , g::Or<
+                     g::And<openAngle, g::Repeat2<TypeSubExpression, comma>, closeAngle>
+                   , g::Repeat<TypeSubExpression>
+                    >
+              >
          >
 {
     std::unique_ptr<ast::TypeExpression> make() const
@@ -91,7 +97,6 @@ struct TypeExpression::impl : public
         {
             return std::make_unique<ast::TypeExpressionTuple>(ast::TupleKind::Open);
         }
-        break;
 
         case 1:
         {
@@ -103,23 +108,29 @@ struct TypeExpression::impl : public
 
             return std::make_unique<ast::TypeExpressionTuple>(tupleKind, std::move(typeExpressions));
         }
-        break;
 
         case 2:
         {
             auto const& t = term<2>();
             auto const& id = t.factor<0>().token();
-            std::vector<ast::TypeParameter> typeParameters;
-            if ( t.factor<1>().capture() )
-                for ( auto&& e : t.factor<1>().capture()->factor<1>().captures() )
-                    typeParameters.emplace_back(e.make());
+            auto const& list = t.factor<1>();
+            std::vector<ast::TypeArgument> typeArguments;
+            if ( list.index() == 0) {
+                for ( auto&& e : list.term<0>().factor<1>().captures() )
+                    typeArguments.emplace_back(e.make());
+            }
+            else
+            {
+                for ( auto&& e : list.term<1>().captures() )
+                    typeArguments.emplace_back(e.make());
+            }
 
-            return std::make_unique<ast::PrimaryTypeExpression>(id, std::move(typeParameters));
-        }
-        break;
+            return std::make_unique<ast::PrimaryTypeExpression>(id, std::move(typeArguments));
         }
 
-        throw std::runtime_error("invalid TypeExpression");
+        default:
+            throw std::runtime_error("invalid TypeExpression");
+        }
     }
 
 };
