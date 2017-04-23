@@ -36,6 +36,7 @@ public:
     void io(IStream& stream) override;
 
 public:
+    virtual void resolveImports(Diagnostics& dgn);
     virtual void resolveSymbols(Diagnostics& dgn);
     virtual Declaration* find(std::string const& identifier);
 

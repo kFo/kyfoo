@@ -32,6 +32,15 @@ void DeclarationScope::io(IStream& stream)
     stream.next("declarations", myDeclarations);
 }
 
+void DeclarationScope::resolveImports(Diagnostics& dgn)
+{
+    for ( auto& e : myDeclarations ) {
+        if ( auto d = e->as<ImportDeclaration>() ) {
+            module()->import(dgn, d->identifier());
+        }
+    }
+}
+
 void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 {
     for ( std::size_t i = 0; i < myDeclarations.size(); ++i ) {
