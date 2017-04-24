@@ -140,13 +140,11 @@ void TupleExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 //
 // ApplyExpression
 
-ApplyExpression::ApplyExpression(lexer::Token const & subject,
+ApplyExpression::ApplyExpression(std::unique_ptr<ValueExpression> subject,
                                  std::unique_ptr<TupleExpression> arguments)
-    : mySubject(subject)
+    : mySubject(std::move(subject))
     , myArguments(std::move(arguments))
 {
-    if ( mySubject.kind() != lexer::TokenKind::Identifier )
-        throw std::runtime_error("subject of an apply expression must be an identifier");
 }
 
 void ApplyExpression::io(IStream& stream) const
@@ -159,17 +157,8 @@ void ApplyExpression::io(IStream& stream) const
 
 void ApplyExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
 {
-    auto d = resolver.lookup(mySubject.lexeme());
-    if ( !d ) {
-        dgn.undeclared(resolver.module(), mySubject);
-        return;
-    }
-
-    if ( d->kind() != DeclKind::Procedure ) {
-        auto& err = dgn.error(resolver.module(), mySubject) << "identifier must refer to a procedure";
-        err.see(d);
-        return;
-    }
+    (void)dgn;
+    (void)resolver;
 }
 
     } // namespace parser
