@@ -33,7 +33,7 @@ class IIO
 public:
     virtual ~IIO() = default;
 
-    virtual void io(IStream& stream) = 0;
+    virtual void io(IStream& stream) const = 0;
 };
 
 class IStream
@@ -47,26 +47,26 @@ public:
     virtual void openArray(const char* name) = 0;
     virtual void closeArray() = 0;
 
-#define X(a) virtual void next(const char* name, a& prim) = 0;
+#define X(a) virtual void next(const char* name, a const& prim) = 0;
     PRIMITIVE_TYPES(X);
 #undef X
 
-    virtual void next(const char* name, std::string& string) = 0;
+    virtual void next(const char* name, std::string const& string) = 0;
     virtual void next(const char* name, const char* string) = 0;
-    virtual void next(const char* name, IIO& io) = 0;
-    virtual void next(const char* name, IIO* io) = 0;
-    virtual void next(const char* name, lexer::Token& token) = 0;
+    virtual void next(const char* name, IIO const& io) = 0;
+    virtual void next(const char* name, IIO const* io) = 0;
+    virtual void next(const char* name, lexer::Token const& token) = 0;
 
 public:
     template <typename T>
-    void next(const char* name, std::unique_ptr<T>& p)
+    void next(const char* name, std::unique_ptr<T> const& p)
     {
         IIO* ptr = p.get();
         next(name, ptr);
     }
 
     template <typename T>
-    void next(const char* name, std::vector<std::unique_ptr<T>>& v)
+    void next(const char* name, std::vector<std::unique_ptr<T>> const & v)
     {
         openArray(name);
         for ( auto&& e : v )
@@ -134,7 +134,7 @@ public:
     }
 
 #define X(a) \
-    void next(const char* name, a& prim) override \
+    void next(const char* name, a const& prim) override \
     { \
         newLine(); \
         key(name); \
@@ -144,7 +144,7 @@ public:
     PRIMITIVE_TYPES(X)
 #undef X
 
-    void next(const char* name, std::string& string) override
+    void next(const char* name, std::string const& string) override
     {
         next(name, string.c_str());
     }
@@ -156,7 +156,7 @@ public:
         *myStream << "\"" << string << "\"";
     }
 
-    void next(const char* name, IIO* ptr) override
+    void next(const char* name, IIO const* ptr) override
     {
         if ( ptr ) {
             next(name, *ptr);
@@ -168,14 +168,14 @@ public:
         }
     }
 
-    void next(const char* name, IIO& rhs) override
+    void next(const char* name, IIO const& rhs) override
     {
         openGroup(name);
         rhs.io(*this);
         closeGroup();
     }
 
-    void next(const char* name, lexer::Token& token) override
+    void next(const char* name, lexer::Token const& token) override
     {
         newLine();
         key(name);

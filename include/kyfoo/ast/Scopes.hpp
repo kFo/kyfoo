@@ -34,7 +34,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
 public:
     virtual void resolveImports(Diagnostics& dgn);
@@ -68,7 +68,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // DeclarationScope
 public:
@@ -88,7 +88,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // DeclarationScope
 public:

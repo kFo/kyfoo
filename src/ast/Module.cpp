@@ -86,7 +86,7 @@ Module::Module(ModuleSet* moduleSet,
 
 Module::~Module() = default;
 
-void Module::io(IStream& stream)
+void Module::io(IStream& stream) const
 {
     stream.openGroup("module");
     stream.next("name", myName);

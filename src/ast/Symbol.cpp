@@ -67,12 +67,22 @@ TypeExpression* Expression::typeExpression()
     return nullptr;
 }
 
+TypeExpression const* Expression::typeExpression() const
+{
+    return const_cast<Expression*>(this)->typeExpression();
+}
+
 ValueExpression* Expression::valueExpression()
 {
     if ( myKind == Kind::ValueExpression )
         return myPtr.asExpression;
 
     return nullptr;
+}
+
+ValueExpression const* Expression::valueExpression() const
+{
+    return const_cast<Expression*>(this)->valueExpression();
 }
 
 //
@@ -181,9 +191,29 @@ Symbol& Symbol::operator = (Symbol&& rhs)
 
 Symbol::~Symbol() = default;
 
-void Symbol::io(IStream& stream)
+void Symbol::io(IStream& stream) const
 {
     stream.next("identifier", myIdentifier);
+    stream.openArray("parameters");
+    for ( auto const& p : myParameters ) {
+        if ( auto t = p.typeExpression() ) {
+            t->io(stream);
+        }
+        else if ( auto v = p.valueExpression() ) {
+            v->io(stream);
+        }
+        else {
+            auto ce = p.constrainedExpression();
+            if ( auto tt = ce->expression.typeExpression() )
+                tt->io(stream);
+            else if ( auto vv = ce->expression.valueExpression() )
+                vv->io(stream);
+
+            if ( auto c = ce->constraint.get() )
+                stream.next("constraint", c);
+        }
+    }
+    stream.closeArray();
 }
 
 lexer::Token const& Symbol::identifier() const

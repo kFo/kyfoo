@@ -22,7 +22,7 @@ class TypeExpression : public INode
 {
     // IIO
 public:
-    void io(IStream& stream) = 0;
+    void io(IStream& stream) const = 0;
 
 public:
     virtual void resolveSymbols(Diagnostics& dgn, Resolver& resolver) = 0;
@@ -38,7 +38,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // TypeExpression
 public:
@@ -64,7 +64,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // TypeExpression
 public:
@@ -83,7 +83,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // TypeExpression
 public:

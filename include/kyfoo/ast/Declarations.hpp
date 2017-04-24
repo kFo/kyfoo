@@ -49,7 +49,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
 public:
     virtual void resolveSymbols(Diagnostics& dgn) = 0;
@@ -79,7 +79,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // Declaration
 public:
@@ -111,15 +111,17 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    ValueExpression* valueExpression();
     TypeExpression* typeExpression();
+    TypeExpression const* typeExpression() const;
+    ValueExpression* valueExpression();
+    ValueExpression const* valueExpression() const;
 
 private:
     Kind myKind;
@@ -140,7 +142,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // Declaration
 public:
@@ -165,7 +167,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // Declaration
 public:
@@ -189,7 +191,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // Declaration
 public:
@@ -216,7 +218,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
     // Declaration
 public:
