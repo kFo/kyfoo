@@ -47,7 +47,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream) override;
+    void io(IStream& stream) const override;
 
 public:
     std::string const& name() const;

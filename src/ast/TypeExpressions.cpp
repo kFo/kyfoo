@@ -27,7 +27,7 @@ PrimaryTypeExpression::PrimaryTypeExpression(lexer::Token const& identifier,
 {
 }
 
-void PrimaryTypeExpression::io(IStream& stream)
+void PrimaryTypeExpression::io(IStream& stream) const
 {
     stream.next("identifier", myIdentifier);
     stream.openArray("parameters");
@@ -102,7 +102,7 @@ TypeExpressionTuple::TypeExpressionTuple(TupleKind kind,
 {
 }
 
-void TypeExpressionTuple::io(IStream& stream)
+void TypeExpressionTuple::io(IStream& stream) const
 {
     std::string exprkind = typeid(*this).name();
     stream.next("exprkind", exprkind);
@@ -131,7 +131,7 @@ ProcedureTypeExpression::ProcedureTypeExpression(std::vector<std::unique_ptr<Typ
 {
 }
 
-void ProcedureTypeExpression::io(IStream& stream)
+void ProcedureTypeExpression::io(IStream& stream) const
 {
     stream.next("parameter", myParameters);
     stream.next("return", myReturn);

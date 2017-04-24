@@ -38,7 +38,9 @@ public:
 public:
     Kind kind() const;
     TypeExpression* typeExpression();
+    TypeExpression const* typeExpression() const;
     ValueExpression* valueExpression();
+    ValueExpression const* valueExpression() const;
 
 private:
     Kind myKind;
@@ -124,7 +126,7 @@ public:
 
     // IIO
 public:
-    void io(IStream& stream);
+    void io(IStream& stream) const override;
 
 public:
     lexer::Token const& identifier() const;

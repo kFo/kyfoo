@@ -18,7 +18,7 @@ namespace kyfoo {
 ValueExpression::ValueExpression() = default;
 ValueExpression::~ValueExpression() = default;
 
-void ValueExpression::io(IStream& stream)
+void ValueExpression::io(IStream& stream) const
 {
     std::string exprkind = typeid(*this).name();
     stream.next("exprkind", exprkind);
@@ -32,7 +32,7 @@ PrimaryExpression::PrimaryExpression(lexer::Token const& token)
 {
 }
 
-void PrimaryExpression::io(IStream& stream)
+void PrimaryExpression::io(IStream& stream) const
 {
     ValueExpression::io(stream);
 
@@ -119,7 +119,7 @@ TupleExpression::TupleExpression(TupleKind kind, std::vector<std::unique_ptr<Val
 {
 }
 
-void TupleExpression::io(IStream& stream)
+void TupleExpression::io(IStream& stream) const
 {
     ValueExpression::io(stream);
 
@@ -149,7 +149,7 @@ ApplyExpression::ApplyExpression(lexer::Token const & subject,
         throw std::runtime_error("subject of an apply expression must be an identifier");
 }
 
-void ApplyExpression::io(IStream& stream)
+void ApplyExpression::io(IStream& stream) const
 {
     ValueExpression::io(stream);
 

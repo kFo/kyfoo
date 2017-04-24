@@ -27,7 +27,7 @@ DeclarationScope::DeclarationScope(DeclarationScope* parent)
 
 DeclarationScope::~DeclarationScope() = default;
 
-void DeclarationScope::io(IStream& stream)
+void DeclarationScope::io(IStream& stream) const
 {
     stream.next("declarations", myDeclarations);
 }
@@ -122,7 +122,7 @@ TypeScope::TypeScope(DeclarationScope* parent,
 
 TypeScope::~TypeScope() = default;
 
-void TypeScope::io(IStream& stream)
+void TypeScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
 }
@@ -149,7 +149,7 @@ ProcedureScope::ProcedureScope(DeclarationScope* parent,
 
 ProcedureScope::~ProcedureScope() = default;
 
-void ProcedureScope::io(IStream& stream)
+void ProcedureScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
     stream.next("expressions", myExpressions);

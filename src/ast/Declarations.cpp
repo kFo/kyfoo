@@ -37,11 +37,11 @@ Declaration::Declaration(DeclKind kind,
 
 Declaration::~Declaration() = default;
 
-void Declaration::io(IStream& stream)
+void Declaration::io(IStream& stream) const
 {
     std::string declkind = typeid(*this).name();
     stream.next("declkind", declkind);
-    stream.next("symbol", mySymbol); // todo: full params
+    stream.next("symbol", mySymbol);
 }
 
 DeclKind Declaration::kind() const
@@ -82,7 +82,7 @@ TypeDeclaration::TypeDeclaration(Symbol&& symbol)
 
 TypeDeclaration::~TypeDeclaration() = default;
 
-void TypeDeclaration::io(IStream& stream)
+void TypeDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
 }
@@ -126,7 +126,7 @@ SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
 
 SymbolDeclaration::~SymbolDeclaration() = default;
 
-void SymbolDeclaration::io(IStream& stream)
+void SymbolDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
     if ( auto p = valueExpression() )
@@ -140,6 +140,19 @@ void SymbolDeclaration::resolveSymbols(Diagnostics& /*dgn*/)
     // Must resolve symbols in the scope in which they are instantiated
 }
 
+TypeExpression* SymbolDeclaration::typeExpression()
+{
+    if ( myKind == Kind::TypeExpression )
+        return static_cast<TypeExpression*>(myNode.get());
+
+    return nullptr;
+}
+
+TypeExpression const* SymbolDeclaration::typeExpression() const
+{
+    return const_cast<SymbolDeclaration*>(this)->typeExpression();
+}
+
 ValueExpression* SymbolDeclaration::valueExpression()
 {
     if ( myKind == Kind::ValueExpression )
@@ -148,12 +161,9 @@ ValueExpression* SymbolDeclaration::valueExpression()
     return nullptr;
 }
 
-TypeExpression* SymbolDeclaration::typeExpression()
+ValueExpression const* SymbolDeclaration::valueExpression() const
 {
-    if ( myKind == Kind::TypeExpression )
-        return static_cast<TypeExpression*>(myNode.get());
-
-    return nullptr;
+    return const_cast<SymbolDeclaration*>(this)->valueExpression();
 }
 
 //
@@ -181,7 +191,7 @@ VariableDeclaration::VariableDeclaration(Symbol&& symbol)
 
 VariableDeclaration::~VariableDeclaration() = default;
 
-void VariableDeclaration::io(IStream& stream)
+void VariableDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
     stream.next("value", myValueExpression);
@@ -222,7 +232,7 @@ ProcedureParameter::ProcedureParameter(Symbol&& symbol,
 {
 }
 
-void ProcedureParameter::io(IStream& stream)
+void ProcedureParameter::io(IStream& stream) const
 {
     VariableDeclaration::io(stream);
 }
@@ -262,7 +272,7 @@ ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
 
 ProcedureDeclaration::~ProcedureDeclaration() = default;
 
-void ProcedureDeclaration::io(IStream& stream)
+void ProcedureDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
     stream.next("parameters", myParameters);
@@ -323,7 +333,7 @@ ImportDeclaration::~ImportDeclaration()
 {
 }
 
-void ImportDeclaration::io(IStream& stream)
+void ImportDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
 }
