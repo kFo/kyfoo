@@ -12,6 +12,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
@@ -41,8 +42,10 @@ public:
     virtual Declaration* find(std::string const& identifier);
 
 public:
-    void import(Module& module);
     void append(std::unique_ptr<Declaration> declaration);
+    void import(Module& module);
+    SymbolSet* findSymbol(std::string const& name);
+    SymbolSet* createSymbolSet(std::string const& name);
 
     Module* module();
     DeclarationScope* parent();
@@ -52,11 +55,7 @@ private:
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
-    // Indices
-    std::map<std::string, TypeDeclaration*> myTypes;
-    std::map<std::string, SymbolDeclaration*> mySymbols;
-    std::map<std::string, ProcedureDeclaration*> myProcedures;
-    std::map<std::string, VariableDeclaration*> myVariables;
+    std::vector<SymbolSet> mySymbols;
     std::map<std::string, ImportDeclaration*> myImports;
 };
 

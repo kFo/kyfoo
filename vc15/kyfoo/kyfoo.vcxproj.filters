@@ -84,6 +84,9 @@
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -127,6 +130,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Diagnostics.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Symbol.cpp">
+      <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

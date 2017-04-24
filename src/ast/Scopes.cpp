@@ -43,47 +43,20 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 
 void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 {
-    for ( std::size_t i = 0; i < myDeclarations.size(); ++i ) {
-        auto d = myDeclarations[i].get();
-
-        // Ensure identifier is unique
-        for ( std::size_t j = 0; j < i; ++j ) {
-            if ( myDeclarations[j]->identifier().lexeme() == d->identifier().lexeme() ) {
-                auto& err = dgn.error(module(), myDeclarations[i]->identifier()) << "identifier already declared";
-                err.see(myDeclarations[j].get());
-                dgn.die();
-            }
+    std::vector<ProcedureDeclaration*> procedures;
+    for ( auto const& d : myDeclarations ) {
+        auto s = createSymbolSet(d->symbol().name());
+        if ( auto other = s->find(d->symbol().parameters()) ) {
+            auto& err = dgn.error(module(), d->identifier()) << "symbol is already defined";
+            err.see(other);
+            continue;
         }
 
-        // Index it
-        switch (d->kind()) {
-        case DeclKind::Type:
-            myTypes[d->identifier().lexeme()] = static_cast<TypeDeclaration*>(d);
-            break;
-
-        case DeclKind::Symbol:
-            mySymbols[d->identifier().lexeme()] = static_cast<SymbolDeclaration*>(d);
-            break;
-
-        case DeclKind::Procedure:
-            myProcedures[d->identifier().lexeme()] = static_cast<ProcedureDeclaration*>(d);
-            break;
-
-        case DeclKind::Variable:
-            myVariables[d->identifier().lexeme()] = static_cast<VariableDeclaration*>(d);
-            break;
-
-        case DeclKind::Import:
-            myImports[d->identifier().lexeme()] = static_cast<ImportDeclaration*>(d);
-            break;
-
-        default:
-            throw std::runtime_error("unhandled declaration kind");
-        }
+        s->append(d->symbol().parameters(), *d);
     }
 
-    for ( auto&& e : myProcedures )
-        e.second->resolveSymbols(dgn);
+    for ( auto&& e : procedures )
+        e->resolveSymbols(dgn);
 }
 
 void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
@@ -94,7 +67,28 @@ void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
 
 void DeclarationScope::import(Module& module)
 {
-    append(std::make_unique<ImportDeclaration>(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name())));
+    append(
+        std::make_unique<ImportDeclaration>(
+            Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
+}
+
+SymbolSet* DeclarationScope::findSymbol(std::string const& name)
+{
+    auto l = lower_bound(begin(mySymbols), end(mySymbols), name);
+    if ( l->name() == name )
+        return &*l;
+
+    return nullptr;
+}
+
+SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
+{
+    auto l = lower_bound(begin(mySymbols), end(mySymbols), name);
+    if ( l != end(mySymbols) && l->name() == name )
+        return &*l;
+
+    l = mySymbols.insert(l, SymbolSet(name));
+    return &*l;
 }
 
 Module* DeclarationScope::module()
