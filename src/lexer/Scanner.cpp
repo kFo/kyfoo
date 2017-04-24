@@ -148,7 +148,7 @@ bool Scanner::hasError() const
 
 Scanner::operator bool() const
 {
-    return myStream && !myError;
+    return myStream && !eof() && !myError;
 }
 
 char Scanner::nextChar()
