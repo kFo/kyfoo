@@ -5,6 +5,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/ValueExpressions.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -20,7 +21,7 @@ PrimaryTypeExpression::PrimaryTypeExpression(lexer::Token const& identifier)
 }
 
 PrimaryTypeExpression::PrimaryTypeExpression(lexer::Token const& identifier,
-                                             std::vector<TypeArgument>&& parameters)
+                                             std::vector<Expression>&& parameters)
     : myIdentifier(identifier)
     , myParameters(std::move(parameters))
 {
@@ -31,7 +32,7 @@ void PrimaryTypeExpression::io(IStream& stream)
     stream.next("identifier", myIdentifier);
     stream.openArray("parameters");
     for ( auto&& e : myParameters ) {
-        stream.next("kind", TypeArgument::to_string(e.kind()));
+        stream.next("kind", Expression::to_string(e.kind()));
         if ( auto t = e.typeExpression() )
             stream.next("typeExpression", const_cast<TypeExpression*>(t));
         else
@@ -84,75 +85,6 @@ TypeDeclaration const* PrimaryTypeExpression::typeDecl() const
 bool PrimaryTypeExpression::isSpecified() const
 {
     return myIdentifier.kind() == lexer::TokenKind::Identifier;
-}
-
-//
-// TypeArgument
-
-TypeArgument::TypeArgument(std::unique_ptr<TypeExpression> typeExpression)
-    : TypeArgument(typeExpression.release())
-{
-}
-
-TypeArgument::TypeArgument(TypeExpression* typeExpression)
-    : myKind(Kind::TypeExpression)
-    , myPtr(typeExpression)
-{
-}
-
-TypeArgument::TypeArgument(std::unique_ptr<ValueExpression> expression)
-    : TypeArgument(expression.release())
-{
-}
-
-TypeArgument::TypeArgument(ValueExpression* expression)
-    : myKind(Kind::ValueExpression)
-    , myPtr(expression)
-{
-}
-
-TypeArgument::TypeArgument(TypeArgument&& rhs)
-    : myKind(rhs.myKind)
-    , myPtr(rhs.myPtr.any)
-{
-    rhs.myPtr.any = nullptr;
-}
-
-TypeArgument& TypeArgument::operator = (TypeArgument&& rhs)
-{
-    this->~TypeArgument();
-    new (this) TypeArgument(std::move(rhs));
-
-    return *this;
-}
-
-TypeArgument::~TypeArgument()
-{
-    if ( myKind == Kind::TypeExpression )
-        delete myPtr.asTypeExpression;
-    else
-        delete myPtr.asExpression;
-}
-
-TypeArgument::Kind TypeArgument::kind() const
-{
-    return myKind;
-}
-
-TypeExpression* TypeArgument::typeExpression()
-{
-    if ( myKind == Kind::TypeExpression )
-        return myPtr.asTypeExpression;
-
-    return nullptr;
-}
-
-ValueExpression* TypeArgument::valueExpression()
-{
-    if ( myKind == Kind::ValueExpression )
-        return myPtr.asExpression;
-
-    return nullptr;
 }
 
 //

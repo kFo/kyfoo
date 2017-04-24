@@ -57,18 +57,18 @@ struct TypeSubExpression : public
         , ValueExpression
          >
 {
-    ast::TypeArgument make() const
+    ast::Expression make() const
     {
         switch (index()) {
         case 0:
         {
-            return ast::TypeArgument(term<0>().make());
+            return ast::Expression(term<0>().make());
         }
         break;
 
         case 1:
         {
-            return ast::TypeArgument(term<1>().make());
+            return ast::Expression(term<1>().make());
         }
         break;
         }
@@ -114,7 +114,7 @@ struct TypeExpression::impl : public
             auto const& t = term<2>();
             auto const& id = t.factor<0>().token();
             auto const& list = t.factor<1>();
-            std::vector<ast::TypeArgument> typeArguments;
+            std::vector<ast::Expression> typeArguments;
             if ( list.index() == 0) {
                 for ( auto&& e : list.term<0>().factor<1>().captures() )
                     typeArguments.emplace_back(e.make());

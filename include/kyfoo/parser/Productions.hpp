@@ -6,6 +6,7 @@
 
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
     namespace parser {
@@ -181,7 +182,7 @@ struct Parameter : public
         if ( factor<1>().capture() )
             type = factor<1>().capture()->factor<1>().make();
 
-        return std::make_unique<ast::ProcedureParameter>(factor<0>().token(), std::move(type));
+        return std::make_unique<ast::ProcedureParameter>(ast::Symbol(factor<0>().token()), std::move(type));
     }
 };
 
@@ -198,7 +199,7 @@ struct ProcedureDeclaration : public
         if ( factor<4>().capture() )
             returnTypeExpression = factor<4>().capture()->factor<1>().make();
 
-        return std::make_unique<ast::ProcedureDeclaration>(factor<0>().token(), std::move(parameters), std::move(returnTypeExpression));
+        return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(factor<0>().token()), std::move(parameters), std::move(returnTypeExpression));
     }
 };
 
@@ -208,8 +209,8 @@ struct SymbolDeclaration : public
     std::unique_ptr<ast::SymbolDeclaration> make() const
     {
         switch (factor<2>().index()) {
-        case 0: return std::make_unique<ast::SymbolDeclaration>(factor<0>().token(), factor<2>().term<0>().make());
-        case 1: return std::make_unique<ast::SymbolDeclaration>(factor<0>().token(), factor<2>().term<1>().make());
+        case 0: return std::make_unique<ast::SymbolDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().term<0>().make());
+        case 1: return std::make_unique<ast::SymbolDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().term<1>().make());
         }
 
         throw std::runtime_error("invalid SymbolDeclaration");
@@ -221,7 +222,7 @@ struct ImportDeclaration : public
 {
     std::unique_ptr<ast::ImportDeclaration> make() const
     {
-        return std::make_unique<ast::ImportDeclaration>(factor<1>().token());
+        return std::make_unique<ast::ImportDeclaration>(ast::Symbol(factor<1>().token()));
     }
 };
 
@@ -237,9 +238,9 @@ struct TypeParameters : public
             , comma>
       , closeAngle>
 {
-    std::vector<std::unique_ptr<ast::TypeParameter>> make() const
+    ast::Symbol::paramlist_t make() const
     {
-        std::vector<std::unique_ptr<ast::TypeParameter>> typeParameters;
+        ast::Symbol::paramlist_t typeParameters;
         auto const& params = factor<1>().captures();
         for ( auto&& p : params ) {
             switch (p.index()) {
@@ -251,12 +252,12 @@ struct TypeParameters : public
                     c ? c->factor<1>().make() : nullptr;
                 if ( t.factor<0>().index() == 0 )
                     typeParameters.emplace_back(
-                        std::make_unique<ast::TypeParameter>(
-                            ast::TypeArgument(t.factor<0>().term<0>().make()), std::move(typeConstraint)));
+                        ast::SymbolParameter(
+                            ast::Expression(t.factor<0>().term<0>().make()), std::move(typeConstraint)));
                 else
                     typeParameters.emplace_back(
-                        std::make_unique<ast::TypeParameter>(
-                            ast::TypeArgument(t.factor<0>().term<1>().make()), std::move(typeConstraint)));
+                        ast::SymbolParameter(
+                            ast::Expression(t.factor<0>().term<1>().make()), std::move(typeConstraint)));
 
                 break;
             }
@@ -265,7 +266,7 @@ struct TypeParameters : public
             {
                 auto const& t = p.term<1>();
                 typeParameters.emplace_back(
-                    std::make_unique<ast::TypeParameter>(t.factor<0>().make()));
+                    ast::SymbolParameter(t.factor<0>().make()));
                 break;
             }
 
@@ -273,7 +274,7 @@ struct TypeParameters : public
             {
                 auto const& t = p.term<2>();
                 typeParameters.emplace_back(
-                    std::make_unique<ast::TypeParameter>(t.factor<1>().make()));
+                    ast::SymbolParameter(t.factor<1>().make()));
                 break;
             }
 
@@ -292,11 +293,11 @@ struct TypeDeclaration : public
     std::unique_ptr<ast::TypeDeclaration> make() const
     {
         auto typeName = factor<1>().token();
-        std::vector<std::unique_ptr<ast::TypeParameter>> typeParameters;
+        ast::Symbol::paramlist_t typeParameters;
         if ( auto p = factor<2>().capture() )
             typeParameters = p->make();
 
-        return std::make_unique<ast::TypeDeclaration>(typeName, std::move(typeParameters));
+        return std::make_unique<ast::TypeDeclaration>(ast::Symbol(typeName, std::move(typeParameters)));
     }
 };
 

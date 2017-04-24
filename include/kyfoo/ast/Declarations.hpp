@@ -6,6 +6,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
@@ -40,7 +41,7 @@ class Declaration : public INode
 {
 protected:
     Declaration(DeclKind kind,
-                lexer::Token const& identifier,
+                Symbol&& symbol,
                 DeclarationScope* scope);
 
 public:
@@ -55,6 +56,7 @@ public:
 
 public:
     DeclKind kind() const;
+    Symbol const& symbol() const;
     lexer::Token const& identifier() const;
 
     template <typename T> T* as() = delete;
@@ -65,30 +67,14 @@ public:
 
 protected:
     DeclKind myKind;
-    lexer::Token myIdentifier;
+    Symbol mySymbol;
     DeclarationScope* myScope = nullptr;
-};
-
-class TypeParameter
-{
-public:
-    explicit TypeParameter(std::unique_ptr<ValueExpression> valueExpression);
-    explicit TypeParameter(std::unique_ptr<TypeExpression> typeExpression);
-    TypeParameter(TypeArgument expression,
-                  std::unique_ptr<TypeExpression> typeConstraint);
-    ~TypeParameter();
-
-private:
-    std::optional<TypeArgument> myLhs;
-    std::unique_ptr<TypeExpression> myRhs;
 };
 
 class TypeDeclaration : public Declaration
 {
 public:
-    explicit TypeDeclaration(lexer::Token const& identifier);
-    TypeDeclaration(lexer::Token const& identifier,
-                    std::vector<std::unique_ptr<TypeParameter>>&& parameters);
+    explicit TypeDeclaration(Symbol&& symbol);
     ~TypeDeclaration();
 
     // IIO
@@ -104,7 +90,6 @@ public:
     DeclarationScope* definition();
 
 private:
-    std::vector<std::unique_ptr<TypeParameter>> myParameters;
     std::unique_ptr<DeclarationScope> myDefinition;
 };
 
@@ -118,9 +103,9 @@ public:
     };
 
 public:
-    SymbolDeclaration(lexer::Token const& identifier,
+    SymbolDeclaration(Symbol&& symbol,
                       std::unique_ptr<ValueExpression> expression);
-    SymbolDeclaration(lexer::Token const& identifier,
+    SymbolDeclaration(Symbol&& symbol,
                       std::unique_ptr<TypeExpression> typeExpression);
     ~SymbolDeclaration();
 
@@ -144,12 +129,12 @@ private:
 class VariableDeclaration : public Declaration
 {
 public:
-    VariableDeclaration(lexer::Token const& identifier,
+    VariableDeclaration(Symbol&& symbol,
                         std::unique_ptr<TypeExpression> type,
                         std::unique_ptr<ValueExpression> expression);
-    VariableDeclaration(lexer::Token const& identifier,
+    VariableDeclaration(Symbol&& symbol,
                         std::unique_ptr<ValueExpression> expression);
-    explicit VariableDeclaration(lexer::Token const& identifier);
+    explicit VariableDeclaration(Symbol&& symbol);
 
     ~VariableDeclaration();
 
@@ -174,8 +159,8 @@ class ProcedureDeclaration;
 class ProcedureParameter : public VariableDeclaration
 {
 public:
-    explicit ProcedureParameter(lexer::Token const& identifier);
-    ProcedureParameter(lexer::Token const& identifier,
+    explicit ProcedureParameter(Symbol&& symbol);
+    ProcedureParameter(Symbol&& symbol,
                        std::unique_ptr<TypeExpression> type);
 
     // IIO
@@ -197,7 +182,7 @@ private:
 class ProcedureDeclaration : public Declaration
 {
 public:
-    ProcedureDeclaration(lexer::Token const& identifier,
+    ProcedureDeclaration(Symbol&& symbol,
                          std::vector<std::unique_ptr<ProcedureParameter>> parameters,
                          std::unique_ptr<ast::TypeExpression> returnTypeExpression);
     ~ProcedureDeclaration();
@@ -226,7 +211,7 @@ private:
 class ImportDeclaration : public Declaration
 {
 public:
-    explicit ImportDeclaration(lexer::Token const& identifier);
+    explicit ImportDeclaration(Symbol&& symbol);
     ~ImportDeclaration();
 
     // IIO

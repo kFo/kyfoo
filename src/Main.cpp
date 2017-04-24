@@ -178,7 +178,7 @@ int runSemanticsTest(std::vector<fs::path> const& files)
 
         semTime = sw.reset();
         dgn.dumpErrors(std::cout);
-        std::cout << "semantics: " << m->path() << "; errors: " << dgn.errorCount() << "; parse: " << semTime.count() << std::endl;
+        std::cout << "semantics: " << m->name() << "; errors: " << dgn.errorCount() << "; parse: " << semTime.count() << std::endl;
 
         if ( dgn.errorCount() )
             ret = EXIT_FAILURE;

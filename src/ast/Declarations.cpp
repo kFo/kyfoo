@@ -27,11 +27,11 @@ const char* to_string(DeclKind kind)
 }
 
 Declaration::Declaration(DeclKind kind,
-                         lexer::Token const& identifier,
+                         Symbol&& symbol,
                          DeclarationScope* scope)
     : myScope(scope)
     , myKind(kind)
-    , myIdentifier(identifier)
+    , mySymbol(std::move(symbol))
 {
 }
 
@@ -41,7 +41,7 @@ void Declaration::io(IStream& stream)
 {
     std::string declkind = typeid(*this).name();
     stream.next("declkind", declkind);
-    stream.next("identifier", myIdentifier);
+    stream.next("symbol", mySymbol); // todo: full params
 }
 
 DeclKind Declaration::kind() const
@@ -49,9 +49,14 @@ DeclKind Declaration::kind() const
     return myKind;
 }
 
+Symbol const& Declaration::symbol() const
+{
+    return mySymbol;
+}
+
 lexer::Token const& Declaration::identifier() const
 {
-    return myIdentifier;
+    return mySymbol.identifier();
 }
 
 DeclarationScope* Declaration::scope()
@@ -68,39 +73,10 @@ void Declaration::setScope(DeclarationScope& scope)
 }
 
 //
-// TypeParameter
-
-TypeParameter::TypeParameter(std::unique_ptr<ValueExpression> valueExpression)
-    : myLhs(std::move(valueExpression))
-{
-}
-
-TypeParameter::TypeParameter(std::unique_ptr<TypeExpression> typeExpression)
-    : myRhs(std::move(typeExpression))
-{
-}
-
-TypeParameter::TypeParameter(TypeArgument expression,
-                             std::unique_ptr<TypeExpression> typeConstraint)
-    : myLhs(std::move(expression))
-    , myRhs(std::move(typeConstraint))
-{
-}
-
-TypeParameter::~TypeParameter() = default;
-
-//
 // TypeDeclaration
 
-TypeDeclaration::TypeDeclaration(lexer::Token const& identifier)
-    : TypeDeclaration(identifier, {})
-{
-}
-
-TypeDeclaration::TypeDeclaration(lexer::Token const& identifier,
-                                 std::vector<std::unique_ptr<TypeParameter>>&& parameters)
-    : Declaration(DeclKind::Type, identifier, nullptr)
-    , myParameters(std::move(parameters))
+TypeDeclaration::TypeDeclaration(Symbol&& symbol)
+    : Declaration(DeclKind::Type, std::move(symbol), nullptr)
 {
 }
 
@@ -132,17 +108,17 @@ DeclarationScope* TypeDeclaration::definition()
 //
 // SymbolDeclaration
 
-SymbolDeclaration::SymbolDeclaration(lexer::Token const& identifier,
+SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
                                      std::unique_ptr<ValueExpression> expression)
-    : Declaration(DeclKind::Symbol, identifier, nullptr)
+    : Declaration(DeclKind::Symbol, std::move(symbol), nullptr)
     , myKind(Kind::ValueExpression)
     , myNode(std::move(expression))
 {
 }
 
-SymbolDeclaration::SymbolDeclaration(lexer::Token const& identifier,
+SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
                                      std::unique_ptr<TypeExpression> typeExpression)
-    : Declaration(DeclKind::Symbol, identifier, nullptr)
+    : Declaration(DeclKind::Symbol, std::move(symbol), nullptr)
     , myKind(Kind::TypeExpression)
     , myNode(std::move(typeExpression))
 {
@@ -183,23 +159,23 @@ TypeExpression* SymbolDeclaration::typeExpression()
 //
 // VariableDeclaration
 
-VariableDeclaration::VariableDeclaration(lexer::Token const& identifier,
+VariableDeclaration::VariableDeclaration(Symbol&& symbol,
                                          std::unique_ptr<TypeExpression> typeExpression,
                                          std::unique_ptr<ValueExpression> expression)
-    : Declaration(DeclKind::Variable, identifier, nullptr)
+    : Declaration(DeclKind::Variable, std::move(symbol), nullptr)
     , myTypeExpression(std::move(typeExpression))
     , myValueExpression(std::move(expression))
 {
 }
 
-VariableDeclaration::VariableDeclaration(lexer::Token const& identifier,
+VariableDeclaration::VariableDeclaration(Symbol&& symbol,
                                          std::unique_ptr<ValueExpression> expression)
-    : VariableDeclaration(identifier, nullptr, std::move(expression))
+    : VariableDeclaration(std::move(symbol), nullptr, std::move(expression))
 {
 }
 
-VariableDeclaration::VariableDeclaration(lexer::Token const& identifier)
-    : VariableDeclaration(identifier, nullptr, nullptr)
+VariableDeclaration::VariableDeclaration(Symbol&& symbol)
+    : VariableDeclaration(std::move(symbol), nullptr, nullptr)
 {
 }
 
@@ -235,14 +211,14 @@ ValueExpression* VariableDeclaration::valueExpression()
 //
 // ProcedureParameter
 
-ProcedureParameter::ProcedureParameter(lexer::Token const& identifier)
-    : VariableDeclaration(identifier)
+ProcedureParameter::ProcedureParameter(Symbol&& symbol)
+    : VariableDeclaration(std::move(symbol))
 {
 }
 
-ProcedureParameter::ProcedureParameter(lexer::Token const& identifier,
+ProcedureParameter::ProcedureParameter(Symbol&& symbol,
                                        std::unique_ptr<TypeExpression> typeExpression)
-    : VariableDeclaration(identifier, std::move(typeExpression), nullptr)
+    : VariableDeclaration(std::move(symbol), std::move(typeExpression), nullptr)
 {
 }
 
@@ -273,10 +249,10 @@ ProcedureDeclaration* ProcedureParameter::parent()
 //
 // ProcedureDeclaration
 
-ProcedureDeclaration::ProcedureDeclaration(lexer::Token const& identifier,
+ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
                                            std::vector<std::unique_ptr<ProcedureParameter>> parameters,
                                            std::unique_ptr<TypeExpression> returnTypeExpression)
-    : Declaration(DeclKind::Procedure, identifier, nullptr)
+    : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
     , myParameters(std::move(parameters))
     , myReturnTypeExpression(std::move(returnTypeExpression))
 {
@@ -317,7 +293,7 @@ ProcedureScope* ProcedureDeclaration::definition()
 void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
 {
     if ( myDefinition )
-        throw std::runtime_error("procedure " + myIdentifier.lexeme() + " is already defined");
+        throw std::runtime_error("procedure " + mySymbol.name() + " is already defined");
 
     myDefinition = std::move(definition);
 
@@ -338,8 +314,8 @@ TypeExpression* ProcedureDeclaration::returnType()
 //
 // ImportDeclaration
 
-ImportDeclaration::ImportDeclaration(lexer::Token const& identifier)
-    : Declaration(DeclKind::Import, identifier, nullptr)
+ImportDeclaration::ImportDeclaration(Symbol&& symbol)
+    : Declaration(DeclKind::Import, std::move(symbol), nullptr)
 {
 }
 

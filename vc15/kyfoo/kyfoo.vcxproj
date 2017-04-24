@@ -133,6 +133,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\ValueExpressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp" />
@@ -154,6 +155,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />
     <ClCompile Include="..\..\src\ast\Declarations.cpp" />
+    <ClCompile Include="..\..\src\ast\Symbol.cpp" />
     <ClCompile Include="..\..\src\ast\ValueExpressions.cpp" />
     <ClCompile Include="..\..\src\ast\Module.cpp" />
     <ClCompile Include="..\..\src\ast\Scopes.cpp" />
