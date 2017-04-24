@@ -39,9 +39,9 @@ struct TupleOpen : public
         switch(index()) {
         case 0: return term<0>().token();
         case 1: return term<1>().token();
+        default:
+            throw std::runtime_error("invalid tuple-open capture");
         }
-
-        throw std::runtime_error("invalid tuple-open capture");
     }
 };
 
@@ -53,9 +53,9 @@ struct TupleClose : public
         switch(index()) {
         case 0: return term<0>().token();
         case 1: return term<1>().token();
+        default:
+            throw std::runtime_error("invalid tuple-close capture");
         }
-
-        throw std::runtime_error("invalid tuple-close capture");
     }
 };
 
@@ -69,6 +69,9 @@ struct Primary : public
         case 0: tok = term<0>().token(); break;
         case 1: tok = term<1>().token(); break;
         case 2: tok = term<2>().token(); break;
+        case 3: tok = term<3>().token(); break;
+        default:
+            throw std::runtime_error("invalid primary expression");
         }
 
         return std::make_unique<ast::PrimaryExpression>(tok);
@@ -122,6 +125,9 @@ struct Tuple : public
                 expressions.emplace_back(e.make());
             break;
         }
+
+        default:
+            throw std::runtime_error("invalid tuple expression");
         }
 
         return std::make_unique<ast::TupleExpression>(open, close, std::move(expressions));
@@ -150,6 +156,8 @@ struct Apply : public
         switch (factor<1>().index()) {
         case 0: tupleExpression = factor<1>().term<0>().make(); break;
         case 1: tupleExpression = factor<1>().term<1>().make(); break;
+        default:
+            throw std::runtime_error("invalid apply expression");
         }
 
         return std::make_unique<ast::ApplyExpression>(factor<0>().token(), std::move(tupleExpression));
@@ -211,9 +219,9 @@ struct SymbolDeclaration : public
         switch (factor<2>().index()) {
         case 0: return std::make_unique<ast::SymbolDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().term<0>().make());
         case 1: return std::make_unique<ast::SymbolDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().term<1>().make());
+        default:
+            throw std::runtime_error("invalid SymbolDeclaration");
         }
-
-        throw std::runtime_error("invalid SymbolDeclaration");
     }
 };
 
