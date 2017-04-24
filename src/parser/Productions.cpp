@@ -7,17 +7,28 @@ namespace kyfoo {
 // ValueExpression
 
 struct ValueExpression::impl : public
-    g::Or<Tuple, Apply, Primary>
+    g::OneOrMore<g::Or<Tuple, Primary>>
 {
     std::unique_ptr<ast::ValueExpression> make() const
     {
-        switch (index()) {
-        case 0: return term<0>().make();
-        case 1: return term<1>().make();
-        case 2: return term<2>().make();
+        std::unique_ptr<ast::ValueExpression> subject;
+        auto const& s = captures().front();
+        if ( captures().front().index() == 0 )
+            subject = s.term<0>().make();
+        else
+            subject = s.term<1>().make();
+
+        std::vector<std::unique_ptr<ast::ValueExpression>> args;
+        for ( std::size_t i = 1; i < captures().size(); ++i ) {
+            auto const& a = captures()[i];
+            if ( a.index() == 0 )
+                args.emplace_back(a.term<0>().make());
+            else
+                args.emplace_back(a.term<1>().make());
         }
 
-        throw std::runtime_error("invalid expression capture");
+        return std::make_unique<ast::ApplyExpression>(std::move(subject),
+                                                      std::make_unique<ast::TupleExpression>(std::move(args)));
     }
 };
 

@@ -78,8 +78,8 @@ private:
 class ApplyExpression : public ValueExpression
 {
 public:
-    explicit ApplyExpression(lexer::Token const & subject,
-                             std::unique_ptr<TupleExpression> arguments);
+    ApplyExpression(std::unique_ptr<ValueExpression> subject,
+                    std::unique_ptr<TupleExpression> arguments);
 
     // IIO
 public:
@@ -90,7 +90,7 @@ public:
     void resolveSymbols(Diagnostics& dgn, Resolver& resolver) override;
 
 private:
-    lexer::Token mySubject;
+    std::unique_ptr<ValueExpression> mySubject;
     std::unique_ptr<TupleExpression> myArguments;
 };
 

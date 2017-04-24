@@ -134,36 +134,6 @@ struct Tuple : public
     }
 };
 
-struct ImplicitTuple : public
-    g::OneOrMore<ValueExpression>
-{
-    std::unique_ptr<ast::TupleExpression> make() const
-    {
-        std::vector<std::unique_ptr<ast::ValueExpression>> expressions;
-        for (auto&& e : captures())
-            expressions.emplace_back(e.make());
-
-        return std::make_unique<ast::TupleExpression>(std::move(expressions));
-    }
-};
-
-struct Apply : public
-    g::And<id, g::Or<ImplicitTuple, Tuple>>
-{
-    std::unique_ptr<ast::ApplyExpression> make() const
-    {
-        std::unique_ptr<ast::TupleExpression> tupleExpression;
-        switch (factor<1>().index()) {
-        case 0: tupleExpression = factor<1>().term<0>().make(); break;
-        case 1: tupleExpression = factor<1>().term<1>().make(); break;
-        default:
-            throw std::runtime_error("invalid apply expression");
-        }
-
-        return std::make_unique<ast::ApplyExpression>(factor<0>().token(), std::move(tupleExpression));
-    }
-};
-
 class TypeExpression
 {
 public:
