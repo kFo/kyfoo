@@ -56,7 +56,7 @@ TOKEN_DEFINITIONS(X)
 };
 #undef X
 
-const char* toString(TokenKind kind);
+const char* to_string(TokenKind kind);
 
 inline bool isParen(TokenKind kind)
 {

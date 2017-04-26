@@ -89,7 +89,7 @@ TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
     throw std::runtime_error("invalid tuple expression syntax");
 }
 
-std::string to_string(TupleKind kind)
+const char* to_string(TupleKind kind)
 {
     switch (kind) {
     case TupleKind::Open: return "Open";

@@ -47,7 +47,7 @@ int runScannerDump(fs::path const& file)
         case kyfoo::lexer::TokenKind::IndentEQ:
         case kyfoo::lexer::TokenKind::IndentGT:
         case kyfoo::lexer::TokenKind::IndentError:
-            std::cout << "<" << toString(token.kind()) << "> " << '\n';
+            std::cout << "<" << to_string(token.kind()) << "> " << '\n';
             break;
 
         case kyfoo::lexer::TokenKind::Identifier:
@@ -55,7 +55,7 @@ int runScannerDump(fs::path const& file)
             break;
 
         default:
-            std::cout << token.lexeme() << " : " << toString(token.kind()) << '\n';
+            std::cout << token.lexeme() << " : " << to_string(token.kind()) << '\n';
         }
     }
 

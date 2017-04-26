@@ -16,7 +16,7 @@ enum class TupleKind
 };
 
 TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close);
-std::string to_string(TupleKind kind);
+const char* to_string(TupleKind kind);
 
     } // namesapce ast
 } // namespace kyfoo

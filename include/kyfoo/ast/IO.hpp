@@ -180,7 +180,7 @@ public:
         newLine();
         key(name);
         *myStream
-            << "{ kind: " << toString(token.kind())
+            << "{ kind: " << to_string(token.kind())
             << ", lexeme: \"" << token.lexeme() << "\""
             << ", line: " << token.line()
             << ", column: " << token.column() << " }";
