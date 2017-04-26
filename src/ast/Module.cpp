@@ -124,7 +124,7 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
     myScope = std::make_unique<ast::DeclarationScope>(this);
     
     std::vector<std::unique_ptr<parser::DeclarationScopeParser>> scopeStack;
-    scopeStack.emplace_back(std::make_unique<parser::DeclarationScopeParser>(myScope.get(), 0));
+    scopeStack.emplace_back(std::make_unique<parser::DeclarationScopeParser>(myScope.get()));
 
     while ( scanner ) {
         auto nextScope = scopeStack.back()->next(dgn, scanner);
@@ -132,23 +132,40 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
             scopeStack.push_back(std::move(nextScope));
         }
         else {
-            if ( scanner.peek().kind() == TokenKind::EndOfFile )
+            switch (scanner.peek().kind()) {
+            case TokenKind::EndOfFile:
+                if ( !scopeStack.empty() )
+                    scopeStack.resize(1);
+
+            case TokenKind::IndentLT:
                 break;
 
-            lexer::indent_width_t nextIndentWidth = 0;
-            if ( scanner.peek().kind() == TokenKind::Indent )
-                nextIndentWidth = scanner.next().lexeme().size();
-
-            while ( !scopeStack.empty() && scopeStack.back()->indent() != nextIndentWidth ) {
-                scopeStack.pop_back();
+            case TokenKind::IndentGT:
+            {
+                dgn.error(myScope->module(), scanner.peek()) << "unexpected scope opening";
+                dgn.die();
+                return;
             }
 
-            if ( scopeStack.empty() ) {
-                dgn.error(this, scanner.peek()) << "indentation doesn't match an existing scope";
+            default:
+                dgn.error(myScope->module(), scanner.peek()) << "expected end of scope";
                 dgn.die();
+            }
+
+            while ( scanner.peek().kind() == TokenKind::IndentLT ) {
+                if ( scopeStack.empty() ) {
+                    dgn.error(this, scanner.peek()) << "indentation doesn't match an existing scope";
+                    dgn.die();
+                }
+
+                scopeStack.pop_back();
+                scanner.next();
             }
         }
     }
+
+    if ( scopeStack.size() != 1 )
+        throw std::runtime_error("parser scope imbalance");
 }
 
 void Module::resolveImports(Diagnostics& dgn)

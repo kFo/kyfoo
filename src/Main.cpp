@@ -1,3 +1,4 @@
+#include <iomanip>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -31,19 +32,22 @@ int runScannerDump(fs::path const& file)
     while (scanner)
     {
         auto token = scanner.next();
-        std::cout << 'L' << token.line() << '\t';
+        std::cout << 'L' << std::left << std::setw(10) << token.line();
         switch (token.kind())
         {
+        case kyfoo::lexer::TokenKind::Undefined:
+            std::cout << "<undefined>\n";
+            break;
+
         case kyfoo::lexer::TokenKind::EndOfFile:
             std::cout << "<eof>\n";
             break;
 
-        case kyfoo::lexer::TokenKind::Indent:
-            std::cout << "<indent> " << token.lexeme().size() << '\n';
-            break;
-
-        case kyfoo::lexer::TokenKind::LineBreak:
-            std::cout << "<br>\n";
+        case kyfoo::lexer::TokenKind::IndentLT:
+        case kyfoo::lexer::TokenKind::IndentEQ:
+        case kyfoo::lexer::TokenKind::IndentGT:
+        case kyfoo::lexer::TokenKind::IndentError:
+            std::cout << "<" << toString(token.kind()) << "> " << '\n';
             break;
 
         case kyfoo::lexer::TokenKind::Identifier:
@@ -51,7 +55,7 @@ int runScannerDump(fs::path const& file)
             break;
 
         default:
-            std::cout << token.lexeme() << " : " << kyfoo::lexer::toString(token.kind()) << '\n';
+            std::cout << token.lexeme() << " : " << toString(token.kind()) << '\n';
         }
     }
 

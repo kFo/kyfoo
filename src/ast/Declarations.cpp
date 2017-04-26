@@ -92,7 +92,7 @@ void TypeDeclaration::resolveSymbols(Diagnostics&)
     // TODO
 }
 
-void TypeDeclaration::define(std::unique_ptr<DeclarationScope> scope)
+void TypeDeclaration::define(std::unique_ptr<TypeScope> scope)
 {
     if ( myDefinition )
         throw std::runtime_error("type declaration defined more than once");
@@ -100,7 +100,7 @@ void TypeDeclaration::define(std::unique_ptr<DeclarationScope> scope)
     myDefinition = std::move(scope);
 }
 
-DeclarationScope* TypeDeclaration::definition()
+TypeScope* TypeDeclaration::definition()
 {
     return myDefinition.get();
 }
