@@ -34,6 +34,7 @@ enum class DeclKind
 const char* to_string(DeclKind kind);
 
 class DeclarationScope;
+class TypeScope;
 class ProcedureScope;
 class ValueExpression;
 
@@ -86,11 +87,11 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    void define(std::unique_ptr<DeclarationScope> scope);
-    DeclarationScope* definition();
+    void define(std::unique_ptr<TypeScope> scope);
+    TypeScope* definition();
 
 private:
-    std::unique_ptr<DeclarationScope> myDefinition;
+    std::unique_ptr<TypeScope> myDefinition;
 };
 
 class SymbolDeclaration : public Declaration

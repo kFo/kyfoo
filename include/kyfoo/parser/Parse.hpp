@@ -21,44 +21,52 @@ namespace kyfoo {
 
     namespace parser {
 
+class TypeScopeParser;
+class ProcedureScopeParser;
 
 class DeclarationScopeParser
 {
 public:
-    DeclarationScopeParser(ast::DeclarationScope* scope,
-                           lexer::indent_width_t indent);
+    DeclarationScopeParser(ast::DeclarationScope* scope);
     ~DeclarationScopeParser();
 
 public:
     std::unique_ptr<DeclarationScopeParser> next(Diagnostics& dgn, lexer::Scanner& scanner);
-    lexer::indent_width_t indent() const;
 
     std::unique_ptr<ast::TypeDeclaration> parseTypeDeclaration(lexer::Scanner& scanner);
     std::unique_ptr<ast::ProcedureDeclaration> parseProcedureDeclaration(lexer::Scanner& scanner);
 
-    std::tuple<std::unique_ptr<ast::TypeScope>, lexer::indent_width_t> parseTypeDefinition(Diagnostics& dgn,
-                                                                                           lexer::Scanner& scanner,
-                                                                                           ast::TypeDeclaration& declaration);
-    std::tuple<std::unique_ptr<ast::ProcedureScope>, lexer::indent_width_t> parseProcedureDefinition(Diagnostics& dgn,
-                                                                                                     lexer::Scanner& scanner,
-                                                                                                     ast::ProcedureDeclaration& declaration);
+    std::unique_ptr<TypeScopeParser> parseTypeDefinition(Diagnostics& dgn,
+                                                         lexer::Scanner& scanner,
+                                                         ast::TypeDeclaration& declaration);
+    std::unique_ptr<ProcedureScopeParser> parseProcedureDefinition(Diagnostics& dgn,
+                                                                   lexer::Scanner& scanner,
+                                                                   ast::ProcedureDeclaration& declaration);
 
 protected:
     virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner);
 
-    enum IndentChange { Same, Increase, Decrease };
-    IndentChange indentChange(lexer::indent_width_t indent) const;
-
 protected:
     ast::DeclarationScope* myScope = nullptr;
-    lexer::indent_width_t myIndent = 0;
+};
+
+class TypeScopeParser : public DeclarationScopeParser
+{
+public:
+    explicit TypeScopeParser(ast::TypeScope* scope);
+    ~TypeScopeParser();
+
+protected:
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
+
+private:
+    ast::TypeScope* scope();
 };
 
 class ProcedureScopeParser : public DeclarationScopeParser
 {
 public:
-    ProcedureScopeParser(ast::ProcedureScope* scope,
-                         lexer::indent_width_t indent);
+    explicit ProcedureScopeParser(ast::ProcedureScope* scope);
     ~ProcedureScopeParser();
 
 protected:

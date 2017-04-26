@@ -4,9 +4,12 @@ namespace kyfoo {
     namespace lexer {
 
 #define TOKEN_DEFINITIONS(X) \
+    X(Undefined, "undefined") \
     X(EndOfFile, "EOF") \
-    X(Indent, "indent") \
-    X(LineBreak, "EOL") \
+    X(IndentLT, "indent(<)") \
+    X(IndentEQ, "indent(=)") \
+    X(IndentGT, "indent(>)") \
+    X(IndentError, "indent(err)") \
     X(Comment, "comment") \
     X(Identifier, "identifier") \
     \
@@ -67,10 +70,27 @@ inline bool isBracket(TokenKind kind)
         || kind == lexer::TokenKind::CloseBracket;
 }
 
+inline bool isAngle(TokenKind kind)
+{
+    return kind == lexer::TokenKind::OpenAngle
+        || kind == lexer::TokenKind::CloseAngle;
+}
+
+inline bool isIndent(TokenKind kind)
+{
+    switch (kind) {
+    case TokenKind::IndentLT:
+    case TokenKind::IndentEQ:
+    case TokenKind::IndentGT:
+        return true;
+    }
+
+    return false;
+}
+
 inline bool isBreak(TokenKind kind)
 {
-    return kind == TokenKind::LineBreak
-        || kind == TokenKind::EndOfFile;
+    return isIndent(kind) || kind == TokenKind::EndOfFile;
 }
 
     } // namespace lexer

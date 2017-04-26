@@ -28,8 +28,6 @@ public:
     void endScan();
     void rollbackScan();
 
-    indent_width_t indentWidth() const;
-
     bool eof() const;
     bool hasError() const;
 
@@ -41,6 +39,7 @@ protected:
     char nextChar();
     char peekChar();
 
+    Token indent(line_index_t line, column_index_t column, indent_width_t indent);
     void bumpLine();
 
 private:
@@ -49,14 +48,13 @@ private:
     struct InternalScanState
     {
         std::size_t readIndex;
-        indent_width_t indentWidth;
     };
     InternalScanState myState;
 
     std::vector<InternalScanState> mySavePoints;
+    std::vector<indent_width_t> myIndents;
     std::deque<Token> myBuffer;
 
-    bool myExpectingIndent = false;
     line_index_t myLine = 1;
     column_index_t myColumn = 1;
     bool myError = false;
@@ -113,11 +111,6 @@ public:
     Token peek(std::size_t lookAhead = 0)
     {
         return myScanner.peek(lookAhead);
-    }
-
-    indent_width_t indentWidth() const
-    {
-        return myScanner.indentWidth();
     }
 
 private:

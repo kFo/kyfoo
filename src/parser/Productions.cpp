@@ -18,6 +18,9 @@ struct ValueExpression::impl : public
         else
             subject = s.term<1>().make();
 
+        if ( captures().size() == 1 )
+            return subject;
+
         std::vector<std::unique_ptr<ast::ValueExpression>> args;
         for ( std::size_t i = 1; i < captures().size(); ++i ) {
             auto const& a = captures()[i];

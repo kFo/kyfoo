@@ -22,6 +22,11 @@ namespace
         return false;
     }
 
+    bool isLineComment(char c)
+    {
+        return c == ';';
+    }
+
     bool isLineBreak(char c)
     {
         switch (c)
@@ -71,8 +76,10 @@ namespace
 
 Scanner::Scanner(std::istream& stream)
     : myStream(stream)
-    , myState(InternalScanState{ 0, 0 })
+    , myState(InternalScanState{ 0 })
 {
+    if ( peek().kind() == TokenKind::IndentEQ )
+        next();
 }
 
 Token Scanner::next()
@@ -131,11 +138,6 @@ void Scanner::rollbackScan()
     mySavePoints.pop_back();
 }
 
-indent_width_t Scanner::indentWidth() const
-{
-    return myState.indentWidth;
-}
-
 bool Scanner::eof() const
 {
     return myStream.eof();
@@ -162,9 +164,43 @@ char Scanner::peekChar()
     return static_cast<char>(myStream.peek());
 }
 
+Token Scanner::indent(line_index_t line, column_index_t column, indent_width_t indent)
+{
+    indent_width_t current = 0;
+    if ( !myIndents.empty() )
+        current = myIndents.back();
+
+    if ( indent == current )
+        return Token(TokenKind::IndentEQ, line, column, "");
+
+    if ( indent > current ) {
+        myIndents.push_back(indent);
+        return Token(TokenKind::IndentGT, line, column, "");
+    }
+
+    Token ret(TokenKind::IndentLT, line, column, "");
+    myIndents.pop_back();
+
+    while ( !myIndents.empty() && myIndents.back() != indent ) {
+        if ( myIndents.back() < indent ) {
+            myError = true;
+            return Token(TokenKind::IndentError, line, column, "");
+        }
+        
+        myBuffer.push_back(Token(TokenKind::IndentLT, line, column, ""));
+        myIndents.pop_back();
+    }
+
+    if ( myIndents.empty() && indent != 0 ) {
+        myError = true;
+        return Token(TokenKind::IndentError, line, column, "");
+    }
+
+    return ret;
+}
+
 void Scanner::bumpLine()
 {
-    myExpectingIndent = true;
     ++myLine;
     myColumn = 1;
 }
@@ -178,35 +214,67 @@ Token Scanner::readNext()
     std::string lexeme;
     column_index_t column = myColumn;
 
-    if ( myExpectingIndent ) {
-        myExpectingIndent = false;
+    if ( myStream.eof() )
+        return TOK(EndOfFile);
 
-        if ( isSpace(c) ) {
-            do lexeme += nextChar();
-            while ( isSpace(peekChar()) );
-
-            myState.indentWidth = lexeme.size();
-            return TOK(Indent);
-        }
-        else {
-            myState.indentWidth = 0;
-        }
-    }
-    else {
-        // Burn spaces if an indent is not expected
+    auto takeSpaces = [this, &c] {
+        indent_width_t spaces = 0;
         while ( isSpace(c) ) {
+            ++spaces;
             nextChar();
             c = peekChar();
         }
+
+        if ( isLineComment(c) ) {
+            do {
+                nextChar();
+                c = peekChar();
+            } while ( !isLineBreak(c) );
+        }
+
+        return spaces;
+    };
+
+    auto takeLineBreaks = [this, &c] {
+        int ret = 0;
+        while ( isLineBreak(c) ) {
+            if ( c == '\r' && peekChar() == '\n' )
+                nextChar();
+
+            nextChar();
+            bumpLine();
+            ++ret;
+            c = peekChar();
+        }
+
+        return ret;
+    };
+
+    auto spaces = takeSpaces();
+    auto lineBreaks = takeLineBreaks();
+
+    if ( myStream.eof() )
+        return TOK(EndOfFile);
+
+    if ( lineBreaks ) {
+        do {
+            spaces = takeSpaces();
+            lineBreaks = takeLineBreaks();
+        } while ( lineBreaks );
+
+        if ( myStream.eof() )
+            return TOK(EndOfFile);
+
+        return indent(myLine, myColumn, spaces);
+    }
+    else if ( spaces && column == 1 ) {
+        return indent(myLine, myColumn, spaces);
     }
 
     // Resync column with start of lexeme
     column = myColumn;
 
-    if ( myStream.eof() ) {
-        return TOK(EndOfFile);
-    }
-    else if ( isLetter(c) ) {
+    if ( isLetter(c) ) {
         do lexeme += nextChar();
         while ( isLetter(peekChar()) || isNumber(peekChar()) );
 
@@ -265,17 +333,6 @@ Token Scanner::readNext()
 
         return TOK(Integer);
     }
-    else if ( c == ';' ) {
-        while ( !isLineBreak(c = nextChar()) )
-            lexeme += c;
-
-        if ( isLineBreak(peekChar()) )
-            nextChar();
-
-        bumpLine();
-
-        return readNext();
-    }
     else if ( c == '\'' ) {
         do lexeme += nextChar();
         while ( peekChar() != '\'' );
@@ -301,24 +358,6 @@ Token Scanner::readNext()
         }
 
         return TOK2(Dot, ".");
-    }
-    else if ( c == '\r' ) {
-        lexeme += nextChar();
-
-        if ( peekChar() == '\n' )
-            lexeme += nextChar();
-
-        auto ret = TOK(LineBreak);
-        bumpLine();
-
-        return ret;
-    }
-    else if ( c == '\n' ) {
-        nextChar();
-        auto ret = TOK2(LineBreak, "\n");
-        bumpLine();
-
-        return ret;
     }
     else if ( c == '=' ) {
         c = nextChar();
@@ -354,7 +393,7 @@ Token Scanner::readNext()
     }
 
     myError = true;
-    return TOK2(EndOfFile, "");
+    return TOK2(Undefined, "");
 
 #undef TOK2
 #undef TOK
