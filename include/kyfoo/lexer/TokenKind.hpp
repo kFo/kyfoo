@@ -76,6 +76,12 @@ inline bool isAngle(TokenKind kind)
         || kind == lexer::TokenKind::CloseAngle;
 }
 
+inline bool isBrace(TokenKind kind)
+{
+    return kind == lexer::TokenKind::OpenBrace
+        || kind == lexer::TokenKind::CloseBrace;
+}
+
 inline bool isIndent(TokenKind kind)
 {
     switch (kind) {
