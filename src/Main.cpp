@@ -195,48 +195,53 @@ void printHelp(fs::path const& arg0)
         " COMMAND FILE [FILE2 FILE3 ...]\n"
         "\n"
         "COMMAND:\n"
-        "  scan, lex, lexer    Prints the lexer output of the module\n"
+        "  scan, lexer, lex    Prints the lexer output of the module\n"
         "  parse, grammar      Prints the parse tree as JSON\n"
-        "  semantics           Checks the module for semantic errors"
+        "  semantics, sem      Checks the module for semantic errors"
         << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
-    if ( argc < 3 ) {
+    try {
+        if ( argc < 3 ) {
+            printHelp(argv[0]);
+            return EXIT_FAILURE;
+        }
+
+        std::string command = argv[1];
+        std::string file = argv[2];
+
+        if ( command == "scan" || command == "lex" || command == "lexer" ) {
+            if ( argc != 3 ) {
+                printHelp(argv[0]);
+                return EXIT_FAILURE;
+            }
+
+            return runScannerDump(file);
+        }
+        else if ( command == "parse" || command == "grammar" ) {
+            if ( argc != 3 ) {
+                printHelp(argv[0]);
+                return EXIT_FAILURE;
+            }
+
+            return runParserTest(file);
+        }
+        else if ( command == "semantics" || command == "sem" ) {
+            std::vector<fs::path> files;
+            for ( int i = 2; i != argc; ++i )
+                files.push_back(argv[i]);
+
+            return runSemanticsTest(files);
+        }
+
+        std::cout << "Unknown option: " << command << std::endl;
         printHelp(argv[0]);
-        return EXIT_FAILURE;
     }
-
-    std::string command = argv[1];
-    std::string file = argv[2];
-
-    if ( command == "scan" || command == "lex" || command == "lexer" ) {
-        if ( argc != 3 ) {
-            printHelp(argv[0]);
-            return EXIT_FAILURE;
-        }
-
-        return runScannerDump(file);
+    catch (std::exception const& e) {
+        std::cout << "ICE: " << e.what() << std::endl;
     }
-    else if ( command == "parse" || command == "grammar" ) {
-        if ( argc != 3 ) {
-            printHelp(argv[0]);
-            return EXIT_FAILURE;
-        }
-
-        return runParserTest(file);
-    }
-    else if ( command == "semantics" ) {
-        std::vector<fs::path> files;
-        for ( int i = 2; i != argc; ++i )
-            files.push_back(argv[i]);
-
-        return runSemanticsTest(files);
-    }
-
-    std::cout << "Unknown option: " << command << std::endl;
-    printHelp(argv[0]);
 
     return EXIT_FAILURE;
 }
