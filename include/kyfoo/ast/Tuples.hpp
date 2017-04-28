@@ -7,12 +7,19 @@
 namespace kyfoo {
     namespace ast {
 
+#define TUPLE_KINDS(X) \
+    X(Open) \
+    X(OpenRight) \
+    X(OpenLeft) \
+    X(Closed) \
+    X(Symbol) \
+    X(Apply)
+
 enum class TupleKind
 {
-    Open,
-    HalfOpenRight,
-    HalfOpenLeft,
-    Closed
+#define X(a) a,
+    TUPLE_KINDS(X)
+#undef X
 };
 
 TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close);

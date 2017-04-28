@@ -1,177 +1,36 @@
 #include <kyfoo/ast/Symbol.hpp>
 
-#include <kyfoo/ast/TypeExpressions.hpp>
-#include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 
 namespace kyfoo {
     namespace ast {
 
 //
-// Expression
-
-const char* Expression::to_string(Kind kind)
-{
-    switch (kind) {
-    case Kind::TypeExpression: return "TypeExpression";
-    case Kind::ValueExpression: return "ValueExpression";
-    }
-
-    throw std::runtime_error("invalid type parameter");
-}
-
-Expression::Expression(std::unique_ptr<TypeExpression> typeExpression)
-    : myKind(Kind::TypeExpression)
-    , myPtr(typeExpression.release())
-{
-}
-
-Expression::Expression(std::unique_ptr<ValueExpression> valueExpression)
-    : myKind(Kind::ValueExpression)
-    , myPtr(valueExpression.release())
-{
-}
-
-Expression::Expression(Expression&& rhs)
-    : myKind(rhs.myKind)
-    , myPtr(rhs.myPtr.any)
-{
-    rhs.myPtr.any = nullptr;
-}
-
-Expression& Expression::operator = (Expression&& rhs)
-{
-    this->~Expression();
-    new (this) Expression(std::move(rhs));
-
-    return *this;
-}
-
-Expression::~Expression()
-{
-    if ( myKind == Kind::TypeExpression )
-        delete myPtr.asTypeExpression;
-    else
-        delete myPtr.asExpression;
-}
-
-Expression::Kind Expression::kind() const
-{
-    return myKind;
-}
-
-TypeExpression* Expression::typeExpression()
-{
-    if ( myKind == Kind::TypeExpression )
-        return myPtr.asTypeExpression;
-
-    return nullptr;
-}
-
-TypeExpression const* Expression::typeExpression() const
-{
-    return const_cast<Expression*>(this)->typeExpression();
-}
-
-ValueExpression* Expression::valueExpression()
-{
-    if ( myKind == Kind::ValueExpression )
-        return myPtr.asExpression;
-
-    return nullptr;
-}
-
-ValueExpression const* Expression::valueExpression() const
-{
-    return const_cast<Expression*>(this)->valueExpression();
-}
-
-//
-// SymbolParameter
-
-SymbolParameter::SymbolParameter(std::unique_ptr<TypeExpression> typeExpression)
-    : myKind(Kind::TypeExpression)
-    , myPtr(typeExpression.release())
-{
-}
-
-SymbolParameter::SymbolParameter(std::unique_ptr<ValueExpression> valueExpression)
-    : myKind(Kind::ValueExpression)
-    , myPtr(valueExpression.release())
-{
-}
-
-SymbolParameter::SymbolParameter(Expression expression,
-                                 std::unique_ptr<TypeExpression> typeConstraint)
-    : myKind(Kind::ConstrainedExpression)
-    , myPtr(std::make_unique<ConstrainedExpression>(ConstrainedExpression{std::move(expression), std::move(typeConstraint)}).release())
-{
-}
-
-SymbolParameter::SymbolParameter(SymbolParameter&& rhs)
-    : myKind(rhs.myKind)
-    , myPtr(rhs.myPtr.any)
-{
-    rhs.myPtr.any = nullptr;
-}
-
-SymbolParameter& SymbolParameter::operator = (SymbolParameter&& rhs)
-{
-    this->~SymbolParameter();
-    new (this) SymbolParameter(std::move(rhs));
-
-    return *this;
-}
-
-SymbolParameter::~SymbolParameter()
-{
-    switch (myKind) {
-    case Kind::ValueExpression: delete myPtr.asValueExpression; break;
-    case Kind::TypeExpression: delete myPtr.asTypeExpression; break;
-    case Kind::ConstrainedExpression: delete myPtr.asConstrainedExpression; break;
-    }
-}
-
-SymbolParameter::Kind SymbolParameter::kind() const
-{
-    return myKind;
-}
-
-TypeExpression const* SymbolParameter::typeExpression() const
-{
-    if ( myKind == Kind::TypeExpression )
-        return myPtr.asTypeExpression;
-
-    return nullptr;
-}
-
-ValueExpression const* SymbolParameter::valueExpression() const
-{
-    if ( myKind == Kind::ValueExpression )
-        return myPtr.asValueExpression;
-
-    return nullptr;
-}
-
-ConstrainedExpression const* SymbolParameter::constrainedExpression() const
-{
-    if ( myKind == Kind::ConstrainedExpression )
-        return myPtr.asConstrainedExpression;
-
-    return nullptr;
-}
-
-//
 // Symbol
 
 Symbol::Symbol(lexer::Token const& identifier,
-               std::vector<SymbolParameter>&& parameters)
+               std::vector<std::unique_ptr<Expression>>&& parameters)
     : myIdentifier(identifier)
     , myParameters(std::move(parameters))
 {
 }
 
+Symbol::Symbol(lexer::Token const& identifier,
+               std::unique_ptr<TupleExpression> symbolTuple)
+    : myIdentifier(identifier)
+    , myParameters(std::move(symbolTuple->expressions()))
+{
+    if ( symbolTuple->kind() != TupleKind::Symbol )
+        throw std::runtime_error("symbol must be created with a symbol tuple");
+}
+
+Symbol::Symbol(std::unique_ptr<TupleExpression> symbolTuple)
+    : myParameters(std::move(symbolTuple->expressions()))
+{
+}
+
 Symbol::Symbol(lexer::Token const& identifier)
-    : Symbol(identifier, {})
+    : myIdentifier(identifier)
 {
 }
 
@@ -193,26 +52,10 @@ Symbol::~Symbol() = default;
 
 void Symbol::io(IStream& stream) const
 {
-    stream.next("identifier", myIdentifier);
-    stream.openArray("parameters");
-    for ( auto const& p : myParameters ) {
-        if ( auto t = p.typeExpression() ) {
-            t->io(stream);
-        }
-        else if ( auto v = p.valueExpression() ) {
-            v->io(stream);
-        }
-        else {
-            auto ce = p.constrainedExpression();
-            if ( auto tt = ce->expression.typeExpression() )
-                tt->io(stream);
-            else if ( auto vv = ce->expression.valueExpression() )
-                vv->io(stream);
-
-            if ( auto c = ce->constraint.get() )
-                stream.next("constraint", c);
-        }
-    }
+    stream.next("id", myIdentifier);
+    stream.openArray("params");
+    for ( auto const& p : myParameters )
+        p->io(stream);
     stream.closeArray();
 }
 
@@ -226,7 +69,7 @@ std::string const& Symbol::name() const
     return myIdentifier.lexeme();
 }
 
-std::vector<SymbolParameter> const& Symbol::parameters() const
+Symbol::paramlist_t const& Symbol::parameters() const
 {
     return myParameters;
 }
@@ -238,18 +81,6 @@ bool equal(SymbolSet::paramlist_t const& lhs, SymbolSet::paramlist_t const& rhs)
 {
     if ( lhs.size() != rhs.size() )
         return false;
-
-    auto const size = lhs.size();
-    for ( std::size_t i = 0; i < size; ++i ) {
-        if ( lhs[i].kind() != rhs[i].kind() )
-            return false;
-
-        if ( auto l = lhs[i].constrainedExpression() ) {
-            auto r = rhs[i].constrainedExpression();
-            if ( (l->constraint != nullptr) != (r->constraint != nullptr) )
-                return false;
-        }
-    }
 
     return true;
 }

@@ -10,111 +10,20 @@
 namespace kyfoo {
     namespace ast {
 
-class TypeExpression;
-class ValueExpression;
-
-class Expression
-{
-public:
-    enum class Kind
-    {
-        TypeExpression,
-        ValueExpression,
-    };
-
-    static const char* to_string(Kind kind);
-
-public:
-    /*implciit*/ Expression(std::unique_ptr<TypeExpression> typeExpression);
-    /*implicit*/ Expression(std::unique_ptr<ValueExpression> valueExpression);
-
-    Expression(Expression const&) = delete;
-
-    Expression(Expression&& rhs);
-    Expression& operator = (Expression&& rhs);
-
-    ~Expression();
-
-public:
-    Kind kind() const;
-    TypeExpression* typeExpression();
-    TypeExpression const* typeExpression() const;
-    ValueExpression* valueExpression();
-    ValueExpression const* valueExpression() const;
-
-private:
-    Kind myKind;
-    union Ptr {
-        Ptr() : any(nullptr) {}
-        Ptr(void* rhs) : any(rhs) {}
-        Ptr(TypeExpression* rhs) : asTypeExpression(rhs) {}
-        Ptr(ValueExpression* rhs) : asExpression(rhs) {}
-
-        void* any;
-        TypeExpression* asTypeExpression;
-        ValueExpression* asExpression;
-    } myPtr;
-};
-
-struct ConstrainedExpression
-{
-    Expression expression;
-    std::unique_ptr<TypeExpression> constraint;
-};
-
-class SymbolParameter
-{
-public:
-    enum class Kind
-    {
-        TypeExpression,
-        ValueExpression,
-        ConstrainedExpression,
-    };
-
-public:
-    explicit SymbolParameter(std::unique_ptr<TypeExpression> typeExpression);
-    explicit SymbolParameter(std::unique_ptr<ValueExpression> valueExpression);
-    SymbolParameter(Expression expression,
-                    std::unique_ptr<TypeExpression> typeConstraint);
-
-    SymbolParameter(SymbolParameter const&) = delete;
-
-    SymbolParameter(SymbolParameter&& rhs);
-    SymbolParameter& operator = (SymbolParameter&& rhs);
-
-    ~SymbolParameter();
-
-public:
-    Kind kind() const;
-    TypeExpression const* typeExpression() const;
-    ValueExpression const* valueExpression() const;
-    ConstrainedExpression const* constrainedExpression() const;
-
-private:
-    Kind myKind;
-    union Ptr {
-        Ptr() : any(nullptr) {}
-        Ptr(void* rhs) : any(rhs) {}
-        Ptr(TypeExpression* rhs) : asTypeExpression(rhs) {}
-        Ptr(ValueExpression* rhs) : asValueExpression(rhs) {}
-        Ptr(ConstrainedExpression* rhs) : asConstrainedExpression(rhs) {}
-
-        void* any;
-        TypeExpression* asTypeExpression;
-        ValueExpression* asValueExpression;
-        ConstrainedExpression* asConstrainedExpression;
-    } myPtr;
-};
+class Expression;
+class TupleExpression;
 
 class Symbol : public IIO
 {
 public:
-    using paramlist_t = std::vector<SymbolParameter>;
+    using paramlist_t = std::vector<std::unique_ptr<Expression>>;
 
 public:
-    explicit Symbol(lexer::Token const& identifier,
-                    std::vector<SymbolParameter>&& parameters);
+    Symbol(lexer::Token const& identifier,
+           std::vector<std::unique_ptr<Expression>>&& parameters);
+    Symbol(lexer::Token const& identifier,
+           std::unique_ptr<TupleExpression> symbolTuple);
+    Symbol(std::unique_ptr<TupleExpression> symbolTuple);
     explicit Symbol(lexer::Token const& identifier);
 
     Symbol(Symbol const&) = delete;

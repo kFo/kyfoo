@@ -5,7 +5,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
@@ -31,34 +31,6 @@ using closeAngle = g::Terminal<TokenKind::CloseAngle>;
 using _import = g::Terminal<TokenKind::_import>;
 using _type = g::Terminal<TokenKind::_type>;
 
-struct TupleOpen : public
-    g::Or<openParen, openBracket>
-{
-    lexer::Token const& token() const
-    {
-        switch(index()) {
-        case 0: return term<0>().token();
-        case 1: return term<1>().token();
-        default:
-            throw std::runtime_error("invalid tuple-open capture");
-        }
-    }
-};
-
-struct TupleClose : public
-    g::Or<closeParen, closeBracket>
-{
-    lexer::Token const& token() const
-    {
-        switch(index()) {
-        case 0: return term<0>().token();
-        case 1: return term<1>().token();
-        default:
-            throw std::runtime_error("invalid tuple-close capture");
-        }
-    }
-};
-
 struct Primary : public
     g::Or<id, integer, decimal, string>
 {
@@ -78,120 +50,164 @@ struct Primary : public
     }
 };
 
-class ValueExpression
+class Expression
 {
 public:
-    ValueExpression();
-    ValueExpression(ValueExpression const& rhs);
-    ValueExpression(ValueExpression&&) = delete;
-    ~ValueExpression();
+    Expression();
+    Expression(Expression const& rhs);
+    Expression(Expression&&) = delete;
+    ~Expression();
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);
-    std::unique_ptr<ast::ValueExpression> make() const;
+    std::unique_ptr<ast::Expression> make() const;
 
 private:
     struct impl;
     std::unique_ptr<impl> myGrammar;
 };
 
-struct Tuple : public
-    g::Or<
-        g::And<openParen, closeParen>
-      , g::And<TupleOpen, g::Repeat2<ValueExpression, comma>, TupleClose>
-        >
+inline std::vector<std::unique_ptr<ast::Expression>>
+expressions(std::vector<Expression> const& rhs)
+{
+    std::vector<std::unique_ptr<ast::Expression>> ret;
+    for ( auto const& e : rhs )
+        ret.emplace_back(e.make());
+
+    return ret;
+}
+
+inline std::unique_ptr<ast::TupleExpression>
+createTuple(ast::TupleKind kind,
+            std::vector<std::unique_ptr<ast::Expression>>&& expressions)
+{
+    return std::make_unique<ast::TupleExpression>(kind, std::move(expressions));
+}
+
+struct TupleOpen : public
+    g::And<openParen, g::Repeat2<Expression, comma>, closeParen>
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
-        Token open;
-        Token close;
-        std::vector<std::unique_ptr<ast::ValueExpression>> expressions;
-
-        switch (index()) {
-        case 0:
-        {
-            auto const& t = term<0>();
-            open = t.factor<0>().token();
-            close = t.factor<1>().token();
-            break;
-        }
-
-        case 1:
-        {
-            auto const& t = term<1>();
-            open = t.factor<0>().token();
-            close = t.factor<2>().token();
-            for (auto&& e : t.factor<1>().captures())
-                expressions.emplace_back(e.make());
-            break;
-        }
-
-        default:
-            throw std::runtime_error("invalid tuple expression");
-        }
-
-        return std::make_unique<ast::TupleExpression>(open, close, std::move(expressions));
+        return createTuple(ast::TupleKind::Open,
+                           expressions(factor<1>().captures()));
     }
 };
 
-class TypeExpression
+struct TupleOpenRight : public
+    g::And<openBracket, g::Repeat2<Expression, comma>, closeParen>
 {
-public:
-    TypeExpression();
-    TypeExpression(TypeExpression const& rhs);
-    TypeExpression(TypeExpression&&) = delete;
-    ~TypeExpression();
-
-public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);
-    std::unique_ptr<ast::TypeExpression> make() const;
-
-private:
-    struct impl;
-    std::unique_ptr<impl> myGrammar;
+    std::unique_ptr<ast::TupleExpression> make() const
+    {
+        return createTuple(ast::TupleKind::OpenRight,
+                           expressions(factor<1>().captures()));
+    }
 };
 
-struct Parameter : public
-    g::And<id, g::Opt<g::And<colon, TypeExpression>>>
+struct TupleOpenLeft : public
+    g::And<openParen, g::Repeat2<Expression, comma>, closeBracket>
 {
-    std::unique_ptr<ast::ProcedureParameter> make() const
+    std::unique_ptr<ast::TupleExpression> make() const
     {
-        std::unique_ptr<ast::TypeExpression> type;
-        if ( factor<1>().capture() )
-            type = factor<1>().capture()->factor<1>().make();
+        return createTuple(ast::TupleKind::OpenLeft,
+                           expressions(factor<1>().captures()));
+    }
+};
 
-        return std::make_unique<ast::ProcedureParameter>(ast::Symbol(factor<0>().token()), std::move(type));
+struct TupleClosed : public
+    g::And<openBracket, g::Repeat2<Expression, comma>, closeBracket>
+{
+    std::unique_ptr<ast::TupleExpression> make() const
+    {
+        return createTuple(ast::TupleKind::Closed,
+                           expressions(factor<1>().captures()));
+    }
+};
+
+struct TupleSymbol : public
+    g::And<openAngle, g::Repeat2<Expression, comma>, closeAngle>
+{
+    std::unique_ptr<ast::TupleExpression> make() const
+    {
+        return createTuple(ast::TupleKind::Symbol,
+                           expressions(factor<1>().captures()));
+    }
+};
+
+struct Tuple : public
+    g::Or<TupleOpen, TupleOpenLeft, TupleOpenRight, TupleClosed, TupleSymbol>
+{
+    std::unique_ptr<ast::TupleExpression> make() const
+    {
+        switch (index()) {
+        case 0: return term<0>().make();
+        case 1: return term<1>().make();
+        case 2: return term<2>().make();
+        case 3: return term<3>().make();
+        case 4: return term<4>().make();
+        default:
+            throw std::runtime_error("invalid tuple expression");
+        }
+    }
+};
+
+struct Symbol : public
+    g::Or<
+          g::And<id, g::Opt<TupleSymbol>>
+        , TupleSymbol
+         >
+{
+    ast::Symbol make() const
+    {
+        switch (index()) {
+        case 0: 
+            if ( auto p = term<0>().factor<1>().capture() )
+                return ast::Symbol(term<0>().factor<0>().token(), p->make());
+            else
+                return ast::Symbol(term<0>().factor<0>().token());
+
+        case 1:
+            return ast::Symbol(term<1>().make());
+
+        default:
+            throw std::runtime_error("invalid symbol expression");
+        }
     }
 };
 
 struct ProcedureDeclaration : public
-    g::And<id, openParen, g::Repeat2<Parameter, comma>, closeParen, g::Opt<g::And<colon, TypeExpression>>>
+    g::And<
+        Symbol,
+        openParen,
+        g::Repeat2<g::And<id, colon, Expression>, comma>,
+        closeParen,
+        g::Opt<g::And<colon, Expression>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
         std::vector<std::unique_ptr<ast::ProcedureParameter>> parameters;
-        for (auto&& e : factor<2>().captures())
-            parameters.emplace_back(e.make());
+        for ( auto& e : factor<2>().captures() )
+            parameters.emplace_back(
+                std::make_unique<ast::ProcedureParameter>(
+                    ast::Symbol(e.factor<0>().token()),
+                    e.factor<2>().make()));
 
-        std::unique_ptr<ast::TypeExpression> returnTypeExpression;
-        if ( factor<4>().capture() )
-            returnTypeExpression = factor<4>().capture()->factor<1>().make();
+        std::unique_ptr<ast::Expression> returnTypeExpression;
+        if ( auto r = factor<4>().capture() )
+            returnTypeExpression = r->factor<1>().make();
 
-        return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(factor<0>().token()), std::move(parameters), std::move(returnTypeExpression));
+        return std::make_unique<ast::ProcedureDeclaration>(factor<0>().make(),
+                                                           std::move(parameters),
+                                                           std::move(returnTypeExpression));
     }
 };
 
 struct SymbolDeclaration : public
-    g::And<id, equal, g::Long<ValueExpression, TypeExpression>>
+    g::And<Symbol, equal, Expression>
 {
     std::unique_ptr<ast::SymbolDeclaration> make() const
     {
-        switch (factor<2>().index()) {
-        case 0: return std::make_unique<ast::SymbolDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().term<0>().make());
-        case 1: return std::make_unique<ast::SymbolDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().term<1>().make());
-        default:
-            throw std::runtime_error("invalid SymbolDeclaration");
-        }
+        return std::make_unique<ast::SymbolDeclaration>(factor<0>().make(), factor<2>().make());
     }
 };
 
@@ -204,78 +220,12 @@ struct ImportDeclaration : public
     }
 };
 
-struct TypeParameters : public
-    g::And<
-        openAngle
-      , g::Repeat2<
-            g::Or<
-                 g::And<g::Long<ValueExpression, TypeExpression>, g::Opt<g::And<colon, TypeExpression>>>
-               , g::And<ValueExpression, colon>
-               , g::And<colon, TypeExpression>
-                 >
-            , comma>
-      , closeAngle>
-{
-    ast::Symbol::paramlist_t make() const
-    {
-        ast::Symbol::paramlist_t typeParameters;
-        auto const& params = factor<1>().captures();
-        for ( auto&& p : params ) {
-            switch (p.index()) {
-            case 0:
-            {
-                auto const& t = p.term<0>();
-                auto c = t.factor<1>().capture();
-                std::unique_ptr<ast::TypeExpression> typeConstraint =
-                    c ? c->factor<1>().make() : nullptr;
-                if ( t.factor<0>().index() == 0 )
-                    typeParameters.emplace_back(
-                        ast::SymbolParameter(
-                            ast::Expression(t.factor<0>().term<0>().make()), std::move(typeConstraint)));
-                else
-                    typeParameters.emplace_back(
-                        ast::SymbolParameter(
-                            ast::Expression(t.factor<0>().term<1>().make()), std::move(typeConstraint)));
-
-                break;
-            }
-
-            case 1:
-            {
-                auto const& t = p.term<1>();
-                typeParameters.emplace_back(
-                    ast::SymbolParameter(t.factor<0>().make()));
-                break;
-            }
-
-            case 2:
-            {
-                auto const& t = p.term<2>();
-                typeParameters.emplace_back(
-                    ast::SymbolParameter(t.factor<1>().make()));
-                break;
-            }
-
-            default:
-                throw std::runtime_error("invalid type declaration");
-            }
-        }
-
-        return typeParameters;
-    }
-};
-
 struct TypeDeclaration : public
-    g::And<_type, id, g::Opt<TypeParameters>>
+    g::And<_type, Symbol>
 {
     std::unique_ptr<ast::TypeDeclaration> make() const
     {
-        auto typeName = factor<1>().token();
-        ast::Symbol::paramlist_t typeParameters;
-        if ( auto p = factor<2>().capture() )
-            typeParameters = p->make();
-
-        return std::make_unique<ast::TypeDeclaration>(ast::Symbol(typeName, std::move(typeParameters)));
+        return std::make_unique<ast::TypeDeclaration>(factor<1>().make());
     }
 };
 

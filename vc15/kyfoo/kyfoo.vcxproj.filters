@@ -75,16 +75,13 @@
     <ClInclude Include="..\..\src\ast\Axioms.hpp">
       <Filter>src\ast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\ast\ValueExpressions.hpp">
-      <Filter>include\kyfoo\ast</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\ast\TypeExpressions.hpp">
-      <Filter>include\kyfoo\ast</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
   </ItemGroup>
@@ -122,16 +119,13 @@
     <ClCompile Include="..\..\src\ast\Axioms.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ast\ValueExpressions.cpp">
-      <Filter>src\ast</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ast\TypeExpressions.cpp">
-      <Filter>src\ast</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\Diagnostics.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ast\Symbol.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Expressions.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>

@@ -10,10 +10,9 @@
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Symbol.hpp>
-#include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -96,11 +95,11 @@ public:
     Declaration* find(std::string const& identifier) override;
 
 public:
-    void append(std::unique_ptr<ValueExpression> expression);
+    void append(std::unique_ptr<Expression> expression);
 
 private:
     ProcedureDeclaration* myDeclaration = nullptr;
-    std::vector<std::unique_ptr<ValueExpression>> myExpressions;
+    std::vector<std::unique_ptr<Expression>> myExpressions;
 };
 
     } // namespace ast

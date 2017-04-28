@@ -2,8 +2,10 @@
 
 #include <cassert>
 
+#include <kyfoo/Diagnostics.hpp>
+
 #include <kyfoo/ast/Declarations.hpp>
-#include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -173,7 +175,7 @@ Declaration* ProcedureScope::find(std::string const& identifier)
     return DeclarationScope::find(identifier);
 }
 
-void ProcedureScope::append(std::unique_ptr<ValueExpression> expression)
+void ProcedureScope::append(std::unique_ptr<Expression> expression)
 {
     myExpressions.emplace_back(std::move(expression));
 }
