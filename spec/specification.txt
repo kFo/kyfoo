@@ -1,0 +1,85 @@
+;; Syntax
+
+; Expressions
+primary ::= id | integer | decimal | text
+tuple-open ::= '(' *(expr, ',') ')'
+tuple-open-left ::= '(' *(expr, ',') ']'
+tuple-open-right ::= '[' *(expr, ',') ')'
+tuple-closed ::= '[' *(expr, ',') ']'
+tuple-symbol ::= '<' *(expr, ',') '>'
+tuple ::=  *(expr, ',')
+scope ::= ind(>) *(expr, ind(=)) ind(<)
+expr ::= +expr
+       | expr ':' expr
+       | tuple
+       | scope
+       | primary
+
+; Declarations
+type-params ::= *(expr | expr ':' | ':' expr | expr ':' expr)
+symbol-decl ::= id type-params
+symbol-defn ::= '=' expr
+
+type-decl ::= type symbol-decl
+type-defn ::= TODO: syntax
+
+proc-decl ::= symbol tuple-open ?(':' expr)
+proc-defn ::= '=>' expr
+
+;; Semantics
+
+Kyfoo is best understood as a statically typed "lisp", where in lisp the 
+main syntactic construct is the list and its composition thereof. In
+kyfoo the main syntactic construct is the tuple, where a tuple in kyfoo
+is essentially what a list is in lisp, but with more varieties. Nevermind
+if you are not familiar with lisp, as tuples will be clearly defined.
+
+Primary expressions (/primary/) are sequences of program source that form 
+the building blocks of a kyfoo program. They are the "atoms", if you will. 
+Note that, except for the text expression, they do not contain spaces. In 
+this regard they are similar to words of an english sentence, where words 
+can be thought of as the "atoms" of a sentence. They come in the following 
+varieties:
+
+    /id/ is a name that either defines a declaration, identifies an existing
+    declaration, is a keyword, or otherwise denotes an unbound 'free' 
+    variable. Keywords are identifiers that serve as
+    punctuation in the program grammar, contributing directly to semantics.
+    Free variables identify place holders for patterns.
+    
+    /integer/ is a base 10 integer number.
+    
+    /decimal/ is a base 10 rational number that is not an integer.
+    
+    /text/ is a sequence of printable text that would otherwise be interpreted
+    as part of the program source.
+
+Tuple expressions (/tuple-expr/) are recursive sequences of either tuple 
+expressions or primary expressions. They comes in the following varieties 
+denoted by their punctuation:
+
+    The absence of punctuation implies an /apply/ tuple.
+    
+    ( , ) is an /open/ tuple. They always flatten in their context.
+    ( , ] is a /half-open-left/ tuple. TODO: semantics
+    [ , ) is a /half-open-right/ tuple. TODO: semantics
+    [ , ] is a /closed/ tuple. 
+    
+    < , > is a /symbol/ tuple.
+    
+    indent(>) indent(=) indent(<) is an indent tuple (synonymous with scope). An
+    indent is the number of spaces at the start of a source line. Every source 
+    program starts with the notion of zero indent. indent(>) means the indent has 
+    increased since the last line, indent(=) means the indent is the same as the 
+    last line, and indent(<) means the indent has decreased. indent(<) must always 
+    match a previously established indent, and there is an implicit indent(<)
+    for every previous indent that is skipped. In this way, indent(>) always 
+    conceptually matches with an indent(<).
+
+Expressions (/expr/) are tuple expressions with an optional constraint expression.
+Constraints are expressions that describe, or "constrain", another expression when
+they are interpreted during the semantics. Constraints essentially describe what a
+program does, and thus form one of the central tenants of the kyfoo language. Much
+more on constraints later in the semantics section.
+
+Declarations
