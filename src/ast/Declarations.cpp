@@ -4,10 +4,9 @@
 
 #include <kyfoo/lexer/Scanner.hpp>
 
-#include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
-#include <kyfoo/ast/TypeExpressions.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -109,18 +108,9 @@ TypeScope* TypeDeclaration::definition()
 // SymbolDeclaration
 
 SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
-                                     std::unique_ptr<ValueExpression> expression)
+                                     std::unique_ptr<Expression> expression)
     : Declaration(DeclKind::Symbol, std::move(symbol), nullptr)
-    , myKind(Kind::ValueExpression)
-    , myNode(std::move(expression))
-{
-}
-
-SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
-                                     std::unique_ptr<TypeExpression> typeExpression)
-    : Declaration(DeclKind::Symbol, std::move(symbol), nullptr)
-    , myKind(Kind::TypeExpression)
-    , myNode(std::move(typeExpression))
+    , myExpression(std::move(expression))
 {
 }
 
@@ -129,10 +119,7 @@ SymbolDeclaration::~SymbolDeclaration() = default;
 void SymbolDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
-    if ( auto p = valueExpression() )
-        stream.next("value", p);
-    else
-        stream.next("value", typeExpression());
+    myExpression->io(stream);
 }
 
 void SymbolDeclaration::resolveSymbols(Diagnostics& /*dgn*/)
@@ -140,52 +127,25 @@ void SymbolDeclaration::resolveSymbols(Diagnostics& /*dgn*/)
     // Must resolve symbols in the scope in which they are instantiated
 }
 
-TypeExpression* SymbolDeclaration::typeExpression()
+Expression* SymbolDeclaration::expression()
 {
-    if ( myKind == Kind::TypeExpression )
-        return static_cast<TypeExpression*>(myNode.get());
-
-    return nullptr;
+    return myExpression.get();
 }
 
-TypeExpression const* SymbolDeclaration::typeExpression() const
+Expression const* SymbolDeclaration::expression() const
 {
-    return const_cast<SymbolDeclaration*>(this)->typeExpression();
-}
-
-ValueExpression* SymbolDeclaration::valueExpression()
-{
-    if ( myKind == Kind::ValueExpression )
-        return static_cast<ValueExpression*>(myNode.get());
-
-    return nullptr;
-}
-
-ValueExpression const* SymbolDeclaration::valueExpression() const
-{
-    return const_cast<SymbolDeclaration*>(this)->valueExpression();
+    return const_cast<SymbolDeclaration*>(this)->expression();
 }
 
 //
 // VariableDeclaration
 
 VariableDeclaration::VariableDeclaration(Symbol&& symbol,
-                                         std::unique_ptr<TypeExpression> typeExpression,
-                                         std::unique_ptr<ValueExpression> expression)
+                                         std::unique_ptr<Expression> constraint,
+                                         std::unique_ptr<Expression> init)
     : Declaration(DeclKind::Variable, std::move(symbol), nullptr)
-    , myTypeExpression(std::move(typeExpression))
-    , myValueExpression(std::move(expression))
-{
-}
-
-VariableDeclaration::VariableDeclaration(Symbol&& symbol,
-                                         std::unique_ptr<ValueExpression> expression)
-    : VariableDeclaration(std::move(symbol), nullptr, std::move(expression))
-{
-}
-
-VariableDeclaration::VariableDeclaration(Symbol&& symbol)
-    : VariableDeclaration(std::move(symbol), nullptr, nullptr)
+    , myConstraint(std::move(constraint))
+    , myInitialization(std::move(init))
 {
 }
 
@@ -194,43 +154,34 @@ VariableDeclaration::~VariableDeclaration() = default;
 void VariableDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
-    stream.next("value", myValueExpression);
+    stream.next("constraint", myConstraint);
+    if ( myInitialization )
+        stream.next("init", myInitialization);
 }
 
 void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
     Resolver resolver(scope());
 
-    if ( typeExpression() )
-        typeExpression()->resolveSymbols(dgn, resolver);
-
-    if ( valueExpression() )
-        valueExpression()->resolveSymbols(dgn, resolver);
+    myConstraint->resolveSymbols(dgn, resolver);
+    myInitialization->resolveSymbols(dgn, resolver);
 }
 
-TypeExpression* VariableDeclaration::typeExpression()
+Expression* VariableDeclaration::constraint()
 {
-    return myTypeExpression.get();
-}
-
-ValueExpression* VariableDeclaration::valueExpression()
-{
-    return myValueExpression.get();
+    return myConstraint.get();
 }
 
 //
 // ProcedureParameter
 
-ProcedureParameter::ProcedureParameter(Symbol&& symbol)
-    : VariableDeclaration(std::move(symbol))
+ProcedureParameter::ProcedureParameter(Symbol&& symbol,
+                                       std::unique_ptr<Expression> constraint)
+    : VariableDeclaration(std::move(symbol), std::move(constraint), nullptr)
 {
 }
 
-ProcedureParameter::ProcedureParameter(Symbol&& symbol,
-                                       std::unique_ptr<TypeExpression> typeExpression)
-    : VariableDeclaration(std::move(symbol), std::move(typeExpression), nullptr)
-{
-}
+ProcedureParameter::~ProcedureParameter() = default;
 
 void ProcedureParameter::io(IStream& stream) const
 {
@@ -240,7 +191,7 @@ void ProcedureParameter::io(IStream& stream) const
 void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
     Resolver resolver(parent()->scope());
-    typeExpression()->resolveSymbols(dgn, resolver);
+    constraint()->resolveSymbols(dgn, resolver);
 }
 
 void ProcedureParameter::setParent(ProcedureDeclaration* procDecl)
@@ -261,10 +212,10 @@ ProcedureDeclaration* ProcedureParameter::parent()
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
                                            std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                                           std::unique_ptr<TypeExpression> returnTypeExpression)
+                                           std::unique_ptr<Expression> returnExpression)
     : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
     , myParameters(std::move(parameters))
-    , myReturnTypeExpression(std::move(returnTypeExpression))
+    , myReturnExpression(std::move(returnExpression))
 {
     for ( auto& p : myParameters )
         p->setParent(this);
@@ -276,7 +227,7 @@ void ProcedureDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
     stream.next("parameters", myParameters);
-    stream.next("return", myReturnTypeExpression);
+    stream.next("return", myReturnExpression);
 
     if ( myDefinition )
         stream.next("definition", myDefinition);
@@ -316,9 +267,9 @@ std::vector<std::unique_ptr<ProcedureParameter>>& ProcedureDeclaration::paramete
     return myParameters;
 }
 
-TypeExpression* ProcedureDeclaration::returnType()
+Expression* ProcedureDeclaration::returnType()
 {
-    return myReturnTypeExpression.get();
+    return myReturnExpression.get();
 }
 
 //

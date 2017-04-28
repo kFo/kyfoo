@@ -7,7 +7,7 @@
 
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Symbol.hpp>
-#include <kyfoo/ast/TypeExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 
 namespace kyfoo {
 
@@ -97,17 +97,8 @@ private:
 class SymbolDeclaration : public Declaration
 {
 public:
-    enum class Kind
-    {
-        ValueExpression,
-        TypeExpression,
-    };
-
-public:
     SymbolDeclaration(Symbol&& symbol,
-                      std::unique_ptr<ValueExpression> expression);
-    SymbolDeclaration(Symbol&& symbol,
-                      std::unique_ptr<TypeExpression> typeExpression);
+                      std::unique_ptr<Expression> expression);
     ~SymbolDeclaration();
 
     // IIO
@@ -119,25 +110,19 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    TypeExpression* typeExpression();
-    TypeExpression const* typeExpression() const;
-    ValueExpression* valueExpression();
-    ValueExpression const* valueExpression() const;
+    Expression* expression();
+    Expression const* expression() const;
 
 private:
-    Kind myKind;
-    std::unique_ptr<INode> myNode;
+    std::unique_ptr<Expression> myExpression;
 };
 
 class VariableDeclaration : public Declaration
 {
 public:
     VariableDeclaration(Symbol&& symbol,
-                        std::unique_ptr<TypeExpression> type,
-                        std::unique_ptr<ValueExpression> expression);
-    VariableDeclaration(Symbol&& symbol,
-                        std::unique_ptr<ValueExpression> expression);
-    explicit VariableDeclaration(Symbol&& symbol);
+                        std::unique_ptr<Expression> constraint,
+                        std::unique_ptr<Expression> init);
 
     ~VariableDeclaration();
 
@@ -150,21 +135,20 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    TypeExpression* typeExpression();
-    ValueExpression* valueExpression();
+    Expression* constraint();
 
 private:
-    std::unique_ptr<TypeExpression> myTypeExpression;
-    std::unique_ptr<ValueExpression> myValueExpression;
+    std::unique_ptr<Expression> myConstraint;
+    std::unique_ptr<Expression> myInitialization;
 };
 
 class ProcedureDeclaration;
 class ProcedureParameter : public VariableDeclaration
 {
 public:
-    explicit ProcedureParameter(Symbol&& symbol);
     ProcedureParameter(Symbol&& symbol,
-                       std::unique_ptr<TypeExpression> type);
+                       std::unique_ptr<Expression> constraint);
+    ~ProcedureParameter();
 
     // IIO
 public:
@@ -187,7 +171,7 @@ class ProcedureDeclaration : public Declaration
 public:
     ProcedureDeclaration(Symbol&& symbol,
                          std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                         std::unique_ptr<ast::TypeExpression> returnTypeExpression);
+                         std::unique_ptr<ast::Expression> returnTypeExpression);
     ~ProcedureDeclaration();
 
     // IIO
@@ -203,11 +187,11 @@ public:
     void define(std::unique_ptr<ProcedureScope> definition);
 
     std::vector<std::unique_ptr<ProcedureParameter>>& parameters();
-    TypeExpression* returnType();
+    Expression* returnType();
 
 private:
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
-    std::unique_ptr<TypeExpression> myReturnTypeExpression;
+    std::unique_ptr<Expression> myReturnExpression;
     std::unique_ptr<ProcedureScope> myDefinition;
 };
 

@@ -6,19 +6,19 @@ type integer<n : integer>
 
 type integer<wordSize>
 
-type pointer<:T>
+type pointer<T>
 
 staticSize(p : pointer T) => wordSize
 ssize = staticSize
 
-type array<:T>
+type array<T>
     ;ptr : pointer T
     ;count : integer wordSize
 )axioms";
 
 #include "Axioms.hpp"
 
-#include <kyfoo/ast/ValueExpressions.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
