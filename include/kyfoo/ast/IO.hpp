@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 
+#include <iomanip>
 #include <istream>
 #include <memory>
 #include <ostream>
@@ -153,7 +154,7 @@ public:
     {
         newLine();
         key(name);
-        *myStream << "\"" << string << "\"";
+        *myStream << std::quoted(string);
     }
 
     void next(const char* name, IIO const* ptr) override
@@ -180,8 +181,8 @@ public:
         newLine();
         key(name);
         *myStream
-            << "{ kind: " << to_string(token.kind())
-            << ", lexeme: \"" << token.lexeme() << "\""
+            << "{ kind: " << std::quoted(to_string(token.kind()))
+            << ", lexeme: " << std::quoted(token.lexeme())
             << ", line: " << token.line()
             << ", column: " << token.column() << " }";
     }
