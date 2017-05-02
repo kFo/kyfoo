@@ -8,7 +8,7 @@ type integer<wordSize>
 
 type pointer<T>
 
-staticSize(p : pointer T) => wordSize
+staticSize<T>(p : pointer T) => wordSize
 ssize = staticSize
 
 type array<T>

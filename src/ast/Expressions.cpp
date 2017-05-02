@@ -1,13 +1,33 @@
 #include <kyfoo/ast/Expressions.hpp>
 
+#include <iterator>
+
+#include <kyfoo/Diagnostics.hpp>
+
+#include <kyfoo/ast/Semantics.hpp>
+
 namespace kyfoo {
     namespace ast {
+
+//
+// Expression
+
+Expression::Expression(Kind kind)
+    : myKind(kind)
+{
+}
+
+Expression::Kind Expression::kind() const
+{
+    return myKind;
+}
 
 //
 // PrimaryExpression
 
 PrimaryExpression::PrimaryExpression(lexer::Token const& token)
-    : myToken(token)
+    : Expression(Expression::Kind::Primary)
+    , myToken(token)
 {
 }
 
@@ -18,10 +38,28 @@ void PrimaryExpression::io(IStream& stream) const
     stream.next("primary", myToken);
 }
 
-void PrimaryExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
+void PrimaryExpression::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
-    (void)dgn;
-    (void)resolver;
+    if ( myToken.kind() != lexer::TokenKind::Identifier )
+        return;
+
+    auto decl = resolver.lookup(myToken.lexeme());
+    if ( !decl ) {
+        dgn.error(resolver.module(), myToken) << "undeclared identifier";
+        return;
+    }
+
+    myDeclaration = decl;
+}
+
+lexer::Token const& PrimaryExpression::token() const
+{
+    return myToken;
+}
+
+Declaration const* PrimaryExpression::declaration() const
+{
+    return myDeclaration;
 }
 
 //
@@ -63,7 +101,8 @@ const char* to_string(TupleKind kind)
 
 TupleExpression::TupleExpression(TupleKind kind,
                                  std::vector<std::unique_ptr<Expression>>&& expressions)
-    : myKind(kind)
+    : Expression(Expression::Kind::Tuple)
+    , myKind(kind)
     , myExpressions(std::move(expressions))
 {
 }
@@ -78,10 +117,30 @@ void TupleExpression::io(IStream& stream) const
     stream.closeArray();
 }
 
-void TupleExpression::resolveSymbols(Diagnostics& dgn, Resolver& resolver)
+void TupleExpression::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
-    (void)dgn;
-    (void)resolver;
+    for ( auto i = begin(myExpressions); i != end(myExpressions); ) {
+        auto& e = *i;
+        e->resolveSymbols(dgn, resolver);
+        if ( e->kind() == Expression::Kind::Tuple ) {
+            auto tuple = static_cast<TupleExpression*>(e.get());
+            if ( tuple->kind() == TupleKind::Open ) {
+                move(begin(tuple->expressions()), end(tuple->expressions()),
+                     std::inserter(myExpressions, i));
+                goto L_removeItem;
+            }
+        }
+
+        ++i;
+        continue;
+
+    L_removeItem:
+        i = myExpressions.erase(i);
+    }
+
+    if ( myKind == TupleKind::Apply ) {
+        // TODO: type match
+    }
 }
 
 TupleKind TupleExpression::kind() const

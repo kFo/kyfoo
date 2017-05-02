@@ -1,6 +1,8 @@
 #include <kyfoo/ast/Symbol.hpp>
 
+#include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -37,6 +39,7 @@ Symbol::Symbol(lexer::Token const& identifier)
 Symbol::Symbol(Symbol&& rhs)
     : myIdentifier(std::move(rhs.myIdentifier))
     , myParameters(std::move(rhs.myParameters))
+    , myVariables(std::move(myVariables))
 {
 }
 
@@ -57,6 +60,10 @@ void Symbol::io(IStream& stream) const
     for ( auto const& p : myParameters )
         p->io(stream);
     stream.closeArray();
+    stream.openArray("vars");
+    for ( auto const& v : myVariables )
+        v->io(stream);
+    stream.closeArray();
 }
 
 lexer::Token const& Symbol::identifier() const
@@ -74,6 +81,36 @@ Symbol::paramlist_t const& Symbol::parameters() const
     return myParameters;
 }
 
+void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
+{
+    SymbolVariableCreatorFailoverResolver failover(resolver, *this);
+    for ( auto& e : myParameters )
+        e->resolveSymbols(dgn, failover);
+}
+
+SymbolVariable* Symbol::findVariable(std::string const& identifier)
+{
+    for ( auto& e : myVariables )
+        if ( e->identifier().lexeme() == identifier )
+            return e.get();
+
+    return nullptr;
+}
+
+SymbolVariable const* Symbol::findVariable(std::string const& identifier) const
+{
+    return const_cast<Symbol*>(this)->findVariable(identifier);
+}
+
+SymbolVariable* Symbol::createVariable(std::string const& identifier)
+{
+    if ( auto symvar = findVariable(identifier) )
+        return symvar;
+
+    myVariables.emplace_back(std::make_unique<SymbolVariable>(*this, identifier));
+    return myVariables.back().get();
+}
+
 //
 // SymbolSet
 
@@ -81,6 +118,12 @@ bool equal(SymbolSet::paramlist_t const& lhs, SymbolSet::paramlist_t const& rhs)
 {
     if ( lhs.size() != rhs.size() )
         return false;
+
+    auto const size = lhs.size();
+    for ( std::size_t i = 0; i < size; ++i ) {
+        if ( !difference(*lhs[i], *rhs[i]) )
+            return false;
+    }
 
     return true;
 }

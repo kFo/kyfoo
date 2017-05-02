@@ -8,18 +8,18 @@ namespace kyfoo {
 //
 // Error
 
-Error::Error(ast::Module* module)
+Error::Error(ast::Module const* module)
     : myModule(module)
 {
 }
 
-Error::Error(ast::Module* module,
+Error::Error(ast::Module const* module,
              lexer::Token const& token)
     : Error(module, token, General)
 {
 }
 
-Error::Error(ast::Module* module,
+Error::Error(ast::Module const* module,
              lexer::Token const& token,
              Error::Code code)
     : myModule(module)
@@ -28,7 +28,7 @@ Error::Error(ast::Module* module,
 {
 }
 
-ast::Module* Error::module() const
+ast::Module const* Error::module() const
 {
     return myModule;
 }
@@ -114,19 +114,19 @@ void Diagnostics::die()
     throw this;
 }
 
-Error& Diagnostics::error(ast::Module* module)
+Error& Diagnostics::error(ast::Module const* module)
 {
     myErrors.emplace_back(std::make_unique<Error>(module));
     return *myErrors.back();
 }
 
-Error& Diagnostics::error(ast::Module* module, lexer::Token const& token)
+Error& Diagnostics::error(ast::Module const* module, lexer::Token const& token)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, token));
     return *myErrors.back();
 }
 
-Error& Diagnostics::undeclared(ast::Module* module, lexer::Token const& token)
+Error& Diagnostics::undeclared(ast::Module const* module, lexer::Token const& token)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, token, Error::Undeclared));
     return *myErrors.back();
