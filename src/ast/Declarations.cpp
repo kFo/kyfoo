@@ -48,6 +48,11 @@ DeclKind Declaration::kind() const
     return myKind;
 }
 
+Symbol& Declaration::symbol()
+{
+    return mySymbol;
+}
+
 Symbol const& Declaration::symbol() const
 {
     return mySymbol;
@@ -69,6 +74,7 @@ void Declaration::setScope(DeclarationScope& scope)
         throw std::runtime_error("declaration parent set twice");
 
     myScope = &scope;
+    myScope->setDeclaration(this);
 }
 
 //
@@ -161,7 +167,7 @@ void VariableDeclaration::io(IStream& stream) const
 
 void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    Resolver resolver(scope());
+    ScopeResolver resolver(scope());
 
     myConstraint->resolveSymbols(dgn, resolver);
     myInitialization->resolveSymbols(dgn, resolver);
@@ -190,7 +196,7 @@ void ProcedureParameter::io(IStream& stream) const
 
 void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
-    Resolver resolver(parent()->scope());
+    ScopeResolver resolver(parent()->scope());
     constraint()->resolveSymbols(dgn, resolver);
 }
 
@@ -238,7 +244,7 @@ void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
     for ( auto&& p : myParameters )
         p->resolveSymbols(dgn);
     
-    Resolver resolver(scope());
+    ScopeResolver resolver(scope());
     if ( returnType() )
         returnType()->resolveSymbols(dgn, resolver);
 
@@ -292,6 +298,39 @@ void ImportDeclaration::io(IStream& stream) const
 void ImportDeclaration::resolveSymbols(Diagnostics&)
 {
     // nop
+}
+
+//
+// SymbolVariable
+
+SymbolVariable::SymbolVariable(Symbol& parent, std::string const& name)
+    : Declaration(DeclKind::SymbolVariable, Symbol(lexer::Token(lexer::TokenKind::Identifier, parent.identifier().line(), parent.identifier().column(), name)), nullptr)
+    , myParent(&parent)
+    , myName(name)
+{
+}
+
+SymbolVariable::~SymbolVariable() = default;
+
+void SymbolVariable::io(IStream& stream) const
+{
+    Declaration::io(stream);
+    stream.next("name", myName);
+}
+
+void SymbolVariable::resolveSymbols(Diagnostics&)
+{
+    throw std::runtime_error("symbol variables should not be resolved");
+}
+
+std::string const& SymbolVariable::name() const
+{
+    return myName;
+}
+
+Symbol const& SymbolVariable::parent() const
+{
+    return *myParent;
 }
 
     } // namespace ast

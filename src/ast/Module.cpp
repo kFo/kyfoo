@@ -208,6 +208,11 @@ std::vector<Module*> const& Module::imports() const
     return myImports;
 }
 
+DeclarationScope const* Module::scope() const
+{
+    return myScope.get();
+}
+
 bool Module::imports(Module* module) const
 {
     return find(begin(myImports), end(myImports), module) != end(myImports);

@@ -48,13 +48,13 @@ public:
     };
 
 public:
-    explicit Error(ast::Module* module);
-    Error(ast::Module* module, lexer::Token const& token);
-    Error(ast::Module* module, lexer::Token const& token, Code code);
+    explicit Error(ast::Module const* module);
+    Error(ast::Module const* module, lexer::Token const& token);
+    Error(ast::Module const* module, lexer::Token const& token, Code code);
     Error(Error& rhs) = delete;
 
 public:
-    ast::Module* module() const;
+    ast::Module const* module() const;
     std::string what() const;
     lexer::Token const& token() const;
     Code code() const;
@@ -68,7 +68,7 @@ public:
     Error& operator << (std::string const& rhs);
 
 private:
-    ast::Module* myModule = nullptr;
+    ast::Module const* myModule = nullptr;
     lexer::Token myToken;
     Code myCode;
     std::ostringstream myInfo;
@@ -82,9 +82,9 @@ class Diagnostics
 public:
     void die();
 
-    Error& error(ast::Module* module);
-    Error& error(ast::Module* module, lexer::Token const& token);
-    Error& undeclared(ast::Module* module, lexer::Token const& token);
+    Error& error(ast::Module const* module);
+    Error& error(ast::Module const* module, lexer::Token const& token);
+    Error& undeclared(ast::Module const* module, lexer::Token const& token);
 
     void dumpErrors(std::ostream& stream);
 

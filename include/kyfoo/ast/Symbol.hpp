@@ -8,10 +8,15 @@
 #include <kyfoo/ast/IO.hpp>
 
 namespace kyfoo {
+
+    class Diagnostics;
+
     namespace ast {
 
+class IResolver;
 class Expression;
 class TupleExpression;
+class SymbolVariable;
 
 class Symbol : public IIO
 {
@@ -38,6 +43,12 @@ public:
     void io(IStream& stream) const override;
 
 public:
+    void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
+    SymbolVariable* findVariable(std::string const& identifier);
+    SymbolVariable const* findVariable(std::string const& identifier) const;
+    SymbolVariable* createVariable(std::string const& identifier);
+
+public:
     lexer::Token const& identifier() const;
     std::string const& name() const;
     paramlist_t const& parameters() const;
@@ -45,6 +56,7 @@ public:
 private:
     lexer::Token myIdentifier;
     paramlist_t myParameters;
+    std::vector<std::unique_ptr<SymbolVariable>> myVariables;
 };
 
 class Declaration;

@@ -18,11 +18,12 @@ namespace kyfoo {
     namespace ast {
 
 #define DECLARATION_KINDS(X) \
-    X(Type     , "type"     , TypeDeclaration) \
-    X(Symbol   , "symbol"   , SymbolDeclaration) \
-    X(Procedure, "procedure", ProcedureDeclaration) \
-    X(Variable , "variable" , VariableDeclaration) \
-    X(Import   , "import"   , ImportDeclaration)
+    X(Type          , "type"           , TypeDeclaration) \
+    X(Symbol        , "symbol"         , SymbolDeclaration) \
+    X(Procedure     , "procedure"      , ProcedureDeclaration) \
+    X(Variable      , "variable"       , VariableDeclaration) \
+    X(Import        , "import"         , ImportDeclaration) \
+    X(SymbolVariable, "symbol variable", SymbolVariable)
 
 enum class DeclKind
 {
@@ -57,6 +58,7 @@ public:
 
 public:
     DeclKind kind() const;
+    Symbol& symbol();
     Symbol const& symbol() const;
     lexer::Token const& identifier() const;
 
@@ -208,6 +210,29 @@ public:
     // Declaration
 public:
     void resolveSymbols(Diagnostics& dgn) override;
+};
+
+class SymbolVariable : public Declaration
+{
+public:
+    SymbolVariable(Symbol& parent, std::string const& name);
+    ~SymbolVariable();
+
+    // IIO
+public:
+    void io(IStream& stream) const;
+
+    // Declaration
+public:
+    void resolveSymbols(Diagnostics& dgn);
+
+public:
+    Symbol const& parent() const;
+    std::string const& name() const;
+
+private:
+    Symbol* myParent = nullptr;
+    std::string myName;
 };
 
 // sugar to avoid switching on DeclKind

@@ -46,7 +46,10 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 {
     std::vector<ProcedureDeclaration*> procedures;
+    ScopeResolver resolver(this);
     for ( auto const& d : myDeclarations ) {
+        d->symbol().resolveSymbols(dgn, resolver);
+
         auto s = createSymbolSet(d->symbol().name());
         if ( auto other = s->find(d->symbol().parameters()) ) {
             auto& err = dgn.error(module(), d->identifier()) << "symbol is already defined";
@@ -55,10 +58,18 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         }
 
         s->append(d->symbol().parameters(), *d);
+
+        if ( auto p = d->as<ProcedureDeclaration>() )
+            procedures.push_back(p);
     }
 
     for ( auto&& e : procedures )
         e->resolveSymbols(dgn);
+}
+
+void DeclarationScope::setDeclaration(Declaration* declaration)
+{
+    myDeclaration = declaration;
 }
 
 void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
@@ -98,12 +109,17 @@ Module* DeclarationScope::module()
     return myModule;
 }
 
+Declaration* DeclarationScope::declaration()
+{
+    return myDeclaration;
+}
+
 DeclarationScope* DeclarationScope::parent()
 {
     return myParent;
 }
 
-Declaration* DeclarationScope::find(std::string const& identifier)
+Declaration const* DeclarationScope::find(std::string const& identifier) const
 {
     for ( auto&& d : myDeclarations )
         if ( d->identifier().lexeme() == identifier )
@@ -134,7 +150,7 @@ void TypeScope::resolveSymbols(Diagnostics& dgn)
     DeclarationScope::resolveSymbols(dgn);
 }
 
-Declaration* TypeScope::find(std::string const& identifier)
+Declaration const* TypeScope::find(std::string const& identifier) const
 {
     return DeclarationScope::find(identifier);
 }
@@ -161,12 +177,12 @@ void ProcedureScope::resolveSymbols(Diagnostics& dgn)
 {
     DeclarationScope::resolveSymbols(dgn);
 
-    Resolver resolver(this);
+    ScopeResolver resolver(this);
     for ( auto&& expr : myExpressions )
         expr->resolveSymbols(dgn, resolver);
 }
 
-Declaration* ProcedureScope::find(std::string const& identifier)
+Declaration const* ProcedureScope::find(std::string const& identifier) const
 {
     for ( auto&& p : myDeclaration->parameters() )
         if ( p->identifier().lexeme() == identifier )

@@ -62,6 +62,7 @@ public:
 
     void import(Diagnostics& dgn, lexer::Token const& token);
     std::vector<Module*> const& imports() const;
+    DeclarationScope const* scope() const;
     bool imports(Module* module) const;
     bool parsed() const;
 

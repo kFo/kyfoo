@@ -38,19 +38,22 @@ public:
 public:
     virtual void resolveImports(Diagnostics& dgn);
     virtual void resolveSymbols(Diagnostics& dgn);
-    virtual Declaration* find(std::string const& identifier);
+    virtual Declaration const* find(std::string const& identifier) const;
 
 public:
+    void setDeclaration(Declaration* declaration);
     void append(std::unique_ptr<Declaration> declaration);
     void import(Module& module);
     SymbolSet* findSymbol(std::string const& name);
     SymbolSet* createSymbolSet(std::string const& name);
 
     Module* module();
+    Declaration* declaration();
     DeclarationScope* parent();
 
 private:
     Module* myModule = nullptr;
+    Declaration* myDeclaration = nullptr;
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
@@ -72,7 +75,7 @@ public:
     // DeclarationScope
 public:
     void resolveSymbols(Diagnostics& dgn) override;
-    Declaration* find(std::string const& identifier) override;
+    Declaration const* find(std::string const& identifier) const override;
 
 private:
     TypeDeclaration* myTypeDeclaration = nullptr;
@@ -92,7 +95,7 @@ public:
     // DeclarationScope
 public:
     void resolveSymbols(Diagnostics& dgn) override;
-    Declaration* find(std::string const& identifier) override;
+    Declaration const* find(std::string const& identifier) const override;
 
 public:
     void append(std::unique_ptr<Expression> expression);
