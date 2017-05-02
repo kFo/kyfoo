@@ -62,5 +62,28 @@ private:
     std::vector<std::unique_ptr<Expression>> myExpressions;
 };
 
+class ConstraintExpression : public Expression
+{
+public:
+    ConstraintExpression(std::unique_ptr<Expression> subject,
+                        std::unique_ptr<Expression> constraint);
+    ~ConstraintExpression();
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+public:
+    void resolveSymbols(Diagnostics& dgn, IResolver& resolver) override;
+
+public:
+    Expression* subject();
+    Expression* constraint();
+
+private:
+    std::unique_ptr<Expression> mySubject;
+    std::unique_ptr<Expression> myConstraint;
+};
+
     } // namespace ast
 } // namespace kyfoo

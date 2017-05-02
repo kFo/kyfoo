@@ -99,5 +99,45 @@ std::vector<std::unique_ptr<Expression>>& TupleExpression::expressions()
     return myExpressions;
 }
 
+//
+// ConstraintExpression
+
+ConstraintExpression::ConstraintExpression(std::unique_ptr<Expression> subject,
+                                           std::unique_ptr<Expression> constraint)
+    : Expression(Expression::Kind::Constraint)
+    , mySubject(std::move(subject))
+    , myConstraint(std::move(constraint))
+{
+    if ( !mySubject )
+        throw std::runtime_error("constrain expression must have a subject");
+
+    if ( !myConstraint )
+        throw std::runtime_error("constrain expression must have a constraint");
+}
+
+ConstraintExpression::~ConstraintExpression() = default;
+
+void ConstraintExpression::io(IStream& stream) const
+{
+    stream.next("subject", mySubject);
+    stream.next("constraint", myConstraint);
+}
+
+void ConstraintExpression::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
+{
+    mySubject->resolveSymbols(dgn, resolver);
+    myConstraint->resolveSymbols(dgn, resolver);
+}
+
+Expression* ConstraintExpression::subject()
+{
+    return mySubject.get();
+}
+
+Expression* ConstraintExpression::constraint()
+{
+    return myConstraint.get();
+}
+
     } // namespace ast
 } // namespace kyfoo
