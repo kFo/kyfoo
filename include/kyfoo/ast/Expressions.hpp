@@ -110,8 +110,8 @@ public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver) override;
 
 public:
-    Expression* subject();
-    Expression* constraint();
+    Expression const* subject() const;
+    Expression const* constraint() const;
 
 private:
     std::unique_ptr<Expression> mySubject;

@@ -28,7 +28,7 @@ public:
            std::vector<std::unique_ptr<Expression>>&& parameters);
     Symbol(lexer::Token const& identifier,
            std::unique_ptr<TupleExpression> symbolTuple);
-    Symbol(std::unique_ptr<TupleExpression> symbolTuple);
+    explicit Symbol(std::unique_ptr<TupleExpression> symbolTuple);
     explicit Symbol(lexer::Token const& identifier);
 
     Symbol(Symbol const&) = delete;

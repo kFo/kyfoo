@@ -78,26 +78,26 @@ void Declaration::setScope(DeclarationScope& scope)
 }
 
 //
-// TypeDeclaration
+// DataSumDeclaration
 
-TypeDeclaration::TypeDeclaration(Symbol&& symbol)
-    : Declaration(DeclKind::Type, std::move(symbol), nullptr)
+DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
+    : Declaration(DeclKind::DataSum, std::move(symbol), nullptr)
 {
 }
 
-TypeDeclaration::~TypeDeclaration() = default;
+DataSumDeclaration::~DataSumDeclaration() = default;
 
-void TypeDeclaration::io(IStream& stream) const
+void DataSumDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
 }
 
-void TypeDeclaration::resolveSymbols(Diagnostics&)
+void DataSumDeclaration::resolveSymbols(Diagnostics&)
 {
     // TODO
 }
 
-void TypeDeclaration::define(std::unique_ptr<TypeScope> scope)
+void DataSumDeclaration::define(std::unique_ptr<DataSumScope> scope)
 {
     if ( myDefinition )
         throw std::runtime_error("type declaration defined more than once");
@@ -105,7 +105,71 @@ void TypeDeclaration::define(std::unique_ptr<TypeScope> scope)
     myDefinition = std::move(scope);
 }
 
-TypeScope* TypeDeclaration::definition()
+DataSumScope* DataSumDeclaration::definition()
+{
+    return myDefinition.get();
+}
+
+//
+// DataSumDeclaration::Constructor
+
+DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
+                                             std::vector<std::unique_ptr<ProcedureParameter>>&& parameters)
+    : Declaration(DeclKind::DataSumCtor, std::move(symbol), nullptr)
+    , myParameters(std::move(parameters))
+{
+}
+
+DataSumDeclaration::Constructor::~Constructor() = default;
+
+void DataSumDeclaration::Constructor::io(IStream& stream) const
+{
+    Declaration::io(stream);
+    stream.next("parameters", myParameters);
+}
+
+void DataSumDeclaration::Constructor::resolveSymbols(Diagnostics& dgn)
+{
+    (void)dgn;
+    // todo: impl
+}
+
+//
+// DataProductDeclaration
+
+DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
+    : Declaration(DeclKind::DataProduct, std::move(symbol), nullptr)
+{
+}
+
+DataProductDeclaration::~DataProductDeclaration() = default;
+
+void DataProductDeclaration::io(IStream& stream) const
+{
+    Declaration::io(stream);
+    if ( definition() )
+        definition()->io(stream);
+}
+
+void DataProductDeclaration::resolveSymbols(Diagnostics&)
+{
+    // TODO
+}
+
+void DataProductDeclaration::define(std::unique_ptr<DataProductScope> scope)
+{
+    if ( myDefinition )
+        throw std::runtime_error("type declaration defined more than once");
+
+    myDefinition = std::move(scope);
+}
+
+DataProductScope* DataProductDeclaration::definition()
+{
+    return myDefinition.get();
+}
+
+DataProductScope const* DataProductDeclaration::definition() const
 {
     return myDefinition.get();
 }

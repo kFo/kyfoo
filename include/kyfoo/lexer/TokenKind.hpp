@@ -32,6 +32,8 @@ namespace kyfoo {
     X(Colon, "colon") \
     X(Pipe, "pipe") \
     X(Comma, "comma") \
+    X(ColonPipe, "colonPipe") \
+    X(AmpersandPipe, "ampersandPipe") \
     \
     X(Plus, "plus") \
     X(Minus, "minus") \
@@ -44,8 +46,6 @@ namespace kyfoo {
     X(_var, "var") \
     X(_type, "type") \
     X(_else, "else") \
-    X(_is, "is") \
-    X(_in, "in") \
     X(_import, "import") \
     X(_keywordEnd, "keyword end")
 

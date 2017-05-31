@@ -50,17 +50,34 @@ std::unique_ptr<ast::Expression> parseExpression(lexer::Scanner& scanner)
     return nullptr;
 }
 
-std::unique_ptr<TypeScopeParser>
-DeclarationScopeParser::parseTypeDefinition(Diagnostics& /*dgn*/,
-                                            lexer::Scanner& scanner,
-                                            ast::TypeDeclaration& declaration)
+std::unique_ptr<DataSumScopeParser>
+DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
+                                               lexer::Scanner& scanner,
+                                               ast::DataSumDeclaration& declaration)
 {
     // Check if type definition follows
     if ( scanner.peek().kind() != TokenKind::IndentGT )
         return nullptr;
 
-    declaration.define(std::make_unique<ast::TypeScope>(myScope, declaration));
-    return std::make_unique<TypeScopeParser>(declaration.definition());
+    scanner.next();
+
+    declaration.define(std::make_unique<ast::DataSumScope>(myScope, declaration));
+    return std::make_unique<DataSumScopeParser>(declaration.definition());
+}
+
+std::unique_ptr<DataProductScopeParser>
+DeclarationScopeParser::parseDataProductDefinition(Diagnostics& /*dgn*/,
+                                                   lexer::Scanner& scanner,
+                                                   ast::DataProductDeclaration& declaration)
+{
+    // Check if type definition follows
+    if ( scanner.peek().kind() != TokenKind::IndentGT )
+        return nullptr;
+
+    scanner.next();
+
+    declaration.define(std::make_unique<ast::DataProductScope>(myScope, declaration));
+    return std::make_unique<DataProductScopeParser>(declaration.definition());
 }
 
 std::unique_ptr<ProcedureScopeParser>
@@ -95,10 +112,40 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
     return nullptr;
 }
 
-std::unique_ptr<ast::TypeDeclaration>
-DeclarationScopeParser::parseTypeDeclaration(lexer::Scanner& scanner)
+std::unique_ptr<ast::DataSumDeclaration>
+parseDataSumDeclaration(lexer::Scanner& scanner)
 {
-    TypeDeclaration grammar;
+    DataSumDeclaration grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
+std::unique_ptr<ast::DataSumDeclaration::Constructor>
+parseDataSumConstructor(lexer::Scanner& scanner)
+{
+    DataSumConstructor grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
+std::unique_ptr<ast::DataProductDeclaration>
+parseDataProductDeclaration(lexer::Scanner& scanner)
+{
+    DataProductDeclaration grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
+std::unique_ptr<ast::VariableDeclaration>
+parseDataProductDeclarationField(lexer::Scanner& scanner)
+{
+    DataProductDeclarationField grammar;
     if ( parse(scanner, grammar) )
         return grammar.make();
 
@@ -106,7 +153,7 @@ DeclarationScopeParser::parseTypeDeclaration(lexer::Scanner& scanner)
 }
 
 std::unique_ptr<ast::ProcedureDeclaration>
-DeclarationScopeParser::parseProcedureDeclaration(lexer::Scanner& scanner)
+parseProcedureDeclaration(lexer::Scanner& scanner)
 {
     ProcedureDeclaration grammar;
     if ( parse(scanner, grammar) ) {
@@ -127,9 +174,15 @@ DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         myScope->append(std::move(symDecl));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto typeDecl = parseTypeDeclaration(scanner) ) {
-        auto newScopeParser = parseTypeDefinition(dgn, scanner, *typeDecl);
-        myScope->append(std::move(typeDecl));
+    else if ( auto dsDecl = parseDataSumDeclaration(scanner) ) {
+        auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
+        myScope->append(std::move(dsDecl));
+
+        return std::make_tuple(true, std::move(newScopeParser));
+    }
+    else if ( auto dpDecl = parseDataProductDeclaration(scanner) ) {
+        auto newScopeParser = parseDataProductDefinition(dgn, scanner, *dpDecl);
+        myScope->append(std::move(dpDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
@@ -168,24 +221,61 @@ std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics
 }
 
 //
-// TypeScopeParser
+// DataSumScopeParser
 
-TypeScopeParser::TypeScopeParser(ast::TypeScope* scope)
+DataSumScopeParser::DataSumScopeParser(ast::DataSumScope* scope)
     : DeclarationScopeParser(scope)
 {
 }
 
-TypeScopeParser::~TypeScopeParser() = default;
+DataSumScopeParser::~DataSumScopeParser() = default;
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-TypeScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+DataSumScopeParser::parseNext(Diagnostics& /*dgn*/, lexer::Scanner& scanner)
 {
-    return DeclarationScopeParser::parseNext(dgn, scanner);
+    if ( auto dsCtor = parseDataSumConstructor(scanner) ) {
+        myScope->append(std::move(dsCtor));
+        return std::make_tuple(true, nullptr);
+    }
+
+    return std::make_tuple(false, nullptr);
 }
 
-ast::TypeScope* TypeScopeParser::scope()
+ast::DataSumScope* DataSumScopeParser::scope()
 {
-    return static_cast<ast::TypeScope*>(myScope);
+    return static_cast<ast::DataSumScope*>(myScope);
+}
+
+//
+// DataProductScopeParser
+
+DataProductScopeParser::DataProductScopeParser(ast::DataProductScope* scope)
+    : DeclarationScopeParser(scope)
+{
+}
+
+DataProductScopeParser::~DataProductScopeParser() = default;
+
+std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DataProductScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+{
+    if ( auto field = parseDataProductDeclarationField(scanner) ) {
+        myScope->append(std::move(field));
+        return std::make_tuple(true, nullptr);
+    }
+    else if ( auto dsDecl = parseDataSumDeclaration(scanner) ) {
+        auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
+        myScope->append(std::move(dsDecl));
+
+        return std::make_tuple(true, std::move(newScopeParser));
+    }
+
+    return std::make_tuple(false, nullptr);
+}
+
+ast::DataProductScope* DataProductScopeParser::scope()
+{
+    return static_cast<ast::DataProductScope*>(myScope);
 }
 
 //

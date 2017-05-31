@@ -21,6 +21,8 @@ using string = g::Terminal<TokenKind::String>;
 using comma = g::Terminal<TokenKind::Comma>;
 using equal = g::Terminal<TokenKind::Equal>;
 using colon = g::Terminal<TokenKind::Colon>;
+using colonPipe = g::Terminal<TokenKind::ColonPipe>;
+using colonAmpersand = g::Terminal<TokenKind::AmpersandPipe>;
 using yield = g::Terminal<TokenKind::Yield>;
 using openParen = g::Terminal<TokenKind::OpenParen>;
 using closeParen = g::Terminal<TokenKind::CloseParen>;
@@ -29,7 +31,6 @@ using closeBracket = g::Terminal<TokenKind::CloseBracket>;
 using openAngle = g::Terminal<TokenKind::OpenAngle>;
 using closeAngle = g::Terminal<TokenKind::CloseAngle>;
 using _import = g::Terminal<TokenKind::_import>;
-using _type = g::Terminal<TokenKind::_type>;
 
 struct Primary : public
     g::Or<id, integer, decimal, string>
@@ -220,12 +221,52 @@ struct ImportDeclaration : public
     }
 };
 
-struct TypeDeclaration : public
-    g::And<_type, Symbol>
+struct DataSumDeclaration : public
+    g::And<colonPipe, Symbol>
 {
-    std::unique_ptr<ast::TypeDeclaration> make() const
+    std::unique_ptr<ast::DataSumDeclaration> make() const
     {
-        return std::make_unique<ast::TypeDeclaration>(factor<1>().make());
+        return std::make_unique<ast::DataSumDeclaration>(factor<1>().make());
+    }
+};
+
+struct DataSumConstructor : public
+    g::And<Symbol, g::Opt<g::And<openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
+{
+    std::unique_ptr<ast::DataSumDeclaration::Constructor> make() const
+    {
+        std::vector<std::unique_ptr<ast::ProcedureParameter>> parameters;
+        if ( auto c = factor<1>().capture() ) {
+            for ( auto& e : c->factor<1>().captures() )
+                parameters.emplace_back(
+                    std::make_unique<ast::ProcedureParameter>(
+                        ast::Symbol(e.factor<0>().token()),
+                        e.factor<2>().make()));
+        }
+
+        return std::make_unique<ast::DataSumDeclaration::Constructor>(factor<0>().make(), std::move(parameters));
+    }
+};
+
+struct DataProductDeclaration
+    : public g::And<colonAmpersand, Symbol>
+{
+    std::unique_ptr<ast::DataProductDeclaration> make() const
+    {
+        return std::make_unique<ast::DataProductDeclaration>(factor<1>().make());
+    }
+};
+
+struct DataProductDeclarationField
+    : public g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
+{
+    std::unique_ptr<ast::VariableDeclaration> make() const
+    {
+        std::unique_ptr<ast::Expression> init;
+        if ( auto c = factor<3>().capture() )
+            init = c->factor<1>().make();
+
+        return std::make_unique<ast::VariableDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().make(), std::move(init));
     }
 };
 

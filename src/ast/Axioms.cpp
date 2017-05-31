@@ -1,17 +1,17 @@
 auto source = R"axioms(
-type integer
+:| integer
 
 wordSize = 32
-type integer<n : integer>
+:| integer<n : integer>
 
-type integer<wordSize>
+:| integer<wordSize>
 
-type pointer<T>
+:| pointer<T>
 
 staticSize<T>(p : pointer T) => wordSize
 ssize = staticSize
 
-type array<T>
+:& array<T>
     ;ptr : pointer T
     ;count : integer wordSize
 )axioms";

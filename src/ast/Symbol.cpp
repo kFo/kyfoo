@@ -121,11 +121,11 @@ bool equal(SymbolSet::paramlist_t const& lhs, SymbolSet::paramlist_t const& rhs)
 
     auto const size = lhs.size();
     for ( std::size_t i = 0; i < size; ++i ) {
-        if ( !difference(*lhs[i], *rhs[i]) )
-            return false;
+        if ( matchOverload(*lhs[i], *rhs[i]) )
+            return true;
     }
 
-    return true;
+    return false;
 }
 
 SymbolSet::SymbolSet(std::string const& name)
