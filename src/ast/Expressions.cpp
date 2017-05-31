@@ -188,12 +188,12 @@ void ConstraintExpression::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
     myConstraint->resolveSymbols(dgn, resolver);
 }
 
-Expression* ConstraintExpression::subject()
+Expression const* ConstraintExpression::subject() const
 {
     return mySubject.get();
 }
 
-Expression* ConstraintExpression::constraint()
+Expression const* ConstraintExpression::constraint() const
 {
     return myConstraint.get();
 }

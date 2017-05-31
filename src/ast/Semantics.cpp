@@ -129,75 +129,99 @@ auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
         if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
         goto L_error;
     }
-    else if ( auto l = lhs.as<TupleExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )         return o(*l, *r);
-        else if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        else if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
+    if ( auto l = lhs.as<TupleExpression>() ) {
+        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
+        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
         goto L_error;
     }
-    else if ( auto l = lhs.as<ConstraintExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )         return o(*l, *r);
-        else if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        else if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
+    if ( auto l = lhs.as<ConstraintExpression>() ) {
+        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
+        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
     }
 
 L_error:
     throw std::runtime_error("invalid dispatch");
 }
 
-struct Difference {
-
-    bool operator()(PrimaryExpression const& lhs, PrimaryExpression    const& rhs)
-    {
-        return lhs.token().lexeme() != rhs.token().lexeme();
-    }
-
-    bool operator()(PrimaryExpression const& lhs, TupleExpression      const& rhs)
-    {
-        (void)lhs;
-        (void)rhs;
-        return true;
-    }
-
-    bool operator()(PrimaryExpression const& lhs, ConstraintExpression const& rhs)
-    {
-        (void)lhs;
-        (void)rhs;
-        return true;
-    }
-
-    bool operator()(TupleExpression const& lhs, TupleExpression const& rhs)
-    {
-        if ( lhs.kind() != rhs.kind() )
-            return true;
-
-        if ( lhs.expressions().size() != rhs.expressions().size() )
-            return true;
-
-        // TODO: recursive call
-        return false;
-    }
-
-    bool operator()(TupleExpression const& lhs, ConstraintExpression const& rhs)
-    {
-        (void)lhs;
-        (void)rhs;
-        return true;
-    }
-
-    bool operator()(ConstraintExpression const& lhs, ConstraintExpression const& rhs)
-    {
-        (void)lhs;
-        (void)rhs;
-        // TODO: recursive call
-        return false;
-    }
-};
-
-bool difference(Expression const& lhs, Expression const& rhs)
+bool matchOverload(Expression const& lhs, Expression const& rhs)
 {
-    Difference op;
-    return !commute(op, lhs, rhs);
+    if ( auto l = lhs.as<PrimaryExpression>() ) {
+        if ( auto r = rhs.as<PrimaryExpression>() ) {
+            if ( l->declaration()->kind() == DeclKind::SymbolVariable
+                && r->declaration()->kind() == DeclKind::SymbolVariable )
+            {
+                return true;
+            }
+
+            return l->declaration() == r->declaration();
+        }
+
+        auto r = rhs.as<ConstraintExpression>();
+        if ( !r )
+            return false;
+
+        return matchOverload(*l, *r->subject());
+    }
+
+    if ( auto l = lhs.as<TupleExpression>() ) {
+        auto r = rhs.as<TupleExpression>();
+        if ( !r )
+            return false;
+
+        auto const size = l->expressions().size();
+        if ( size != r->expressions().size() )
+            return false;
+
+        for ( std::size_t i = 0; i < size; ++i ) {
+            if ( !matchOverload(*l->expressions()[i], *r->expressions()[i]) )
+                return false;
+        }
+
+        return true;
+    }
+
+    auto l = lhs.as<ConstraintExpression>();
+    if ( !l )
+        throw std::runtime_error("invalid overload matching");
+
+    if ( auto r = rhs.as<ConstraintExpression>() )
+        return matchOverload(*l->subject(), *r->subject());
+
+    return matchOverload(*l->subject(), rhs);
+}
+
+bool matchPattern(Expression const& lhs, Expression const& rhs)
+{
+    if ( auto l = lhs.as<PrimaryExpression>() ) {
+        if ( l->declaration()->kind() == DeclKind::SymbolVariable )
+            return true;
+
+        if ( auto r = rhs.as<PrimaryExpression>() )
+            return l->token().lexeme() == r->token().lexeme();
+
+        return false;
+    }
+
+    if ( auto l = lhs.as<TupleExpression>() ) {
+        auto r = rhs.as<TupleExpression>();
+        if ( !r || l->kind() != r->kind() )
+            return false;
+
+        auto const size = l->expressions().size();
+        if ( size != r->expressions().size() )
+            return false;
+
+        for ( std::size_t i = 0; i < size; ++i ) {
+            if ( !matchPattern(*l->expressions()[i], *r->expressions()[i]) )
+                return false;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
     } // namespace ast

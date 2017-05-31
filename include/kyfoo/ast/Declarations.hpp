@@ -18,7 +18,9 @@ namespace kyfoo {
     namespace ast {
 
 #define DECLARATION_KINDS(X) \
-    X(Type          , "type"           , TypeDeclaration) \
+    X(DataSum       , "data sum"       , DataSumDeclaration) \
+    X(DataSumCtor   , "data sum ctor"  , DataSumDeclaration::Constructor) \
+    X(DataProduct   , "data product"   , DataProductDeclaration) \
     X(Symbol        , "symbol"         , SymbolDeclaration) \
     X(Procedure     , "procedure"      , ProcedureDeclaration) \
     X(Variable      , "variable"       , VariableDeclaration) \
@@ -35,7 +37,8 @@ enum class DeclKind
 const char* to_string(DeclKind kind);
 
 class DeclarationScope;
-class TypeScope;
+class DataSumScope;
+class DataProductScope;
 class ProcedureScope;
 class ValueExpression;
 
@@ -74,11 +77,33 @@ protected:
     DeclarationScope* myScope = nullptr;
 };
 
-class TypeDeclaration : public Declaration
+class ProcedureParameter;
+
+class DataSumDeclaration : public Declaration
 {
 public:
-    explicit TypeDeclaration(Symbol&& symbol);
-    ~TypeDeclaration();
+    class Constructor : public Declaration
+    {
+    public:
+        Constructor(Symbol&& symbol,
+                    std::vector<std::unique_ptr<ProcedureParameter>>&& parameters);
+        ~Constructor();
+
+        // IIO
+    public:
+        void io(IStream& stream) const override;
+
+        // Declaration
+    public:
+        void resolveSymbols(Diagnostics& dgn) override;
+
+    private:
+        std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
+    };
+
+public:
+    explicit DataSumDeclaration(Symbol&& symbol);
+    ~DataSumDeclaration();
 
     // IIO
 public:
@@ -89,11 +114,34 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    void define(std::unique_ptr<TypeScope> scope);
-    TypeScope* definition();
+    void define(std::unique_ptr<DataSumScope> scope);
+    DataSumScope* definition();
 
 private:
-    std::unique_ptr<TypeScope> myDefinition;
+    std::unique_ptr<DataSumScope> myDefinition;
+};
+
+class DataProductDeclaration : public Declaration
+{
+public:
+    explicit DataProductDeclaration(Symbol&& symbol);
+    ~DataProductDeclaration();
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Declaration
+public:
+    void resolveSymbols(Diagnostics& dgn) override;
+
+public:
+    void define(std::unique_ptr<DataProductScope> scope);
+    DataProductScope* definition();
+    DataProductScope const* definition() const;
+
+private:
+    std::unique_ptr<DataProductScope> myDefinition;
 };
 
 class SymbolDeclaration : public Declaration

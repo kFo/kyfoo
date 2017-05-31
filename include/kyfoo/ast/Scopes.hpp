@@ -46,12 +46,13 @@ public:
     void import(Module& module);
     SymbolSet* findSymbol(std::string const& name);
     SymbolSet* createSymbolSet(std::string const& name);
+    bool addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl);
 
     Module* module();
     Declaration* declaration();
     DeclarationScope* parent();
 
-private:
+protected:
     Module* myModule = nullptr;
     Declaration* myDeclaration = nullptr;
     DeclarationScope* myParent = nullptr;
@@ -61,12 +62,12 @@ private:
     std::map<std::string, ImportDeclaration*> myImports;
 };
 
-class TypeScope : public DeclarationScope
+class DataSumScope : public DeclarationScope
 {
 public:
-    TypeScope(DeclarationScope* parent,
-              TypeDeclaration& declaration);
-    ~TypeScope();
+    DataSumScope(DeclarationScope* parent,
+                 DataSumDeclaration& declaration);
+    ~DataSumScope();
 
     // IIO
 public:
@@ -78,7 +79,27 @@ public:
     Declaration const* find(std::string const& identifier) const override;
 
 private:
-    TypeDeclaration* myTypeDeclaration = nullptr;
+    DataSumDeclaration* myDataDeclaration = nullptr;
+};
+
+class DataProductScope : public DeclarationScope
+{
+public:
+    DataProductScope(DeclarationScope* parent,
+                     DataProductDeclaration& declaration);
+    ~DataProductScope();
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // DeclarationScope
+public:
+    void resolveSymbols(Diagnostics& dgn) override;
+    Declaration const* find(std::string const& identifier) const override;
+
+private:
+    DataProductDeclaration* myDataDeclaration = nullptr;
 };
 
 class ProcedureScope : public DeclarationScope

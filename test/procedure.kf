@@ -1,10 +1,11 @@
 import axioms
+
 stdout = 1
 char = integer<7>
-string = array<char>
-write(descriptor : integer<32>, data : string) : ()
+ascii = array<char>
+write(descriptor : integer<32>, data : ascii) : ()
 
-print(x : string) =>
+print(x : ascii) =>
     write stdout x
 
 main() =>

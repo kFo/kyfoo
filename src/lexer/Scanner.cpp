@@ -370,6 +370,23 @@ Token Scanner::readNext()
 
         return TOK2(Equal, "=");
     }
+    else if ( c == ':' ) {
+        c = nextChar();
+
+        if ( peekChar() == '|' ) {
+            nextChar();
+
+            return TOK2(ColonPipe, ":|");
+        }
+
+        if ( peekChar() == '&' ) {
+            nextChar();
+
+            return TOK2(AmpersandPipe, ":&");
+        }
+
+        return TOK2(Colon, ":");
+    }
 
     // Single characters
 
@@ -383,7 +400,6 @@ Token Scanner::readNext()
     case '>': return TOK2(CloseAngle  , ">");
     case '{': return TOK2(OpenBrace   , "{");
     case '}': return TOK2(CloseBrace  , "}");
-    case ':': return TOK2(Colon       , ":");
     case '|': return TOK2(Pipe        , "|");
     case ',': return TOK2(Comma       , ",");
     case '+': return TOK2(Plus        , "+");

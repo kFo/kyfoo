@@ -49,15 +49,8 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
     ScopeResolver resolver(this);
     for ( auto const& d : myDeclarations ) {
         d->symbol().resolveSymbols(dgn, resolver);
-
-        auto s = createSymbolSet(d->symbol().name());
-        if ( auto other = s->find(d->symbol().parameters()) ) {
-            auto& err = dgn.error(module(), d->identifier()) << "symbol is already defined";
-            err.see(other);
+        if ( !addSymbol(dgn, d->symbol(), *d) )
             continue;
-        }
-
-        s->append(d->symbol().parameters(), *d);
 
         if ( auto p = d->as<ProcedureDeclaration>() )
             procedures.push_back(p);
@@ -65,6 +58,22 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 
     for ( auto&& e : procedures )
         e->resolveSymbols(dgn);
+}
+
+Declaration const* DeclarationScope::find(std::string const& identifier) const
+{
+    for ( auto&& d : myDeclarations ) {
+        if ( d->identifier().lexeme() == identifier )
+            return d.get();
+
+        if ( auto ds = d->as<DataSumDeclaration>() ) {
+            if ( auto dsScope = ds->definition() )
+                if ( auto decl = dsScope->find(identifier) )
+                    return decl;
+        }
+    }
+
+    return nullptr;
 }
 
 void DeclarationScope::setDeclaration(Declaration* declaration)
@@ -104,6 +113,19 @@ SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
     return &*l;
 }
 
+bool DeclarationScope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
+{
+    auto symSet = createSymbolSet(sym.name());
+    if ( auto other = symSet->find(sym.parameters()) ) {
+        auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
+        err.see(other);
+        return false;
+    }
+
+    symSet->append(sym.parameters(), decl);
+    return true;
+}
+
 Module* DeclarationScope::module()
 {
     return myModule;
@@ -119,38 +141,63 @@ DeclarationScope* DeclarationScope::parent()
     return myParent;
 }
 
-Declaration const* DeclarationScope::find(std::string const& identifier) const
-{
-    for ( auto&& d : myDeclarations )
-        if ( d->identifier().lexeme() == identifier )
-            return d.get();
-
-    return nullptr;
-}
-
 //
-// TypeScope
+// DataSumScope
 
-TypeScope::TypeScope(DeclarationScope* parent,
-                     TypeDeclaration& declaration)
+DataSumScope::DataSumScope(DeclarationScope* parent,
+                           DataSumDeclaration& declaration)
     : DeclarationScope(parent)
-    , myTypeDeclaration(&declaration)
+    , myDataDeclaration(&declaration)
 {
 }
 
-TypeScope::~TypeScope() = default;
+DataSumScope::~DataSumScope() = default;
 
-void TypeScope::io(IStream& stream) const
+void DataSumScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
 }
 
-void TypeScope::resolveSymbols(Diagnostics& dgn)
+void DataSumScope::resolveSymbols(Diagnostics& dgn)
+{
+    ScopeResolver resolver(this);
+    for ( auto const& d : myDeclarations ) {
+        auto dsCtor = d->as<DataSumDeclaration::Constructor>();
+        if ( !dsCtor )
+            throw std::runtime_error("data sum must only contain constructors");
+
+        parent()->addSymbol(dgn, d->symbol(), *d);
+    }
+}
+
+Declaration const* DataSumScope::find(std::string const& identifier) const
+{
+    return DeclarationScope::find(identifier);
+}
+
+//
+// DataProductScope
+
+DataProductScope::DataProductScope(DeclarationScope* parent,
+                                   DataProductDeclaration& declaration)
+    : DeclarationScope(parent)
+    , myDataDeclaration(&declaration)
+{
+}
+
+DataProductScope::~DataProductScope() = default;
+
+void DataProductScope::io(IStream& stream) const
+{
+    DeclarationScope::io(stream);
+}
+
+void DataProductScope::resolveSymbols(Diagnostics& dgn)
 {
     DeclarationScope::resolveSymbols(dgn);
 }
 
-Declaration const* TypeScope::find(std::string const& identifier) const
+Declaration const* DataProductScope::find(std::string const& identifier) const
 {
     return DeclarationScope::find(identifier);
 }

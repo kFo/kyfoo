@@ -51,7 +51,8 @@ private:
     Symbol* mySymbol = nullptr;
 };
 
-bool difference(Expression const& lhs, Expression const& rhs);
+bool matchOverload(Expression const& lhs, Expression const& rhs);
+bool matchPattern(Expression const& lhs, Expression const& rhs);
 
     } // namespace ast
 } // namespace kyfoo
