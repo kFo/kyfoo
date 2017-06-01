@@ -235,21 +235,22 @@ struct DataSumConstructor : public
 {
     std::unique_ptr<ast::DataSumDeclaration::Constructor> make() const
     {
-        std::vector<std::unique_ptr<ast::ProcedureParameter>> parameters;
+        std::vector<std::unique_ptr<ast::VariableDeclaration>> parameters;
         if ( auto c = factor<1>().capture() ) {
             for ( auto& e : c->factor<1>().captures() )
                 parameters.emplace_back(
-                    std::make_unique<ast::ProcedureParameter>(
+                    std::make_unique<ast::VariableDeclaration>(
                         ast::Symbol(e.factor<0>().token()),
-                        e.factor<2>().make()));
+                        e.factor<2>().make(),
+                        nullptr));
         }
 
         return std::make_unique<ast::DataSumDeclaration::Constructor>(factor<0>().make(), std::move(parameters));
     }
 };
 
-struct DataProductDeclaration
-    : public g::And<colonAmpersand, Symbol>
+struct DataProductDeclaration : public
+    g::And<colonAmpersand, Symbol>
 {
     std::unique_ptr<ast::DataProductDeclaration> make() const
     {
@@ -257,8 +258,8 @@ struct DataProductDeclaration
     }
 };
 
-struct DataProductDeclarationField
-    : public g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
+struct DataProductDeclarationField : public
+    g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
 {
     std::unique_ptr<ast::VariableDeclaration> make() const
     {

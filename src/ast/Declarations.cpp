@@ -74,7 +74,6 @@ void Declaration::setScope(DeclarationScope& scope)
         throw std::runtime_error("declaration parent set twice");
 
     myScope = &scope;
-    myScope->setDeclaration(this);
 }
 
 //
@@ -92,9 +91,10 @@ void DataSumDeclaration::io(IStream& stream) const
     Declaration::io(stream);
 }
 
-void DataSumDeclaration::resolveSymbols(Diagnostics&)
+void DataSumDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    // TODO
+    if ( definition() )
+        definition()->resolveSymbols(dgn);
 }
 
 void DataSumDeclaration::define(std::unique_ptr<DataSumScope> scope)
@@ -103,6 +103,7 @@ void DataSumDeclaration::define(std::unique_ptr<DataSumScope> scope)
         throw std::runtime_error("type declaration defined more than once");
 
     myDefinition = std::move(scope);
+    myDefinition->setDeclaration(this);
 }
 
 DataSumScope* DataSumDeclaration::definition()
@@ -114,7 +115,7 @@ DataSumScope* DataSumDeclaration::definition()
 // DataSumDeclaration::Constructor
 
 DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
-                                             std::vector<std::unique_ptr<ProcedureParameter>>&& parameters)
+                                             std::vector<std::unique_ptr<VariableDeclaration>>&& parameters)
     : Declaration(DeclKind::DataSumCtor, std::move(symbol), nullptr)
     , myParameters(std::move(parameters))
 {
@@ -130,8 +131,11 @@ void DataSumDeclaration::Constructor::io(IStream& stream) const
 
 void DataSumDeclaration::Constructor::resolveSymbols(Diagnostics& dgn)
 {
-    (void)dgn;
-    // todo: impl
+    for ( auto& e : myParameters )
+        e->setScope(*scope());
+
+    for ( auto& e : myParameters )
+        e->resolveSymbols(dgn);
 }
 
 //
@@ -151,9 +155,10 @@ void DataProductDeclaration::io(IStream& stream) const
         definition()->io(stream);
 }
 
-void DataProductDeclaration::resolveSymbols(Diagnostics&)
+void DataProductDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    // TODO
+    if ( definition() )
+        definition()->resolveSymbols(dgn);
 }
 
 void DataProductDeclaration::define(std::unique_ptr<DataProductScope> scope)
@@ -162,6 +167,7 @@ void DataProductDeclaration::define(std::unique_ptr<DataProductScope> scope)
         throw std::runtime_error("type declaration defined more than once");
 
     myDefinition = std::move(scope);
+    myDefinition->setDeclaration(this);
 }
 
 DataProductScope* DataProductDeclaration::definition()
@@ -233,8 +239,11 @@ void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(scope());
 
-    myConstraint->resolveSymbols(dgn, resolver);
-    myInitialization->resolveSymbols(dgn, resolver);
+    if ( myConstraint )
+        myConstraint->resolveSymbols(dgn, resolver);
+
+    if ( myInitialization )
+        myInitialization->resolveSymbols(dgn, resolver);
 }
 
 Expression* VariableDeclaration::constraint()
@@ -261,7 +270,9 @@ void ProcedureParameter::io(IStream& stream) const
 void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(parent()->scope());
-    constraint()->resolveSymbols(dgn, resolver);
+    resolver.addSupplementarySymbol(parent()->symbol());
+    if ( constraint() )
+        constraint()->resolveSymbols(dgn, resolver);
 }
 
 void ProcedureParameter::setParent(ProcedureDeclaration* procDecl)
@@ -327,6 +338,7 @@ void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
         throw std::runtime_error("procedure " + mySymbol.name() + " is already defined");
 
     myDefinition = std::move(definition);
+    myDefinition->setDeclaration(this);
 
     for ( auto& p : myParameters )
         p->setScope(*myDefinition);

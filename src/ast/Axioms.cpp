@@ -12,8 +12,8 @@ staticSize<T>(p : pointer T) => wordSize
 ssize = staticSize
 
 :& array<T>
-    ;ptr : pointer T
-    ;count : integer wordSize
+    ptr : pointer T
+    count : integer wordSize
 )axioms";
 
 #include "Axioms.hpp"

@@ -13,9 +13,9 @@ using column_index_t = std::size_t;
 class Token
 {
     TokenKind myKind = TokenKind::Undefined;
+    std::string myLexeme;
     line_index_t myLine = 0;
     column_index_t myColumn = 0;
-    std::string myLexeme;
 
 public:
     explicit Token();

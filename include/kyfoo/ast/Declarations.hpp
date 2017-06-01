@@ -77,7 +77,7 @@ protected:
     DeclarationScope* myScope = nullptr;
 };
 
-class ProcedureParameter;
+class VariableDeclaration;
 
 class DataSumDeclaration : public Declaration
 {
@@ -86,7 +86,7 @@ public:
     {
     public:
         Constructor(Symbol&& symbol,
-                    std::vector<std::unique_ptr<ProcedureParameter>>&& parameters);
+                    std::vector<std::unique_ptr<VariableDeclaration>>&& parameters);
         ~Constructor();
 
         // IIO
@@ -97,8 +97,10 @@ public:
     public:
         void resolveSymbols(Diagnostics& dgn) override;
 
+    public:
+
     private:
-        std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
+        std::vector<std::unique_ptr<VariableDeclaration>> myParameters;
     };
 
 public:

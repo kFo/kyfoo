@@ -14,6 +14,8 @@ namespace kyfoo {
 ScopeResolver::ScopeResolver(DeclarationScope* scope)
     : myScope(scope)
 {
+    if ( !scope )
+        throw std::runtime_error("scope resolver scope cannot be null");
 }
 
 Module const* ScopeResolver::module() const
@@ -21,31 +23,47 @@ Module const* ScopeResolver::module() const
     return myScope->module();
 }
 
-Declaration const* ScopeResolver::inScope(std::string const& symbol) const
+Declaration const* ScopeResolver::inScope(std::string const& identifier) const
 {
-    auto decl = myScope->find(symbol);
-    if ( !decl && myScope->declaration() )
-        return myScope->declaration()->symbol().findVariable(symbol);
+    auto decl = myScope->find(identifier);
+    if ( decl )
+        return decl;
+
+    if ( myScope->declaration() )
+        if ( auto symVar = myScope->declaration()->symbol().findVariable(identifier) )
+            return symVar;
+
+    for ( auto const& e : mySupplementarySymbols )
+        if ( auto symVar = e->findVariable(identifier) )
+            return symVar;
 
     return nullptr;
 }
 
-Declaration const* ScopeResolver::lookup(std::string const& symbol) const
+Declaration const* ScopeResolver::lookup(std::string const& identifier) const
 {
-    for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( auto d = scope->find(symbol) )
+    if ( auto d = inScope(identifier) )
+        return d;
+
+    for ( auto scope = myScope->parent(); scope; scope = scope->parent() ) {
+        if ( auto d = scope->find(identifier) )
             return d;
         
         if ( auto decl = scope->declaration() )
-            if ( auto s = decl->symbol().findVariable(symbol) )
+            if ( auto s = decl->symbol().findVariable(identifier) )
                 return s;
     }
 
     for ( auto m : module()->imports() )
-        if ( auto decl = m->scope()->find(symbol) )
+        if ( auto decl = m->scope()->find(identifier) )
             return decl;
 
     return nullptr;
+}
+
+void ScopeResolver::addSupplementarySymbol(Symbol const& sym)
+{
+    mySupplementarySymbols.push_back(&sym);
 }
 
 //
@@ -64,17 +82,17 @@ Module const* SymbolVariableCreatorFailoverResolver::module() const
     return myResolver->module();
 }
 
-Declaration const* SymbolVariableCreatorFailoverResolver::inScope(std::string const& symbol) const
+Declaration const* SymbolVariableCreatorFailoverResolver::inScope(std::string const& identifier) const
 {
-    return myResolver->inScope(symbol);
+    return myResolver->inScope(identifier);
 }
 
-Declaration const* SymbolVariableCreatorFailoverResolver::lookup(std::string const& symbol) const
+Declaration const* SymbolVariableCreatorFailoverResolver::lookup(std::string const& identifier) const
 {
-    if ( auto decl = myResolver->lookup(symbol) )
+    if ( auto decl = myResolver->lookup(identifier) )
         return decl;
 
-    return mySymbol->createVariable(symbol);
+    return mySymbol->createVariable(identifier);
 }
 
 //
