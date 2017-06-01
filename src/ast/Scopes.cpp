@@ -45,18 +45,14 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 
 void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 {
-    std::vector<ProcedureDeclaration*> procedures;
     ScopeResolver resolver(this);
     for ( auto const& d : myDeclarations ) {
         d->symbol().resolveSymbols(dgn, resolver);
         if ( !addSymbol(dgn, d->symbol(), *d) )
             continue;
-
-        if ( auto p = d->as<ProcedureDeclaration>() )
-            procedures.push_back(p);
     }
 
-    for ( auto&& e : procedures )
+    for ( auto& e : myDeclarations )
         e->resolveSymbols(dgn);
 }
 
@@ -166,8 +162,12 @@ void DataSumScope::resolveSymbols(Diagnostics& dgn)
         if ( !dsCtor )
             throw std::runtime_error("data sum must only contain constructors");
 
+        dsCtor->symbol().resolveSymbols(dgn, resolver);
         parent()->addSymbol(dgn, d->symbol(), *d);
     }
+
+    for ( auto& e : myDeclarations )
+        e->resolveSymbols(dgn);
 }
 
 Declaration const* DataSumScope::find(std::string const& identifier) const
