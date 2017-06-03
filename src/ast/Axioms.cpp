@@ -29,7 +29,7 @@ namespace kyfoo {
 Module* createAxiomsModule(ModuleSet* moduleSet)
 {
     std::stringstream s(source);
-    auto module = moduleSet->create(std::string("axioms"));
+    auto module = moduleSet->createImplied("axioms");
     Diagnostics dgn;
     try {
         module->parse(dgn, s);

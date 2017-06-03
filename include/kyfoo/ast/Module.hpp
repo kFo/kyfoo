@@ -29,11 +29,14 @@ public:
     Module* create(std::string const& name);
     Module* create(std::experimental::filesystem::path const& path);
 
+    Module* createImplied(std::string const& name);
+
     Module* find(std::string const& name);
     Module* find(std::experimental::filesystem::path const& path);
 
 private:
     std::vector<std::unique_ptr<Module>> myModules;
+    std::vector<Module*> myImpliedImports;
 };
 
 class Module : public INode
@@ -60,7 +63,8 @@ public:
     void resolveImports(Diagnostics& dgn);
     void semantics(Diagnostics& dgn);
 
-    void import(Diagnostics& dgn, lexer::Token const& token);
+    Module* import(Module* module);
+    Module* import(Diagnostics& dgn, lexer::Token const& token);
     std::vector<Module*> const& imports() const;
     DeclarationScope const* scope() const;
     bool imports(Module* module) const;

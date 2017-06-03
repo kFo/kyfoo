@@ -34,7 +34,12 @@ Module* ModuleSet::create(std::string const& name)
         return m;
 
     myModules.emplace_back(std::make_unique<Module>(this, name));
-    return myModules.back().get();
+    m = myModules.back().get();
+
+    for ( auto& i : myImpliedImports )
+        m->import(i);
+
+    return m;
 }
 
 Module* ModuleSet::create(fs::path const& path)
@@ -44,7 +49,23 @@ Module* ModuleSet::create(fs::path const& path)
         return m;
 
     myModules.emplace_back(std::make_unique<Module>(this, path));
-    return myModules.back().get();
+    m = myModules.back().get();
+
+    for ( auto& i : myImpliedImports )
+        m->import(i);
+
+    return m;
+}
+
+Module* ModuleSet::createImplied(std::string const& name)
+{
+    auto m = find(name);
+    if ( m )
+        return m;
+
+    myModules.emplace_back(std::make_unique<Module>(this, name));
+    myImpliedImports.push_back(myModules.back().get());
+    return myImpliedImports.back();
 }
 
 Module* ModuleSet::find(std::string const& name)
@@ -178,7 +199,17 @@ void Module::semantics(Diagnostics& dgn)
     myScope->resolveSymbols(dgn);
 }
 
-void Module::import(Diagnostics& dgn, lexer::Token const& token)
+Module* Module::import(Module* module)
+{
+    auto m = find(begin(myImports), end(myImports), module);
+    if ( m != end(myImports) )
+        return *m;
+
+    myImports.push_back(module);
+    return myImports.back();
+}
+
+Module* Module::import(Diagnostics& dgn, lexer::Token const& token)
 {
     auto mod = myModuleSet->create(token.lexeme());
     if ( !mod ) {
@@ -188,7 +219,7 @@ void Module::import(Diagnostics& dgn, lexer::Token const& token)
 
         if ( !exists(importPath) ) {
             dgn.error(this, token) << "import does not exist: " << importPath.string();
-            return;
+            return nullptr;
         }
 
         mod = myModuleSet->create(importPath);
@@ -198,9 +229,10 @@ void Module::import(Diagnostics& dgn, lexer::Token const& token)
 
     for ( auto& m : myImports )
         if ( m == mod )
-            return;
+            return m;
 
     myImports.push_back(mod);
+    return myImports.back();
 }
 
 std::vector<Module*> const& Module::imports() const
