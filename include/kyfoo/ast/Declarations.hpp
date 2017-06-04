@@ -66,6 +66,7 @@ public:
     lexer::Token const& identifier() const;
 
     template <typename T> T* as() = delete;
+    template <typename T> T const* as() const = delete;
 
 public:
     DeclarationScope* scope();
@@ -98,8 +99,11 @@ public:
         void resolveSymbols(Diagnostics& dgn) override;
 
     public:
+        void setParent(DataSumDeclaration* parent);
+        DataSumDeclaration* parent();
 
     private:
+        DataSumDeclaration* myParent = nullptr;
         std::vector<std::unique_ptr<VariableDeclaration>> myParameters;
     };
 
@@ -189,7 +193,7 @@ public:
 public:
     Expression* constraint();
 
-private:
+protected:
     std::unique_ptr<Expression> myConstraint;
     std::unique_ptr<Expression> myInitialization;
 };
@@ -287,6 +291,9 @@ private:
 
 // sugar to avoid switching on DeclKind
 #define X(a,b,c) template<> inline c* Declaration::as<c>() { return myKind == DeclKind::a ? static_cast<c*>(this) : nullptr; }
+    DECLARATION_KINDS(X)
+#undef X
+#define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == DeclKind::DataProduct ? static_cast<c const*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
 

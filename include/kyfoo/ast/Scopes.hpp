@@ -38,15 +38,22 @@ public:
 public:
     virtual void resolveImports(Diagnostics& dgn);
     virtual void resolveSymbols(Diagnostics& dgn);
-    virtual Declaration const* find(std::string const& identifier) const;
 
 public:
     void setDeclaration(Declaration* declaration);
     void append(std::unique_ptr<Declaration> declaration);
     void import(Module& module);
-    SymbolSet* findSymbol(std::string const& name);
+
+    Declaration const* findEquivalent(SymbolReference const& symbol) const;
+    Declaration const* findOverload(SymbolReference const& symbol) const;
+    ProcedureDeclaration const* findProcedureOverload(SymbolReference const& procOverload) const;
+
     SymbolSet* createSymbolSet(std::string const& name);
+    SymbolSet* createProcedureOverloadSet(std::string const& name);
     bool addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl);
+    bool addProcedure(Diagnostics& dgn, Symbol const& sym, ProcedureDeclaration& procDecl);
+    SymbolSet const* findSymbol(std::string const& identifier) const;
+    SymbolSet const* findProcedure(std::string const& identifier) const;
 
     Module* module();
     Declaration* declaration();
@@ -59,6 +66,7 @@ protected:
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
     std::vector<SymbolSet> mySymbols;
+    std::vector<SymbolSet> myProcedureOverloads;
     std::map<std::string, ImportDeclaration*> myImports;
 };
 
@@ -76,7 +84,6 @@ public:
     // DeclarationScope
 public:
     void resolveSymbols(Diagnostics& dgn) override;
-    Declaration const* find(std::string const& identifier) const override;
 
 private:
     DataSumDeclaration* myDataDeclaration = nullptr;
@@ -95,8 +102,6 @@ public:
 
     // DeclarationScope
 public:
-    void resolveSymbols(Diagnostics& dgn) override;
-    Declaration const* find(std::string const& identifier) const override;
 
 private:
     DataProductDeclaration* myDataDeclaration = nullptr;
@@ -116,7 +121,6 @@ public:
     // DeclarationScope
 public:
     void resolveSymbols(Diagnostics& dgn) override;
-    Declaration const* find(std::string const& identifier) const override;
 
 public:
     void append(std::unique_ptr<Expression> expression);

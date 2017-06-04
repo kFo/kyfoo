@@ -11,9 +11,7 @@ namespace kyfoo {
     X(Open) \
     X(OpenRight) \
     X(OpenLeft) \
-    X(Closed) \
-    X(Symbol) \
-    X(Apply)
+    X(Closed)
 
 enum class TupleKind
 {

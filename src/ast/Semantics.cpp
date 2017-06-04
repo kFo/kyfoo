@@ -23,39 +23,64 @@ Module const* ScopeResolver::module() const
     return myScope->module();
 }
 
-Declaration const* ScopeResolver::inScope(std::string const& identifier) const
+Declaration const* ScopeResolver::inScope(SymbolReference const& symbol) const
 {
-    auto decl = myScope->find(identifier);
+    auto decl = myScope->findEquivalent(symbol);
     if ( decl )
         return decl;
 
-    if ( myScope->declaration() )
-        if ( auto symVar = myScope->declaration()->symbol().findVariable(identifier) )
-            return symVar;
-
     for ( auto const& e : mySupplementarySymbols )
-        if ( auto symVar = e->findVariable(identifier) )
+        if ( auto symVar = e->findVariable(symbol.name()) )
             return symVar;
 
     return nullptr;
 }
 
-Declaration const* ScopeResolver::lookup(std::string const& identifier) const
+Declaration const* ScopeResolver::lookup(SymbolReference const& symbol) const
 {
-    if ( auto d = inScope(identifier) )
+    if ( auto d = inScope(symbol) )
         return d;
 
     for ( auto scope = myScope->parent(); scope; scope = scope->parent() ) {
-        if ( auto d = scope->find(identifier) )
+        if ( auto d = scope->findEquivalent(symbol) )
             return d;
-        
-        if ( auto decl = scope->declaration() )
-            if ( auto s = decl->symbol().findVariable(identifier) )
-                return s;
+
+        if ( symbol.parameters().empty() )
+            if ( auto decl = scope->declaration() )
+                if ( auto s = decl->symbol().findVariable(symbol.name()) )
+                    return s;
     }
 
     for ( auto m : module()->imports() )
-        if ( auto decl = m->scope()->find(identifier) )
+        if ( auto decl = m->scope()->findEquivalent(symbol) )
+            return decl;
+
+    return nullptr;
+}
+
+Declaration const* ScopeResolver::match(SymbolReference const& symbol) const
+{
+    for ( auto scope = myScope; scope; scope = scope->parent() ) {
+        if ( auto decl = scope->findOverload(symbol) )
+            return decl;
+    }
+
+    for ( auto m : module()->imports() )
+        if ( auto decl = m->scope()->findOverload(symbol) )
+            return decl;
+
+    return nullptr;
+}
+
+ProcedureDeclaration const* ScopeResolver::matchProcedure(SymbolReference const& procOverload) const
+{
+    for ( auto scope = myScope; scope; scope = scope->parent() ) {
+        if ( auto decl = scope->findProcedureOverload(procOverload) )
+            return decl;
+    }
+
+    for ( auto m : module()->imports() )
+        if ( auto decl = m->scope()->findProcedureOverload(procOverload) )
             return decl;
 
     return nullptr;
@@ -82,17 +107,30 @@ Module const* SymbolVariableCreatorFailoverResolver::module() const
     return myResolver->module();
 }
 
-Declaration const* SymbolVariableCreatorFailoverResolver::inScope(std::string const& identifier) const
+Declaration const* SymbolVariableCreatorFailoverResolver::inScope(SymbolReference const& symbol) const
 {
-    return myResolver->inScope(identifier);
+    return myResolver->inScope(symbol);
 }
 
-Declaration const* SymbolVariableCreatorFailoverResolver::lookup(std::string const& identifier) const
+Declaration const* SymbolVariableCreatorFailoverResolver::lookup(SymbolReference const& symbol) const
 {
-    if ( auto decl = myResolver->lookup(identifier) )
+    if ( auto decl = myResolver->lookup(symbol) )
         return decl;
 
-    return mySymbol->createVariable(identifier);
+    if ( symbol.parameters().empty() )
+        return mySymbol->createVariable(symbol.name());
+
+    return nullptr;
+}
+
+Declaration const* SymbolVariableCreatorFailoverResolver::match(SymbolReference const& symbol) const
+{
+    return myResolver->match(symbol);
+}
+
+ProcedureDeclaration const* SymbolVariableCreatorFailoverResolver::matchProcedure(SymbolReference const& procOverload) const
+{
+    return myResolver->matchProcedure(procOverload);
 }
 
 //
@@ -163,15 +201,19 @@ L_error:
     throw std::runtime_error("invalid dispatch");
 }
 
-bool matchOverload(Expression const& lhs, Expression const& rhs)
+bool matchEquivalent(Expression const& lhs, Expression const& rhs)
 {
     if ( auto l = lhs.as<PrimaryExpression>() ) {
         if ( auto r = rhs.as<PrimaryExpression>() ) {
+            if ( l->token().kind() != r->token().kind() )
+                return false;
+
+            if ( l->token().kind() != lexer::TokenKind::Identifier )
+                return l->token().lexeme() == r->token().lexeme();
+
             if ( l->declaration()->kind() == DeclKind::SymbolVariable
-                && r->declaration()->kind() == DeclKind::SymbolVariable )
-            {
-                return true;
-            }
+              && r->declaration()->kind() == DeclKind::SymbolVariable )
+                return true; // todo: compare constraints
 
             return l->declaration() == r->declaration();
         }
@@ -180,7 +222,7 @@ bool matchOverload(Expression const& lhs, Expression const& rhs)
         if ( !r )
             return false;
 
-        return matchOverload(*l, *r->subject());
+        return matchEquivalent(*l, *r->subject());
     }
 
     if ( auto l = lhs.as<TupleExpression>() ) {
@@ -193,7 +235,7 @@ bool matchOverload(Expression const& lhs, Expression const& rhs)
             return false;
 
         for ( std::size_t i = 0; i < size; ++i ) {
-            if ( !matchOverload(*l->expressions()[i], *r->expressions()[i]) )
+            if ( !matchEquivalent(*l->expressions()[i], *r->expressions()[i]) )
                 return false;
         }
 
@@ -205,9 +247,9 @@ bool matchOverload(Expression const& lhs, Expression const& rhs)
         throw std::runtime_error("invalid overload matching");
 
     if ( auto r = rhs.as<ConstraintExpression>() )
-        return matchOverload(*l->subject(), *r->subject());
+        return matchEquivalent(*l->subject(), *r->subject());
 
-    return matchOverload(*l->subject(), rhs);
+    return matchEquivalent(*l->subject(), rhs);
 }
 
 bool matchPattern(Expression const& lhs, Expression const& rhs)
