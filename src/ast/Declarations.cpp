@@ -138,6 +138,19 @@ void DataSumDeclaration::Constructor::resolveSymbols(Diagnostics& dgn)
         e->resolveSymbols(dgn);
 }
 
+void DataSumDeclaration::Constructor::setParent(DataSumDeclaration* dsDecl)
+{
+    if ( parent() )
+        throw std::runtime_error("data sum constructor can only belong to one procedure");
+
+    myParent = dsDecl;
+}
+
+DataSumDeclaration* DataSumDeclaration::Constructor::parent()
+{
+    return myParent;
+}
+
 //
 // DataProductDeclaration
 
@@ -239,11 +252,19 @@ void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(scope());
 
+    Context ctx(dgn, resolver);
     if ( myConstraint )
-        myConstraint->resolveSymbols(dgn, resolver);
+        ctx.resolveExpression(myConstraint);
 
     if ( myInitialization )
-        myInitialization->resolveSymbols(dgn, resolver);
+        ctx.resolveExpression(myInitialization);
+
+    if ( !myConstraint && !myInitialization ) {
+        ctx.error(symbol().identifier()) << "cannot infer data type without initializer";
+        return;
+    }
+
+    // todo: constraint propagation via control flow
 }
 
 Expression* VariableDeclaration::constraint()
@@ -271,8 +292,10 @@ void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(parent()->scope());
     resolver.addSupplementarySymbol(parent()->symbol());
+
+    Context ctx(dgn, resolver);
     if ( constraint() )
-        constraint()->resolveSymbols(dgn, resolver);
+        ctx.resolveExpression(myConstraint);
 }
 
 void ProcedureParameter::setParent(ProcedureDeclaration* procDecl)
@@ -320,8 +343,9 @@ void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
         p->resolveSymbols(dgn);
     
     ScopeResolver resolver(scope());
+    Context ctx(dgn, resolver);
     if ( returnType() )
-        returnType()->resolveSymbols(dgn, resolver);
+        ctx.resolveExpression(myReturnExpression);
 
     if ( definition() )
         definition()->resolveSymbols(dgn);

@@ -84,6 +84,9 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Slice.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">

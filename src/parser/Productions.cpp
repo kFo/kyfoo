@@ -32,7 +32,7 @@ struct Expression::impl : public
                 exprs.emplace_back(a.term<1>().make());
         }
 
-        auto subject = createTuple(ast::TupleKind::Apply, std::move(exprs));
+        auto subject = std::make_unique<ast::ApplyExpression>(std::move(exprs));
 
         if ( auto c = factor<1>().capture() )
             return std::make_unique<ast::ConstraintExpression>(std::move(subject), c->factor<1>().make());

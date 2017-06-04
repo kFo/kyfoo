@@ -56,18 +56,32 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         e->resolveSymbols(dgn);
 }
 
-Declaration const* DeclarationScope::find(std::string const& identifier) const
+Declaration const* DeclarationScope::findEquivalent(SymbolReference const& symbol) const
 {
-    for ( auto&& d : myDeclarations ) {
-        if ( d->identifier().lexeme() == identifier )
-            return d.get();
+    auto symSet = findSymbol(symbol.name());
+    if ( symSet )
+        return symSet->findEquivalent(symbol.parameters());
 
-        if ( auto ds = d->as<DataSumDeclaration>() ) {
-            if ( auto dsScope = ds->definition() )
-                if ( auto decl = dsScope->find(identifier) )
-                    return decl;
-        }
-    }
+    if ( myDeclaration && symbol.parameters().empty() )
+        return myDeclaration->symbol().findVariable(symbol.name());
+
+    return nullptr;
+}
+
+Declaration const* DeclarationScope::findOverload(SymbolReference const& symbol) const
+{
+    auto symSet = findSymbol(symbol.name());
+    if ( symSet )
+        return symSet->findOverload(symbol.parameters());
+
+    return nullptr;
+}
+
+ProcedureDeclaration const* DeclarationScope::findProcedureOverload(SymbolReference const& procOverload) const
+{
+    auto symSet = findProcedure(procOverload.name());
+    if ( symSet )
+        return static_cast<ProcedureDeclaration const*>(symSet->findOverload(procOverload.parameters()));
 
     return nullptr;
 }
@@ -90,15 +104,6 @@ void DeclarationScope::import(Module& module)
             Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
 }
 
-SymbolSet* DeclarationScope::findSymbol(std::string const& name)
-{
-    auto l = lower_bound(begin(mySymbols), end(mySymbols), name);
-    if ( l->name() == name )
-        return &*l;
-
-    return nullptr;
-}
-
 SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
 {
     auto l = lower_bound(begin(mySymbols), end(mySymbols), name);
@@ -109,17 +114,67 @@ SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
     return &*l;
 }
 
+SymbolSet* DeclarationScope::createProcedureOverloadSet(std::string const& name)
+{
+    auto l = lower_bound(begin(myProcedureOverloads), end(myProcedureOverloads), name);
+    if ( l != end(myProcedureOverloads) && l->name() == name )
+        return &*l;
+
+    l = myProcedureOverloads.insert(l, SymbolSet(name));
+    return &*l;
+}
+
 bool DeclarationScope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
 {
     auto symSet = createSymbolSet(sym.name());
-    if ( auto other = symSet->find(sym.parameters()) ) {
+    if ( auto other = symSet->findEquivalent(sym.parameters()) ) {
         auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
         err.see(other);
         return false;
     }
 
     symSet->append(sym.parameters(), decl);
+
+    if ( auto proc = decl.as<ProcedureDeclaration>() )
+        addProcedure(dgn, sym, *proc);
+
     return true;
+}
+
+bool DeclarationScope::addProcedure(Diagnostics& dgn, Symbol const& sym, ProcedureDeclaration& procDecl)
+{
+    auto procSet = createProcedureOverloadSet(sym.name());
+    if ( auto other = procSet->findEquivalent(sym.parameters()) ) {
+        auto& err = dgn.error(module(), sym.identifier()) << "procedure declaration conflicts with existing overload";
+        err.see(other);
+        return false;
+    }
+
+    std::vector<Expression*> paramConstraints;
+    paramConstraints.reserve(procDecl.parameters().size());
+    for ( auto const& e : procDecl.parameters() )
+        paramConstraints.push_back(e->constraint());
+
+    procSet->append(paramConstraints, procDecl);
+    return true;
+}
+
+SymbolSet const* DeclarationScope::findSymbol(std::string const& identifier) const
+{
+    auto symSet = lower_bound(begin(mySymbols), end(mySymbols), identifier);
+    if ( symSet != end(mySymbols) && symSet->name() == identifier )
+        return &*symSet;
+
+    return nullptr;
+}
+
+SymbolSet const* DeclarationScope::findProcedure(std::string const& identifier) const
+{
+    auto procOverloads = lower_bound(begin(myProcedureOverloads), end(myProcedureOverloads), identifier);
+    if ( procOverloads != end(myProcedureOverloads) && procOverloads->name() == identifier )
+        return &*procOverloads;
+
+    return nullptr;
 }
 
 Module* DeclarationScope::module()
@@ -170,11 +225,6 @@ void DataSumScope::resolveSymbols(Diagnostics& dgn)
         e->resolveSymbols(dgn);
 }
 
-Declaration const* DataSumScope::find(std::string const& identifier) const
-{
-    return DeclarationScope::find(identifier);
-}
-
 //
 // DataProductScope
 
@@ -190,16 +240,6 @@ DataProductScope::~DataProductScope() = default;
 void DataProductScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
-}
-
-void DataProductScope::resolveSymbols(Diagnostics& dgn)
-{
-    DeclarationScope::resolveSymbols(dgn);
-}
-
-Declaration const* DataProductScope::find(std::string const& identifier) const
-{
-    return DeclarationScope::find(identifier);
 }
 
 //
@@ -222,20 +262,21 @@ void ProcedureScope::io(IStream& stream) const
 
 void ProcedureScope::resolveSymbols(Diagnostics& dgn)
 {
+    ScopeResolver resolver(this);
+
+    // Resolve parameters
+    for ( auto const& p : myDeclaration->parameters() ) {
+        p->symbol().resolveSymbols(dgn, resolver);
+        if ( !addSymbol(dgn, p->symbol(), *p) )
+            continue;
+    }
+
+    // Resolve declarations
     DeclarationScope::resolveSymbols(dgn);
 
-    ScopeResolver resolver(this);
-    for ( auto&& expr : myExpressions )
-        expr->resolveSymbols(dgn, resolver);
-}
-
-Declaration const* ProcedureScope::find(std::string const& identifier) const
-{
-    for ( auto&& p : myDeclaration->parameters() )
-        if ( p->identifier().lexeme() == identifier )
-            return p.get();
-
-    return DeclarationScope::find(identifier);
+    // Resolve expressions
+    Context ctx(dgn, resolver);
+    ctx.resolveExpressions(myExpressions);
 }
 
 void ProcedureScope::append(std::unique_ptr<Expression> expression)

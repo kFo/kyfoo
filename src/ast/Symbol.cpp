@@ -7,6 +7,44 @@
 namespace kyfoo {
     namespace ast {
 
+namespace {
+
+template <typename T>
+bool compare(SymbolReference::paramlist_t lhs,
+             SymbolReference::paramlist_t rhs,
+             T& op)
+{
+    if ( lhs.size() != rhs.size() )
+        return false;
+
+    if ( lhs.empty() && rhs.empty() )
+        return true;
+
+    auto const size = lhs.size();
+    for ( std::size_t i = 0; i < size; ++i ) {
+        if ( op(*lhs[i], *rhs[i]) )
+            return true;
+    }
+
+    return false;
+}
+
+bool equivalent(SymbolReference::paramlist_t lhs,
+                SymbolReference::paramlist_t rhs)
+{
+    auto op = [](auto const& l, auto const& r) { return matchEquivalent(l, r); };
+    return compare(lhs, rhs, op);
+}
+
+bool matchesPattern(SymbolReference::paramlist_t lhs,
+                    SymbolReference::paramlist_t rhs)
+{
+    auto op = [](auto const& l, auto const& r) { return matchPattern(l, r); };
+    return compare(lhs, rhs, op);
+}
+
+} // namespace
+
 //
 // Symbol
 
@@ -14,20 +52,6 @@ Symbol::Symbol(lexer::Token const& identifier,
                std::vector<std::unique_ptr<Expression>>&& parameters)
     : myIdentifier(identifier)
     , myParameters(std::move(parameters))
-{
-}
-
-Symbol::Symbol(lexer::Token const& identifier,
-               std::unique_ptr<TupleExpression> symbolTuple)
-    : myIdentifier(identifier)
-    , myParameters(std::move(symbolTuple->expressions()))
-{
-    if ( symbolTuple->kind() != TupleKind::Symbol )
-        throw std::runtime_error("symbol must be created with a symbol tuple");
-}
-
-Symbol::Symbol(std::unique_ptr<TupleExpression> symbolTuple)
-    : myParameters(std::move(symbolTuple->expressions()))
 {
 }
 
@@ -39,7 +63,7 @@ Symbol::Symbol(lexer::Token const& identifier)
 Symbol::Symbol(Symbol&& rhs)
     : myIdentifier(std::move(rhs.myIdentifier))
     , myParameters(std::move(rhs.myParameters))
-    , myVariables(std::move(myVariables))
+    , myVariables(std::move(rhs.myVariables))
 {
 }
 
@@ -66,6 +90,11 @@ void Symbol::io(IStream& stream) const
     stream.closeArray();
 }
 
+bool Symbol::operator == (Symbol const& rhs) const
+{
+    return name() == rhs.name() && equivalent(parameters(), rhs.parameters());
+}
+
 lexer::Token const& Symbol::identifier() const
 {
     return myIdentifier;
@@ -84,8 +113,8 @@ Symbol::paramlist_t const& Symbol::parameters() const
 void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
     SymbolVariableCreatorFailoverResolver failover(resolver, *this);
-    for ( auto& e : myParameters )
-        e->resolveSymbols(dgn, failover);
+    Context ctx(dgn, failover);
+    ctx.resolveExpressions(myParameters);
 }
 
 SymbolVariable* Symbol::findVariable(std::string const& identifier)
@@ -112,21 +141,39 @@ SymbolVariable* Symbol::createVariable(std::string const& identifier)
 }
 
 //
-// SymbolSet
+// SymbolReference
 
-bool equal(SymbolSet::paramlist_t const& lhs, SymbolSet::paramlist_t const& rhs)
+SymbolReference::SymbolReference(Symbol const& symbol)
+    : SymbolReference(symbol.name(), symbol.parameters())
 {
-    if ( lhs.size() != rhs.size() )
-        return false;
-
-    auto const size = lhs.size();
-    for ( std::size_t i = 0; i < size; ++i ) {
-        if ( matchOverload(*lhs[i], *rhs[i]) )
-            return true;
-    }
-
-    return false;
 }
+
+SymbolReference::SymbolReference(std::string const& name)
+    : SymbolReference(name, paramlist_t())
+{
+}
+
+SymbolReference::SymbolReference(std::string const& name,
+                                 paramlist_t parameters)
+    : myName(&name)
+    , myParameters(parameters)
+{
+}
+
+SymbolReference::~SymbolReference() = default;
+
+std::string const& SymbolReference::name() const
+{
+    return *myName;
+}
+
+SymbolReference::paramlist_t const& SymbolReference::parameters() const
+{
+    return myParameters;
+}
+
+//
+// SymbolSet
 
 SymbolSet::SymbolSet(std::string const& name)
     : myName(name)
@@ -156,17 +203,45 @@ std::string const& SymbolSet::name() const
 
 void SymbolSet::append(paramlist_t const& paramlist, Declaration& declaration)
 {
-    mySet.emplace_back(pair_t{&paramlist, &declaration});
+    pair_t overload;
+
+    auto const size = paramlist.size();
+    overload.paramlist.reserve(size);
+    for ( auto const& e : paramlist )
+        overload.paramlist.push_back(e);
+
+    overload.declaration = &declaration;
+    mySet.push_back(overload);
 }
 
-Declaration* SymbolSet::find(paramlist_t const& paramlist)
+Declaration* SymbolSet::findEquivalent(SymbolReference::paramlist_t const& paramlist)
 {
     for ( auto const& e : mySet ) {
-        if ( equal(*e.paramlist, paramlist) )
+        if ( equivalent(e.paramlist, paramlist) )
             return e.declaration;
     }
 
     return nullptr;
+}
+
+Declaration const* SymbolSet::findEquivalent(SymbolReference::paramlist_t const& paramlist) const
+{
+    return const_cast<SymbolSet*>(this)->findEquivalent(paramlist);
+}
+
+Declaration* SymbolSet::findOverload(SymbolReference::paramlist_t const& paramlist)
+{
+    for ( auto const& e : mySet ) {
+        if ( matchesPattern(e.paramlist, paramlist) )
+            return e.declaration;
+    }
+
+    return nullptr;
+}
+
+Declaration const* SymbolSet::findOverload(SymbolReference::paramlist_t const& paramlist) const
+{
+    return const_cast<SymbolSet*>(this)->findOverload(paramlist);
 }
 
     } // namespace ast

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include <kyfoo/Slice.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/IO.hpp>
 
@@ -15,7 +16,7 @@ namespace kyfoo {
 
 class IResolver;
 class Expression;
-class TupleExpression;
+class SymbolExpression;
 class SymbolVariable;
 
 class Symbol : public IIO
@@ -26,9 +27,6 @@ public:
 public:
     Symbol(lexer::Token const& identifier,
            std::vector<std::unique_ptr<Expression>>&& parameters);
-    Symbol(lexer::Token const& identifier,
-           std::unique_ptr<TupleExpression> symbolTuple);
-    explicit Symbol(std::unique_ptr<TupleExpression> symbolTuple);
     explicit Symbol(lexer::Token const& identifier);
 
     Symbol(Symbol const&) = delete;
@@ -41,6 +39,9 @@ public:
     // IIO
 public:
     void io(IStream& stream) const override;
+
+public:
+    bool operator == (Symbol const& rhs) const;
 
 public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
@@ -59,14 +60,34 @@ private:
     std::vector<std::unique_ptr<SymbolVariable>> myVariables;
 };
 
+class SymbolReference
+{
+public:
+    using paramlist_t = Slice<Expression*>;
+
+public:
+    /*implicit*/ SymbolReference(Symbol const& symbol);
+    /*implicit*/ SymbolReference(std::string const& name);
+    SymbolReference(std::string const& name, paramlist_t parameters);
+    ~SymbolReference();
+
+public:
+    std::string const& name() const;
+    paramlist_t const& parameters() const;
+
+private:
+    std::string const* myName;
+    paramlist_t myParameters;
+};
+
 class Declaration;
 class SymbolSet
 {
 public:
-    using paramlist_t = Symbol::paramlist_t;
+    using paramlist_t = SymbolReference::paramlist_t;
 
     struct pair_t {
-        paramlist_t const* paramlist;
+        std::vector<Expression*> paramlist;
         Declaration* declaration;
     };
 
@@ -88,7 +109,12 @@ public:
     std::string const& name() const;
 
     void append(paramlist_t const& paramlist, Declaration& declaration);
-    Declaration* find(paramlist_t const& paramlist);
+
+    Declaration* findEquivalent(paramlist_t const& paramlist);
+    Declaration const* findEquivalent(paramlist_t const& paramlist) const;
+
+    Declaration* findOverload(paramlist_t const& paramlist);
+    Declaration const* findOverload(paramlist_t const& paramlist) const;
 
 private:
     std::string myName;

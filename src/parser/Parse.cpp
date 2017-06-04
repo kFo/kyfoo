@@ -234,6 +234,7 @@ std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DataSumScopeParser::parseNext(Diagnostics& /*dgn*/, lexer::Scanner& scanner)
 {
     if ( auto dsCtor = parseDataSumConstructor(scanner) ) {
+        dsCtor->setParent(scope()->declaration()->as<ast::DataSumDeclaration>());
         myScope->append(std::move(dsCtor));
         return std::make_tuple(true, nullptr);
     }

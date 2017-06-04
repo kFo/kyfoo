@@ -126,19 +126,22 @@ struct TupleClosed : public
 };
 
 struct TupleSymbol : public
-    g::And<openAngle, g::Repeat2<Expression, comma>, closeAngle>
+    g::And<g::Opt<id>, openAngle, g::Repeat2<Expression, comma>, closeAngle>
 {
-    std::unique_ptr<ast::TupleExpression> make() const
+    std::unique_ptr<ast::SymbolExpression> make() const
     {
-        return createTuple(ast::TupleKind::Symbol,
-                           expressions(factor<1>().captures()));
+        auto e = expressions(factor<2>().captures());
+        if ( auto i = factor<0>().capture() )
+            return std::make_unique<ast::SymbolExpression>(i->token(), std::move(e));
+
+        return std::make_unique<ast::SymbolExpression>(std::move(e));
     }
 };
 
 struct Tuple : public
     g::Or<TupleOpen, TupleOpenLeft, TupleOpenRight, TupleClosed, TupleSymbol>
 {
-    std::unique_ptr<ast::TupleExpression> make() const
+    std::unique_ptr<ast::Expression> make() const
     {
         switch (index()) {
         case 0: return term<0>().make();
@@ -163,12 +166,12 @@ struct Symbol : public
         switch (index()) {
         case 0: 
             if ( auto p = term<0>().factor<1>().capture() )
-                return ast::Symbol(term<0>().factor<0>().token(), p->make());
+                return ast::Symbol(term<0>().factor<0>().token(), std::move(p->make()->internalExpressions()));
             else
                 return ast::Symbol(term<0>().factor<0>().token());
 
         case 1:
-            return ast::Symbol(term<1>().make());
+            return ast::Symbol(lexer::Token(), std::move(term<1>().make()->internalExpressions()));
 
         default:
             throw std::runtime_error("invalid symbol expression");
