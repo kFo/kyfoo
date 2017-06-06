@@ -11,6 +11,7 @@ namespace kyfoo {
     namespace ast {
         class Module;
         class Declaration;
+        class Expression;
     }
 
 class StopWatch
@@ -51,11 +52,13 @@ public:
     explicit Error(ast::Module const* module);
     Error(ast::Module const* module, lexer::Token const& token);
     Error(ast::Module const* module, lexer::Token const& token, Code code);
+    Error(ast::Module const* module, ast::Expression const& expr, Code code);
     Error(Error& rhs) = delete;
 
 public:
     ast::Module const* module() const;
     std::string what() const;
+    ast::Expression const* expression() const;
     lexer::Token const& token() const;
     Code code() const;
     std::vector<ast::Declaration const*> const& references() const;
@@ -69,6 +72,7 @@ public:
 
 private:
     ast::Module const* myModule = nullptr;
+    ast::Expression const* myExpression = nullptr;
     lexer::Token myToken;
     Code myCode;
     std::ostringstream myInfo;
@@ -84,6 +88,7 @@ public:
 
     Error& error(ast::Module const* module);
     Error& error(ast::Module const* module, lexer::Token const& token);
+    Error& error(ast::Module const* module, ast::Expression const& expr);
     Error& undeclared(ast::Module const* module, lexer::Token const& token);
 
     void dumpErrors(std::ostream& stream);

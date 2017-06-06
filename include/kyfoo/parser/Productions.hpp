@@ -85,12 +85,21 @@ createTuple(ast::TupleKind kind,
     return std::make_unique<ast::TupleExpression>(kind, std::move(expressions));
 }
 
+inline std::unique_ptr<ast::TupleExpression>
+createTuple(lexer::Token const& open,
+            lexer::Token const& close,
+            std::vector<std::unique_ptr<ast::Expression>>&& expressions)
+{
+    return std::make_unique<ast::TupleExpression>(open, close, std::move(expressions));
+}
+
 struct TupleOpen : public
     g::And<openParen, g::Repeat2<Expression, comma>, closeParen>
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
-        return createTuple(ast::TupleKind::Open,
+        return createTuple(factor<0>().token(),
+                           factor<2>().token(),
                            expressions(factor<1>().captures()));
     }
 };
@@ -100,7 +109,8 @@ struct TupleOpenRight : public
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
-        return createTuple(ast::TupleKind::OpenRight,
+        return createTuple(factor<0>().token(),
+                           factor<2>().token(),
                            expressions(factor<1>().captures()));
     }
 };
@@ -110,7 +120,8 @@ struct TupleOpenLeft : public
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
-        return createTuple(ast::TupleKind::OpenLeft,
+        return createTuple(factor<0>().token(),
+                           factor<2>().token(),
                            expressions(factor<1>().captures()));
     }
 };
@@ -120,7 +131,8 @@ struct TupleClosed : public
 {
     std::unique_ptr<ast::TupleExpression> make() const
     {
-        return createTuple(ast::TupleKind::Closed,
+        return createTuple(factor<0>().token(),
+                           factor<2>().token(),
                            expressions(factor<1>().captures()));
     }
 };
@@ -134,7 +146,9 @@ struct TupleSymbol : public
         if ( auto i = factor<0>().capture() )
             return std::make_unique<ast::SymbolExpression>(i->token(), std::move(e));
 
-        return std::make_unique<ast::SymbolExpression>(std::move(e));
+        return std::make_unique<ast::SymbolExpression>(factor<1>().token(),
+                                                       factor<3>().token(),
+                                                       std::move(e));
     }
 };
 

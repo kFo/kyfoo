@@ -12,19 +12,8 @@ struct Expression::impl : public
     std::unique_ptr<ast::Expression> make() const
     {
         auto const& primary = factor<0>();
-        std::unique_ptr<ast::Expression> first;
-        auto const& s = primary.captures().front();
-        if ( s.index() == 0 )
-            first = s.term<0>().make();
-        else
-            first = s.term<1>().make();
-
-        if ( primary.captures().size() == 1 )
-            return first;
-
         std::vector<std::unique_ptr<ast::Expression>> exprs;
-        exprs.emplace_back(std::move(first));
-        for ( std::size_t i = 1; i < primary.captures().size(); ++i ) {
+        for ( std::size_t i = 0; i < primary.captures().size(); ++i ) {
             auto const& a = primary.captures()[i];
             if ( a.index() == 0 )
                 exprs.emplace_back(a.term<0>().make());

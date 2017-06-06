@@ -16,6 +16,7 @@ class Expression;
 class Declaration;
 class ProcedureDeclaration;
 class SymbolReference;
+class LookupHit;
 
 #define EXPRESSION_KINDS(X) \
     X(Primary   , PrimaryExpression) \
@@ -32,11 +33,12 @@ public:
 
 public:
     Error& error(lexer::Token const& token);
+    Error& error(Expression const& expr);
     std::size_t errorCount() const;
 
-    Declaration const* lookup(SymbolReference const& sym) const;
-    Declaration const* match(SymbolReference const& sym) const;
-    Declaration const* matchProcedure(SymbolReference const& sym) const;
+    LookupHit matchEquivalent(SymbolReference const& sym) const;
+    LookupHit matchValue(SymbolReference const& sym) const;
+    LookupHit matchProcedure(SymbolReference const& sym) const;
 
     void rewrite(std::unique_ptr<Expression> expr);
 
@@ -129,6 +131,8 @@ public:
 
 private:
     lexer::Token myToken;
+
+    // Semantic state
     Declaration const* myDeclaration = nullptr;
 };
 
@@ -136,6 +140,9 @@ class TupleExpression : public CloneableMixin<TupleExpression>
 {
 public:
     TupleExpression(TupleKind kind,
+                    std::vector<std::unique_ptr<Expression>>&& expressions);
+    TupleExpression(lexer::Token const& open,
+                    lexer::Token const& close,
                     std::vector<std::unique_ptr<Expression>>&& expressions);
     TupleExpression(TupleExpression const& rhs);
     TupleExpression& operator = (TupleExpression const& rhs);
@@ -153,6 +160,9 @@ protected:
 
 public:
     TupleKind kind() const;
+    lexer::Token const& openToken() const;
+    lexer::Token const& closeToken() const;
+
     Slice<Expression*> expressions() const;
     Slice<Expression*> expressions();
 
@@ -160,8 +170,12 @@ private:
     void flattenOpenTuples();
 
 private:
+    // AST state
     TupleKind myKind;
     std::vector<std::unique_ptr<Expression>> myExpressions;
+
+    lexer::Token myOpenToken;
+    lexer::Token myCloseToken;
 };
 
 class ApplyExpression : public CloneableMixin<ApplyExpression>
@@ -188,8 +202,13 @@ public:
 public:
     Slice<Expression*> expressions() const;
 
+    ProcedureDeclaration const* declaration() const;
+
 private:
+    // AST state
     std::vector<std::unique_ptr<Expression>> myExpressions;
+
+    // Semantic state
     ProcedureDeclaration* myDeclaration = nullptr;
 };
 
@@ -199,6 +218,9 @@ public:
     SymbolExpression(lexer::Token const& identifier,
                      std::vector<std::unique_ptr<Expression>>&& expressions);
     SymbolExpression(std::vector<std::unique_ptr<Expression>>&& expressions);
+    SymbolExpression(lexer::Token const& open,
+                     lexer::Token const& close,
+                     std::vector<std::unique_ptr<Expression>>&& expressions);
     SymbolExpression(SymbolExpression const& rhs);
     SymbolExpression& operator = (SymbolExpression const& rhs);
     ~SymbolExpression();
@@ -214,14 +236,26 @@ protected:
     void resolveSymbols(Context& ctx) override;
 
 public:
+    lexer::Token const& identifier() const;
     Slice<Expression*> expressions();
     Slice<Expression*> expressions() const;
 
+    lexer::Token const& openToken() const;
+    lexer::Token const& closeToken() const;
+
     std::vector<std::unique_ptr<Expression>>& internalExpressions();
 
+    Declaration const* declaration() const;
+
 private:
+    // AST state
     lexer::Token myIdentifier;
     std::vector<std::unique_ptr<Expression>> myExpressions;
+
+    lexer::Token myOpenToken;
+    lexer::Token myCloseToken;
+
+    // Semantic state
     Declaration const* myDeclaration = nullptr; // todo: variant?
 };
 
@@ -260,6 +294,10 @@ EXPRESSION_KINDS(X)
 #define X(a, b) template <> inline b const* Expression::as<b>() const { return myKind == Expression::Kind::a ? static_cast<b const*>(this) : nullptr; }
 EXPRESSION_KINDS(X)
 #undef X
+
+lexer::Token const& front(Expression const& expr);
+std::ostream& print(std::ostream& stream, Expression const& expr);
+void enforceResolution(Context& ctx, Expression const& expr);
 
     } // namespace ast
 } // namespace kyfoo

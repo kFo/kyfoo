@@ -113,8 +113,8 @@ public:
     Declaration* findEquivalent(paramlist_t const& paramlist);
     Declaration const* findEquivalent(paramlist_t const& paramlist) const;
 
-    Declaration* findOverload(paramlist_t const& paramlist);
-    Declaration const* findOverload(paramlist_t const& paramlist) const;
+    Declaration* findValue(paramlist_t const& paramlist);
+    Declaration const* findValue(paramlist_t const& paramlist) const;
 
 private:
     std::string myName;

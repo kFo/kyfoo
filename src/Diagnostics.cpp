@@ -28,6 +28,16 @@ Error::Error(ast::Module const* module,
 {
 }
 
+Error::Error(ast::Module const* module,
+             ast::Expression const& expr,
+             Code code)
+    : myModule(module)
+    , myExpression(&expr)
+    , myToken(front(expr))
+    , myCode(code)
+{
+}
+
 ast::Module const* Error::module() const
 {
     return myModule;
@@ -36,6 +46,11 @@ ast::Module const* Error::module() const
 std::string Error::what() const
 {
     return myInfo.str();
+}
+
+ast::Expression const* Error::expression() const
+{
+    return myExpression;
 }
 
 lexer::Token const& Error::token() const
@@ -83,8 +98,14 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
 
     switch (err.code()) {
     case Error::General:
-        if ( !err.token().lexeme().empty() )
+        if ( err.expression() ) {
+            sink << "'";
+            print(sink, *err.expression());
+            sink << "' ";
+        }
+        else if ( !err.token().lexeme().empty() ) {
             sink << "'" << err.token().lexeme() << "' ";
+        }
 
         sink << err.what() << std::endl;
         break;
@@ -123,6 +144,12 @@ Error& Diagnostics::error(ast::Module const* module)
 Error& Diagnostics::error(ast::Module const* module, lexer::Token const& token)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, token));
+    return *myErrors.back();
+}
+
+Error& Diagnostics::error(ast::Module const* module, ast::Expression const& expr)
+{
+    myErrors.emplace_back(std::make_unique<Error>(module, expr, Error::Code::General));
     return *myErrors.back();
 }
 
