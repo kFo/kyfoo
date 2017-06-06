@@ -50,40 +50,82 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         d->symbol().resolveSymbols(dgn, resolver);
         if ( !addSymbol(dgn, d->symbol(), *d) )
             continue;
+
+        if ( auto proc = d->as<ProcedureDeclaration>() ) {
+            for ( auto& p : proc->parameters() )
+                p->resolveSymbols(dgn);
+
+            addProcedure(dgn, proc->symbol(), *proc);
+        }
     }
 
     for ( auto& e : myDeclarations )
         e->resolveSymbols(dgn);
 }
 
-Declaration const* DeclarationScope::findEquivalent(SymbolReference const& symbol) const
+/**
+ * Locates a symbol with parameter list that has exact semantic match
+ * 
+ * Equivalent symbols:
+ * \code
+ * mytype<n : integer>
+ * mytype<m : integer>
+ * \endcode
+ * 
+ * Non-equivalent symbols:
+ * \code
+ * mytype<n : integer>
+ * mytype<n : ascii>
+ * \endcode
+ */
+LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
 {
     auto symSet = findSymbol(symbol.name());
     if ( symSet )
-        return symSet->findEquivalent(symbol.parameters());
+        return LookupHit(symSet, symSet->findEquivalent(symbol.parameters()));
 
     if ( myDeclaration && symbol.parameters().empty() )
-        return myDeclaration->symbol().findVariable(symbol.name());
+        return LookupHit(symSet, myDeclaration->symbol().findVariable(symbol.name()));
 
-    return nullptr;
+    return {};
 }
 
-Declaration const* DeclarationScope::findOverload(SymbolReference const& symbol) const
+/**
+ * Locates a symbol with parameter list that could be instantiated by a value expression
+ *
+ * Overload example:
+ * \code
+ * mytype<n : integer>
+ * mytype<32>
+ * \endcode
+ *
+ * Non-overload example:
+ * \code
+ * mytype<n : integer>
+ * mytype<m : integer>
+ * \endcode
+ *
+ * \code
+ * mytype<n : integer>
+ * mytype<"str">
+ * \endcode
+ */
+LookupHit DeclarationScope::findValue(SymbolReference const& symbol) const
 {
     auto symSet = findSymbol(symbol.name());
     if ( symSet )
-        return symSet->findOverload(symbol.parameters());
+        return LookupHit(symSet, symSet->findValue(symbol.parameters()));
 
-    return nullptr;
+    return LookupHit();
 }
 
-ProcedureDeclaration const* DeclarationScope::findProcedureOverload(SymbolReference const& procOverload) const
+LookupHit DeclarationScope::findProcedureOverload(SymbolReference const& procOverload) const
 {
     auto symSet = findProcedure(procOverload.name());
     if ( symSet )
-        return static_cast<ProcedureDeclaration const*>(symSet->findOverload(procOverload.parameters()));
+        return LookupHit(symSet, static_cast<ProcedureDeclaration const*>(symSet->findValue(procOverload.parameters())));
 
-    return nullptr;
+    return LookupHit();
 }
 
 void DeclarationScope::setDeclaration(Declaration* declaration)
@@ -134,10 +176,6 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaratio
     }
 
     symSet->append(sym.parameters(), decl);
-
-    if ( auto proc = decl.as<ProcedureDeclaration>() )
-        addProcedure(dgn, sym, *proc);
-
     return true;
 }
 
@@ -190,6 +228,11 @@ Declaration* DeclarationScope::declaration()
 DeclarationScope* DeclarationScope::parent()
 {
     return myParent;
+}
+
+Slice<Declaration*> DeclarationScope::childDeclarations() const
+{
+    return myDeclarations;
 }
 
 //

@@ -6,24 +6,11 @@
 #include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
     namespace ast {
-
-PrimaryExpression const* front(Expression const* expr)
-{
-    if ( auto p = expr->as<PrimaryExpression>() )
-        return p;
-
-    if ( auto t = expr->as<TupleExpression>() )
-        return front(t->expressions()[0]);
-
-    if ( auto c = expr->as<ConstraintExpression>() )
-        return front(c->subject());
-
-    throw std::runtime_error("failed to find front of expression");
-}
 
 template <typename T>
 std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs)
@@ -34,47 +21,6 @@ std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs
         ret.emplace_back(e->clone());
 
     return ret;
-}
-
-struct EnforceResolution
-{
-    Context& ctx;
-
-    EnforceResolution(Context& ctx)
-        : ctx(ctx)
-    {
-    }
-
-    void operator () (Expression const* expr) const
-    {
-        if ( auto p = expr->as<PrimaryExpression>() ) {
-            if ( p->token().kind() == lexer::TokenKind::Identifier && !p->declaration() )
-                ctx.error(p->token()) << "does not identify a declaration";
-        }
-    }
-};
-
-template <typename T>
-void preorder(Expression const* expr, T& op)
-{
-    op(expr);
-
-    if ( auto t = expr->as<TupleExpression>() ) {
-        for ( auto const& e : t->expressions() )
-            preorder(e, op);
-    }
-    else if ( auto a = expr->as<ApplyExpression>() ) {
-        for ( auto const& e : a->expressions() )
-            preorder(e, op);
-    }
-    else if ( auto s = expr->as<SymbolExpression>() ) {
-        for ( auto const& e : s->expressions() )
-            preorder(e, op);
-    }
-    else if ( auto c = expr->as<ConstraintExpression>() ) {
-        preorder(c->subject(), op);
-        preorder(c->constraint(), op);
-    }
 }
 
 //
@@ -93,22 +39,27 @@ Error& Context::error(lexer::Token const& token)
     return myDiagnostics->error(myResolver->module(), token);
 }
 
+Error& Context::error(Expression const& expr)
+{
+    return myDiagnostics->error(myResolver->module(), expr);
+}
+
 std::size_t Context::errorCount() const
 {
     return myDiagnostics->errorCount();
 }
 
-Declaration const* Context::lookup(SymbolReference const& sym) const
+LookupHit Context::matchEquivalent(SymbolReference const& sym) const
 {
-    return myResolver->lookup(sym);
+    return myResolver->matchEquivalent(sym);
 }
 
-Declaration const* Context::match(SymbolReference const& sym) const
+LookupHit Context::matchValue(SymbolReference const& sym) const
 {
-    return myResolver->match(sym);
+    return myResolver->matchValue(sym);
 }
 
-Declaration const* Context::matchProcedure(SymbolReference const& sym) const
+LookupHit Context::matchProcedure(SymbolReference const& sym) const
 {
     return myResolver->matchProcedure(sym);
 }
@@ -122,8 +73,10 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
 {
     myRewrite.reset();
     expression->resolveSymbols(*this);
-    if ( myRewrite )
+    while ( myRewrite ) {
         expression = std::move(myRewrite);
+        expression->resolveSymbols(*this);
+    }
 }
 
 void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
@@ -132,8 +85,10 @@ void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expre
 
     for ( auto i = begin(expressions); i != end(expressions); ++i ) {
         (*i)->resolveSymbols(*this);
-        if ( myRewrite )
+        while ( myRewrite ) {
             *i = std::move(std::move(myRewrite));
+            (*i)->resolveSymbols(*this);
+        }
     }
 }
 
@@ -205,9 +160,9 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
     if ( myToken.kind() != lexer::TokenKind::Identifier )
         return;
 
-    auto decl = ctx.lookup(Symbol(myToken));
-    if ( decl )
-        myDeclaration = decl;
+    auto hit = ctx.matchEquivalent(Symbol(myToken));
+    if ( hit )
+        myDeclaration = hit.decl();
 
     // Not an error to miss its basic symbol lookup
 }
@@ -254,11 +209,50 @@ const char* to_string(TupleKind kind)
     throw std::runtime_error("invalid tuple kind");
 }
 
+const char* presentTupleOpen(TupleKind kind)
+{
+    switch (kind) {
+    case TupleKind::Open:
+    case TupleKind::OpenLeft:
+        return "(";
+
+    default:
+        return "[";
+    }
+}
+
+const char* presentTupleClose(TupleKind kind)
+{
+    switch (kind) {
+    case TupleKind::Open:
+    case TupleKind::OpenLeft:
+        return ")";
+
+    default:
+        return "]";
+    }
+}
+const char* presentTupleWeave(TupleKind)
+{
+    return ", ";
+}
+
 TupleExpression::TupleExpression(TupleKind kind,
                                  std::vector<std::unique_ptr<Expression>>&& expressions)
     : base_t(Expression::Kind::Tuple)
     , myKind(kind)
     , myExpressions(std::move(expressions))
+{
+}
+
+TupleExpression::TupleExpression(lexer::Token const& open,
+                                 lexer::Token const& close,
+                                 std::vector<std::unique_ptr<Expression>>&& expressions)
+    : base_t(Expression::Kind::Tuple)
+    , myKind(toTupleKind(open.kind(), close.kind()))
+    , myExpressions(std::move(expressions))
+    , myOpenToken(open)
+    , myCloseToken(close)
 {
 }
 
@@ -302,6 +296,16 @@ void TupleExpression::resolveSymbols(Context& ctx)
 TupleKind TupleExpression::kind() const
 {
     return myKind;
+}
+
+lexer::Token const& TupleExpression::openToken() const
+{
+    return myOpenToken;
+}
+
+lexer::Token const& TupleExpression::closeToken() const
+{
+    return myCloseToken;
 }
 
 Slice<Expression*> TupleExpression::expressions() const
@@ -379,10 +383,15 @@ void ApplyExpression::resolveSymbols(Context& ctx)
 {
     ctx.resolveExpressions(myExpressions);
 
+    if ( auto symExpr = myExpressions.front()->as<SymbolExpression>() ) {
+        // explicit procedure lookup
+        return;
+    }
+
+    // implicit procedure lookup
     auto subject = myExpressions.front()->as<PrimaryExpression>();
     if ( !subject ) {
-        auto p = front(subject);
-        ctx.error(p->token()) << "symbol tuples must start with an identifier";
+        ctx.error(*this) << "implicit procedure application must begin with an identifier";
         return;
     }
 
@@ -390,8 +399,8 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     SymbolReference sym(subject->token().lexeme(), args);
 
     // Look for hit on symbol
-    auto decl = ctx.match(sym);
-    if ( decl ) {
+    auto hit = ctx.matchValue(sym);
+    if ( hit ) {
         // Transmute apply-expression into symbol-expression
         auto id = subject->token();
         auto expr = std::move(myExpressions);
@@ -402,10 +411,10 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     }
 
     // Search procedure overloads by arguments
-    auto procDecl = ctx.matchProcedure(sym);
+    hit = ctx.matchProcedure(sym);
+    auto procDecl = hit.as<ProcedureDeclaration>();
     if ( !procDecl ) {
-        auto p = front(subject);
-        ctx.error(p->token()) << "does not match any procedure overloads";
+        ctx.error(*this) << "does not match any procedure overloads";
         // todo: references to potential overloads
         return;
     }
@@ -443,6 +452,11 @@ Slice<Expression*> ApplyExpression::expressions() const
     return myExpressions;
 }
 
+ProcedureDeclaration const* ApplyExpression::declaration() const
+{
+    return myDeclaration;
+}
+
 //
 // SymbolExpression
 
@@ -457,6 +471,16 @@ SymbolExpression::SymbolExpression(lexer::Token const& identifier,
 SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& expressions)
     : base_t(Expression::Kind::Symbol)
     , myExpressions(std::move(expressions))
+{
+}
+
+SymbolExpression::SymbolExpression(lexer::Token const& open,
+                                   lexer::Token const& close,
+                                   std::vector<std::unique_ptr<Expression>>&& expressions)
+    : base_t(Expression::Kind::Symbol)
+    , myExpressions(std::move(expressions))
+    , myOpenToken(open)
+    , myCloseToken(close)
 {
 }
 
@@ -497,8 +521,7 @@ void SymbolExpression::resolveSymbols(Context& ctx)
 
         auto subject = myExpressions.front()->as<PrimaryExpression>();
         if ( !subject ) {
-            auto p = front(subject);
-            ctx.error(p->token()) << "symbol tuples must start with an identifier";
+            ctx.error(*this) << "symbol tuples must start with an identifier";
             return;
         }
 
@@ -511,19 +534,25 @@ void SymbolExpression::resolveSymbols(Context& ctx)
 
     {
         auto const startCount = ctx.errorCount();
-        EnforceResolution op(ctx);
-        preorder(this, op);
+        enforceResolution(ctx, *this);
 
         if ( ctx.errorCount() - startCount )
             return;
     }
 
     SymbolReference sym(myIdentifier.lexeme(), myExpressions);
-    auto decl = ctx.match(sym);
-    if ( !decl ) {
-        ctx.error(myIdentifier) << "undeclared symbol identifier";
+    auto hit = ctx.matchValue(sym);
+    if ( !hit ) {
+        ctx.error(*this) << "undeclared symbol identifier";
         return;
     }
+
+    myDeclaration = hit.decl();
+}
+
+lexer::Token const& SymbolExpression::identifier() const
+{
+    return myIdentifier;
 }
 
 Slice<Expression*> SymbolExpression::expressions()
@@ -536,9 +565,24 @@ Slice<Expression*> SymbolExpression::expressions() const
     return myExpressions;
 }
 
+lexer::Token const& SymbolExpression::openToken() const
+{
+    return myOpenToken;
+}
+
+lexer::Token const& SymbolExpression::closeToken() const
+{
+    return myCloseToken;
+}
+
 std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions()
 {
     return myExpressions;
+}
+
+Declaration const* SymbolExpression::declaration() const
+{
+    return myDeclaration;
 }
 
 //
@@ -551,10 +595,10 @@ ConstraintExpression::ConstraintExpression(std::unique_ptr<Expression> subject,
     , myConstraint(std::move(constraint))
 {
     if ( !mySubject )
-        throw std::runtime_error("constrain expression must have a subject");
+        throw std::runtime_error("constraint expression must have a subject");
 
     if ( !myConstraint )
-        throw std::runtime_error("constrain expression must have a constraint");
+        throw std::runtime_error("constraint expression must have a constraint");
 }
 
 ConstraintExpression::ConstraintExpression(ConstraintExpression const& rhs)
@@ -601,6 +645,216 @@ Expression const* ConstraintExpression::subject() const
 Expression const* ConstraintExpression::constraint() const
 {
     return myConstraint.get();
+}
+
+//
+// Utilities
+
+template <typename Dispatcher>
+struct FrontExpression
+{
+    using result_t = lexer::Token const&;
+
+    Dispatcher& dispatch;
+
+    FrontExpression(Dispatcher& dispatch)
+        : dispatch(dispatch)
+    {
+    }
+
+    result_t exprPrimary(PrimaryExpression const& p)
+    {
+        return p.token();
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        if ( t.expressions().empty() )
+            return t.openToken();
+
+        return dispatch(*t.expressions()[0]);
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        return dispatch(*a.expressions()[0]);
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        if ( s.identifier().kind() != lexer::TokenKind::Undefined )
+            return s.identifier();
+
+        if ( s.expressions().empty() )
+            return s.openToken();
+
+        return dispatch(*s.expressions()[0]);
+    }
+
+    result_t exprConstraint(ConstraintExpression const& c)
+    {
+        if ( c.subject() )
+            return dispatch(*c.subject());
+        else if ( c.constraint() )
+            return dispatch(*c.constraint());
+
+        throw std::runtime_error("expression has no traceable tokens");
+    }
+};
+
+lexer::Token const& front(Expression const& expr)
+{
+    ShallowApply<FrontExpression> op;
+    return op(expr);
+}
+
+template <typename Dispatcher>
+struct PrintOperator
+{
+    using result_t = std::ostream&;
+
+    Dispatcher& dispatch;
+    result_t stream;
+
+    PrintOperator(Dispatcher& dispatch, result_t stream)
+        : dispatch(dispatch)
+        , stream(stream)
+    {
+    }
+
+    std::ostream& exprPrimary(PrimaryExpression const& p)
+    {
+        return stream << p.token().lexeme();
+    }
+
+    std::ostream& exprTuple(TupleExpression const& t)
+    {
+        stream << presentTupleOpen(t.kind());
+
+        if ( !t.expressions().empty() ) {
+            dispatch(*t.expressions()[0]);
+
+            for ( auto const& e : t.expressions()(1, $) ) {
+                stream << presentTupleWeave(t.kind());
+                dispatch(*e);
+            }
+        }
+
+        return stream << presentTupleClose(t.kind());
+    }
+
+    std::ostream& exprApply(ApplyExpression const& a)
+    {
+        auto first = true;
+        for ( auto const& e : a.expressions() ) {
+            if ( !first )
+                stream << " ";
+            else
+                first = false;
+
+            auto const group = e->kind() == Expression::Kind::Apply;
+            if ( group )
+                stream << "(";
+
+            dispatch(*e);
+
+            if ( group )
+                stream << ")";
+        }
+
+        return stream;
+    }
+
+    std::ostream& exprSymbol(SymbolExpression const& s)
+    {
+        auto const& id = s.identifier().lexeme();
+        if ( !id.empty() )
+            stream << id;
+
+        if ( !s.expressions().empty() ) {
+            stream << '<';
+            dispatch(*s.expressions()[0]);
+
+            for ( auto const& e : s.expressions()(1, $) ) {
+                stream << ", ";
+                dispatch(*e);
+            }
+
+            return stream << '>';
+        }
+
+        if ( id.empty() )
+            return stream << "<>";
+
+        return stream;
+    }
+    
+    std::ostream& exprConstraint(ConstraintExpression const& c)
+    {
+        dispatch(*c.subject());
+        stream << " : ";
+        return dispatch(*c.constraint());
+    }
+};
+
+std::ostream& print(std::ostream& stream, Expression const& expr)
+{
+    ShallowApply<PrintOperator> op(stream);
+    return op(expr);
+}
+
+template <typename Dispatcher>
+struct EnforceResolution
+{
+    using result_t = void;
+
+    Dispatcher& dispatch;
+    Context& ctx;
+
+    EnforceResolution(Dispatcher& dispatch, Context& ctx)
+        : dispatch(dispatch)
+        , ctx(ctx)
+    {
+    }
+
+    void exprPrimary(PrimaryExpression const& p) const
+    {
+        if ( p.token().kind() == lexer::TokenKind::Identifier && !p.declaration() )
+            ctx.error(p.token()) << "does not identify a declaration";
+    }
+
+    void exprTuple(TupleExpression const& t)
+    {
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+    }
+
+    void exprApply(ApplyExpression const& a)
+    {
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+    }
+
+    void exprSymbol(SymbolExpression const& s)
+    {
+        for ( auto const& e : s.expressions() )
+            dispatch(*e);
+    }
+
+    void exprConstraint(ConstraintExpression const& c)
+    {
+        if ( c.subject() )
+            dispatch(*c.subject());
+
+        if ( c.constraint() )
+            dispatch(*c.constraint());
+    }
+};
+
+void enforceResolution(Context& ctx, Expression const& expr)
+{
+    ShallowApply<EnforceResolution> op(ctx);
+    op(expr);
 }
 
     } // namespace ast

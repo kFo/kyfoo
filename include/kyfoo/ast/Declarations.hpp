@@ -101,6 +101,9 @@ public:
     public:
         void setParent(DataSumDeclaration* parent);
         DataSumDeclaration* parent();
+        DataSumDeclaration const* parent() const;
+
+        Slice<VariableDeclaration*> fields() const;
 
     private:
         DataSumDeclaration* myParent = nullptr;
@@ -122,6 +125,7 @@ public:
 public:
     void define(std::unique_ptr<DataSumScope> scope);
     DataSumScope* definition();
+    DataSumScope const* definition() const;
 
 private:
     std::unique_ptr<DataSumScope> myDefinition;
@@ -192,6 +196,7 @@ public:
 
 public:
     Expression* constraint();
+    Expression const* constraint() const;
 
 protected:
     std::unique_ptr<Expression> myConstraint;
@@ -296,6 +301,8 @@ private:
 #define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == DeclKind::DataProduct ? static_cast<c const*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
+
+bool isDataDeclaration(DeclKind kind);
 
     } // namespace ast
 } // namespace kyfoo

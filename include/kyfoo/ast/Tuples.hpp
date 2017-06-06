@@ -23,5 +23,9 @@ enum class TupleKind
 TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close);
 const char* to_string(TupleKind kind);
 
+const char* presentTupleOpen(TupleKind kind);
+const char* presentTupleClose(TupleKind kind);
+const char* presentTupleWeave(TupleKind kind);
+
     } // namesapce ast
 } // namespace kyfoo

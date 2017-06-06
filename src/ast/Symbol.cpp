@@ -7,44 +7,6 @@
 namespace kyfoo {
     namespace ast {
 
-namespace {
-
-template <typename T>
-bool compare(SymbolReference::paramlist_t lhs,
-             SymbolReference::paramlist_t rhs,
-             T& op)
-{
-    if ( lhs.size() != rhs.size() )
-        return false;
-
-    if ( lhs.empty() && rhs.empty() )
-        return true;
-
-    auto const size = lhs.size();
-    for ( std::size_t i = 0; i < size; ++i ) {
-        if ( op(*lhs[i], *rhs[i]) )
-            return true;
-    }
-
-    return false;
-}
-
-bool equivalent(SymbolReference::paramlist_t lhs,
-                SymbolReference::paramlist_t rhs)
-{
-    auto op = [](auto const& l, auto const& r) { return matchEquivalent(l, r); };
-    return compare(lhs, rhs, op);
-}
-
-bool matchesPattern(SymbolReference::paramlist_t lhs,
-                    SymbolReference::paramlist_t rhs)
-{
-    auto op = [](auto const& l, auto const& r) { return matchPattern(l, r); };
-    return compare(lhs, rhs, op);
-}
-
-} // namespace
-
 //
 // Symbol
 
@@ -92,7 +54,7 @@ void Symbol::io(IStream& stream) const
 
 bool Symbol::operator == (Symbol const& rhs) const
 {
-    return name() == rhs.name() && equivalent(parameters(), rhs.parameters());
+    return name() == rhs.name() && matchEquivalent(parameters(), rhs.parameters());
 }
 
 lexer::Token const& Symbol::identifier() const
@@ -217,7 +179,7 @@ void SymbolSet::append(paramlist_t const& paramlist, Declaration& declaration)
 Declaration* SymbolSet::findEquivalent(SymbolReference::paramlist_t const& paramlist)
 {
     for ( auto const& e : mySet ) {
-        if ( equivalent(e.paramlist, paramlist) )
+        if ( matchEquivalent(e.paramlist, paramlist) )
             return e.declaration;
     }
 
@@ -229,19 +191,19 @@ Declaration const* SymbolSet::findEquivalent(SymbolReference::paramlist_t const&
     return const_cast<SymbolSet*>(this)->findEquivalent(paramlist);
 }
 
-Declaration* SymbolSet::findOverload(SymbolReference::paramlist_t const& paramlist)
+Declaration* SymbolSet::findValue(SymbolReference::paramlist_t const& paramlist)
 {
     for ( auto const& e : mySet ) {
-        if ( matchesPattern(e.paramlist, paramlist) )
+        if ( matchValue(e.paramlist, paramlist) )
             return e.declaration;
     }
 
     return nullptr;
 }
 
-Declaration const* SymbolSet::findOverload(SymbolReference::paramlist_t const& paramlist) const
+Declaration const* SymbolSet::findValue(SymbolReference::paramlist_t const& paramlist) const
 {
-    return const_cast<SymbolSet*>(this)->findOverload(paramlist);
+    return const_cast<SymbolSet*>(this)->findValue(paramlist);
 }
 
     } // namespace ast

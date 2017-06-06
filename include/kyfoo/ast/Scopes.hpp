@@ -24,6 +24,51 @@ class SymbolDeclaration;
 class ProcedureDeclaration;
 class Module;
 
+class LookupHit
+{
+public:
+    LookupHit() = default;
+
+    LookupHit(SymbolSet const* symSet, Declaration const* decl)
+        : mySymSet(symSet)
+        , myDecl(decl)
+    {
+    }
+
+    explicit LookupHit(SymbolVariable const* symVar)
+        : myDecl(symVar)
+    {
+    }
+
+    explicit operator bool () const
+    {
+        return myDecl;
+    }
+
+    template <typename T>
+    T const* as() const
+    {
+        if ( myDecl )
+            return myDecl->as<T>();
+
+        return nullptr;
+    }
+
+    SymbolSet const* symSet() const
+    {
+        return mySymSet;
+    }
+
+    Declaration const* decl() const
+    {
+        return myDecl;
+    }
+
+private:
+    SymbolSet const* mySymSet = nullptr;
+    Declaration const* myDecl = nullptr;
+};
+
 class DeclarationScope : public INode
 {
 public:
@@ -44,9 +89,9 @@ public:
     void append(std::unique_ptr<Declaration> declaration);
     void import(Module& module);
 
-    Declaration const* findEquivalent(SymbolReference const& symbol) const;
-    Declaration const* findOverload(SymbolReference const& symbol) const;
-    ProcedureDeclaration const* findProcedureOverload(SymbolReference const& procOverload) const;
+    LookupHit findEquivalent(SymbolReference const& symbol) const;
+    LookupHit findValue(SymbolReference const& symbol) const;
+    LookupHit findProcedureOverload(SymbolReference const& procOverload) const;
 
     SymbolSet* createSymbolSet(std::string const& name);
     SymbolSet* createProcedureOverloadSet(std::string const& name);
@@ -58,6 +103,8 @@ public:
     Module* module();
     Declaration* declaration();
     DeclarationScope* parent();
+
+    Slice<Declaration*> childDeclarations() const;
 
 protected:
     Module* myModule = nullptr;

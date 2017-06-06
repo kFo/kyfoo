@@ -111,6 +111,11 @@ DataSumScope* DataSumDeclaration::definition()
     return myDefinition.get();
 }
 
+DataSumScope const* DataSumDeclaration::definition() const
+{
+    return myDefinition.get();
+}
+
 //
 // DataSumDeclaration::Constructor
 
@@ -149,6 +154,16 @@ void DataSumDeclaration::Constructor::setParent(DataSumDeclaration* dsDecl)
 DataSumDeclaration* DataSumDeclaration::Constructor::parent()
 {
     return myParent;
+}
+
+DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
+{
+    return myParent;
+}
+
+Slice<VariableDeclaration*> DataSumDeclaration::Constructor::fields() const
+{
+    return myParameters;
 }
 
 //
@@ -251,10 +266,25 @@ void VariableDeclaration::io(IStream& stream) const
 void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(scope());
-
     Context ctx(dgn, resolver);
-    if ( myConstraint )
+
+    if ( myConstraint ) {
         ctx.resolveExpression(myConstraint);
+
+        auto s = myConstraint->as<SymbolExpression>();
+        if ( !s ) {
+            ctx.error(*myConstraint) << "expected symbol expression";
+            return;
+        }
+
+        if ( dgn.errorCount() )
+            return;
+
+        if ( !isDataDeclaration(s->declaration()->kind()) ) {
+            ctx.error(*myConstraint) << "does not identify a data type";
+            return;
+        }
+    }
 
     if ( myInitialization )
         ctx.resolveExpression(myInitialization);
@@ -268,6 +298,11 @@ void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 }
 
 Expression* VariableDeclaration::constraint()
+{
+    return myConstraint.get();
+}
+
+Expression const* VariableDeclaration::constraint() const
 {
     return myConstraint.get();
 }
@@ -339,9 +374,6 @@ void ProcedureDeclaration::io(IStream& stream) const
 
 void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    for ( auto&& p : myParameters )
-        p->resolveSymbols(dgn);
-    
     ScopeResolver resolver(scope());
     Context ctx(dgn, resolver);
     if ( returnType() )
@@ -431,6 +463,21 @@ std::string const& SymbolVariable::name() const
 Symbol const& SymbolVariable::parent() const
 {
     return *myParent;
+}
+
+//
+// Utilities
+
+bool isDataDeclaration(DeclKind kind)
+{
+    switch (kind) {
+    case DeclKind::DataProduct:
+    case DeclKind::DataSum:
+    case DeclKind::DataSumCtor:
+        return true;
+    }
+
+    return false;
 }
 
     } // namespace ast
