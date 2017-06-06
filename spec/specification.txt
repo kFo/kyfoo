@@ -1,30 +1,59 @@
 ;; Syntax
 
 ; Expressions
-primary ::= id | integer | decimal | text
+primary-expr ::= id | integer | decimal | text
+
 tuple-open ::= '(' *(expr, ',') ')'
 tuple-open-left ::= '(' *(expr, ',') ']'
 tuple-open-right ::= '[' *(expr, ',') ')'
 tuple-closed ::= '[' *(expr, ',') ']'
-tuple-symbol ::= '<' *(expr, ',') '>'
 tuple ::=  *(expr, ',')
+
+apply-expr ::= +(tuple | symbol-expr | primary-expr)
+
+symbol-expr ::= ?id '<' *(expr, ',') '>'
+
+expr ::= apply-expr ?(':' expr)
+
 scope ::= ind(>) *(expr, ind(=)) ind(<)
-expr ::= +expr
-       | expr ':' expr
-       | tuple
-       | scope
-       | primary
+        | expr
 
 ; Declarations
-type-params ::= *(expr | expr ':' | ':' expr | expr ':' expr)
-symbol-decl ::= id type-params
-symbol-defn ::= '=' expr
+import-decl ::= 'import' id
 
-type-decl ::= type symbol-decl
-type-defn ::= TODO: syntax
+symbol ::= id *(expr, ',')
 
-proc-decl ::= symbol tuple-open ?(':' expr)
-proc-defn ::= '=>' expr
+symbol-decl ::= symbol '=' expr
+              | symbol '=' ind(>) +(expr, ind(=)) ind(<)
+
+data-sum-decl ::= ':|' symbol
+data-sum-ctor ::= symbol ?('(' *(id ':' expr, ',') ')')
+data-sum-defn ::= ind(>) +(data-sum-ctor, ind(=)) ind(<)
+data-sum ::= data-sum-decl ?(data-sum-defn)
+
+data-prod-decl ::= ':&' symbol
+data-prod-field ::= id ':' expr ?('=' expr)
+data-prod-defn ::= ind(>) +(scope-data-prod, ind(=)) ind(<)
+data-prod ::= data-prod-decl ?(data-prod-defn)
+
+proc-decl ::= symbol '(' *(id ':' expr, ',') ')' ?(':' expr)
+proc-defn ::= '=>' ind(>) +(scope-proc, ind(=)) ind(<)
+            | '=>' expr
+proc ::= proc-decl ?(proc-defn)
+
+scope-decl ::= import-decl
+             | proc
+             | data-prod
+             | data-sum
+             | symbol-defn
+
+scope-proc ::= scope-decl
+             | expr
+
+scope-data-prod ::= scope-decl
+                  | data-prod-field
+
+module ::= +(scope-decl, ind(=))
 
 ;; Semantics
 
@@ -65,8 +94,6 @@ denoted by their punctuation:
     [ , ) is a /half-open-right/ tuple. TODO: semantics
     [ , ] is a /closed/ tuple. 
     
-    < , > is a /symbol/ tuple.
-    
     indent(>) indent(=) indent(<) is an indent tuple (synonymous with scope). An
     indent is the number of spaces at the start of a source line. Every source 
     program starts with the notion of zero indent. indent(>) means the indent has 
@@ -76,7 +103,22 @@ denoted by their punctuation:
     for every previous indent that is skipped. In this way, indent(>) always 
     conceptually matches with an indent(<).
 
-Expressions (/expr/) are tuple expressions with an optional constraint expression.
+Symbol expressions (/symbol-expr/) name a particular declaration. A symbol 
+expression must always begin with an identifier, which always maps directly
+to a symbol name. The remaining expressions are used as parameters for matching
+against symbols.
+
+Apply expressions (/apply-expr/) indicate either a procedure invocation or symbol
+application. When the starting expression is a /primary-expr/ that names a symbol, 
+the entire /apply-expr/ is interpreted as a /symbol-expression/. If the primary 
+expression instead names a procedure, the apply expression is interpreted as an 
+implicit procedure application. If instead the first expression is a symbol 
+expression then it must identify a procedure declaration and the remaining 
+expressions must match the procedure parameters. When the first expression does not
+identify a symbol, the apply expression is flattened into its parent context. It is
+an error to flatten into a context that is not another apply expression.
+
+Expressions (/expr/) are apply-expressions with an optional constraint expression.
 Constraints are expressions that describe, or "constrain", another expression when
 they are interpreted during the semantics. Constraints essentially describe what a
 program does, and thus form one of the central tenants of the kyfoo language. Much
