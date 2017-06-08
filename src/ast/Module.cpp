@@ -185,6 +185,11 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
         }
     }
 
+    if ( scanner.hasError() ) {
+        dgn.error(this, scanner.peek()) << "lexical error";
+        dgn.die();
+    }
+
     if ( scopeStack.size() != 1 )
         throw std::runtime_error("parser scope imbalance");
 }
