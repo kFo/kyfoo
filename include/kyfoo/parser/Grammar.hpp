@@ -1,10 +1,17 @@
 #pragma once
 
+#include <memory>
 #include <tuple>
 #include <utility>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
+
+namespace kyfoo {
+    namespace ast {
+        class PrimaryExpression;
+    }
+}
 
 // Keep out of kyfoo::parser namespace to reduce decorated name length
 namespace g {
@@ -29,6 +36,11 @@ public:
     kyfoo::lexer::Token const& token() const
     {
         return myCapture;
+    }
+
+    std::unique_ptr<kyfoo::ast::PrimaryExpression> make() const
+    {
+        return std::make_unique<kyfoo::ast::PrimaryExpression>(token());
     }
 
 private:
@@ -110,6 +122,30 @@ private:
     std::tuple<T...> myFactors;
 };
 
+template <typename T, template <typename...> class G, typename... Branches>
+struct MonomorphicMaker
+{
+    static std::unique_ptr<T> make(G<Branches...> const& rhs)
+    {
+        return make<0>(rhs);
+    }
+
+    template <std::size_t N>
+    static std::unique_ptr<T> make(G<Branches...> const& rhs)
+    {
+        if ( rhs.index() == N )
+            return rhs.term<N>().make();
+
+        return make<N+1>(rhs);
+    }
+
+    template <>
+    static std::unique_ptr<T> make<sizeof...(Branches)>(G<Branches...> const&)
+    {
+        throw std::runtime_error("invalid or make");
+    }
+};
+
 template <typename... T>
 class Or
 {
@@ -170,6 +206,12 @@ public:
     auto const& term() const
     {
         return std::get<N>(myTerms);
+    }
+
+    template <typename AST>
+    std::unique_ptr<AST> monoMake() const
+    {
+        return MonomorphicMaker<AST, g::Or, T...>::make<0>(*this);
     }
 
 private:
