@@ -88,7 +88,7 @@ int runParserTest(fs::path const& filepath)
     return EXIT_SUCCESS;
 }
 
-int runSemanticsTest(std::vector<fs::path> const& files)
+int runSemanticsTest(std::vector<fs::path> const& files, bool treeDump)
 {
     auto ret = EXIT_SUCCESS;
     kyfoo::ast::ModuleSet moduleSet;
@@ -171,6 +171,13 @@ int runSemanticsTest(std::vector<fs::path> const& files)
         kyfoo::StopWatch sw;
         try {
             m->semantics(dgn);
+            if ( treeDump ) {
+                std::ofstream fout(m->name() + ".astdump.json");
+                if ( fout ) {
+                    kyfoo::ast::JsonOutput out(fout);
+                    m->io(out);
+                }
+            }
         }
         catch (kyfoo::Diagnostics*) {
             // Handled below
@@ -182,7 +189,7 @@ int runSemanticsTest(std::vector<fs::path> const& files)
 
         semTime = sw.reset();
         dgn.dumpErrors(std::cout);
-        std::cout << "semantics: " << m->name() << "; errors: " << dgn.errorCount() << "; parse: " << semTime.count() << std::endl;
+        std::cout << "semantics: " << m->name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
 
         if ( dgn.errorCount() )
             ret = EXIT_FAILURE;
@@ -232,12 +239,12 @@ int main(int argc, char* argv[])
 
             return runParserTest(file);
         }
-        else if ( command == "semantics" || command == "sem" ) {
+        else if ( command == "semantics" || command == "sem" || command == "semdump" ) {
             std::vector<fs::path> files;
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 
-            return runSemanticsTest(files);
+            return runSemanticsTest(files, command == "semdump");
         }
 
         std::cout << "Unknown option: " << command << std::endl;
