@@ -168,10 +168,13 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
         return;
 
     auto hit = ctx.matchEquivalent(Symbol(myToken));
-    if ( hit )
-        myDeclaration = hit.decl();
+    if ( !hit ) {
+        if ( !hit.symSet() )
+            ctx.error(myToken) << "undeclared identifier";
+        return;
+    }
 
-    // Not an error to miss its basic symbol lookup
+    myDeclaration = hit.decl();
 }
 
 lexer::Token const& PrimaryExpression::token() const
@@ -405,32 +408,49 @@ void ApplyExpression::resolveSymbols(Context& ctx)
 
     // implicit procedure lookup
     auto subject = myExpressions.front()->as<PrimaryExpression>();
-    if ( !subject ) {
+    if ( !subject || !isIdentifier(subject->token().kind()) ) {
         ctx.error(*this) << "implicit procedure application must begin with an identifier";
         return;
     }
 
-    auto args = slice(myExpressions, 1);
+    if ( myExpressions.size() == 1 ) {
+        return ctx.rewrite(std::move(myExpressions.front()));
+    }
+
+    if ( subject->token().kind() == lexer::TokenKind::FreeVariable ) {
+        // defer symbol lookup until concrete expression is instantiated
+        return;
+    }
+
+    Slice<Expression*> args;
+    if ( !myExpressions.empty() )
+        args = slice(myExpressions, 1);
+
     SymbolReference sym(subject->token().lexeme(), args);
 
     // Look for hit on symbol
-    auto hit = ctx.matchValue(sym);
-    if ( hit ) {
+    auto symHit = ctx.matchValue(sym);
+    if ( symHit ) {
         // Transmute apply-expression into symbol-expression
         auto id = subject->token();
         auto expr = std::move(myExpressions);
         rotate(begin(expr), next(begin(expr)), end(expr));
         expr.pop_back();
-        ctx.rewrite(std::make_unique<SymbolExpression>(id, std::move(expr)));
-        return;
+        return ctx.rewrite(std::make_unique<SymbolExpression>(id, std::move(expr)));
     }
 
     // Search procedure overloads by arguments
-    hit = ctx.matchProcedure(sym);
-    auto procDecl = hit.as<ProcedureDeclaration>();
+    auto procHit = ctx.matchProcedure(sym);
+    auto procDecl = procHit.as<ProcedureDeclaration>();
     if ( !procDecl ) {
-        ctx.error(*this) << "does not match any procedure overloads";
+        auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
         // todo: references to potential overloads
+        // todo: chained symbol sets
+        // todo: lookup failures are not returning symbol sets
+        if ( symHit.symSet() ) {
+            for ( auto const& sd : symHit.symSet()->declarations() )
+                err.see(sd.declaration);
+        }
         return;
     }
 }

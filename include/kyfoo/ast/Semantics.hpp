@@ -88,7 +88,7 @@ public:
     }
 
     template <typename U>
-    typename operator_t::result_t operator()(U const&) = delete;
+    typename operator_t::result_t operator()(U&) = delete;
 
     template<>
     typename operator_t::result_t operator()(Expression const& expr)
@@ -98,6 +98,26 @@ public:
 #undef X
 
         throw std::runtime_error("invalid expression kind");
+    }
+
+    template<>
+    typename operator_t::result_t operator()(Expression& expr)
+    {
+#define X(a,b) if ( auto e = expr.as<b>() ) return myOperator.expr##a(*e);
+        EXPRESSION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid expression kind");
+    }
+
+    template <>
+    typename operator_t::result_t operator()(Declaration& decl)
+    {
+#define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
+        DECLARATION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid declaration kind");
     }
 
     template <>
@@ -113,6 +133,10 @@ public:
 private:
     operator_t myOperator;
 };
+
+bool isCovariant(lexer::Token const& target, lexer::Token const& query);
+bool isCovariant(Declaration const& target, lexer::Token const& query);
+bool isCovariant(Declaration const& target, Declaration const& query);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchValue(Expression const& lhs, Expression const& rhs);

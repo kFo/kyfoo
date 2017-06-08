@@ -87,7 +87,7 @@ LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
     if ( myDeclaration && symbol.parameters().empty() )
         return LookupHit(symSet, myDeclaration->symbol().findVariable(symbol.name()));
 
-    return {};
+    return LookupHit();
 }
 
 /**
@@ -112,20 +112,22 @@ LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
  */
 LookupHit DeclarationScope::findValue(SymbolReference const& symbol) const
 {
+    LookupHit hit;
     auto symSet = findSymbol(symbol.name());
     if ( symSet )
-        return LookupHit(symSet, symSet->findValue(symbol.parameters()));
+        hit.lookup(symSet, symSet->findValue(symbol.parameters()));
 
-    return LookupHit();
+    return hit;
 }
 
 LookupHit DeclarationScope::findProcedureOverload(SymbolReference const& procOverload) const
 {
+    LookupHit hit;
     auto symSet = findProcedure(procOverload.name());
     if ( symSet )
-        return LookupHit(symSet, static_cast<ProcedureDeclaration const*>(symSet->findValue(procOverload.parameters())));
+        hit.lookup(symSet, static_cast<ProcedureDeclaration const*>(symSet->findValue(procOverload.parameters())));
 
-    return LookupHit();
+    return hit;
 }
 
 void DeclarationScope::setDeclaration(Declaration* declaration)

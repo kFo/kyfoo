@@ -30,9 +30,10 @@ public:
     LookupHit() = default;
 
     LookupHit(SymbolSet const* symSet, Declaration const* decl)
-        : mySymSet(symSet)
-        , myDecl(decl)
+        : myDecl(decl)
     {
+        if ( symSet )
+            mySymSets.push_back(symSet);
     }
 
     explicit LookupHit(SymbolVariable const* symVar)
@@ -40,9 +41,66 @@ public:
     {
     }
 
+    LookupHit(LookupHit const&) = delete;
+
+    LookupHit(LookupHit&& rhs)
+        : mySymSets(std::move(rhs.mySymSets))
+        , myDecl(rhs.myDecl)
+    {
+        rhs.myDecl = nullptr;
+    }
+
+    LookupHit& operator = (LookupHit&& rhs)
+    {
+        LookupHit(std::move(rhs)).swap(*this);
+        return *this;
+    }
+
+    ~LookupHit() = default;
+
+    void swap(LookupHit& rhs)
+    {
+        using std::swap;
+        swap(mySymSets, rhs.mySymSets);
+        swap(myDecl, rhs.myDecl);
+    }
+
     explicit operator bool () const
     {
         return myDecl;
+    }
+
+    LookupHit& lookup(SymbolSet const* symSet, Declaration const* decl)
+    {
+        if ( symSet )
+            mySymSets.push_back(symSet);
+
+        if ( myDecl )
+            throw std::runtime_error("declaration reference stomped");
+
+        myDecl = decl;
+        return *this;
+    }
+
+    LookupHit& lookup(Declaration const* decl)
+    {
+        if ( myDecl )
+            throw std::runtime_error("declaration reference stomped");
+
+        myDecl = decl;
+        return *this;
+    }
+
+    LookupHit& append(LookupHit&& rhs)
+    {
+        mySymSets.insert(end(mySymSets),
+                         begin(rhs.mySymSets), end(rhs.mySymSets));
+        myDecl = rhs.myDecl;
+
+        rhs.mySymSets.clear();
+        rhs.myDecl = nullptr;
+
+        return *this;
     }
 
     template <typename T>
@@ -56,7 +114,10 @@ public:
 
     SymbolSet const* symSet() const
     {
-        return mySymSet;
+        if ( !mySymSets.empty() )
+            return mySymSets.front();
+
+        return nullptr;
     }
 
     Declaration const* decl() const
@@ -64,8 +125,13 @@ public:
         return myDecl;
     }
 
+    Slice<SymbolSet const*> trace() const
+    {
+        return mySymSets;
+    }
+
 private:
-    SymbolSet const* mySymSet = nullptr;
+    std::vector<SymbolSet const*> mySymSets;
     Declaration const* myDecl = nullptr;
 };
 
