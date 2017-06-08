@@ -123,5 +123,8 @@ bool matchEquivalent(SymbolReference::paramlist_t lhs,
 bool matchValue(SymbolReference::paramlist_t lhs,
                 SymbolReference::paramlist_t rhs);
 
+std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
+bool hasFreeVariable(Expression const& expr);
+
     } // namespace ast
 } // namespace kyfoo

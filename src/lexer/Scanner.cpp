@@ -58,6 +58,11 @@ namespace
         return false;
     }
 
+    bool isFreeVariable(char c)
+    {
+        return c == '\\';
+    }
+
     TokenKind identifierKind(std::string const& lexeme)
     {
         static std::map<std::string, TokenKind> map;
@@ -279,6 +284,16 @@ Token Scanner::readNext()
         while ( isLetter(peekChar()) || isNumber(peekChar()) );
 
         return Token(identifierKind(lexeme), myLine, column, lexeme);
+    }
+    else if ( isFreeVariable(c) ) {
+        nextChar();
+        if ( !isLetter(peekChar()) )
+            return TOK2(Undefined, "\\");
+
+        do lexeme += nextChar();
+        while ( isLetter(peekChar()) || isNumber(peekChar()) );
+
+        return TOK(FreeVariable);
     }
     else if ( isNumber(c) ) {
         do lexeme += nextChar();

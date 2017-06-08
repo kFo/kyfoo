@@ -12,6 +12,7 @@ namespace kyfoo {
     X(IndentError, "indent(err)") \
     X(Comment, "comment") \
     X(Identifier, "identifier") \
+    X(FreeVariable, "freeVariable") \
     \
     X(Integer, "integer") \
     X(String, "string") \
@@ -97,6 +98,17 @@ inline bool isIndent(TokenKind kind)
 inline bool isBreak(TokenKind kind)
 {
     return isIndent(kind) || kind == TokenKind::EndOfFile;
+}
+
+inline bool isIdentifier(TokenKind kind)
+{
+    switch (kind) {
+    case TokenKind::Identifier:
+    case TokenKind::FreeVariable:
+        return true;
+    }
+
+    return false;
 }
 
     } // namespace lexer

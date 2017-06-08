@@ -107,6 +107,7 @@ public:
 
 public:
     std::string const& name() const;
+    Slice<pair_t> const declarations() const;
 
     void append(paramlist_t const& paramlist, Declaration& declaration);
 

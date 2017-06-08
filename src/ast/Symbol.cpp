@@ -1,5 +1,6 @@
 #include <kyfoo/ast/Symbol.hpp>
 
+#include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Semantics.hpp>
@@ -74,8 +75,19 @@ Symbol::paramlist_t const& Symbol::parameters() const
 
 void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
-    SymbolVariableCreatorFailoverResolver failover(resolver, *this);
-    Context ctx(dgn, failover);
+    Context ctx(dgn, resolver);
+
+    for ( auto const& param : myParameters ) {
+        auto fv = gatherFreeVariables(*param);
+        for ( auto& primary : fv ) {
+            auto symVar = createVariable(primary->token().lexeme());
+            if ( !symVar )
+                ctx.error(*primary) << "invalid symbol variable";
+            else
+                primary->setFreeVariable(symVar);
+        }
+    }
+
     ctx.resolveExpressions(myParameters);
 }
 
@@ -161,6 +173,11 @@ SymbolSet::~SymbolSet() = default;
 std::string const& SymbolSet::name() const
 {
     return myName;
+}
+
+Slice<SymbolSet::pair_t> const SymbolSet::declarations() const
+{
+    return mySet;
 }
 
 void SymbolSet::append(paramlist_t const& paramlist, Declaration& declaration)
