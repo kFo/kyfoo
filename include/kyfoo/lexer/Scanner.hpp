@@ -31,7 +31,7 @@ public:
     bool eof() const;
     bool hasError() const;
 
-    operator bool() const;
+    explicit operator bool() const;
 
 protected:
     Token readNext();

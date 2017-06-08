@@ -59,8 +59,12 @@ public:
     }
 
 public:
+    T* begin() { return myData; }
     T const* begin() const { return myData; }
+
     T const* end() const { return myData + myLength; }
+    T* end() { return myData + myLength; }
+
     bool empty() const { return begin() == end(); }
 
     T const* data() const { return myData; }
@@ -79,7 +83,13 @@ private:
 };
 
 template <typename T>
+T* begin(Slice<T>& rhs) { return rhs.begin(); }
+
+template <typename T>
 T const* begin(Slice<T> const& rhs) { return rhs.begin(); }
+
+template <typename T>
+T* end(Slice<T>& rhs) { return rhs.end(); }
 
 template <typename T>
 T const* end(Slice<T> const& rhs) { return rhs.end(); }
