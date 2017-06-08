@@ -129,6 +129,8 @@ public:
     lexer::Token const& token() const;
     Declaration const* declaration() const;
 
+    void setFreeVariable(Declaration const* decl);
+
 private:
     lexer::Token myToken;
 
@@ -279,7 +281,10 @@ protected:
     void resolveSymbols(Context& ctx) override;
 
 public:
+    Expression* subject();
     Expression const* subject() const;
+
+    Expression* constraint();
     Expression const* constraint() const;
 
 private:

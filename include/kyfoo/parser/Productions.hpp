@@ -15,6 +15,7 @@ using lexer::TokenKind;
 using lexer::Token;
 
 using id = g::Terminal<TokenKind::Identifier>;
+using free = g::Terminal<TokenKind::FreeVariable>;
 using integer = g::Terminal<TokenKind::Integer>;
 using decimal = g::Terminal<TokenKind::Decimal>;
 using string = g::Terminal<TokenKind::String>;
@@ -33,21 +34,11 @@ using closeAngle = g::Terminal<TokenKind::CloseAngle>;
 using _import = g::Terminal<TokenKind::_import>;
 
 struct Primary : public
-    g::Or<id, integer, decimal, string>
+    g::Or<id, free, integer, decimal, string>
 {
     std::unique_ptr<ast::PrimaryExpression> make() const
     {
-        lexer::Token tok;
-        switch (index()) {
-        case 0: tok = term<0>().token(); break;
-        case 1: tok = term<1>().token(); break;
-        case 2: tok = term<2>().token(); break;
-        case 3: tok = term<3>().token(); break;
-        default:
-            throw std::runtime_error("invalid primary expression");
-        }
-
-        return std::make_unique<ast::PrimaryExpression>(tok);
+        return monoMake<ast::PrimaryExpression>();
     }
 };
 

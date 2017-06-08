@@ -157,6 +157,13 @@ void PrimaryExpression::io(IStream& stream) const
 
 void PrimaryExpression::resolveSymbols(Context& ctx)
 {
+    if ( myToken.kind() == lexer::TokenKind::FreeVariable ) {
+        if ( !myDeclaration )
+            throw std::runtime_error("unbound free variable");
+
+        return;
+    }
+
     if ( myToken.kind() != lexer::TokenKind::Identifier )
         return;
 
@@ -175,6 +182,14 @@ lexer::Token const& PrimaryExpression::token() const
 Declaration const* PrimaryExpression::declaration() const
 {
     return myDeclaration;
+}
+
+void PrimaryExpression::setFreeVariable(Declaration const* decl)
+{
+    if ( myDeclaration )
+        throw std::runtime_error("free variable can only be bound once");
+
+    myDeclaration = decl;
 }
 
 //
@@ -637,9 +652,19 @@ void ConstraintExpression::resolveSymbols(Context& ctx)
     ctx.resolveExpression(myConstraint);
 }
 
+Expression* ConstraintExpression::subject()
+{
+    return mySubject.get();
+}
+
 Expression const* ConstraintExpression::subject() const
 {
     return mySubject.get();
+}
+
+Expression* ConstraintExpression::constraint()
+{
+    return myConstraint.get();
 }
 
 Expression const* ConstraintExpression::constraint() const
