@@ -1,5 +1,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 
+#include <functional>
+
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
@@ -25,69 +27,74 @@ Module const* ScopeResolver::module() const
 
 LookupHit ScopeResolver::inScope(SymbolReference const& symbol) const
 {
-    if ( auto hit = myScope->findEquivalent(symbol) )
+    auto hit = myScope->findEquivalent(symbol);
+    if ( hit )
         return hit;
 
-    for ( auto const& e : mySupplementarySymbols )
-        if ( auto symVar = e->findVariable(symbol.name()) )
-            return LookupHit(symVar);
+    if ( symbol.parameters().empty() )
+        for ( auto& s : mySupplementarySymbols )
+            if ( auto symVar = s->findVariable(symbol.name()) )
+                return std::move(hit.lookup(symVar));
 
-    return LookupHit();
+    return hit;
 }
 
 LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
 {
-    if ( auto hit = inScope(symbol) )
+    LookupHit hit;
+    if ( hit = inScope(symbol) )
         return hit;
 
     for ( auto scope = myScope->parent(); scope; scope = scope->parent() ) {
-        if ( auto hit = scope->findEquivalent(symbol) )
+        if ( hit.append(scope->findEquivalent(symbol)) )
             return hit;
 
         if ( symbol.parameters().empty() )
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().findVariable(symbol.name()) )
-                    return LookupHit(s);
+                    return std::move(hit.lookup(s));
     }
 
     for ( auto m : module()->imports() )
-        if ( auto hit = m->scope()->findEquivalent(symbol) )
+        if ( hit.append(m->scope()->findEquivalent(symbol)) )
             return hit;
 
-    return LookupHit();
+    return hit;
 }
 
 LookupHit ScopeResolver::matchValue(SymbolReference const& symbol) const
 {
+    LookupHit hit;
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( auto hit = scope->findValue(symbol) )
+        if ( hit.append(scope->findValue(symbol)) )
             return hit;
 
         if ( symbol.parameters().empty() )
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().findVariable(symbol.name()) )
-                    return LookupHit(s);
+                    return std::move(hit.lookup(s));
     }
 
     for ( auto m : module()->imports() )
-        if ( auto hit = m->scope()->findValue(symbol) )
+        if ( hit.append(m->scope()->findValue(symbol)) )
             return hit;
 
-    return LookupHit();
+    return hit;
 }
 
 LookupHit ScopeResolver::matchProcedure(SymbolReference const& procOverload) const
 {
+    LookupHit hit;
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( auto hit = scope->findProcedureOverload(procOverload) )
+        if ( hit.append(scope->findProcedureOverload(procOverload)) )
             return hit;
     }
 
     for ( auto m : module()->imports() )
-        if ( auto hit = m->scope()->findProcedureOverload(procOverload) )
+        if ( hit.append(m->scope()->findProcedureOverload(procOverload)) )
             return hit;
 
-    return LookupHit();
+    return hit;
 }
 
 void ScopeResolver::addSupplementarySymbol(Symbol const& sym)
@@ -325,25 +332,37 @@ struct MatchEquivalent
 
     bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
     {
-        if ( l.token().kind() != r.token().kind() )
+        if ( isIdentifier(l.token().kind()) ) {
+            if ( l.declaration()->kind() == DeclKind::SymbolVariable )
+                return r.declaration() && r.declaration()->kind() == DeclKind::SymbolVariable;
+
+            if ( auto s = l.declaration()->as<SymbolDeclaration>() )
+                return noncommute(*this, *s->expression(), r);
+
+            if ( isIdentifier(r.token().kind()) ) {
+                if ( r.declaration()->kind() == DeclKind::SymbolVariable )
+                    return true; // todo: symvar binding
+
+                if ( auto s = r.declaration()->as<SymbolDeclaration>() )
+                    return noncommute(*this, l, *s->expression());
+
+                return l.declaration() == r.declaration();
+            }
+
             return false;
+        }
 
-        if ( l.token().kind() != lexer::TokenKind::Identifier )
-            return l.token().lexeme() == r.token().lexeme();
+        if ( isIdentifier(r.token().kind()) ) {
+            if ( r.declaration()->kind() == DeclKind::SymbolVariable )
+                return true;
 
-        if ( l.declaration()->kind() == DeclKind::SymbolVariable
-            && r.declaration()->kind() == DeclKind::SymbolVariable )
-            return true; // todo: compare constraints
+            if ( auto s = r.declaration()->as<SymbolDeclaration>() )
+                return noncommute(*this, l, *s->expression());
 
-        return l.declaration() == r.declaration();
-    }
-
-    bool operator()(PrimaryExpression const& l, ConstraintExpression const& r)
-    {
-        if ( !r.subject() )
             return false;
+        }
 
-        return noncommute(*this, l, *r.subject());
+        return isCovariant(l.token(), r.token());
     }
 
     // Tuple match
@@ -369,25 +388,148 @@ struct MatchEquivalent
 
     // Constraint match
 
-    bool operator()(ConstraintExpression const& l, ConstraintExpression const& r)
+    bool operator()(ConstraintExpression const& l, Expression const& r)
     {
-        if ( !l.subject() || !r.subject() )
+        if ( !l.subject() )
             return false;
 
-        return noncommute(*this, *l.subject(), *r.subject());
+        if ( auto rc = r.as<ConstraintExpression>() ) {
+            if ( !rc->subject() )
+                return false;
+
+            return noncommute(*this, *l.subject(), *rc->subject());
+        }
+
+        return noncommute(*this, *l.subject(), r);
     }
 
     // else
 
-    bool operator()(Expression const&, Expression const&)
+    bool operator()(Expression const& l, Expression const& r)
     {
+        // todo: symvar binding
+        if ( auto p = l.as<PrimaryExpression>() )
+            return p->declaration()->kind() == DeclKind::SymbolVariable;
+
+        if ( auto p = r.as<PrimaryExpression>() )
+            return p->declaration()->kind() == DeclKind::SymbolVariable;
+
         return false;
     }
 };
 
+/**
+ * Matches lhs :> rhs semantically
+ *
+ * Answers whether the type \p rhs is covered by type \p lhs
+ *
+ * \todo Match should return degree in presence of specialization
+ */
 bool matchEquivalent(Expression const& lhs, Expression const& rhs)
 {
     MatchEquivalent op;
+    return noncommute(op, lhs, rhs);
+}
+
+struct MatchInstantiable
+{
+    // Primary match
+
+    bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
+    {
+        if ( isIdentifier(l.token().kind()) ) {
+            if ( l.declaration()->kind() == DeclKind::SymbolVariable )
+                return true; // todo: symvar binding
+
+            if ( auto s = l.declaration()->as<SymbolDeclaration>() )
+                return noncommute(*this, *s->expression(), r);
+
+            if ( isIdentifier(r.token().kind()) ) {
+                if ( r.declaration()->kind() == DeclKind::SymbolVariable )
+                    return true; // todo: symvar binding
+
+                if ( auto s = r.declaration()->as<SymbolDeclaration>() )
+                    return noncommute(*this, l, *s->expression());
+
+                return l.declaration() == r.declaration();
+            }
+
+            return isCovariant(*l.declaration(), r.token());
+        }
+
+        if ( isIdentifier(r.token().kind()) ) {
+            if ( r.declaration()->kind() == DeclKind::SymbolVariable )
+                throw std::runtime_error("symvar should be instantiated");
+
+            if ( auto s = r.declaration()->as<SymbolDeclaration>() )
+                return noncommute(*this, l, *s->expression());
+
+            return false;
+        }
+
+        return isCovariant(l.token(), r.token());
+    }
+
+    // Tuple match
+
+    bool operator()(TupleExpression const& l, TupleExpression const& r)
+    {
+        return matchEquivalent(l.expressions(), r.expressions());
+    }
+
+    // Apply match
+
+    bool operator()(ApplyExpression const& l, ApplyExpression const& r)
+    {
+        return matchEquivalent(l.expressions(), r.expressions());
+    }
+
+    // Symbol match
+
+    bool operator()(SymbolExpression const& l, SymbolExpression const& r)
+    {
+        return matchEquivalent(l.expressions(), r.expressions());
+    }
+
+    // Constraint match
+
+    bool operator()(ConstraintExpression const& l, Expression const& r)
+    {
+        if ( !l.subject() )
+            return false;
+
+        if ( auto rc = r.as<ConstraintExpression>() ) {
+            if ( !rc->subject() )
+                return false;
+
+            return noncommute(*this, *l.subject(), *rc->subject());
+        }
+
+        return noncommute(*this, *l.subject(), r);
+    }
+
+    // else
+
+    bool operator()(Expression const& l, Expression const& r)
+    {
+        // todo: symvar binding
+        if ( auto p = l.as<PrimaryExpression>() )
+            return p->declaration()->kind() == DeclKind::SymbolVariable;
+
+        if ( auto p = r.as<PrimaryExpression>() )
+            return p->declaration()->kind() == DeclKind::SymbolVariable;
+
+        return false;
+    }
+};
+
+/**
+ * Answers whether \p lhs could be instantiated by \p rhs for an
+ * unknown binding of symbol variables
+ */
+bool matchInstantiable(Expression const& lhs, Expression const& rhs)
+{
+    MatchInstantiable op;
     return noncommute(op, lhs, rhs);
 }
 
@@ -429,6 +571,23 @@ struct DeclOp
     }
 };
 
+bool isCovariant(lexer::Token const& target, lexer::Token const& query)
+{
+    return target.lexeme() == query.lexeme();
+}
+
+bool isCovariant(Declaration const& target, lexer::Token const& query)
+{
+    if ( isDataDeclaration(target.kind()) ) {
+        if ( query.kind() == lexer::TokenKind::Integer )
+            return target.symbol().name() == "integer";
+        else if ( query.kind() == lexer::TokenKind::Decimal )
+            return target.symbol().name() == "rational";
+    }
+
+    return false;
+}
+
 bool isCovariant(Declaration const& target, Declaration const& query)
 {
     if ( &target == &query )
@@ -440,8 +599,16 @@ bool isCovariant(Declaration const& target, Declaration const& query)
     return false;
 }
 
+/**
+ * Matches lhs :> value(rhs) semantically
+ *
+ * Answers whether \p rhs 's value is covariant with type \p lhs
+ */
 bool matchValue(Expression const& lhs, Expression const& rhs)
 {
+    if ( hasFreeVariable(lhs) || hasFreeVariable(rhs) )
+        return matchInstantiable(lhs, rhs);
+
     ShallowApply<DeclOp> op;
     auto targetDecl = op(lhs);
     auto queryDecl = op(rhs);
@@ -450,12 +617,8 @@ bool matchValue(Expression const& lhs, Expression const& rhs)
         return false;
 
     if ( !queryDecl ) {
-        if ( auto p = rhs.as<PrimaryExpression>() ) {
-            if ( p->token().kind() == lexer::TokenKind::Integer )
-                return targetDecl->symbol().name() == "integer";
-            else if ( p->token().kind() == lexer::TokenKind::Decimal )
-                return targetDecl->symbol().name() == "rational";
-        }
+        if ( auto p = rhs.as<PrimaryExpression>() )
+            return isCovariant(*targetDecl, p->token());
 
         return false;
     }
@@ -504,6 +667,135 @@ bool matchValue(SymbolReference::paramlist_t lhs,
 {
     auto op = [](auto const& l, auto const& r) { return matchValue(l, r); };
     return compare(lhs, rhs, op);
+}
+
+template <typename Dispatcher>
+struct FreeVariableVisitor
+{
+    using result_t = void;
+    Dispatcher& dispatch;
+    
+    using visitor_t = std::function<void(PrimaryExpression&)>;
+    visitor_t visitor;
+
+    FreeVariableVisitor(Dispatcher& dispatch, visitor_t visitor)
+        : dispatch(dispatch)
+        , visitor(visitor)
+    {
+    }
+
+    result_t exprPrimary(PrimaryExpression& p)
+    {
+        if ( p.token().kind() == lexer::TokenKind::FreeVariable )
+            return visitor(p);
+    }
+
+    result_t exprTuple(TupleExpression& t)
+    {
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprApply(ApplyExpression& a)
+    {
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprSymbol(SymbolExpression& s)
+    {
+        for ( auto const& e : s.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprConstraint(ConstraintExpression& c)
+    {
+        if ( c.subject() )
+            dispatch(*c.subject());
+
+        if ( c.constraint() )
+            dispatch(*c.constraint());
+    }
+};
+
+template <typename F>
+void visitFreeVariables(Expression& expr, F&& f)
+{
+    ShallowApply<FreeVariableVisitor> op(f);
+    op(expr);
+}
+
+std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr)
+{
+    std::vector<PrimaryExpression*> ret;
+    visitFreeVariables(expr, [&ret](PrimaryExpression& p) {
+        ret.push_back(&p);
+    });
+
+    return ret;
+}
+
+template <typename Dispatcher>
+struct HasFreeVariable
+{
+    using result_t = bool;
+    Dispatcher& dispatch;
+
+    HasFreeVariable(Dispatcher& dispatch)
+        : dispatch(dispatch)
+    {
+    }
+
+    result_t exprPrimary(PrimaryExpression const& p)
+    {
+        return p.token().kind() == lexer::TokenKind::FreeVariable;
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        for ( auto const& e : t.expressions() )
+            if ( dispatch(*e) )
+                return true;
+
+        return false;
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        for ( auto const& e : a.expressions() )
+            if ( dispatch(*e) )
+                return true;
+
+        return false;
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        for ( auto const& e : s.expressions() )
+            if ( dispatch(*e) )
+                return true;
+
+        return false;
+    }
+
+    result_t exprConstraint(ConstraintExpression const& c)
+    {
+        if ( c.subject() )
+            if ( dispatch(*c.subject()) )
+                return true;
+
+        if ( c.constraint() )
+            if ( dispatch(*c.constraint()) )
+                return true;
+
+        return false;
+    }
+};
+
+bool hasFreeVariable(Expression const& expr)
+{
+    ShallowApply<HasFreeVariable> op;
+    return op(expr);
 }
 
     } // namespace ast
