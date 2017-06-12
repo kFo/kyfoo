@@ -1,0 +1,38 @@
+g<x : i32> = x
+
+f =
+    if $x
+        write stdout "flattened hello"
+    else
+        write stdout "flattened bye"
+
+f x =
+    if x
+        write stdout "structured hello"
+    else
+        write stdout "structured bye"
+
+g =
+    if $y
+        write stdout ($x "hello")
+    else
+        write stdout "bye"
+
+main() =>
+    f(); error
+    
+    block
+        var x : i32
+        f(); f.$x binds to x
+    
+    block
+        let x = 23
+        f(); f.$x binds to x
+    
+    block
+        x(s : ascii) => write stdout s
+        f(); error: f.$x bound to x needs argument of type ascii
+        g(); error: f.$y unbound
+        
+        let y = 1
+        g(); success
