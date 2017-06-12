@@ -11,6 +11,8 @@ wordSize = 32
 staticSize<\T>(p : pointer T) => wordSize
 ssize = staticSize
 
+:& ascii ; todo: replace with instance of array<integer<7>>
+
 :& array<\T>
     ptr : pointer T
     count : integer wordSize

@@ -1,157 +1,204 @@
 #include <kyfoo/ast/Semantics.hpp>
 
+#include <algorithm>
 #include <functional>
+#include <set>
 
-#include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Symbol.hpp>
+#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace ast {
 
 //
-// ScopeResolver
+// SymbolDependencyTracker
 
-ScopeResolver::ScopeResolver(DeclarationScope* scope)
-    : myScope(scope)
+SymbolDependencyTracker::SymbolDependencyTracker(Module* mod, Diagnostics& dgn)
+    : mod(mod)
+    , dgn(dgn)
 {
-    if ( !scope )
-        throw std::runtime_error("scope resolver scope cannot be null");
 }
 
-Module const* ScopeResolver::module() const
+SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::create(std::string const& name, std::size_t arity)
 {
-    return myScope->module();
+    groups.emplace_back(std::make_unique<SymGroup>(name, arity));
+    return groups.back().get();
 }
 
-LookupHit ScopeResolver::inScope(SymbolReference const& symbol) const
+SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::string const& name, std::size_t arity)
 {
-    auto hit = myScope->findEquivalent(symbol);
-    if ( hit )
-        return hit;
+    for ( auto const& e : groups)
+        if ( e->name == name && e->arity == arity )
+            return e.get();
 
-    if ( symbol.parameters().empty() )
-        for ( auto& s : mySupplementarySymbols )
-            if ( auto symVar = s->findVariable(symbol.name()) )
-                return std::move(hit.lookup(symVar));
-
-    return hit;
+    return create(name, arity);
 }
 
-LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
+void SymbolDependencyTracker::add(Declaration& decl)
 {
-    LookupHit hit;
-    if ( hit = inScope(symbol) )
-        return hit;
+    auto group = findOrCreate(decl.symbol().name(), decl.symbol().parameters().size());
+    group->add(decl);
+}
 
-    for ( auto scope = myScope->parent(); scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findEquivalent(symbol)) )
-            return hit;
+void SymbolDependencyTracker::addDependency(Declaration& decl,
+                               std::string const& name,
+                               std::size_t arity)
+{
+    auto group = findOrCreate(decl.symbol().name(), decl.symbol().parameters().size());
+    auto dependency = findOrCreate(name, arity);
 
-        if ( symbol.parameters().empty() )
-            if ( auto decl = scope->declaration() )
-                if ( auto s = decl->symbol().findVariable(symbol.name()) )
-                    return std::move(hit.lookup(s));
+    dependency->addDependent(*group);
+
+    if ( group->pass < dependency->pass ) {
+        auto& err = dgn.error(mod, decl.symbol().identifier()) << "circular reference detected";
+        for ( auto const& d : dependency->declarations )
+            err.see(d);
+        return;
     }
-
-    for ( auto m : module()->imports() )
-        if ( hit.append(m->scope()->findEquivalent(symbol)) )
-            return hit;
-
-    return hit;
-}
-
-LookupHit ScopeResolver::matchValue(SymbolReference const& symbol) const
-{
-    LookupHit hit;
-    for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findValue(symbol)) )
-            return hit;
-
-        if ( symbol.parameters().empty() )
-            if ( auto decl = scope->declaration() )
-                if ( auto s = decl->symbol().findVariable(symbol.name()) )
-                    return std::move(hit.lookup(s));
+    else if ( group->pass == dependency->pass ) {
+        group->defer(dependency->pass + 1);
     }
-
-    for ( auto m : module()->imports() )
-        if ( hit.append(m->scope()->findValue(symbol)) )
-            return hit;
-
-    return hit;
 }
 
-LookupHit ScopeResolver::matchProcedure(SymbolReference const& procOverload) const
+void SymbolDependencyTracker::sortPasses()
 {
-    LookupHit hit;
-    for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findProcedureOverload(procOverload)) )
-            return hit;
-    }
-
-    for ( auto m : module()->imports() )
-        if ( hit.append(m->scope()->findProcedureOverload(procOverload)) )
-            return hit;
-
-    return hit;
-}
-
-void ScopeResolver::addSupplementarySymbol(Symbol const& sym)
-{
-    mySupplementarySymbols.push_back(&sym);
-}
-
-//
-// SymbolVariableCreatorFailoverResolver
-
-SymbolVariableCreatorFailoverResolver::SymbolVariableCreatorFailoverResolver(IResolver& resolver, Symbol& symbol)
-    : myResolver(&resolver)
-    , mySymbol(&symbol)
-{
-}
-
-SymbolVariableCreatorFailoverResolver::~SymbolVariableCreatorFailoverResolver() = default;
-
-Module const* SymbolVariableCreatorFailoverResolver::module() const
-{
-    return myResolver->module();
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::inScope(SymbolReference const& symbol) const
-{
-    return myResolver->inScope(symbol);
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::matchEquivalent(SymbolReference const& symbol) const
-{
-    if ( auto hit = myResolver->matchEquivalent(symbol) )
-        return hit;
-
-    if ( symbol.parameters().empty() )
-        return LookupHit(mySymbol->createVariable(symbol.name()));
-
-    return LookupHit();
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::matchValue(SymbolReference const& symbol) const
-{
-    if ( auto hit = myResolver->matchValue(symbol) )
-        return hit;
-
-    if ( symbol.parameters().empty() )
-        return LookupHit(mySymbol->createVariable(symbol.name()));
-
-    return LookupHit();
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::matchProcedure(SymbolReference const& procOverload) const
-{
-    return myResolver->matchProcedure(procOverload);
+    stable_sort(begin(groups), end(groups),
+                [](auto const& lhs, auto const& rhs) { return lhs->pass < rhs->pass; });
 }
 
 //
 // operators
+
+template <typename Dispatcher>
+struct SymbolDependencyBuilder
+{
+    using result_t = void;
+    Dispatcher& dispatch;
+    SymbolDependencyTracker& tracker;
+    Declaration& decl;
+
+    SymbolDependencyBuilder(Dispatcher& dispatch,
+                            SymbolDependencyTracker& tracker,
+                            Declaration& decl)
+        : dispatch(dispatch)
+        , tracker(tracker)
+        , decl(decl)
+    {
+    }
+
+    // expressions
+
+    result_t exprPrimary(PrimaryExpression& p)
+    {
+        if ( p.token().kind() == lexer::TokenKind::Identifier )
+            tracker.addDependency(decl, p.token().lexeme(), 0);
+    }
+
+    result_t exprTuple(TupleExpression& t)
+    {
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprApply(ApplyExpression& a)
+    {
+        // todo: failover to implicit proc call semantics
+        auto subject = a.expressions()[0]->as<PrimaryExpression>();
+        if ( subject && subject->token().kind() == lexer::TokenKind::Identifier ) {
+            tracker.addDependency(decl, subject->token().lexeme(), a.expressions().size() - 1);
+            return;
+        }
+
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprSymbol(SymbolExpression& s)
+    {
+        if ( s.identifier().kind() == lexer::TokenKind::Identifier ) {
+            tracker.addDependency(decl, s.identifier().lexeme(), s.expressions().size());
+            return;
+        }
+
+        for ( auto const& e : s.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprConstraint(ConstraintExpression& c)
+    {
+        dispatch(*c.subject());
+        dispatch(*c.constraint());
+    }
+
+    // declarations
+
+    void traceSymbol(Symbol& sym)
+    {
+        for ( auto const& p : sym.parameters() )
+            dispatch(*p);
+    }
+
+    void traceSymbol()
+    {
+        traceSymbol(decl.symbol());
+    }
+
+    result_t declDataSum(DataSumDeclaration&)
+    {
+        traceSymbol();
+    }
+
+    result_t declDataSumCtor(DataSumDeclaration::Constructor& dsCtor)
+    {
+        traceSymbol();
+        for ( auto const& field : dsCtor.fields() )
+            dispatch.operator()<Declaration>(*field);
+    }
+
+    result_t declDataProduct(DataProductDeclaration&)
+    {
+        traceSymbol();
+    }
+
+    result_t declSymbol(SymbolDeclaration&)
+    {
+        traceSymbol();
+    }
+
+    result_t declProcedure(ProcedureDeclaration& proc)
+    {
+        traceSymbol();
+        for ( auto const& param : proc.parameters() )
+            dispatch(*param->constraint());
+    }
+
+    result_t declVariable(VariableDeclaration& var)
+    {
+        traceSymbol();
+        if ( var.constraint() )
+            dispatch(*var.constraint());
+    }
+
+    result_t declImport(ImportDeclaration&)
+    {
+        // nop
+    }
+
+    result_t declSymbolVariable(SymbolVariable&)
+    {
+        // nop
+    }
+};
+
+void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
+{
+    ShallowApply<SymbolDependencyBuilder> op(tracker, decl);
+    tracker.add(decl);
+    op(decl);
+}
 
 template <typename Dispatcher>
 struct StateCounter
@@ -583,6 +630,9 @@ bool isCovariant(Declaration const& target, lexer::Token const& query)
             return target.symbol().name() == "integer";
         else if ( query.kind() == lexer::TokenKind::Decimal )
             return target.symbol().name() == "rational";
+        else if ( query.kind() == lexer::TokenKind::String ) {
+            return target.symbol().name() == "ascii";
+        }
     }
 
     return false;
@@ -599,6 +649,25 @@ bool isCovariant(Declaration const& target, Declaration const& query)
     return false;
 }
 
+Expression const& lookThrough(SymbolDeclaration const& symDecl)
+{
+    ShallowApply<DeclOp> op;
+    Expression const* expr = symDecl.expression();
+    for (;;) {
+        auto targetDecl = op(*expr);
+        if ( targetDecl ) {
+            if ( auto s = targetDecl->as<SymbolDeclaration>() ) {
+                expr = s->expression();
+                continue;
+            }
+        }
+
+        break;
+    }
+
+    return *expr;
+}
+
 /**
  * Matches lhs :> value(rhs) semantically
  *
@@ -610,34 +679,71 @@ bool matchValue(Expression const& lhs, Expression const& rhs)
         return matchInstantiable(lhs, rhs);
 
     ShallowApply<DeclOp> op;
-    auto targetDecl = op(lhs);
     auto queryDecl = op(rhs);
-
-    if ( !targetDecl )
-        return false;
-
-    if ( !queryDecl ) {
-        if ( auto p = rhs.as<PrimaryExpression>() )
-            return isCovariant(*targetDecl, p->token());
-
-        return false;
+    if ( queryDecl ) {
+        if ( auto v = queryDecl->as<VariableDeclaration>() )
+            return matchValue(lhs, *v->constraint());
     }
 
-    if ( targetDecl->kind() == DeclKind::SymbolVariable ) {
-        // todo: symvar binding
-        return true;
+    auto targetDecl = op(lhs);
+
+    {
+        Expression const* l = nullptr;
+        if ( targetDecl )
+            if ( auto s = targetDecl->as<SymbolDeclaration>() )
+                l = &lookThrough(*s);
+
+        Expression const* r = nullptr;
+        if ( queryDecl )
+            if ( auto s = queryDecl->as<SymbolDeclaration>() )
+                r = &lookThrough(*s);
+
+        if ( l || r )
+            return matchValue(l ? *l : lhs, r ? *r : rhs);
     }
 
-    if ( !isDataDeclaration(targetDecl->kind())
-      || !isDataDeclaration(queryDecl->kind()) )
-        return false;
+    if ( !targetDecl ) {
+        // lhs is a literal
+        auto lhsPrimary = lhs.as<PrimaryExpression>();
+        if ( !lhsPrimary )
+            return false;
 
-    return isCovariant(*targetDecl, *queryDecl);
+        if ( !queryDecl ) {
+            auto rhsPrimary = rhs.as<PrimaryExpression>();
+            if ( !rhsPrimary )
+                return false;
+
+            return isCovariant(lhsPrimary->token(), rhsPrimary->token());
+        }
+        else {
+            // todo: compile time execute
+        }
+    }
+    else {
+        // lhs is an identifier
+
+        if ( !queryDecl ) {
+            // rhs is a literal
+            if ( auto p = rhs.as<PrimaryExpression>() )
+                return isCovariant(*targetDecl, p->token());
+
+            return false;
+        }
+
+        if ( targetDecl->kind() == DeclKind::SymbolVariable ) {
+            // todo: symvar binding
+            return true;
+        }
+
+        return isCovariant(*targetDecl, *queryDecl);
+    }
+
+    return false;
 }
 
 template <typename T>
-bool compare(SymbolReference::paramlist_t lhs,
-             SymbolReference::paramlist_t rhs,
+bool compare(Slice<Expression*> lhs,
+             Slice<Expression*> rhs,
              T& op)
 {
     if ( lhs.size() != rhs.size() )
@@ -655,15 +761,13 @@ bool compare(SymbolReference::paramlist_t lhs,
     return true;
 }
 
-bool matchEquivalent(SymbolReference::paramlist_t lhs,
-                     SymbolReference::paramlist_t rhs)
+bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
     auto op = [](auto const& l, auto const& r) { return matchEquivalent(l, r); };
     return compare(lhs, rhs, op);
 }
 
-bool matchValue(SymbolReference::paramlist_t lhs,
-                SymbolReference::paramlist_t rhs)
+bool matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
     auto op = [](auto const& l, auto const& r) { return matchValue(l, r); };
     return compare(lhs, rhs, op);

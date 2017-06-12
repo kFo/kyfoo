@@ -8,6 +8,7 @@
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -45,17 +46,29 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 
 void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 {
+    SymbolDependencyTracker tracker(module(), dgn);
+    for ( auto const& d : myDeclarations )
+        traceDependencies(tracker, *d);
+
+    if ( dgn.errorCount() )
+        return;
+
+    tracker.sortPasses();
+
     ScopeResolver resolver(this);
-    for ( auto const& d : myDeclarations ) {
-        d->symbol().resolveSymbols(dgn, resolver);
-        if ( !addSymbol(dgn, d->symbol(), *d) )
-            continue;
 
-        if ( auto proc = d->as<ProcedureDeclaration>() ) {
-            for ( auto& p : proc->parameters() )
-                p->resolveSymbols(dgn);
+    for ( auto const& symGroup : tracker.groups ) {
+        for ( auto const& d : symGroup->declarations ) {
+            d->symbol().resolveSymbols(dgn, resolver);
+            if ( !addSymbol(dgn, d->symbol(), *d) )
+                continue;
 
-            addProcedure(dgn, proc->symbol(), *proc);
+            if ( auto proc = d->as<ProcedureDeclaration>() ) {
+                for ( auto& p : proc->parameters() )
+                    p->resolveSymbols(dgn);
+
+                addProcedure(dgn, proc->symbol(), *proc);
+            }
         }
     }
 

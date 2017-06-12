@@ -248,7 +248,9 @@ public:
     void define(std::unique_ptr<ProcedureScope> definition);
 
     std::vector<std::unique_ptr<ProcedureParameter>>& parameters();
+    Slice<ProcedureParameter*> parameters() const;
     Expression* returnType();
+    Expression const* returnType() const;
 
 private:
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
@@ -298,7 +300,7 @@ private:
 #define X(a,b,c) template<> inline c* Declaration::as<c>() { return myKind == DeclKind::a ? static_cast<c*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
-#define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == DeclKind::DataProduct ? static_cast<c const*>(this) : nullptr; }
+#define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == DeclKind::a ? static_cast<c const*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
 

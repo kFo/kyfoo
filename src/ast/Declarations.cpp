@@ -6,7 +6,7 @@
 
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Scopes.hpp>
-#include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -226,9 +226,13 @@ void SymbolDeclaration::io(IStream& stream) const
     myExpression->io(stream);
 }
 
-void SymbolDeclaration::resolveSymbols(Diagnostics& /*dgn*/)
+void SymbolDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    // Must resolve symbols in the scope in which they are instantiated
+    ScopeResolver resolver(scope());
+    resolver.addSupplementarySymbol(symbol());
+
+    Context ctx(dgn, resolver);
+    ctx.resolveExpression(myExpression);
 }
 
 Expression* SymbolDeclaration::expression()
@@ -405,7 +409,17 @@ std::vector<std::unique_ptr<ProcedureParameter>>& ProcedureDeclaration::paramete
     return myParameters;
 }
 
+Slice<ProcedureParameter*> ProcedureDeclaration::parameters() const
+{
+    return myParameters;
+}
+
 Expression* ProcedureDeclaration::returnType()
+{
+    return myReturnExpression.get();
+}
+
+Expression const* ProcedureDeclaration::returnType() const
 {
     return myReturnExpression.get();
 }
