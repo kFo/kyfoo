@@ -12,16 +12,20 @@ struct Expression::impl : public
     std::unique_ptr<ast::Expression> make() const
     {
         auto const& primary = factor<0>();
-        std::vector<std::unique_ptr<ast::Expression>> exprs;
-        for ( std::size_t i = 0; i < primary.captures().size(); ++i ) {
-            auto const& a = primary.captures()[i];
-            if ( a.index() == 0 )
-                exprs.emplace_back(a.term<0>().make());
-            else
-                exprs.emplace_back(a.term<1>().make());
-        }
 
-        auto subject = std::make_unique<ast::ApplyExpression>(std::move(exprs));
+        std::unique_ptr<ast::Expression> subject;
+        if ( primary.captures().size() == 1 ) {
+            subject = primary.captures().front().monoMake<ast::Expression>();
+        }
+        else {
+            std::vector<std::unique_ptr<ast::Expression>> exprs;
+            for ( std::size_t i = 0; i < primary.captures().size(); ++i ) {
+                auto const& a = primary.captures()[i];
+                exprs.emplace_back(a.monoMake<ast::Expression>());
+            }
+
+            subject = std::make_unique<ast::ApplyExpression>(std::move(exprs));
+        }
 
         if ( auto c = factor<1>().capture() )
             return std::make_unique<ast::ConstraintExpression>(std::move(subject), c->factor<1>().make());
