@@ -3,6 +3,7 @@
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {

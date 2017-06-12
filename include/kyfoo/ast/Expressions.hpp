@@ -25,36 +25,10 @@ class LookupHit;
     X(Symbol    , SymbolExpression) \
     X(Constraint, ConstraintExpression)
 
-class Context
-{
-public:
-    Context(Diagnostics& dgn, IResolver& resolver);
-    ~Context();
-
-public:
-    Error& error(lexer::Token const& token);
-    Error& error(Expression const& expr);
-    std::size_t errorCount() const;
-
-    LookupHit matchEquivalent(SymbolReference const& sym) const;
-    LookupHit matchValue(SymbolReference const& sym) const;
-    LookupHit matchProcedure(SymbolReference const& sym) const;
-
-    void rewrite(std::unique_ptr<Expression> expr);
-
-    void resolveExpression(std::unique_ptr<Expression>& expression);
-    void resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
-
-private:
-    Diagnostics* myDiagnostics;
-    IResolver* myResolver;
-    std::unique_ptr<Expression> myRewrite;
-};
-
 class Expression : public INode
 {
 public:
-    friend Context;
+    friend class Context;
 
     enum class Kind
     {

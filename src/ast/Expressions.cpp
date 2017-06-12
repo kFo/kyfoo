@@ -8,6 +8,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -21,75 +22,6 @@ std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs
         ret.emplace_back(e->clone());
 
     return ret;
-}
-
-//
-// Context
-
-Context::Context(Diagnostics& dgn, IResolver& resolver)
-    : myDiagnostics(&dgn)
-    , myResolver(&resolver)
-{
-}
-
-Context::~Context() = default;
-
-Error& Context::error(lexer::Token const& token)
-{
-    return myDiagnostics->error(myResolver->module(), token);
-}
-
-Error& Context::error(Expression const& expr)
-{
-    return myDiagnostics->error(myResolver->module(), expr);
-}
-
-std::size_t Context::errorCount() const
-{
-    return myDiagnostics->errorCount();
-}
-
-LookupHit Context::matchEquivalent(SymbolReference const& sym) const
-{
-    return myResolver->matchEquivalent(sym);
-}
-
-LookupHit Context::matchValue(SymbolReference const& sym) const
-{
-    return myResolver->matchValue(sym);
-}
-
-LookupHit Context::matchProcedure(SymbolReference const& sym) const
-{
-    return myResolver->matchProcedure(sym);
-}
-
-void Context::rewrite(std::unique_ptr<Expression> expr)
-{
-    myRewrite = std::move(expr);
-}
-
-void Context::resolveExpression(std::unique_ptr<Expression>& expression)
-{
-    myRewrite.reset();
-    expression->resolveSymbols(*this);
-    while ( myRewrite ) {
-        expression = std::move(myRewrite);
-        expression->resolveSymbols(*this);
-    }
-}
-
-void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
-{
-    myRewrite.reset();
-
-    for ( auto i = begin(expressions); i != end(expressions); ++i ) {
-        (*i)->resolveSymbols(*this);
-        while ( myRewrite ) {
-            *i = std::move(std::move(myRewrite));
-            (*i)->resolveSymbols(*this);
-        }
-    }
 }
 
 //
@@ -411,10 +343,6 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     if ( !subject || !isIdentifier(subject->token().kind()) ) {
         ctx.error(*this) << "implicit procedure application must begin with an identifier";
         return;
-    }
-
-    if ( myExpressions.size() == 1 ) {
-        return ctx.rewrite(std::move(myExpressions.front()));
     }
 
     if ( subject->token().kind() == lexer::TokenKind::FreeVariable ) {

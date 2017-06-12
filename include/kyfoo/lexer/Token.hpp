@@ -33,6 +33,8 @@ public:
 public:
     bool operator < (Token const&) const;
 
+    explicit operator bool () const;
+
 public:
     TokenKind kind() const;
     line_index_t line() const;

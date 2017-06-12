@@ -57,6 +57,11 @@ bool Token::operator < (Token const& rhs) const
     return myKind < rhs.myKind;
 }
 
+Token::operator bool () const
+{
+    return myKind != TokenKind::Undefined;
+}
+
 TokenKind Token::kind() const
 {
     return myKind;

@@ -132,6 +132,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp" />
@@ -154,6 +155,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />
+    <ClCompile Include="..\..\src\ast\Context.cpp" />
     <ClCompile Include="..\..\src\ast\Declarations.cpp" />
     <ClCompile Include="..\..\src\ast\Expressions.cpp" />
     <ClCompile Include="..\..\src\ast\Symbol.cpp" />

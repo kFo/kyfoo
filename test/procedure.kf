@@ -1,6 +1,7 @@
 stdout = 1
-char = integer<7>
-ascii = array<char>
+;char = integer<7>
+;ascii = array<char>
+
 write(descriptor : integer<32>, data : ascii) : ()
 
 print(x : ascii) =>

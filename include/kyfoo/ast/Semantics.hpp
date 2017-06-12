@@ -1,74 +1,21 @@
 #pragma once
 
-#include <string>
 #include <vector>
-#include <type_traits>
+#include <map>
+#include <set>
 
-#include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Declarations.hpp>
 
 namespace kyfoo {
+    namespace lexer {
+        class Token;
+    }
+
     namespace ast {
 
 class Module;
-class Declaration;
-class ProcedureDeclaration;
-class DeclarationScope;
-class Expression;
-class Symbol;
-class SymbolReference;
-class LookupHit;
-
-class IResolver
-{
-public:
-    virtual ~IResolver() = default;
-
-    virtual Module const* module() const = 0;
-    virtual LookupHit inScope(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchEquivalent(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchValue(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchProcedure(SymbolReference const& procOverload) const = 0;
-};
-
-class ScopeResolver : public IResolver
-{
-public:
-    explicit ScopeResolver(DeclarationScope* scope);
-
-    // IResolver
-public:
-    Module const* module() const override;
-    LookupHit inScope(SymbolReference const& symbol) const override;
-    LookupHit matchEquivalent(SymbolReference const& symbol) const override;
-    LookupHit matchValue(SymbolReference const& symbol) const override;
-    LookupHit matchProcedure(SymbolReference const& procOverload) const override;
-
-public:
-    void addSupplementarySymbol(Symbol const& sym);
-
-private:
-    DeclarationScope* myScope = nullptr;
-    std::vector<Symbol const*> mySupplementarySymbols;
-};
-
-class SymbolVariableCreatorFailoverResolver : public IResolver
-{
-public:
-    SymbolVariableCreatorFailoverResolver(IResolver& resolver, Symbol& symbol);
-    ~SymbolVariableCreatorFailoverResolver();
-
-public:
-    Module const* module() const override;
-    LookupHit inScope(SymbolReference const& symbol) const override;
-    LookupHit matchEquivalent(SymbolReference const& symbol) const override;
-    LookupHit matchValue(SymbolReference const& symbol) const override;
-    LookupHit matchProcedure(SymbolReference const& procOverload) const override;
-
-private:
-    IResolver* myResolver = nullptr;
-    Symbol* mySymbol = nullptr;
-};
 
 template <template<class> typename Op>
 class ShallowApply
@@ -134,6 +81,71 @@ private:
     operator_t myOperator;
 };
 
+struct SymbolDependencyTracker
+{
+    struct SymGroup {
+        std::string name;
+        std::size_t arity;
+        int pass = 0;
+        std::vector<Declaration*> declarations;
+        std::vector<SymGroup*> dependents;
+
+        SymGroup(std::string const& name, std::size_t arity)
+            : name(name)
+            , arity(arity)
+        {
+        }
+
+        bool operator < (SymGroup const& rhs) const
+        {
+            return std::tie(name, arity) < std::tie(rhs.name, rhs.arity);
+        }
+
+        bool operator == (SymGroup const& rhs) const
+        {
+            return std::tie(name, arity) == std::tie(rhs.name, rhs.arity);
+        }
+
+        void add(Declaration& decl)
+        {
+            declarations.push_back(&decl);
+        }
+
+        void addDependent(SymGroup& group)
+        {
+            dependents.push_back(&group);
+        }
+
+        void defer(int deferPass)
+        {
+            if ( pass >= deferPass )
+                return;
+
+            pass = deferPass;
+            for ( auto& d : dependents )
+                d->defer(pass + 1);
+        }
+    };
+
+    Module* mod;
+    Diagnostics& dgn;
+    std::vector<std::unique_ptr<SymGroup>> groups;
+
+    SymbolDependencyTracker(Module* mod, Diagnostics& dgn);
+
+    SymGroup* create(std::string const& name, std::size_t arity);
+    SymGroup* findOrCreate(std::string const& name, std::size_t arity);
+
+    void add(Declaration& decl);
+    void addDependency(Declaration& decl,
+                       std::string const& name,
+                       std::size_t arity);
+
+    void sortPasses();
+};
+
+void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
+
 bool isCovariant(lexer::Token const& target, lexer::Token const& query);
 bool isCovariant(Declaration const& target, lexer::Token const& query);
 bool isCovariant(Declaration const& target, Declaration const& query);
@@ -141,11 +153,8 @@ bool isCovariant(Declaration const& target, Declaration const& query);
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchValue(Expression const& lhs, Expression const& rhs);
 
-bool matchEquivalent(SymbolReference::paramlist_t lhs,
-                     SymbolReference::paramlist_t rhs);
-
-bool matchValue(SymbolReference::paramlist_t lhs,
-                SymbolReference::paramlist_t rhs);
+bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
+bool matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
 bool hasFreeVariable(Expression const& expr);

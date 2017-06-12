@@ -87,6 +87,9 @@
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -129,6 +132,9 @@
       <Filter>src\ast</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ast\Expressions.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Context.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>
