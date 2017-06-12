@@ -1,0 +1,39 @@
+:| Direction
+    North
+    West
+    South
+    East
+
+ptr<\T> = pointer<T>
+
+:| Tree<\T>
+    Empty
+    Node (left : ptr<T>, right : ptr<T>)
+
+i32 = integer 32
+vec3i = array<i32, 3>
+ascii = array<char>
+
+:& Entity
+    name : ascii
+    facing : Direction
+    location : vec3i
+
+write(data : ascii)
+
+f(d : Direction) =>
+    write "success"
+
+; Open-tuple always flattens
+; Apply Expression beginning with identifier for procedure do not flatten
+; Otherwise, the apply-expression flattens
+; Procedure identifiers may only occur at the start of an apply-expression
+main() =>
+    f 42 ;should fail
+    (f 42) ; f 42
+    (f (42)) ; f 42
+    (f (f 42)) ; f (f 42) -- apply(f, apply(f, 42))
+    (42 f) ; 42 f
+    (42 (f 42)) ; 42 (f 42)
+    (f (42 f)) ; f 42 f
+    (f (42 f, 23)) ; f 42 f 23 -- apply(f, 42, f, 23)
