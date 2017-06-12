@@ -1,0 +1,6 @@
+:& Deferred<Later> ; uses symbol declared later
+:& Later
+
+; circular usage
+:& A<\T : B<\U>>
+:& B<\T : A<\U>>
