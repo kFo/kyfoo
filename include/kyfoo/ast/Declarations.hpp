@@ -244,6 +244,8 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
+    void resolvePrototypeSymbols(Diagnostics& dgn);
+
     ProcedureScope* definition();
     void define(std::unique_ptr<ProcedureScope> definition);
 

@@ -378,6 +378,12 @@ void ProcedureDeclaration::io(IStream& stream) const
 
 void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 {
+    if ( auto defn = definition() )
+        defn->resolveSymbols(dgn);
+}
+
+void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
+{
     ScopeResolver resolver(scope());
     Context ctx(dgn, resolver);
     if ( returnType() )
@@ -385,6 +391,14 @@ void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 
     if ( definition() )
         definition()->resolveSymbols(dgn);
+    // Resolve parameters -- ignore parameter name
+    for ( auto& p : myParameters ) {
+        if ( !p->constraint() ) {
+            ctx.error(p->symbol().identifier()) << "inferred parameter types not implemented";
+            return;
+        }
+        p->resolveSymbols(dgn);
+    }
 }
 
 ProcedureScope* ProcedureDeclaration::definition()

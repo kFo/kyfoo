@@ -140,6 +140,8 @@ class DeclarationScope : public INode
 public:
     explicit DeclarationScope(Module* module);
     explicit DeclarationScope(DeclarationScope* parent);
+    DeclarationScope(DeclarationScope* parent,
+                     Declaration& decl);
     ~DeclarationScope();
 
     // IIO
@@ -198,8 +200,8 @@ public:
 public:
     void resolveSymbols(Diagnostics& dgn) override;
 
-private:
-    DataSumDeclaration* myDataDeclaration = nullptr;
+public:
+    DataSumDeclaration* declaration();
 };
 
 class DataProductScope : public DeclarationScope
@@ -215,9 +217,15 @@ public:
 
     // DeclarationScope
 public:
+    void resolveSymbols(Diagnostics& dgn) override;
+
+public:
+    DataProductDeclaration* declaration();
+    Slice<VariableDeclaration*> fields();
+    const Slice<VariableDeclaration*> fields() const;
 
 private:
-    DataProductDeclaration* myDataDeclaration = nullptr;
+    std::vector<VariableDeclaration*> myFields;
 };
 
 class ProcedureScope : public DeclarationScope
@@ -236,10 +244,14 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
+    ProcedureDeclaration* declaration();
     void append(std::unique_ptr<Expression> expression);
 
+public:
+    Slice<Expression*> expressions();
+    const Slice<Expression*> expressions() const;
+
 private:
-    ProcedureDeclaration* myDeclaration = nullptr;
     std::vector<std::unique_ptr<Expression>> myExpressions;
 };
 
