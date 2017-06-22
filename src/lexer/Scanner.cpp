@@ -116,8 +116,13 @@ Token Scanner::peek(std::size_t lookAhead)
     if ( peekTarget < myBuffer.size() )
         return myBuffer[peekTarget];
     
-    do myBuffer.push_back( readNext() );
-    while ( peekTarget >= myBuffer.size() );
+    do {
+        auto next = readNext();
+        if ( next.kind() == TokenKind::EndOfFile )
+            return next;
+
+        myBuffer.push_back(next);
+    } while ( peekTarget >= myBuffer.size() );
 
     return myBuffer[peekTarget];
 }
@@ -145,7 +150,7 @@ void Scanner::rollbackScan()
 
 bool Scanner::eof() const
 {
-    return myStream.eof();
+    return myStream.eof() && myBuffer.empty();
 }
 
 bool Scanner::hasError() const
@@ -155,7 +160,7 @@ bool Scanner::hasError() const
 
 Scanner::operator bool() const
 {
-    return myStream && !eof() && !myError;
+    return !eof() && !myError;
 }
 
 char Scanner::nextChar()
