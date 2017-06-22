@@ -76,6 +76,29 @@ void Declaration::setScope(DeclarationScope& scope)
     myScope = &scope;
 }
 
+codegen::CustomData* Declaration::codegenData()
+{
+    return myCodeGenData.get();
+}
+
+codegen::CustomData* Declaration::codegenData() const
+{
+    return myCodeGenData.get();
+}
+
+void Declaration::setCodegenData(std::unique_ptr<codegen::CustomData> data)
+{
+    if ( codegenData() )
+        throw std::runtime_error("codegen data can only be set once");
+
+    myCodeGenData = std::move(data);
+}
+
+void Declaration::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+{
+    return const_cast<Declaration*>(this)->setCodegenData(std::move(data));
+}
+
 //
 // DataSumDeclaration
 
