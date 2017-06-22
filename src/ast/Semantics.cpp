@@ -646,6 +646,12 @@ bool isCovariant(Declaration const& target, Declaration const& query)
     if ( auto dsCtor = query.as<DataSumDeclaration::Constructor>() )
         return isCovariant(target, *dsCtor->parent());
 
+    if ( auto f = query.as<ProcedureDeclaration>() )
+        return isCovariant(target, *f->returnType()->declaration());
+
+    if ( auto v = query.as<VariableDeclaration>() )
+        return isCovariant(target, *v->constraint()->declaration());
+
     return false;
 }
 

@@ -41,6 +41,7 @@ public:
 
 protected:
     explicit Expression(Kind kind);
+    Expression(Kind kind, Declaration const* decl);
     Expression(Expression const& rhs);
     Expression& operator = (Expression const& rhs) = delete;
 
@@ -58,12 +59,17 @@ protected:
 
 public:
     Kind kind() const;
+    Declaration const* declaration() const;
 
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
 
 private:
     Kind myKind;
+
+protected:
+    // Semantic state
+    Declaration const* myDeclaration = nullptr;
 };
 
 template <typename T>
@@ -101,15 +107,11 @@ protected:
 
 public:
     lexer::Token const& token() const;
-    Declaration const* declaration() const;
 
     void setFreeVariable(Declaration const* decl);
 
 private:
     lexer::Token myToken;
-
-    // Semantic state
-    Declaration const* myDeclaration = nullptr;
 };
 
 class TupleExpression : public CloneableMixin<TupleExpression>
@@ -183,9 +185,6 @@ public:
 private:
     // AST state
     std::vector<std::unique_ptr<Expression>> myExpressions;
-
-    // Semantic state
-    ProcedureDeclaration* myDeclaration = nullptr;
 };
 
 class SymbolExpression : public CloneableMixin<SymbolExpression>
@@ -221,8 +220,6 @@ public:
 
     std::vector<std::unique_ptr<Expression>>& internalExpressions();
 
-    Declaration const* declaration() const;
-
 private:
     // AST state
     lexer::Token myIdentifier;
@@ -230,9 +227,6 @@ private:
 
     lexer::Token myOpenToken;
     lexer::Token myCloseToken;
-
-    // Semantic state
-    Declaration const* myDeclaration = nullptr; // todo: variant?
 };
 
 class ConstraintExpression : public CloneableMixin<ConstraintExpression>

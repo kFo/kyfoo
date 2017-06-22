@@ -32,8 +32,15 @@ Expression::Expression(Kind kind)
 {
 }
 
+Expression::Expression(Kind kind, Declaration const* decl)
+    : myKind(kind)
+    , myDeclaration(decl)
+{
+}
+
 Expression::Expression(Expression const& rhs)
     : myKind(rhs.myKind)
+    , myDeclaration(rhs.myDeclaration)
 {
 }
 
@@ -43,11 +50,17 @@ void Expression::swap(Expression& rhs)
 {
     using std::swap;
     swap(myKind, rhs.myKind);
+    swap(myDeclaration, rhs.myDeclaration);
 }
 
 Expression::Kind Expression::kind() const
 {
     return myKind;
+}
+
+Declaration const* Expression::declaration() const
+{
+    return myDeclaration;
 }
 
 //
@@ -62,7 +75,6 @@ PrimaryExpression::PrimaryExpression(lexer::Token const& token)
 PrimaryExpression::PrimaryExpression(PrimaryExpression const& rhs)
     : base_t(rhs)
     , myToken(rhs.myToken)
-    , myDeclaration(rhs.myDeclaration)
 {
 }
 
@@ -112,11 +124,6 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
 lexer::Token const& PrimaryExpression::token() const
 {
     return myToken;
-}
-
-Declaration const* PrimaryExpression::declaration() const
-{
-    return myDeclaration;
 }
 
 void PrimaryExpression::setFreeVariable(Declaration const* decl)
@@ -241,6 +248,15 @@ void TupleExpression::io(IStream& stream) const
 void TupleExpression::resolveSymbols(Context& ctx)
 {
     ctx.resolveExpressions(myExpressions);
+
+    if ( myKind == TupleKind::Open ) {
+        if ( myExpressions.empty() ) {
+            // todo: void
+        }
+        else if ( myExpressions.size() == 1 ) {
+            return ctx.rewrite(std::move(myExpressions[0]));
+        }
+    }
 }
 
 TupleKind TupleExpression::kind() const
@@ -303,7 +319,6 @@ ApplyExpression::ApplyExpression(std::vector<std::unique_ptr<Expression>>&& expr
 ApplyExpression::ApplyExpression(ApplyExpression const& rhs)
     : base_t(rhs)
     , myExpressions(ast::clone(rhs.myExpressions))
-    , myDeclaration(rhs.myDeclaration)
 {
 }
 
@@ -321,7 +336,6 @@ void ApplyExpression::swap(ApplyExpression& rhs)
 
     using std::swap;
     swap(myExpressions, rhs.myExpressions);
-    swap(myDeclaration, rhs.myDeclaration);
 }
 
 void ApplyExpression::io(IStream& stream) const
@@ -381,6 +395,8 @@ void ApplyExpression::resolveSymbols(Context& ctx)
         }
         return;
     }
+
+    myDeclaration = procDecl;
 }
 
 /**
@@ -417,7 +433,7 @@ Slice<Expression*> ApplyExpression::expressions() const
 
 ProcedureDeclaration const* ApplyExpression::declaration() const
 {
-    return myDeclaration;
+    return static_cast<ProcedureDeclaration const*>(myDeclaration);
 }
 
 //
@@ -450,7 +466,6 @@ SymbolExpression::SymbolExpression(lexer::Token const& open,
 SymbolExpression::SymbolExpression(SymbolExpression const& rhs)
     : base_t(rhs)
     , myExpressions(ast::clone(rhs.myExpressions))
-    , myDeclaration(rhs.myDeclaration)
 {
 }
 
@@ -468,7 +483,6 @@ void SymbolExpression::swap(SymbolExpression& rhs)
 
     using std::swap;
     swap(myExpressions, rhs.myExpressions);
-    swap(myDeclaration, rhs.myDeclaration);
 }
 
 void SymbolExpression::io(IStream& stream) const
@@ -541,11 +555,6 @@ lexer::Token const& SymbolExpression::closeToken() const
 std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions()
 {
     return myExpressions;
-}
-
-Declaration const* SymbolExpression::declaration() const
-{
-    return myDeclaration;
 }
 
 //
