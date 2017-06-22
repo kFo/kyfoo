@@ -1,13 +1,14 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 
 #include <kyfoo/lexer/Token.hpp>
 
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+
+#include <kyfoo/codegen/Codegen.hpp>
 
 namespace kyfoo {
 
@@ -72,10 +73,16 @@ public:
     DeclarationScope* scope();
     void setScope(DeclarationScope& parent);
 
+    codegen::CustomData* codegenData();
+    codegen::CustomData* codegenData() const;
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data);
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
+
 protected:
     DeclKind myKind;
     Symbol mySymbol;
     DeclarationScope* myScope = nullptr;
+    mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
 
 class VariableDeclaration;

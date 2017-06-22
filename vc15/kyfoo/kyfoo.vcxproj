@@ -142,6 +142,8 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
