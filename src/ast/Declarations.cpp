@@ -355,11 +355,12 @@ ProcedureDeclaration* ProcedureParameter::parent()
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
                                            std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                                           std::unique_ptr<Expression> returnExpression)
+                                           std::unique_ptr<Expression> resultExpression)
     : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
     , myParameters(std::move(parameters))
-    , myReturnExpression(std::move(returnExpression))
+    , myResult(std::make_unique<ProcedureParameter>(Symbol(lexer::Token()), std::move(resultExpression)))
 {
+    myResult->setParent(this);
     for ( auto& p : myParameters )
         p->setParent(this);
 }
@@ -370,7 +371,7 @@ void ProcedureDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
     stream.next("parameters", myParameters);
-    stream.next("return", myReturnExpression);
+    stream.next("return", returnType());
 
     if ( myDefinition )
         stream.next("definition", myDefinition);
@@ -386,11 +387,15 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(scope());
     Context ctx(dgn, resolver);
-    if ( returnType() )
-        ctx.resolveExpression(myReturnExpression);
 
-    if ( definition() )
-        definition()->resolveSymbols(dgn);
+    // Resolve return
+    if ( !myResult ) {
+        ctx.error(symbol().identifier()) << "inferred return type not implemented";
+        return;
+    }
+
+    myResult->resolveSymbols(dgn);
+
     // Resolve parameters -- ignore parameter name
     for ( auto& p : myParameters ) {
         if ( !p->constraint() ) {
@@ -402,6 +407,11 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
+{
+    return myDefinition.get();
+}
+
+ProcedureScope const* ProcedureDeclaration::definition() const
 {
     return myDefinition.get();
 }
@@ -430,12 +440,22 @@ Slice<ProcedureParameter*> ProcedureDeclaration::parameters() const
 
 Expression* ProcedureDeclaration::returnType()
 {
-    return myReturnExpression.get();
+    return myResult->constraint();
 }
 
 Expression const* ProcedureDeclaration::returnType() const
 {
-    return myReturnExpression.get();
+    return myResult->constraint();
+}
+
+ProcedureParameter* ProcedureDeclaration::result()
+{
+    return myResult.get();
+}
+
+ProcedureParameter const* ProcedureDeclaration::result() const
+{
+    return myResult.get();
 }
 
 //
