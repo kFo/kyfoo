@@ -16,6 +16,9 @@
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
+#include <kyfoo/codegen/Codegen.hpp>
+#include <kyfoo/codegen/LLVM.hpp>
+
 #include "ast/Axioms.hpp"
 
 namespace fs = std::experimental::filesystem;
@@ -88,7 +91,78 @@ int runParserTest(fs::path const& filepath)
     return EXIT_SUCCESS;
 }
 
-int runSemanticsTest(std::vector<fs::path> const& files, bool treeDump)
+int analyzeModule(kyfoo::ast::Module* m, bool treeDump)
+{
+    kyfoo::Diagnostics dgn;
+    kyfoo::StopWatch sw;
+    try {
+        m->semantics(dgn);
+        if ( treeDump ) {
+            std::ofstream fout(m->name() + ".astdump.json");
+            if ( fout ) {
+                kyfoo::ast::JsonOutput out(fout);
+                m->io(out);
+            }
+        }
+    }
+    catch (kyfoo::Diagnostics*) {
+        // Handled below
+    }
+    catch (std::exception const& e) {
+        std::cout << m->path() << ": ICE: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    auto semTime = sw.reset();
+    dgn.dumpErrors(std::cout);
+    std::cout << "semantics: " << m->name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+
+    if ( dgn.errorCount() )
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+int codegenModule(kyfoo::ast::Module* m)
+{
+    if ( m->path().empty() ) {
+        std::cout << "ICE: " << m->name() << ": module is internal" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    kyfoo::Diagnostics dgn;
+    kyfoo::StopWatch sw;
+    try {
+        kyfoo::codegen::LLVMGenerator gen(dgn, m);
+        gen.generate();
+        gen.write(kyfoo::codegen::toObjectFilepath(m->path()));
+    }
+    catch (kyfoo::Diagnostics*) {
+        // Handled below
+    }
+    catch (std::exception const& e) {
+        std::cout << m->path() << ": ICE: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    auto semTime = sw.reset();
+    dgn.dumpErrors(std::cout);
+    std::cout << "codegen: " << m->name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+
+    if ( dgn.errorCount() )
+        return EXIT_FAILURE;
+
+    return EXIT_SUCCESS;
+}
+
+enum Options
+{
+    None          = 0,
+    TreeDump      = 1 << 0,
+    SemanticsOnly = 1 << 1,
+};
+
+int compile(std::vector<fs::path> const& files, std::uint32_t options)
 {
     auto ret = EXIT_SUCCESS;
     kyfoo::ast::ModuleSet moduleSet;
@@ -163,36 +237,17 @@ int runSemanticsTest(std::vector<fs::path> const& files, bool treeDump)
         queue.push(v);
     visited.clear();
 
-    std::chrono::duration<double> semTime;
     while ( !queue.empty() ) {
         auto m = take();
+        if ( (ret = analyzeModule(m, options & TreeDump)) != EXIT_SUCCESS )
+            return ret;
 
-        kyfoo::Diagnostics dgn;
-        kyfoo::StopWatch sw;
-        try {
-            m->semantics(dgn);
-            if ( treeDump ) {
-                std::ofstream fout(m->name() + ".astdump.json");
-                if ( fout ) {
-                    kyfoo::ast::JsonOutput out(fout);
-                    m->io(out);
-                }
-            }
-        }
-        catch (kyfoo::Diagnostics*) {
-            // Handled below
-        }
-        catch (std::exception const& e) {
-            std::cout << m->path() << ": ICE: " << e.what() << std::endl;
-            return EXIT_FAILURE;
-        }
+        if ( options & SemanticsOnly )
+            continue;
 
-        semTime = sw.reset();
-        dgn.dumpErrors(std::cout);
-        std::cout << "semantics: " << m->name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
-
-        if ( dgn.errorCount() )
-            ret = EXIT_FAILURE;
+        if ( m->name() != "axioms" )
+            if ( (ret = codegenModule(m)) != EXIT_SUCCESS )
+                return ret;
     }
 
     return ret;
@@ -244,7 +299,18 @@ int main(int argc, char* argv[])
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 
-            return runSemanticsTest(files, command == "semdump");
+            std::uint32_t options = SemanticsOnly;
+            if ( command == "semdump" )
+                options |= TreeDump;
+
+            return compile(files, options);
+        }
+        else if ( command == "compile" || command == "c" ) {
+            std::vector<fs::path> files;
+            for ( int i = 2; i != argc; ++i )
+                files.push_back(argv[i]);
+
+            return compile(files, None);
         }
 
         std::cout << "Unknown option: " << command << std::endl;

@@ -28,6 +28,9 @@
     <Filter Include="src\ast">
       <UniqueIdentifier>{1d328116-3756-485e-aab3-4e793d56bc37}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\codegen">
+      <UniqueIdentifier>{9e73f7db-4740-435c-9fcc-b53c977266f7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="include\kyfoo\codegen">
       <UniqueIdentifier>{2955eb66-3815-44d9-8ff9-3bcd783c12eb}</UniqueIdentifier>
     </Filter>
@@ -93,6 +96,9 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp">
+      <Filter>include\kyfoo\codegen</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp">
       <Filter>include\kyfoo\codegen</Filter>
     </ClInclude>
@@ -142,6 +148,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ast\Context.cpp">
       <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\codegen\LLVM.cpp">
+      <Filter>src\codegen</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
