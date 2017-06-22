@@ -28,6 +28,13 @@ DeclarationScope::DeclarationScope(DeclarationScope* parent)
 {
 }
 
+DeclarationScope::DeclarationScope(DeclarationScope* parent, Declaration& decl)
+    : myModule(parent->module())
+    , myParent(parent)
+    , myDeclaration(&decl)
+{
+}
+
 DeclarationScope::~DeclarationScope() = default;
 
 void DeclarationScope::io(IStream& stream) const
@@ -57,6 +64,7 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 
     ScopeResolver resolver(this);
 
+    // Resolve top-level declarations
     for ( auto const& symGroup : tracker.groups ) {
         for ( auto const& d : symGroup->declarations ) {
             d->symbol().resolveSymbols(dgn, resolver);
@@ -64,14 +72,13 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
                 continue;
 
             if ( auto proc = d->as<ProcedureDeclaration>() ) {
-                for ( auto& p : proc->parameters() )
-                    p->resolveSymbols(dgn);
-
+                proc->resolvePrototypeSymbols(dgn);
                 addProcedure(dgn, proc->symbol(), *proc);
             }
         }
     }
 
+    // Resolve definitions
     for ( auto& e : myDeclarations )
         e->resolveSymbols(dgn);
 }
@@ -255,8 +262,7 @@ Slice<Declaration*> DeclarationScope::childDeclarations() const
 
 DataSumScope::DataSumScope(DeclarationScope* parent,
                            DataSumDeclaration& declaration)
-    : DeclarationScope(parent)
-    , myDataDeclaration(&declaration)
+    : DeclarationScope(parent, declaration)
 {
 }
 
@@ -283,13 +289,17 @@ void DataSumScope::resolveSymbols(Diagnostics& dgn)
         e->resolveSymbols(dgn);
 }
 
+DataSumDeclaration* DataSumScope::declaration()
+{
+    return static_cast<DataSumDeclaration*>(myDeclaration);
+}
+
 //
 // DataProductScope
 
 DataProductScope::DataProductScope(DeclarationScope* parent,
                                    DataProductDeclaration& declaration)
-    : DeclarationScope(parent)
-    , myDataDeclaration(&declaration)
+    : DeclarationScope(parent, declaration)
 {
 }
 
@@ -300,13 +310,36 @@ void DataProductScope::io(IStream& stream) const
     DeclarationScope::io(stream);
 }
 
+void DataProductScope::resolveSymbols(Diagnostics& dgn)
+{
+    for ( auto& d : myDeclarations )
+        if ( auto v = d->as<VariableDeclaration>() )
+            myFields.push_back(v);
+
+    DeclarationScope::resolveSymbols(dgn);
+}
+
+DataProductDeclaration* DataProductScope::declaration()
+{
+    return static_cast<DataProductDeclaration*>(myDeclaration);
+}
+
+Slice<VariableDeclaration*> DataProductScope::fields()
+{
+    return myFields;
+}
+
+const Slice<VariableDeclaration*> DataProductScope::fields() const
+{
+    return myFields;
+}
+
 //
 // ProcedureScope
 
 ProcedureScope::ProcedureScope(DeclarationScope* parent,
                                ProcedureDeclaration& declaration)
-    : DeclarationScope(parent)
-    , myDeclaration(&declaration)
+    : DeclarationScope(parent, declaration)
 {
 }
 
@@ -323,7 +356,7 @@ void ProcedureScope::resolveSymbols(Diagnostics& dgn)
     ScopeResolver resolver(this);
 
     // Resolve parameters
-    for ( auto const& p : myDeclaration->parameters() ) {
+    for ( auto const& p : declaration()->parameters() ) {
         p->symbol().resolveSymbols(dgn, resolver);
         if ( !addSymbol(dgn, p->symbol(), *p) )
             continue;
@@ -337,9 +370,24 @@ void ProcedureScope::resolveSymbols(Diagnostics& dgn)
     ctx.resolveExpressions(myExpressions);
 }
 
+ProcedureDeclaration* ProcedureScope::declaration()
+{
+    return static_cast<ProcedureDeclaration*>(myDeclaration);
+}
+
 void ProcedureScope::append(std::unique_ptr<Expression> expression)
 {
     myExpressions.emplace_back(std::move(expression));
+}
+
+Slice<Expression*> ProcedureScope::expressions()
+{
+    return myExpressions;
+}
+
+const Slice<Expression*> ProcedureScope::expressions() const
+{
+    return myExpressions;
 }
 
     } // namespace ast
