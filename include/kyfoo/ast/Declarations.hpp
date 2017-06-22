@@ -247,16 +247,19 @@ public:
     void resolvePrototypeSymbols(Diagnostics& dgn);
 
     ProcedureScope* definition();
+    ProcedureScope const* definition() const;
     void define(std::unique_ptr<ProcedureScope> definition);
 
     std::vector<std::unique_ptr<ProcedureParameter>>& parameters();
     Slice<ProcedureParameter*> parameters() const;
     Expression* returnType();
     Expression const* returnType() const;
+    ProcedureParameter* result();
+    ProcedureParameter const* result() const;
 
 private:
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
-    std::unique_ptr<Expression> myReturnExpression;
+    std::unique_ptr<ProcedureParameter> myResult;
     std::unique_ptr<ProcedureScope> myDefinition;
 };
 
