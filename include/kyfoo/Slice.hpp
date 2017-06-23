@@ -6,8 +6,6 @@
 
 namespace kyfoo {
 
-enum remainder_t { $ };
-
 template <typename T>
 class Slice
 {
@@ -51,11 +49,6 @@ public:
     Slice operator () (std::size_t left, std::size_t right) const
     {
         return Slice(myData + left, right - left);
-    }
-
-    Slice operator () (std::size_t left, remainder_t) const
-    {
-        return operator()(left, myLength);
     }
 
 public:
@@ -103,13 +96,13 @@ inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v)
 template <typename T>
 inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start)
 {
-    return Slice<T*>(v)(start, $);
+    return Slice<T*>(v)(start, v.size());
 }
 
 template <typename T>
 inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start, std::size_t end)
 {
-    return Slice<T*>(v)(start, end - start);
+    return Slice<T*>(v)(start, end);
 }
 
 } // namespace kyfoo

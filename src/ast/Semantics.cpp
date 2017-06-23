@@ -127,12 +127,6 @@ struct SymbolDependencyBuilder
             dispatch(*e);
     }
 
-    result_t exprConstraint(ConstraintExpression& c)
-    {
-        dispatch(*c.subject());
-        dispatch(*c.constraint());
-    }
-
     // declarations
 
     void traceSymbol(Symbol& sym)
@@ -306,20 +300,14 @@ auto commute(O& o, Expression const& lhs, Expression const& rhs)
     if ( auto l = lhs.as<PrimaryExpression>() ) {
         if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
         if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
 
         goto L_error;
     }
     
     if ( auto l = lhs.as<TupleExpression>() ) {
         if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
 
         goto L_error;
-    }
-    
-    if ( auto l = lhs.as<ConstraintExpression>() ) {
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
     }
     
 L_error:
@@ -334,7 +322,6 @@ auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
         if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
         goto L_error;
     }
     if ( auto l = lhs.as<TupleExpression>() ) {
@@ -342,7 +329,6 @@ auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
         if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
         goto L_error;
     }
     if ( auto l = lhs.as<ApplyExpression>() ) {
@@ -350,7 +336,6 @@ auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
         if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
         goto L_error;
     }
     if ( auto l = lhs.as<SymbolExpression>() ) {
@@ -358,15 +343,7 @@ auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
         if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
         if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
         goto L_error;
-    }
-    if ( auto l = lhs.as<ConstraintExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
-        if ( auto r = rhs.as<ConstraintExpression>() ) return o(*l, *r);
     }
 
 L_error:
@@ -431,23 +408,6 @@ struct MatchEquivalent
     bool operator()(SymbolExpression const& l, SymbolExpression const& r)
     {
         return matchEquivalent(l.expressions(), r.expressions());
-    }
-
-    // Constraint match
-
-    bool operator()(ConstraintExpression const& l, Expression const& r)
-    {
-        if ( !l.subject() )
-            return false;
-
-        if ( auto rc = r.as<ConstraintExpression>() ) {
-            if ( !rc->subject() )
-                return false;
-
-            return noncommute(*this, *l.subject(), *rc->subject());
-        }
-
-        return noncommute(*this, *l.subject(), r);
     }
 
     // else
@@ -538,23 +498,6 @@ struct MatchInstantiable
         return matchEquivalent(l.expressions(), r.expressions());
     }
 
-    // Constraint match
-
-    bool operator()(ConstraintExpression const& l, Expression const& r)
-    {
-        if ( !l.subject() )
-            return false;
-
-        if ( auto rc = r.as<ConstraintExpression>() ) {
-            if ( !rc->subject() )
-                return false;
-
-            return noncommute(*this, *l.subject(), *rc->subject());
-        }
-
-        return noncommute(*this, *l.subject(), r);
-    }
-
     // else
 
     bool operator()(Expression const& l, Expression const& r)
@@ -610,11 +553,6 @@ struct DeclOp
     result_t exprSymbol(SymbolExpression const& s)
     {
         return s.declaration();
-    }
-
-    result_t exprConstraint(ConstraintExpression const& c)
-    {
-        return dispatch(*c.subject());
     }
 };
 
@@ -817,15 +755,6 @@ struct FreeVariableVisitor
         for ( auto const& e : s.expressions() )
             dispatch(*e);
     }
-
-    result_t exprConstraint(ConstraintExpression& c)
-    {
-        if ( c.subject() )
-            dispatch(*c.subject());
-
-        if ( c.constraint() )
-            dispatch(*c.constraint());
-    }
 };
 
 template <typename F>
@@ -883,19 +812,6 @@ struct HasFreeVariable
     {
         for ( auto const& e : s.expressions() )
             if ( dispatch(*e) )
-                return true;
-
-        return false;
-    }
-
-    result_t exprConstraint(ConstraintExpression const& c)
-    {
-        if ( c.subject() )
-            if ( dispatch(*c.subject()) )
-                return true;
-
-        if ( c.constraint() )
-            if ( dispatch(*c.constraint()) )
                 return true;
 
         return false;

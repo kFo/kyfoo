@@ -41,6 +41,7 @@ Expression::Expression(Kind kind, Declaration const* decl)
 
 Expression::Expression(Expression const& rhs)
     : myKind(rhs.myKind)
+    , myConstraints(ast::clone(rhs.myConstraints))
     , myDeclaration(rhs.myDeclaration)
 {
 }
@@ -51,7 +52,13 @@ void Expression::swap(Expression& rhs)
 {
     using std::swap;
     swap(myKind, rhs.myKind);
+    swap(myConstraints, rhs.myConstraints);
     swap(myDeclaration, rhs.myDeclaration);
+}
+
+void Expression::addConstraint(std::unique_ptr<Expression> expr)
+{
+    myConstraints.emplace_back(std::move(expr));
 }
 
 Expression::Kind Expression::kind() const
@@ -62,6 +69,16 @@ Expression::Kind Expression::kind() const
 Declaration const* Expression::declaration() const
 {
     return myDeclaration;
+}
+
+Slice<Expression*> Expression::constraints()
+{
+    return myConstraints;
+}
+
+const Slice<Expression*> Expression::constraints() const
+{
+    return myConstraints;
 }
 
 //
@@ -561,78 +578,6 @@ std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions(
 }
 
 //
-// ConstraintExpression
-
-ConstraintExpression::ConstraintExpression(std::unique_ptr<Expression> subject,
-                                           std::unique_ptr<Expression> constraint)
-    : base_t(Expression::Kind::Constraint)
-    , mySubject(std::move(subject))
-    , myConstraint(std::move(constraint))
-{
-    if ( !mySubject )
-        throw std::runtime_error("constraint expression must have a subject");
-
-    if ( !myConstraint )
-        throw std::runtime_error("constraint expression must have a constraint");
-}
-
-ConstraintExpression::ConstraintExpression(ConstraintExpression const& rhs)
-    : base_t(rhs)
-    , mySubject(rhs.mySubject->clone())
-    , myConstraint(rhs.myConstraint->clone())
-{
-}
-
-ConstraintExpression& ConstraintExpression::operator = (ConstraintExpression const& rhs)
-{
-    ConstraintExpression(rhs).swap(*this);
-    return *this;
-}
-
-void ConstraintExpression::swap(ConstraintExpression& rhs)
-{
-    Expression::swap(rhs);
-
-    using std::swap;
-    swap(mySubject, rhs.mySubject);
-    swap(myConstraint, rhs.myConstraint);
-}
-
-ConstraintExpression::~ConstraintExpression() = default;
-
-void ConstraintExpression::io(IStream& stream) const
-{
-    stream.next("subject", mySubject);
-    stream.next("constraint", myConstraint);
-}
-
-void ConstraintExpression::resolveSymbols(Context& ctx)
-{
-    ctx.resolveExpression(mySubject);
-    ctx.resolveExpression(myConstraint);
-}
-
-Expression* ConstraintExpression::subject()
-{
-    return mySubject.get();
-}
-
-Expression const* ConstraintExpression::subject() const
-{
-    return mySubject.get();
-}
-
-Expression* ConstraintExpression::constraint()
-{
-    return myConstraint.get();
-}
-
-Expression const* ConstraintExpression::constraint() const
-{
-    return myConstraint.get();
-}
-
-//
 // Utilities
 
 template <typename Dispatcher>
@@ -675,16 +620,6 @@ struct FrontExpression
 
         return dispatch(*s.expressions()[0]);
     }
-
-    result_t exprConstraint(ConstraintExpression const& c)
-    {
-        if ( c.subject() )
-            return dispatch(*c.subject());
-        else if ( c.constraint() )
-            return dispatch(*c.constraint());
-
-        throw std::runtime_error("expression has no traceable tokens");
-    }
 };
 
 lexer::Token const& front(Expression const& expr)
@@ -719,7 +654,7 @@ struct PrintOperator
         if ( !t.expressions().empty() ) {
             dispatch(*t.expressions()[0]);
 
-            for ( auto const& e : t.expressions()(1, $) ) {
+            for ( auto const& e : t.expressions()(1, t.expressions().size()) ) {
                 stream << presentTupleWeave(t.kind());
                 dispatch(*e);
             }
@@ -760,7 +695,7 @@ struct PrintOperator
             stream << '<';
             dispatch(*s.expressions()[0]);
 
-            for ( auto const& e : s.expressions()(1, $) ) {
+            for ( auto const& e : s.expressions()(1, s.expressions().size()) ) {
                 stream << ", ";
                 dispatch(*e);
             }
@@ -772,13 +707,6 @@ struct PrintOperator
             return stream << "<>";
 
         return stream;
-    }
-    
-    std::ostream& exprConstraint(ConstraintExpression const& c)
-    {
-        dispatch(*c.subject());
-        stream << " : ";
-        return dispatch(*c.constraint());
     }
 };
 
@@ -824,15 +752,6 @@ struct EnforceResolution
     {
         for ( auto const& e : s.expressions() )
             dispatch(*e);
-    }
-
-    void exprConstraint(ConstraintExpression const& c)
-    {
-        if ( c.subject() )
-            dispatch(*c.subject());
-
-        if ( c.constraint() )
-            dispatch(*c.constraint());
     }
 };
 
