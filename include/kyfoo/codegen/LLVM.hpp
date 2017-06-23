@@ -6,6 +6,7 @@
 namespace kyfoo {
 
     class Diagnostics;
+    class Error;
 
     namespace ast {
         class Module;
@@ -24,6 +25,8 @@ public:
     void write(std::experimental::filesystem::path const& path);
 
 private:
+    Error& error();
+
     Diagnostics& myDiagnostics;
     ast::Module* mySourceModule = nullptr;
 

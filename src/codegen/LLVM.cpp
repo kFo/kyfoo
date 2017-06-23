@@ -25,6 +25,8 @@
 #include <llvm/Target/TargetOptions.h>
 #pragma warning(pop)
 
+#include <kyfoo/Diagnostics.hpp>
+
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
 
@@ -128,91 +130,6 @@ llvm::Type* toType(ast::Expression const& expr)
 
     if ( auto dp = decl->as<ast::DataProductDeclaration>() )
         return customData(*dp)->type;
-
-    return nullptr;
-}
-
-llvm::Instruction* addInstruction(llvm::IRBuilder<>&, ast::Expression const&);
-
-llvm::Value* toValue(llvm::IRBuilder<>& builder, ast::Expression const& expr)
-{
-    if ( auto p = expr.as<ast::PrimaryExpression>() ) {
-        switch (p->token().kind()) {
-        case lexer::TokenKind::Identifier:
-        {
-            auto decl = p->declaration();
-            if ( !decl )
-                throw std::runtime_error("codegen: unresolved identifier");
-
-            if ( auto dsCtor = decl->as<ast::DataSumDeclaration::Constructor>() )
-                throw std::runtime_error("codegen: dsctor not implemented");
-
-            if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
-                auto pdata = customData(*proc);
-                return builder.CreateCall(pdata->body, llvm::None);
-            }
-
-            if ( auto var = decl->as<ast::VariableDeclaration>() ) {
-                auto vdata = customData(*var);
-                return vdata->value;
-            }
-
-            throw std::runtime_error("codegen: unhandled identifier");
-        }
-
-        case lexer::TokenKind::Integer:
-            // todo
-            return llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder.getContext()),
-                                          p->token().lexeme(), 10);
-
-        case lexer::TokenKind::Decimal:
-            // todo
-            return llvm::ConstantFP::get(llvm::Type::getDoubleTy(builder.getContext()),
-                                         p->token().lexeme());
-
-        case lexer::TokenKind::String:
-            // todo
-            return llvm::ConstantDataArray::get(builder.getContext(),
-                                                llvm::ArrayRef<std::uint8_t>(reinterpret_cast<std::uint8_t const*>(p->token().lexeme().c_str()), p->token().lexeme().size() + 1));
-        }
-
-        return nullptr;
-    }
-
-    if ( auto c = expr.as<ast::ConstraintExpression>() )
-        return toValue(builder, *c->subject());
-
-    return addInstruction(builder, expr);
-}
-
-llvm::Instruction* addInstruction(llvm::IRBuilder<>& builder,
-                                  ast::Expression const& expr)
-{
-    if ( auto p = expr.as<ast::PrimaryExpression>() ) {
-        auto decl = p->declaration();
-        if ( !decl )
-            return nullptr;
-
-        auto procDecl = decl->as<ast::ProcedureDeclaration>();
-        if ( !procDecl )
-            return nullptr;
-
-        return builder.CreateCall(customData(*procDecl)->body, llvm::None);
-    }
-
-    if ( auto a = expr.as<ast::ApplyExpression>() ) {
-        std::vector<llvm::Value*> params;
-        params.reserve(a->expressions().size() - 1);
-        if ( a->expressions().size() > 1 )
-            for ( auto const& e : a->expressions()(1, $) )
-                params.push_back(toValue(builder, *e));
-
-        auto fun = customData(*a->expressions()[0]->declaration()->as<ast::ProcedureDeclaration>());
-        return builder.CreateCall(fun->body, params);
-    }
-
-    if ( auto c = expr.as<ast::ConstraintExpression>() )
-        return addInstruction(builder, *c->subject());
 
     return nullptr;
 }
@@ -358,18 +275,22 @@ struct CodeGenPass
 
     Diagnostics& dgn;
     llvm::Module* module;
+    ast::Module* sourceModule;
 
     CodeGenPass(Dispatcher& dispatch,
                 Diagnostics& dgn,
-                llvm::Module* module)
+                llvm::Module* module,
+                ast::Module* sourceModule)
         : dispatch(dispatch)
         , dgn(dgn)
         , module(module)
+        , sourceModule(sourceModule)
     {
     }
 
     result_t declDataSum(ast::DataSumDeclaration const& )
     {
+        // todo
     }
 
     result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& )
@@ -379,7 +300,7 @@ struct CodeGenPass
 
     result_t declDataProduct(ast::DataProductDeclaration const& )
     {
-        // nop
+        // todo
     }
 
     result_t declSymbol(ast::SymbolDeclaration const& )
@@ -439,7 +360,7 @@ struct CodeGenPass
         for ( auto const& e : decl.definition()->expressions() ) {
             inst = addInstruction(builder, *e);
             if ( !inst )
-                throw std::runtime_error("codegen error");
+                die("invalid instruction");
         }
 
         // todo
@@ -448,6 +369,7 @@ struct CodeGenPass
 
     result_t declVariable(ast::VariableDeclaration const& )
     {
+        // nop
     }
 
     result_t declImport(ast::ImportDeclaration const& )
@@ -458,6 +380,90 @@ struct CodeGenPass
     result_t declSymbolVariable(ast::SymbolVariable const& )
     {
         // nop
+    }
+
+private:
+    void die(const char* msg)
+    {
+        dgn.error(sourceModule) << "codegen: " << msg;
+        dgn.die();
+    }
+
+    llvm::Value* toValue(llvm::IRBuilder<>& builder, ast::Expression const& expr)
+    {
+        if ( auto p = expr.as<ast::PrimaryExpression>() ) {
+            switch (p->token().kind()) {
+            case lexer::TokenKind::Identifier:
+            {
+                auto decl = p->declaration();
+                if ( !decl )
+                    die("unresolved identifier");
+
+                if ( auto dsCtor = decl->as<ast::DataSumDeclaration::Constructor>() )
+                    die("dsctor not implemented");
+
+                if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
+                    auto pdata = customData(*proc);
+                    return builder.CreateCall(pdata->body, llvm::None);
+                }
+
+                if ( auto var = decl->as<ast::VariableDeclaration>() ) {
+                    auto vdata = customData(*var);
+                    return vdata->value;
+                }
+
+                die("unhandled identifier");
+            }
+
+            case lexer::TokenKind::Integer:
+                // todo
+                return llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder.getContext()),
+                                              p->token().lexeme(), 10);
+
+            case lexer::TokenKind::Decimal:
+                // todo
+                return llvm::ConstantFP::get(llvm::Type::getDoubleTy(builder.getContext()),
+                                             p->token().lexeme());
+
+            case lexer::TokenKind::String:
+                // todo
+                return llvm::ConstantDataArray::get(builder.getContext(),
+                                                    llvm::ArrayRef<std::uint8_t>(reinterpret_cast<std::uint8_t const*>(p->token().lexeme().c_str()), p->token().lexeme().size() + 1));
+            }
+
+            return nullptr;
+        }
+
+        return addInstruction(builder, expr);
+    }
+
+    llvm::Instruction* addInstruction(llvm::IRBuilder<>& builder,
+                                      ast::Expression const& expr)
+    {
+        if ( auto p = expr.as<ast::PrimaryExpression>() ) {
+            auto decl = p->declaration();
+            if ( !decl )
+                return nullptr;
+
+            auto procDecl = decl->as<ast::ProcedureDeclaration>();
+            if ( !procDecl )
+                return nullptr;
+
+            return builder.CreateCall(customData(*procDecl)->body, llvm::None);
+        }
+
+        if ( auto a = expr.as<ast::ApplyExpression>() ) {
+            std::vector<llvm::Value*> params;
+            params.reserve(a->expressions().size() - 1);
+            if ( a->expressions().size() > 1 )
+                for ( auto const& e : a->expressions()(1, a->expressions().size()) )
+                    params.push_back(toValue(builder, *e));
+
+            auto fun = customData(*a->expressions()[0]->declaration()->as<ast::ProcedureDeclaration>());
+            return builder.CreateCall(fun->body, params);
+        }
+
+        return nullptr;
     }
 };
 
@@ -497,7 +503,8 @@ void LLVMGenerator::generate()
         regTypes(*d);
 
     ast::ShallowApply<CodeGenPass> gen(myDiagnostics,
-                                       myImpl->module.get());
+                                       myImpl->module.get(),
+                                       mySourceModule);
     for ( auto d : mySourceModule->scope()->childDeclarations() )
         gen(*d);
 }
@@ -528,8 +535,10 @@ void LLVMGenerator::write(std::experimental::filesystem::path const& path)
     std::string err;
     auto target = llvm::TargetRegistry::lookupTarget(targetTriple, err);
 
-    if ( !target )
-        throw std::runtime_error(err);
+    if ( !target ) {
+        error() << err;
+        return;
+    }
 
     auto cpu = "generic";
     auto features = "";
@@ -541,25 +550,32 @@ void LLVMGenerator::write(std::experimental::filesystem::path const& path)
     m->setDataLayout(targetMachine->createDataLayout());
 
     auto sourcePath = mySourceModule->path();
-    if ( sourcePath.empty() )
-        throw std::runtime_error("wtf");
+    if ( sourcePath.empty() ) {
+        error() << "cannot determine output name for module";
+        return;
+    }
 
     std::error_code ec;
     llvm::raw_fd_ostream outFile(path.string(), ec, llvm::sys::fs::F_None);
 
     if ( ec ) {
-        myDiagnostics.error(mySourceModule) << "failed to write object file: " << ec.message();
+        error() << "failed to write object file: " << ec.message();
         return;
     }
 
     llvm::legacy::PassManager pass;
     if ( targetMachine->addPassesToEmitFile(pass, outFile, llvm::TargetMachine::CGFT_ObjectFile) ) {
-        myDiagnostics.error(mySourceModule) << "cannot emit a file of this type for target machine " << targetTriple;
+        error() << "cannot emit a file of this type for target machine " << targetTriple;
         return;
     }
 
     pass.run(*m);
     outFile.flush();
+}
+
+Error& LLVMGenerator::error()
+{
+    return myDiagnostics.error(mySourceModule) << "codegen: ";
 }
 
     } // namespace codegen

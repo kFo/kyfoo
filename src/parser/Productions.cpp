@@ -28,7 +28,7 @@ struct Expression::impl : public
         }
 
         if ( auto c = factor<1>().capture() )
-            return std::make_unique<ast::ConstraintExpression>(std::move(subject), c->factor<1>().make());
+            subject->addConstraint(c->factor<1>().make());
 
         return subject;
     }

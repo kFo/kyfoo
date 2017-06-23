@@ -19,11 +19,10 @@ class SymbolReference;
 class LookupHit;
 
 #define EXPRESSION_KINDS(X) \
-    X(Primary   , PrimaryExpression) \
-    X(Tuple     , TupleExpression) \
-    X(Apply     , ApplyExpression) \
-    X(Symbol    , SymbolExpression) \
-    X(Constraint, ConstraintExpression)
+    X(Primary, PrimaryExpression) \
+    X(Tuple  , TupleExpression) \
+    X(Apply  , ApplyExpression) \
+    X(Symbol , SymbolExpression)
 
 class Expression : public INode
 {
@@ -58,8 +57,14 @@ protected:
     virtual void resolveSymbols(Context& ctx) = 0;
 
 public:
+    void addConstraint(std::unique_ptr<Expression> expr);
+
+public:
     Kind kind() const;
     Declaration const* declaration() const;
+
+    Slice<Expression*> constraints();
+    const Slice<Expression*> constraints() const;
 
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
@@ -68,7 +73,7 @@ private:
     Kind myKind;
 
 protected:
-    // Semantic state
+    std::vector<std::unique_ptr<Expression>> myConstraints;
     Declaration const* myDeclaration = nullptr;
 };
 
@@ -231,37 +236,6 @@ private:
 
     lexer::Token myOpenToken;
     lexer::Token myCloseToken;
-};
-
-class ConstraintExpression : public CloneableMixin<ConstraintExpression>
-{
-public:
-    ConstraintExpression(std::unique_ptr<Expression> subject,
-                         std::unique_ptr<Expression> constraint);
-    ConstraintExpression(ConstraintExpression const& rhs);
-    ConstraintExpression& operator = (ConstraintExpression const& rhs);
-    ~ConstraintExpression();
-
-    void swap(ConstraintExpression& rhs);
-
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
-    // Expression
-protected:
-    void resolveSymbols(Context& ctx) override;
-
-public:
-    Expression* subject();
-    Expression const* subject() const;
-
-    Expression* constraint();
-    Expression const* constraint() const;
-
-private:
-    std::unique_ptr<Expression> mySubject;
-    std::unique_ptr<Expression> myConstraint;
 };
 
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }
