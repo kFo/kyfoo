@@ -12,6 +12,7 @@
 
 #include <kyfoo/parser/Parse.hpp>
 
+#include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
@@ -23,7 +24,10 @@ namespace kyfoo {
 //
 // ModuleSet
 
-ModuleSet::ModuleSet() = default;
+ModuleSet::ModuleSet()
+    : myAxioms(createAxiomsModule())
+{
+}
 
 ModuleSet::~ModuleSet() = default;
 
@@ -85,6 +89,11 @@ Module* ModuleSet::find(std::experimental::filesystem::path const& path)
             return m.get();
 
     return nullptr;
+}
+
+AxiomsModule const* ModuleSet::axioms() const
+{
+    return myAxioms.get();
 }
 
 //
@@ -238,6 +247,11 @@ Module* Module::import(Diagnostics& dgn, lexer::Token const& token)
 
     myImports.push_back(mod);
     return myImports.back();
+}
+
+AxiomsModule const* Module::axioms() const
+{
+    return myModuleSet->axioms();
 }
 
 std::vector<Module*> const& Module::imports() const

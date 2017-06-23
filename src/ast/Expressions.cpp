@@ -5,10 +5,11 @@
 
 #include <kyfoo/Diagnostics.hpp>
 
+#include <kyfoo/ast/Axioms.hpp>
+#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
-#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -251,7 +252,9 @@ void TupleExpression::resolveSymbols(Context& ctx)
 
     if ( myKind == TupleKind::Open ) {
         if ( myExpressions.empty() ) {
-            // todo: void
+            auto p = std::make_unique<PrimaryExpression>(myOpenToken);
+            p->myDeclaration = ctx.module()->axioms()->emptyType();
+            return ctx.rewrite(std::move(p));
         }
         else if ( myExpressions.size() == 1 ) {
             return ctx.rewrite(std::move(myExpressions[0]));

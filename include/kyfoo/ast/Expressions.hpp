@@ -90,6 +90,10 @@ public:
 class PrimaryExpression : public CloneableMixin<PrimaryExpression>
 {
 public:
+    // Empty open-tuple lowers to PrimaryExpression
+    friend class TupleExpression;
+
+public:
     explicit PrimaryExpression(lexer::Token const& token);
     PrimaryExpression(PrimaryExpression const& rhs);
     PrimaryExpression& operator = (PrimaryExpression const& rhs);

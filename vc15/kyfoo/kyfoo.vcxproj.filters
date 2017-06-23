@@ -78,9 +78,6 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ast\Axioms.hpp">
-      <Filter>src\ast</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
@@ -101,6 +98,9 @@
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp">
       <Filter>include\kyfoo\codegen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp">
+      <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

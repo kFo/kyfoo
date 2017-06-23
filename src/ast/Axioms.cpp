@@ -18,7 +18,7 @@ ssize = staticSize
     count : integer wordSize
 )axioms";
 
-#include "Axioms.hpp"
+#include <kyfoo/ast/Axioms.hpp>
 
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Declarations.hpp>
@@ -28,15 +28,34 @@ ssize = staticSize
 namespace kyfoo {
     namespace ast {
 
-Module* createAxiomsModule(ModuleSet* moduleSet)
+//
+// AxiomsModule
+
+AxiomsModule::AxiomsModule(ModuleSet* moduleSet, std::string const& name)
+    : Module(moduleSet, name)
+    , myEmptyType(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token())))
+{
+}
+
+AxiomsModule::~AxiomsModule() = default;
+
+DataSumDeclaration const* AxiomsModule::emptyType() const
+{
+    return myEmptyType.get();
+}
+
+//
+// ModuleSet (partial)
+
+std::unique_ptr<AxiomsModule> ModuleSet::createAxiomsModule()
 {
     std::stringstream s(source);
-    auto module = moduleSet->createImplied("axioms");
+    auto ret = std::make_unique<AxiomsModule>(this, "axioms");
     Diagnostics dgn;
     try {
-        module->parse(dgn, s);
+        ret->parse(dgn, s);
         if ( !dgn.errorCount() )
-            return module;
+            return ret;
     }
     catch (Diagnostics*) {
         // fall through
@@ -45,7 +64,7 @@ Module* createAxiomsModule(ModuleSet* moduleSet)
         // fall through
     }
 
-    throw std::runtime_error("axioms module contains errors");
+    return nullptr;
 }
 
     } // namespace ast
