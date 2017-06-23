@@ -18,6 +18,7 @@ namespace kyfoo {
 
 class DeclarationScope;
 class Module;
+class AxiomsModule;
 
 class ModuleSet
 {
@@ -34,7 +35,13 @@ public:
     Module* find(std::string const& name);
     Module* find(std::experimental::filesystem::path const& path);
 
+    AxiomsModule const* axioms() const;
+
 private:
+    std::unique_ptr<AxiomsModule> createAxiomsModule();
+
+private:
+    std::unique_ptr<AxiomsModule> myAxioms;
     std::vector<std::unique_ptr<Module>> myModules;
     std::vector<Module*> myImpliedImports;
 };
@@ -65,6 +72,7 @@ public:
 
     Module* import(Module* module);
     Module* import(Diagnostics& dgn, lexer::Token const& token);
+    AxiomsModule const* axioms() const;
     std::vector<Module*> const& imports() const;
     DeclarationScope const* scope() const;
     bool imports(Module* module) const;

@@ -12,14 +12,13 @@
 
 #include <kyfoo/parser/Parse.hpp>
 
+#include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
 #include <kyfoo/codegen/LLVM.hpp>
-
-#include "ast/Axioms.hpp"
 
 namespace fs = std::experimental::filesystem;
 
@@ -167,7 +166,10 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
     auto ret = EXIT_SUCCESS;
     kyfoo::ast::ModuleSet moduleSet;
     try {
-        createAxiomsModule(&moduleSet);
+        if ( !moduleSet.axioms() ) {
+            std::cout << "ICE: axioms module contains errors" << std::endl;
+            return EXIT_FAILURE;
+        }
     }
     catch (std::exception const& e) {
         std::cout << "ICE: " << e.what() << std::endl;

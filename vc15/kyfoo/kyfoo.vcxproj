@@ -144,6 +144,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
@@ -165,7 +166,6 @@
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
-    <ClInclude Include="..\..\src\ast\Axioms.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />
