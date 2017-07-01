@@ -25,8 +25,10 @@ namespace kyfoo {
 // ModuleSet
 
 ModuleSet::ModuleSet()
-    : myAxioms(createAxiomsModule())
+    : myAxioms(new AxiomsModule(this, "axioms"))
 {
+    if ( !myAxioms->init() )
+        myAxioms.reset();
 }
 
 ModuleSet::~ModuleSet() = default;
@@ -91,6 +93,11 @@ Module* ModuleSet::find(std::experimental::filesystem::path const& path)
     return nullptr;
 }
 
+AxiomsModule* ModuleSet::axioms()
+{
+    return myAxioms.get();
+}
+
 AxiomsModule const* ModuleSet::axioms() const
 {
     return myAxioms.get();
@@ -104,6 +111,8 @@ Module::Module(ModuleSet* moduleSet,
     : myModuleSet(moduleSet)
     , myName(name)
 {
+    if ( moduleSet->axioms() )
+        myImports.push_back(moduleSet->axioms());
 }
 
 Module::Module(ModuleSet* moduleSet,
@@ -112,6 +121,8 @@ Module::Module(ModuleSet* moduleSet,
     , myPath(canonical(path).make_preferred())
 {
     myName = path.filename().replace_extension("").string();
+    if ( moduleSet->axioms() )
+        myImports.push_back(moduleSet->axioms());
 }
 
 Module::~Module() = default;
@@ -213,7 +224,7 @@ void Module::semantics(Diagnostics& dgn)
     myScope->resolveSymbols(dgn);
 }
 
-Module* Module::import(Module* module)
+Module const* Module::import(Module* module)
 {
     auto m = find(begin(myImports), end(myImports), module);
     if ( m != end(myImports) )
@@ -223,7 +234,7 @@ Module* Module::import(Module* module)
     return myImports.back();
 }
 
-Module* Module::import(Diagnostics& dgn, lexer::Token const& token)
+Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
 {
     auto mod = myModuleSet->create(token.lexeme());
     if ( !mod ) {
@@ -249,12 +260,22 @@ Module* Module::import(Diagnostics& dgn, lexer::Token const& token)
     return myImports.back();
 }
 
+AxiomsModule* Module::axioms()
+{
+    return myModuleSet->axioms();
+}
+
 AxiomsModule const* Module::axioms() const
 {
     return myModuleSet->axioms();
 }
 
-std::vector<Module*> const& Module::imports() const
+Slice<Module*> Module::imports()
+{
+    return myImports;
+}
+
+Slice<Module*> Module::imports() const
 {
     return myImports;
 }
