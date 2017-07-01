@@ -6,7 +6,6 @@
 namespace kyfoo {
 
     class Diagnostics;
-    class Error;
 
     namespace ast {
         class Module;
@@ -17,7 +16,7 @@ namespace kyfoo {
 class LLVMGenerator
 {
 public:
-    LLVMGenerator(Diagnostics& dgn, ast::Module* sourceModule);
+    LLVMGenerator(Diagnostics& dgn, ast::Module& sourceModule);
     ~LLVMGenerator();
 
 public:
@@ -25,11 +24,6 @@ public:
     void write(std::experimental::filesystem::path const& path);
 
 private:
-    Error& error();
-
-    Diagnostics& myDiagnostics;
-    ast::Module* mySourceModule = nullptr;
-
     struct LLVMState;
     std::unique_ptr<LLVMState> myImpl;
 };
