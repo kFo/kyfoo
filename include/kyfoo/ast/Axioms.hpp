@@ -12,18 +12,27 @@ class ModuleSet;
 
 class AxiomsModule : public Module
 {
-public:
+protected:
+    friend class ModuleSet;
     AxiomsModule(ModuleSet* moduleSet, std::string const& name);
+    
+    bool init();
+
+public:
     ~AxiomsModule();
 
 public:
     DataSumDeclaration const* emptyType() const;
+    DataSumDeclaration const* integerType() const;
+    DataSumDeclaration const* integerTemplate() const;
+    DataSumDeclaration const* pointerTemplate() const;
 
 private:
     std::unique_ptr<DataSumDeclaration> myEmptyType;
+    DataSumDeclaration const* myIntegerType = nullptr;
+    DataSumDeclaration const* myIntegerTemplate = nullptr;
+    DataSumDeclaration const* myPointerTemplate = nullptr;
 };
-
-AxiomsModule* createAxiomsModule(ModuleSet* moduleSet);
 
     } // namespace ast
 } // namespace kyfoo

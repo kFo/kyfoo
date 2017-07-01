@@ -130,6 +130,11 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
         return;
     }
 
+    if ( myToken.kind() == lexer::TokenKind::Integer ) {
+        myDeclaration = ctx.module()->axioms()->integerType();
+        return;
+    }
+
     if ( myToken.kind() != lexer::TokenKind::Identifier )
         return;
 

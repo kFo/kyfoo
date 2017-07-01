@@ -6,6 +6,8 @@
 
 namespace kyfoo {
 
+// todo: implement tail const slice
+
 template <typename T>
 class Slice
 {

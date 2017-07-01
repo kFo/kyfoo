@@ -1,21 +1,17 @@
 auto source = R"axioms(
+; todo: attributes for intrinsics
 :| integer
-
-wordSize = 32
 :| integer<\n : integer>
-
-:| integer<wordSize>
-
 :| pointer<\T>
 
-staticSize<\T>(p : pointer T) => wordSize
-ssize = staticSize
+wordSize = 64
+size_t = integer<wordSize>
 
-:& ascii ; todo: replace with instance of array<integer<7>>
+staticSize<\T>(p : pointer T) : size_t => wordSize
 
 :& array<\T>
     ptr : pointer T
-    count : integer wordSize
+    count : size_t
 )axioms";
 
 #include <kyfoo/ast/Axioms.hpp>
@@ -33,7 +29,7 @@ namespace kyfoo {
 
 AxiomsModule::AxiomsModule(ModuleSet* moduleSet, std::string const& name)
     : Module(moduleSet, name)
-    , myEmptyType(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token())))
+    , myEmptyType(std::make_unique<DataSumDeclaration>(Symbol("")))
 {
 }
 
@@ -44,18 +40,52 @@ DataSumDeclaration const* AxiomsModule::emptyType() const
     return myEmptyType.get();
 }
 
-//
-// ModuleSet (partial)
+DataSumDeclaration const* AxiomsModule::integerType() const
+{
+    return myIntegerType;
+}
 
-std::unique_ptr<AxiomsModule> ModuleSet::createAxiomsModule()
+DataSumDeclaration const* AxiomsModule::integerTemplate() const
+{
+    return myIntegerTemplate;
+}
+
+DataSumDeclaration const* AxiomsModule::pointerTemplate() const
+{
+    return myPointerTemplate;
+}
+
+bool AxiomsModule::init()
 {
     std::stringstream s(source);
-    auto ret = std::make_unique<AxiomsModule>(this, "axioms");
     Diagnostics dgn;
     try {
-        ret->parse(dgn, s);
-        if ( !dgn.errorCount() )
-            return ret;
+        parse(dgn, s);
+        if ( dgn.errorCount() )
+            return false;
+
+        resolveImports(dgn);
+        if ( dgn.errorCount() )
+            return false;
+
+        for ( auto const& decl : scope()->childDeclarations() ) {
+            auto const& sym = decl->symbol();
+            if ( sym.name() == "integer" ) {
+                if ( sym.parameters().empty() )
+                    myIntegerType = decl->as<DataSumDeclaration>();
+                else if ( sym.parameters().size() == 1 )
+                    myIntegerTemplate = decl->as<DataSumDeclaration>();
+            }
+            else if ( sym.name() == "pointer" && sym.parameters().size() == 1 ) {
+                myPointerTemplate = decl->as<DataSumDeclaration>();
+            }
+        }
+
+        semantics(dgn);
+        if ( dgn.errorCount() )
+            return false;
+
+        return true;
     }
     catch (Diagnostics*) {
         // fall through
@@ -64,7 +94,7 @@ std::unique_ptr<AxiomsModule> ModuleSet::createAxiomsModule()
         // fall through
     }
 
-    return nullptr;
+    return false;
 }
 
     } // namespace ast

@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/Node.hpp>
 
 namespace kyfoo {
@@ -35,6 +36,7 @@ public:
     Module* find(std::string const& name);
     Module* find(std::experimental::filesystem::path const& path);
 
+    AxiomsModule* axioms();
     AxiomsModule const* axioms() const;
 
 private:
@@ -70,11 +72,16 @@ public:
     void resolveImports(Diagnostics& dgn);
     void semantics(Diagnostics& dgn);
 
-    Module* import(Module* module);
-    Module* import(Diagnostics& dgn, lexer::Token const& token);
+    Module const* import(Module* module);
+    Module const* import(Diagnostics& dgn, lexer::Token const& token);
+    
+    AxiomsModule* axioms();
     AxiomsModule const* axioms() const;
-    std::vector<Module*> const& imports() const;
+
+    Slice<Module*> imports();
+    Slice<Module*> imports() const;
     DeclarationScope const* scope() const;
+
     bool imports(Module* module) const;
     bool parsed() const;
 

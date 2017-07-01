@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -7,6 +8,7 @@
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/IO.hpp>
+#include <kyfoo/ast/Node.hpp>
 
 namespace kyfoo {
 
