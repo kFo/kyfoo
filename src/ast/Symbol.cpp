@@ -4,6 +4,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Context.hpp>
+#include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
@@ -107,6 +108,15 @@ Symbol::paramlist_t const& Symbol::parameters() const
     return myParameters;
 }
 
+bool Symbol::hasFreeVariables() const
+{
+    for ( auto const& e : myVariables )
+        if ( !e->boundExpression() )
+            return true;
+
+    return false;
+}
+
 void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
     Context ctx(dgn, resolver);
@@ -122,6 +132,17 @@ void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
         }
     }
 
+    ctx.resolveExpressions(myParameters);
+}
+
+void Symbol::bindSymbols(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings)
+{
+    for ( auto const& e : bindings ) {
+        auto var = createVariable(e.first->name());
+        var->bindExpression(e.second);
+    }
+
+    Context ctx(dgn, resolver);
     ctx.resolveExpressions(myParameters);
 }
 
@@ -183,15 +204,31 @@ SymbolReference::paramlist_t const& SymbolReference::parameters() const
 //
 // SymbolSet
 
-SymbolSet::SymbolSet(std::string const& name)
-    : myName(name)
+SymbolSet::SymbolSet(DeclarationScope* scope, std::string const& name)
+    : myScope(scope)
+    , myName(name)
 {
 }
 
+SymbolSet::SymbolSet(SymbolSet const& rhs)
+    : myScope(rhs.myScope)
+    , myName(rhs.myName)
+    , mySet(rhs.mySet)
+{
+}
+
+SymbolSet& SymbolSet::operator = (SymbolSet const& rhs)
+{
+    SymbolSet(rhs).swap(*this);
+    return *this;
+}
+
 SymbolSet::SymbolSet(SymbolSet&& rhs)
-    : myName(std::move(rhs.myName))
+    : myScope(rhs.myScope)
+    , myName(std::move(rhs.myName))
     , mySet(std::move(rhs.mySet))
 {
+    rhs.myScope = nullptr;
 }
 
 SymbolSet& SymbolSet::operator = (SymbolSet&& rhs)
@@ -204,19 +241,27 @@ SymbolSet& SymbolSet::operator = (SymbolSet&& rhs)
 
 SymbolSet::~SymbolSet() = default;
 
+void SymbolSet::swap(SymbolSet& rhs)
+{
+    using std::swap;
+    swap(myScope, rhs.myScope);
+    swap(myName, rhs.myName);
+    swap(mySet, rhs.mySet);
+}
+
 std::string const& SymbolSet::name() const
 {
     return myName;
 }
 
-Slice<SymbolSet::pair_t> const SymbolSet::declarations() const
+Slice<SymbolSet::SymbolTemplate> const SymbolSet::prototypes() const
 {
     return mySet;
 }
 
 void SymbolSet::append(paramlist_t const& paramlist, Declaration& declaration)
 {
-    pair_t overload;
+    SymbolTemplate overload;
 
     auto const size = paramlist.size();
     overload.paramlist.reserve(size);
@@ -242,19 +287,70 @@ Declaration const* SymbolSet::findEquivalent(SymbolReference::paramlist_t const&
     return const_cast<SymbolSet*>(this)->findEquivalent(paramlist);
 }
 
-Declaration* SymbolSet::findValue(SymbolReference::paramlist_t const& paramlist)
+Declaration* SymbolSet::findValue(Diagnostics& dgn,
+                                  SymbolReference::paramlist_t const& paramlist)
 {
-    for ( auto const& e : mySet ) {
-        if ( matchValue(e.paramlist, paramlist) )
-            return e.declaration;
+    for ( auto& e : mySet ) {
+        ValueMatcher m;
+        if ( m.matchValue(e.paramlist, paramlist) ) {
+            if ( !e.declaration->symbol().hasFreeVariables() )
+                return e.declaration;
+
+            if ( !m.rightBindings.empty() )
+                return e.declaration;
+
+            return instantiate(dgn, e, m.leftBindings);
+        }
     }
 
     return nullptr;
 }
 
-Declaration const* SymbolSet::findValue(SymbolReference::paramlist_t const& paramlist) const
+Declaration const* SymbolSet::findValue(Diagnostics& dgn,
+                                        SymbolReference::paramlist_t const& paramlist) const
 {
-    return const_cast<SymbolSet*>(this)->findValue(paramlist);
+    return const_cast<SymbolSet*>(this)->findValue(dgn, paramlist);
+}
+
+Declaration* SymbolSet::instantiate(Diagnostics& dgn,
+                                    SymbolTemplate& proto,
+                                    binding_set_t const& bindingSet)
+{
+    // use existing instantiation if it exists
+    for ( auto const& e : proto.instanceBindings ) {
+        if ( e.size() != bindingSet.size() )
+            continue;
+
+        std::size_t index = 0;
+        auto l = begin(e);
+        auto r = begin(bindingSet);
+        while ( l != end(e) ) {
+            if ( !matchEquivalent(*l->second, *r->second) )
+                break;
+
+            ++l;
+            ++r;
+            ++index;
+        }
+
+        if ( l == end(e) )
+            return proto.instantiations[index];
+    }
+
+    // create new instantiation
+    auto instance = ast::clone(proto.declaration);
+
+    ScopeResolver resolver(myScope);
+    instance->symbol().bindSymbols(dgn, resolver, bindingSet);
+
+    if ( auto proc = instance->as<ProcedureDeclaration>() )
+        proc->resolvePrototypeSymbols(dgn);
+
+    instance->resolveSymbols(dgn);
+
+    proto.instantiations.push_back(instance.get());
+    myScope->append(std::move(instance));
+    return proto.instantiations.back();
 }
 
     } // namespace ast

@@ -13,6 +13,41 @@
 namespace kyfoo {
     namespace ast {
 
+namespace {
+    template <typename T>
+    bool compare(Slice<Expression*> lhs,
+                 Slice<Expression*> rhs,
+                 T& op)
+    {
+        if ( lhs.size() != rhs.size() )
+            return false;
+
+        if ( lhs.empty() && rhs.empty() )
+            return true;
+
+        auto const size = lhs.size();
+        for ( std::size_t i = 0; i < size; ++i )
+            if ( !op(*lhs[i], *rhs[i]) )
+                return false;
+
+        return true;
+    }
+
+    bool bind(binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
+    {
+        auto e = bindings.find(&symVar);
+        if ( e == end(bindings) ) {
+            // new binding
+            bindings[&symVar] = &expr;
+            return true;
+        }
+
+        // existing binding must be consistent
+        // todo: print diagnostics on mismatch
+        return matchEquivalent(*e->second, expr);
+    }
+} // namespace
+
 //
 // SymbolDependencyTracker
 
@@ -438,23 +473,50 @@ bool matchEquivalent(Expression const& lhs, Expression const& rhs)
     return noncommute(op, lhs, rhs);
 }
 
+bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
+{
+    auto op = [](auto const& l, auto const& r) { return matchEquivalent(l, r); };
+    return compare(lhs, rhs, op);
+}
+
 struct MatchInstantiable
 {
+    binding_set_t& bindingSet;
+
+    MatchInstantiable(binding_set_t& bindingSet)
+        : bindingSet(bindingSet)
+    {
+    }
+
+    bool bindSymVar(SymbolVariable const& sym, Expression const& expr)
+    {
+        auto e = bindingSet.find(&sym);
+        if ( e != end(bindingSet) ) {
+            // expr must agree with what is already bound
+            return matchEquivalent(*e->second, expr);
+        }
+
+        bindingSet[&sym] = &expr;
+        return true;
+    }
+
     // Primary match
 
     bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
     {
         if ( isIdentifier(l.token().kind()) ) {
-            if ( l.declaration()->kind() == DeclKind::SymbolVariable )
-                return true; // todo: symvar binding
+            if ( auto symVar = l.declaration()->as<SymbolVariable>() )
+                return bindSymVar(*symVar, r);
 
+            // todo: are these needed?
             if ( auto s = l.declaration()->as<SymbolDeclaration>() )
                 return noncommute(*this, *s->expression(), r);
 
             if ( isIdentifier(r.token().kind()) ) {
                 if ( r.declaration()->kind() == DeclKind::SymbolVariable )
-                    return true; // todo: symvar binding
+                    return false;
 
+                // todo: are these needed?
                 if ( auto s = r.declaration()->as<SymbolDeclaration>() )
                     return noncommute(*this, l, *s->expression());
 
@@ -466,7 +528,7 @@ struct MatchInstantiable
 
         if ( isIdentifier(r.token().kind()) ) {
             if ( r.declaration()->kind() == DeclKind::SymbolVariable )
-                throw std::runtime_error("symvar should be instantiated");
+                return false;
 
             if ( auto s = r.declaration()->as<SymbolDeclaration>() )
                 return noncommute(*this, l, *s->expression());
@@ -517,44 +579,32 @@ struct MatchInstantiable
  * Answers whether \p lhs could be instantiated by \p rhs for an
  * unknown binding of symbol variables
  */
-bool matchInstantiable(Expression const& lhs, Expression const& rhs)
+bool matchInstantiable(binding_set_t& bindingSet,
+                       Expression const& lhs,
+                       Expression const& rhs)
 {
-    MatchInstantiable op;
+    MatchInstantiable op(bindingSet);
     return noncommute(op, lhs, rhs);
 }
 
-template <typename Dispatcher>
-struct DeclOp
+bool matchInstantiable(binding_set_t& bindingSet,
+                       Slice<Expression*> lhs,
+                       Slice<Expression*> rhs)
 {
-    using result_t = Declaration const*;
-    Dispatcher& dispatch;
+    if ( lhs.empty() )
+        return rhs.empty();
 
-    DeclOp(Dispatcher& dispatch)
-        : dispatch(dispatch)
-    {
+    auto const size = lhs.size();
+    if ( size != rhs.size() )
+        return false;
+
+    for ( std::size_t i = 0; i < size; ++i ) {
+        if ( !matchInstantiable(bindingSet, *lhs[i], *rhs[i]) )
+            return false;
     }
 
-    result_t exprPrimary(PrimaryExpression const& p)
-    {
-        return p.declaration();
-    }
-
-    result_t exprTuple(TupleExpression const&)
-    {
-        // todo: tuple of types
-        return nullptr;
-    }
-
-    result_t exprApply(ApplyExpression const& a)
-    {
-        return a.declaration();
-    }
-
-    result_t exprSymbol(SymbolExpression const& s)
-    {
-        return s.declaration();
-    }
-};
+    return true;
+}
 
 bool isCovariant(lexer::Token const& target, lexer::Token const& query)
 {
@@ -568,9 +618,8 @@ bool isCovariant(Declaration const& target, lexer::Token const& query)
             return target.symbol().name() == "integer";
         else if ( query.kind() == lexer::TokenKind::Decimal )
             return target.symbol().name() == "rational";
-        else if ( query.kind() == lexer::TokenKind::String ) {
+        else if ( query.kind() == lexer::TokenKind::String )
             return target.symbol().name() == "ascii";
-        }
     }
 
     return false;
@@ -593,58 +642,96 @@ bool isCovariant(Declaration const& target, Declaration const& query)
     return false;
 }
 
-Expression const& lookThrough(SymbolDeclaration const& symDecl)
+Expression const* lookThrough(Declaration const* decl)
 {
-    ShallowApply<DeclOp> op;
-    Expression const* expr = symDecl.expression();
-    for (;;) {
-        auto targetDecl = op(*expr);
-        if ( targetDecl ) {
-            if ( auto s = targetDecl->as<SymbolDeclaration>() ) {
-                expr = s->expression();
-                continue;
+    Expression const* ret = nullptr;
+    while ( decl ) {
+        Expression const* expr = nullptr;
+        if ( auto s = decl->as<SymbolDeclaration>() ) {
+            expr = s->expression();
+        }
+        else if ( auto symVar = decl->as<SymbolVariable>() ) {
+            if ( symVar->boundExpression() ) {
+                expr = symVar->boundExpression();
             }
         }
 
-        break;
+        if ( !expr )
+            break;
+
+        ret = expr;
+        decl = ret->declaration();
     }
 
-    return *expr;
+    return ret;
+}
+
+Declaration const* resolveIndirections(Declaration const* decl)
+{
+    if ( decl ) {
+        if ( auto expr = lookThrough(decl) ) {
+            if ( !expr->declaration() )
+                throw std::runtime_error("unresolved indirection");
+
+            return expr->declaration();
+        }
+    }
+
+    return decl;
+}
+
+Expression const* resolveIndirections(Expression const* expr)
+{
+    if ( expr ) {
+        if ( auto e = lookThrough(expr->declaration()) )
+            return e;
+    }
+
+    return expr;
+}
+
+//
+// ValueMatcher
+
+void ValueMatcher::reset()
+{
+    leftBindings.clear();
+    rightBindings.clear();
 }
 
 /**
  * Matches lhs :> value(rhs) semantically
- *
+ * 
  * Answers whether \p rhs 's value is covariant with type \p lhs
  */
-bool matchValue(Expression const& lhs, Expression const& rhs)
+bool ValueMatcher::matchValue(Expression const& lhs, Expression const& rhs)
 {
-    if ( hasFreeVariable(lhs) || hasFreeVariable(rhs) )
-        return matchInstantiable(lhs, rhs);
-
-    ShallowApply<DeclOp> op;
-    auto queryDecl = op(rhs);
-    if ( queryDecl ) {
-        if ( auto v = queryDecl->as<VariableDeclaration>() )
-            return matchValue(lhs, *v->constraint());
-    }
-
-    auto targetDecl = op(lhs);
+    auto queryDecl = rhs.declaration();
+    auto targetDecl = lhs.declaration();
 
     {
-        Expression const* l = nullptr;
-        if ( targetDecl )
-            if ( auto s = targetDecl->as<SymbolDeclaration>() )
-                l = &lookThrough(*s);
-
-        Expression const* r = nullptr;
-        if ( queryDecl )
-            if ( auto s = queryDecl->as<SymbolDeclaration>() )
-                r = &lookThrough(*s);
+        // resolve ast aliases and run again (normalizing)
+        auto l = lookThrough(targetDecl);
+        auto r = lookThrough(queryDecl);
 
         if ( l || r )
             return matchValue(l ? *l : lhs, r ? *r : rhs);
     }
+
+    if ( queryDecl ) {
+        // look through storage declarations to their constraints
+        // similar to looking through ast aliases (more normalization)
+        if ( auto proc = queryDecl->as<ProcedureDeclaration>() )
+            return matchValue(lhs, *proc->returnType());
+
+        if ( auto v = queryDecl->as<VariableDeclaration>() )
+            return matchValue(lhs, *v->constraint());
+    }
+
+    // assumes lhs is:
+    // - literal
+    // - data declaration
+    // - symbol variable
 
     if ( !targetDecl ) {
         // lhs is a literal
@@ -665,6 +752,8 @@ bool matchValue(Expression const& lhs, Expression const& rhs)
     }
     else {
         // lhs is an identifier
+        if ( auto symVar = targetDecl->as<SymbolVariable>() )
+            return bind(leftBindings, *symVar, rhs);
 
         if ( !queryDecl ) {
             // rhs is a literal
@@ -674,46 +763,15 @@ bool matchValue(Expression const& lhs, Expression const& rhs)
             return false;
         }
 
-        if ( targetDecl->kind() == DeclKind::SymbolVariable ) {
-            // todo: symvar binding
-            return true;
-        }
-
         return isCovariant(*targetDecl, *queryDecl);
     }
 
     return false;
 }
 
-template <typename T>
-bool compare(Slice<Expression*> lhs,
-             Slice<Expression*> rhs,
-             T& op)
+bool ValueMatcher::matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
-    if ( lhs.size() != rhs.size() )
-        return false;
-
-    if ( lhs.empty() && rhs.empty() )
-        return true;
-
-    auto const size = lhs.size();
-    for ( std::size_t i = 0; i < size; ++i ) {
-        if ( !op(*lhs[i], *rhs[i]) )
-            return false;
-    }
-
-    return true;
-}
-
-bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
-{
-    auto op = [](auto const& l, auto const& r) { return matchEquivalent(l, r); };
-    return compare(lhs, rhs, op);
-}
-
-bool matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs)
-{
-    auto op = [](auto const& l, auto const& r) { return matchValue(l, r); };
+    auto op = [this](auto const& l, auto const& r) { return matchValue(l, r); };
     return compare(lhs, rhs, op);
 }
 

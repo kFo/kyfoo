@@ -16,10 +16,14 @@ namespace kyfoo {
 
     namespace ast {
 
+class DeclarationScope;
 class IResolver;
 class Expression;
 class SymbolExpression;
+class SymbolDeclaration;
 class SymbolVariable;
+
+using binding_set_t = std::map<SymbolVariable const*, Expression const*>;
 
 class Symbol : public IIO
 {
@@ -58,6 +62,7 @@ public:
 
 public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
+    void bindSymbols(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings);
     SymbolVariable* findVariable(std::string const& identifier);
     SymbolVariable const* findVariable(std::string const& identifier) const;
     SymbolVariable* createVariable(std::string const& identifier);
@@ -66,6 +71,7 @@ public:
     lexer::Token const& identifier() const;
     std::string const& name() const;
     paramlist_t const& parameters() const;
+    bool hasFreeVariables() const;
 
 private:
     lexer::Token myIdentifier;
@@ -99,20 +105,25 @@ class SymbolSet
 public:
     using paramlist_t = SymbolReference::paramlist_t;
 
-    struct pair_t {
+    struct SymbolTemplate {
         std::vector<Expression*> paramlist;
         Declaration* declaration;
+        std::vector<binding_set_t> instanceBindings;
+        std::vector<Declaration*> instantiations;
     };
 
 public:
-    explicit SymbolSet(std::string const& name);
+    SymbolSet(DeclarationScope* scope, std::string const& name);
 
-    SymbolSet(SymbolSet const&) = delete;
+    SymbolSet(SymbolSet const& rhs);
+    SymbolSet& operator = (SymbolSet const& rhs);
 
     SymbolSet(SymbolSet&& rhs);
     SymbolSet& operator = (SymbolSet&& rhs);
 
     ~SymbolSet();
+
+    void swap(SymbolSet& rhs);
 
 public:
     bool operator < (std::string const& rhs) const { return myName < rhs; }
@@ -120,19 +131,27 @@ public:
 
 public:
     std::string const& name() const;
-    Slice<pair_t> const declarations() const;
+    Slice<SymbolTemplate> const prototypes() const;
 
     void append(paramlist_t const& paramlist, Declaration& declaration);
 
     Declaration* findEquivalent(paramlist_t const& paramlist);
     Declaration const* findEquivalent(paramlist_t const& paramlist) const;
 
-    Declaration* findValue(paramlist_t const& paramlist);
-    Declaration const* findValue(paramlist_t const& paramlist) const;
+    Declaration* findValue(Diagnostics& dgn,
+                           paramlist_t const& paramlist);
+    Declaration const* findValue(Diagnostics& dgn,
+                                 paramlist_t const& paramlist) const;
 
 private:
+    Declaration* instantiate(Diagnostics& dgn,
+                             SymbolTemplate& proto,
+                             binding_set_t const& bindingSet);
+
+private:
+    DeclarationScope* myScope = nullptr;
     std::string myName;
-    std::vector<pair_t> mySet;
+    std::vector<SymbolTemplate> mySet;
 };
 
     } // namesapce ast

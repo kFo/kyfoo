@@ -22,27 +22,13 @@ Module const* ScopeResolver::module() const
     return myScope->module();
 }
 
-LookupHit ScopeResolver::inScope(SymbolReference const& symbol) const
+LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
 {
-    auto hit = myScope->findEquivalent(symbol);
+    LookupHit hit = matchSupplementary(symbol);
     if ( hit )
         return hit;
 
-    if ( symbol.parameters().empty() )
-        for ( auto& s : mySupplementarySymbols )
-            if ( auto symVar = s->findVariable(symbol.name()) )
-                return std::move(hit.lookup(symVar));
-
-    return hit;
-}
-
-LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
-{
-    LookupHit hit;
-    if ( hit = inScope(symbol) )
-        return hit;
-
-    for ( auto scope = myScope->parent(); scope; scope = scope->parent() ) {
+    for ( auto scope = myScope; scope; scope = scope->parent() ) {
         if ( hit.append(scope->findEquivalent(symbol)) )
             return hit;
 
@@ -59,11 +45,14 @@ LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
     return hit;
 }
 
-LookupHit ScopeResolver::matchValue(SymbolReference const& symbol) const
+LookupHit ScopeResolver::matchValue(Diagnostics& dgn, SymbolReference const& symbol) const
 {
-    LookupHit hit;
+    LookupHit hit = matchSupplementary(symbol);
+    if ( hit )
+        return hit;
+
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findValue(symbol)) )
+        if ( hit.append(scope->findValue(dgn, symbol)) )
             return hit;
 
         if ( symbol.parameters().empty() )
@@ -73,22 +62,21 @@ LookupHit ScopeResolver::matchValue(SymbolReference const& symbol) const
     }
 
     for ( auto m : module()->imports() )
-        if ( hit.append(m->scope()->findValue(symbol)) )
+        if ( hit.append(m->scope()->findValue(dgn, symbol)) )
             return hit;
 
     return hit;
 }
 
-LookupHit ScopeResolver::matchProcedure(SymbolReference const& procOverload) const
+LookupHit ScopeResolver::matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const
 {
     LookupHit hit;
-    for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findProcedureOverload(procOverload)) )
+    for ( auto scope = myScope; scope; scope = scope->parent() )
+        if ( hit.append(scope->findProcedureOverload(dgn, procOverload)) )
             return hit;
-    }
-
+    
     for ( auto m : module()->imports() )
-        if ( hit.append(m->scope()->findProcedureOverload(procOverload)) )
+        if ( hit.append(m->scope()->findProcedureOverload(dgn, procOverload)) )
             return hit;
 
     return hit;
@@ -97,6 +85,17 @@ LookupHit ScopeResolver::matchProcedure(SymbolReference const& procOverload) con
 void ScopeResolver::addSupplementarySymbol(Symbol const& sym)
 {
     mySupplementarySymbols.push_back(&sym);
+}
+
+LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
+{
+    LookupHit hit;
+    if ( symbol.parameters().empty() )
+        for ( auto& s : mySupplementarySymbols )
+            if ( auto symVar = s->findVariable(symbol.name()) )
+                return std::move(hit.lookup(symVar));
+
+    return hit;
 }
 
 //
@@ -115,11 +114,6 @@ Module const* SymbolVariableCreatorFailoverResolver::module() const
     return myResolver->module();
 }
 
-LookupHit SymbolVariableCreatorFailoverResolver::inScope(SymbolReference const& symbol) const
-{
-    return myResolver->inScope(symbol);
-}
-
 LookupHit SymbolVariableCreatorFailoverResolver::matchEquivalent(SymbolReference const& symbol) const
 {
     if ( auto hit = myResolver->matchEquivalent(symbol) )
@@ -131,9 +125,9 @@ LookupHit SymbolVariableCreatorFailoverResolver::matchEquivalent(SymbolReference
     return LookupHit();
 }
 
-LookupHit SymbolVariableCreatorFailoverResolver::matchValue(SymbolReference const& symbol) const
+LookupHit SymbolVariableCreatorFailoverResolver::matchValue(Diagnostics& dgn, SymbolReference const& symbol) const
 {
-    if ( auto hit = myResolver->matchValue(symbol) )
+    if ( auto hit = myResolver->matchValue(dgn, symbol) )
         return hit;
 
     if ( symbol.parameters().empty() )
@@ -142,9 +136,9 @@ LookupHit SymbolVariableCreatorFailoverResolver::matchValue(SymbolReference cons
     return LookupHit();
 }
 
-LookupHit SymbolVariableCreatorFailoverResolver::matchProcedure(SymbolReference const& procOverload) const
+LookupHit SymbolVariableCreatorFailoverResolver::matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const
 {
-    return myResolver->matchProcedure(procOverload);
+    return myResolver->matchProcedure(dgn, procOverload);
 }
 
 //
@@ -157,6 +151,26 @@ Context::Context(Diagnostics& dgn, IResolver& resolver)
 }
 
 Context::~Context() = default;
+
+Module const* Context::module() const
+{
+    return myResolver->module();
+}
+
+LookupHit Context::matchEquivalent(SymbolReference const& sym) const
+{
+    return myResolver->matchEquivalent(sym);
+}
+
+LookupHit Context::matchValue(Diagnostics& dgn, SymbolReference const& sym) const
+{
+    return myResolver->matchValue(dgn, sym);
+}
+
+LookupHit Context::matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const
+{
+    return myResolver->matchProcedure(dgn, sym);
+}
 
 Error& Context::error(lexer::Token const& token)
 {
@@ -173,29 +187,14 @@ std::size_t Context::errorCount() const
     return myDiagnostics->errorCount();
 }
 
-Module const* Context::module() const
-{
-    return myResolver->module();
-}
-
-LookupHit Context::inScope(SymbolReference const& symbol) const
-{
-    return myResolver->inScope(symbol);
-}
-
-LookupHit Context::matchEquivalent(SymbolReference const& sym) const
-{
-    return myResolver->matchEquivalent(sym);
-}
-
 LookupHit Context::matchValue(SymbolReference const& sym) const
 {
-    return myResolver->matchValue(sym);
+    return myResolver->matchValue(*myDiagnostics, sym);
 }
 
 LookupHit Context::matchProcedure(SymbolReference const& sym) const
 {
-    return myResolver->matchProcedure(sym);
+    return myResolver->matchProcedure(*myDiagnostics, sym);
 }
 
 void Context::rewrite(std::unique_ptr<Expression> expr)

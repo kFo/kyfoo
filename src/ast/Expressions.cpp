@@ -124,8 +124,10 @@ IMPL_CLONE_REMAP_END
 void PrimaryExpression::resolveSymbols(Context& ctx)
 {
     if ( myToken.kind() == lexer::TokenKind::FreeVariable ) {
-        if ( !myDeclaration )
-            throw std::runtime_error("unbound free variable");
+        if ( !myDeclaration ) {
+            ctx.error(myToken) << "free variable not expected in this context";
+            return;
+        }
 
         return;
     }
@@ -138,7 +140,7 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
     if ( myToken.kind() != lexer::TokenKind::Identifier )
         return;
 
-    auto hit = ctx.matchEquivalent(Symbol(myToken));
+    auto hit = ctx.matchValue(Symbol(myToken));
     if ( !hit ) {
         if ( !hit.symSet() )
             ctx.error(myToken) << "undeclared identifier";
@@ -431,7 +433,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
         // todo: chained symbol sets
         // todo: lookup failures are not returning symbol sets
         if ( symHit.symSet() ) {
-            for ( auto const& sd : symHit.symSet()->declarations() )
+            for ( auto const& sd : symHit.symSet()->prototypes() )
                 err.see(sd.declaration);
         }
         return;

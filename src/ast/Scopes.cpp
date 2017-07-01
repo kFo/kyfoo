@@ -112,12 +112,20 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
                 proc->resolvePrototypeSymbols(dgn);
                 addProcedure(dgn, proc->symbol(), *proc);
             }
+            else if ( isMacroDeclaration(d->kind()) ) {
+                d->resolveSymbols(dgn);
+            }
         }
     }
 
     // Resolve definitions
-    for ( auto& e : myDeclarations )
-        e->resolveSymbols(dgn);
+    for ( auto& e : myDeclarations ) {
+        if ( isMacroDeclaration(e->kind()) )
+            continue;
+
+        if ( !e->symbol().hasFreeVariables() )
+            e->resolveSymbols(dgn);
+    }
 }
 
 /**
@@ -167,22 +175,22 @@ LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
  * mytype<"str">
  * \endcode
  */
-LookupHit DeclarationScope::findValue(SymbolReference const& symbol) const
+LookupHit DeclarationScope::findValue(Diagnostics& dgn, SymbolReference const& symbol) const
 {
     LookupHit hit;
     auto symSet = findSymbol(symbol.name());
     if ( symSet )
-        hit.lookup(symSet, symSet->findValue(symbol.parameters()));
+        hit.lookup(symSet, symSet->findValue(dgn, symbol.parameters()));
 
     return hit;
 }
 
-LookupHit DeclarationScope::findProcedureOverload(SymbolReference const& procOverload) const
+LookupHit DeclarationScope::findProcedureOverload(Diagnostics& dgn, SymbolReference const& procOverload) const
 {
     LookupHit hit;
     auto symSet = findProcedure(procOverload.name());
     if ( symSet )
-        hit.lookup(symSet, static_cast<ProcedureDeclaration const*>(symSet->findValue(procOverload.parameters())));
+        hit.lookup(symSet, static_cast<ProcedureDeclaration const*>(symSet->findValue(dgn, procOverload.parameters())));
 
     return hit;
 }
@@ -211,7 +219,7 @@ SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
     if ( l != end(mySymbols) && l->name() == name )
         return &*l;
 
-    l = mySymbols.insert(l, SymbolSet(name));
+    l = mySymbols.insert(l, SymbolSet(this, name));
     return &*l;
 }
 
@@ -221,7 +229,7 @@ SymbolSet* DeclarationScope::createProcedureOverloadSet(std::string const& name)
     if ( l != end(myProcedureOverloads) && l->name() == name )
         return &*l;
 
-    l = myProcedureOverloads.insert(l, SymbolSet(name));
+    l = myProcedureOverloads.insert(l, SymbolSet(this, name));
     return &*l;
 }
 

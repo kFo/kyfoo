@@ -29,10 +29,9 @@ public:
     virtual ~IResolver() = default;
 
     virtual Module const* module() const = 0;
-    virtual LookupHit inScope(SymbolReference const& symbol) const = 0;
     virtual LookupHit matchEquivalent(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchValue(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchProcedure(SymbolReference const& procOverload) const = 0;
+    virtual LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
+    virtual LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const = 0;
 };
 
 class ScopeResolver : public IResolver
@@ -43,13 +42,13 @@ public:
     // IResolver
 public:
     Module const* module() const override;
-    LookupHit inScope(SymbolReference const& symbol) const override;
     LookupHit matchEquivalent(SymbolReference const& symbol) const override;
-    LookupHit matchValue(SymbolReference const& symbol) const override;
-    LookupHit matchProcedure(SymbolReference const& procOverload) const override;
+    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const override;
+    LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const override;
 
 public:
     void addSupplementarySymbol(Symbol const& sym);
+    LookupHit matchSupplementary(SymbolReference const& symbol) const;
 
 private:
     DeclarationScope* myScope = nullptr;
@@ -64,10 +63,9 @@ public:
 
 public:
     Module const* module() const override;
-    LookupHit inScope(SymbolReference const& symbol) const override;
     LookupHit matchEquivalent(SymbolReference const& symbol) const override;
-    LookupHit matchValue(SymbolReference const& symbol) const override;
-    LookupHit matchProcedure(SymbolReference const& procOverload) const override;
+    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const override;
+    LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const override;
 
 private:
     IResolver* myResolver = nullptr;
@@ -80,16 +78,20 @@ public:
     Context(Diagnostics& dgn, IResolver& resolver);
     ~Context();
 
+    // IResolver
+public:
+    Module const* module() const override;
+    LookupHit matchEquivalent(SymbolReference const& sym) const override;
+    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& sym) const override;
+    LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const override;
+
 public:
     Error& error(lexer::Token const& token);
     Error& error(Expression const& expr);
     std::size_t errorCount() const;
 
-    Module const* module() const override;
-    LookupHit inScope(SymbolReference const& symbol) const override;
-    LookupHit matchEquivalent(SymbolReference const& sym) const override;
-    LookupHit matchValue(SymbolReference const& sym) const override;
-    LookupHit matchProcedure(SymbolReference const& sym) const override;
+    LookupHit matchValue(SymbolReference const& sym) const;
+    LookupHit matchProcedure(SymbolReference const& sym) const;
 
     void rewrite(std::unique_ptr<Expression> expr);
 

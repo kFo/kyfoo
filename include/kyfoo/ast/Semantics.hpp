@@ -144,17 +144,29 @@ struct SymbolDependencyTracker
     void sortPasses();
 };
 
+struct ValueMatcher
+{
+    binding_set_t leftBindings;
+    binding_set_t rightBindings;
+
+    void reset();
+    bool matchValue(Expression const& lhs, Expression const& rhs);
+    bool matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs);
+};
+
 void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
 
 bool isCovariant(lexer::Token const& target, lexer::Token const& query);
 bool isCovariant(Declaration const& target, lexer::Token const& query);
 bool isCovariant(Declaration const& target, Declaration const& query);
 
-bool matchEquivalent(Expression const& lhs, Expression const& rhs);
-bool matchValue(Expression const& lhs, Expression const& rhs);
+Expression const* lookThrough(Declaration const* decl);
+Declaration const* resolveIndirections(Declaration const* decl);
+Expression const* resolveIndirections(Expression const* expr);
 
+// todo: functor like ValueMatcher
+bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
-bool matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
 bool hasFreeVariable(Expression const& expr);

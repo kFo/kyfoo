@@ -764,11 +764,25 @@ IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(SymbolVariable, Declaration)
 IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myBoundExpression)
 IMPL_CLONE_REMAP_END
 
 void SymbolVariable::resolveSymbols(Diagnostics&)
 {
     throw std::runtime_error("symbol variables should not be resolved");
+}
+
+void SymbolVariable::bindExpression(Expression const* expr)
+{
+    if ( myBoundExpression )
+        throw std::runtime_error("symbol variable is already bound to an expression");
+
+    myBoundExpression = expr;
+}
+
+Expression const* SymbolVariable::boundExpression() const
+{
+    return myBoundExpression;
 }
 
 std::string const& SymbolVariable::name() const
@@ -794,6 +808,21 @@ bool isDataDeclaration(DeclKind kind)
     }
 
     return false;
+}
+
+bool isMacroDeclaration(DeclKind kind)
+{
+    switch (kind) {
+    case DeclKind::Symbol:
+        return true;
+    }
+
+    return false;
+}
+
+bool hasIndirection(DeclKind kind)
+{
+    return isMacroDeclaration(kind) || kind == DeclKind::SymbolVariable;
 }
 
     } // namespace ast
