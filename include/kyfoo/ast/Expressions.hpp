@@ -36,14 +36,16 @@ public:
 #undef X
     };
 
-    ~Expression();
-
 protected:
     explicit Expression(Kind kind);
     Expression(Kind kind, Declaration const* decl);
     Expression(Expression const& rhs);
     Expression& operator = (Expression const& rhs) = delete;
 
+public:
+    ~Expression();
+
+protected:
     void swap(Expression& rhs);
 
     // IIO
@@ -51,7 +53,9 @@ public:
     void io(IStream& stream) const override = 0;
 
 public:
-    virtual std::unique_ptr<Expression> clone() const = 0;
+    virtual Expression* clone(clone_map_t& map) const = 0;
+    virtual void cloneChildren(Expression& c, clone_map_t& map) const;
+    virtual void remapReferences(clone_map_t const& map);
 
 protected:
     virtual void resolveSymbols(Context& ctx) = 0;
@@ -77,22 +81,7 @@ protected:
     Declaration const* myDeclaration = nullptr;
 };
 
-template <typename T>
-class CloneableMixin : public Expression
-{
-public:
-    using base_t = CloneableMixin<T>;
-
-public:
-    using Expression::Expression;
-
-    std::unique_ptr<Expression> clone() const override
-    {
-        return std::unique_ptr<Expression>(new T(*static_cast<T const*>(this)));
-    }
-};
-
-class PrimaryExpression : public CloneableMixin<PrimaryExpression>
+class PrimaryExpression : public Expression
 {
 public:
     // Empty open-tuple lowers to PrimaryExpression
@@ -100,8 +89,12 @@ public:
 
 public:
     explicit PrimaryExpression(lexer::Token const& token);
+
+protected:
     PrimaryExpression(PrimaryExpression const& rhs);
     PrimaryExpression& operator = (PrimaryExpression const& rhs);
+
+public:
     ~PrimaryExpression();
 
     void swap(PrimaryExpression& rhs);
@@ -111,6 +104,7 @@ public:
     void io(IStream& stream) const override;
 
     // Expression
+    DECL_CLONE_ALL(Expression)
 protected:
     void resolveSymbols(Context& ctx) override;
 
@@ -123,7 +117,7 @@ private:
     lexer::Token myToken;
 };
 
-class TupleExpression : public CloneableMixin<TupleExpression>
+class TupleExpression : public Expression
 {
 public:
     TupleExpression(TupleKind kind,
@@ -131,8 +125,12 @@ public:
     TupleExpression(lexer::Token const& open,
                     lexer::Token const& close,
                     std::vector<std::unique_ptr<Expression>>&& expressions);
+
+protected:
     TupleExpression(TupleExpression const& rhs);
     TupleExpression& operator = (TupleExpression const& rhs);
+
+public:
     ~TupleExpression();
 
     void swap(TupleExpression& rhs);
@@ -142,6 +140,7 @@ public:
     void io(IStream& stream) const override;
 
     // Expression
+    DECL_CLONE_ALL(Expression)
 protected:
     void resolveSymbols(Context& ctx) override;
 
@@ -165,12 +164,16 @@ private:
     lexer::Token myCloseToken;
 };
 
-class ApplyExpression : public CloneableMixin<ApplyExpression>
+class ApplyExpression : public Expression
 {
 public:
     ApplyExpression(std::vector<std::unique_ptr<Expression>>&& expressions);
+
+protected:
     ApplyExpression(ApplyExpression const& rhs);
     ApplyExpression& operator = (ApplyExpression const& rhs);
+
+public:
     ~ApplyExpression();
 
     void swap(ApplyExpression& rhs);
@@ -180,6 +183,7 @@ public:
     void io(IStream& stream) const override;
 
     // Expression
+    DECL_CLONE_ALL(Expression)
 protected:
     void resolveSymbols(Context& ctx) override;
 
@@ -196,7 +200,7 @@ private:
     std::vector<std::unique_ptr<Expression>> myExpressions;
 };
 
-class SymbolExpression : public CloneableMixin<SymbolExpression>
+class SymbolExpression : public Expression
 {
 public:
     SymbolExpression(lexer::Token const& identifier,
@@ -205,8 +209,12 @@ public:
     SymbolExpression(lexer::Token const& open,
                      lexer::Token const& close,
                      std::vector<std::unique_ptr<Expression>>&& expressions);
+
+protected:
     SymbolExpression(SymbolExpression const& rhs);
     SymbolExpression& operator = (SymbolExpression const& rhs);
+
+public:
     ~SymbolExpression();
 
     void swap(SymbolExpression& rhs);
@@ -216,6 +224,7 @@ public:
     void io(IStream& stream) const override;
 
     // Expression
+    DECL_CLONE_ALL(Expression)
 protected:
     void resolveSymbols(Context& ctx) override;
 

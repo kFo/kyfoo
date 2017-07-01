@@ -35,12 +35,49 @@ DeclarationScope::DeclarationScope(DeclarationScope* parent, Declaration& decl)
 {
 }
 
+DeclarationScope::DeclarationScope(DeclarationScope const& rhs)
+    : myModule(rhs.myModule)
+    , myDeclaration(rhs.myDeclaration)
+    , myParent(rhs.myParent)
+{
+    // mySymbols, myProcedures, and myImports are to be filled out
+    // by the semantic passes that build these indices
+}
+
+DeclarationScope& DeclarationScope::operator = (DeclarationScope const& rhs)
+{
+    DeclarationScope(rhs).swap(*this);
+    return *this;
+}
+
 DeclarationScope::~DeclarationScope() = default;
+
+void DeclarationScope::swap(DeclarationScope& rhs)
+{
+    using std::swap;
+    swap(myModule, rhs.myModule);
+    swap(myDeclaration, rhs.myDeclaration);
+    swap(myParent, rhs.myParent);
+    swap(myDeclarations, rhs.myDeclarations);
+    swap(mySymbols, rhs.mySymbols);
+    swap(myProcedureOverloads, rhs.myProcedureOverloads);
+    swap(myImports, rhs.myImports);
+}
 
 void DeclarationScope::io(IStream& stream) const
 {
     stream.next("declarations", myDeclarations);
 }
+
+IMPL_CLONE_NOBASE_BEGIN(DeclarationScope, DeclarationScope)
+IMPL_CLONE_CHILD(myDeclarations)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_NOBASE_BEGIN(DeclarationScope)
+IMPL_CLONE_REMAP(myModule)
+IMPL_CLONE_REMAP(myDeclaration)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myDeclarations)
+IMPL_CLONE_REMAP_END
 
 void DeclarationScope::resolveImports(Diagnostics& dgn)
 {
@@ -266,12 +303,33 @@ DataSumScope::DataSumScope(DeclarationScope* parent,
 {
 }
 
+DataSumScope::DataSumScope(DataSumScope const& rhs)
+    : DeclarationScope(rhs)
+{
+}
+
+DataSumScope& DataSumScope::operator = (DataSumScope const& rhs)
+{
+    DataSumScope(rhs).swap(*this);
+    return *this;
+}
+
 DataSumScope::~DataSumScope() = default;
+
+void DataSumScope::swap(DataSumScope& rhs)
+{
+    DeclarationScope::swap(rhs);
+}
 
 void DataSumScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
 }
+
+IMPL_CLONE_BEGIN(DataSumScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataSumScope, DeclarationScope)
+IMPL_CLONE_REMAP_END
 
 void DataSumScope::resolveSymbols(Diagnostics& dgn)
 {
@@ -303,12 +361,37 @@ DataProductScope::DataProductScope(DeclarationScope* parent,
 {
 }
 
+DataProductScope::DataProductScope(DataProductScope const& rhs)
+    : DeclarationScope(rhs)
+{
+    // myFields is populated by the semantic pass
+}
+
+DataProductScope& DataProductScope::operator = (DataProductScope const& rhs)
+{
+    DataProductScope(rhs).swap(*this);
+    return *this;
+}
+
 DataProductScope::~DataProductScope() = default;
+
+void DataProductScope::swap(DataProductScope& rhs)
+{
+    DeclarationScope::swap(rhs);
+    using std::swap;
+    swap(myFields, rhs.myFields);
+}
 
 void DataProductScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
 }
+
+IMPL_CLONE_BEGIN(DataProductScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataProductScope, DeclarationScope)
+IMPL_CLONE_REMAP(myFields)
+IMPL_CLONE_REMAP_END
 
 void DataProductScope::resolveSymbols(Diagnostics& dgn)
 {
@@ -343,13 +426,38 @@ ProcedureScope::ProcedureScope(DeclarationScope* parent,
 {
 }
 
+ProcedureScope::ProcedureScope(ProcedureScope const& rhs)
+    : DeclarationScope(rhs)
+{
+}
+
+ProcedureScope& ProcedureScope::operator = (ProcedureScope const& rhs)
+{
+    ProcedureScope(rhs).swap(*this);
+    return *this;
+}
+
 ProcedureScope::~ProcedureScope() = default;
+
+void ProcedureScope::swap(ProcedureScope& rhs)
+{
+    DeclarationScope::swap(rhs);
+    using std::swap;
+    swap(myExpressions, rhs.myExpressions);
+}
 
 void ProcedureScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
     stream.next("expressions", myExpressions);
 }
+
+IMPL_CLONE_BEGIN(ProcedureScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ProcedureScope, DeclarationScope)
+IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_END
 
 void ProcedureScope::resolveSymbols(Diagnostics& dgn)
 {

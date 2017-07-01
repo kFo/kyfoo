@@ -12,6 +12,11 @@ namespace kyfoo {
 //
 // Symbol
 
+Symbol::Symbol(std::string const& name)
+    : Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, name))
+{
+}
+
 Symbol::Symbol(lexer::Token const& identifier,
                std::vector<std::unique_ptr<Expression>>&& parameters)
     : myIdentifier(identifier)
@@ -22,6 +27,17 @@ Symbol::Symbol(lexer::Token const& identifier,
 Symbol::Symbol(lexer::Token const& identifier)
     : myIdentifier(identifier)
 {
+}
+
+Symbol::Symbol(Symbol const& rhs)
+    : myIdentifier(rhs.myIdentifier)
+{
+}
+
+Symbol& Symbol::operator = (Symbol const& rhs)
+{
+    Symbol(rhs).swap(*this);
+    return *this;
 }
 
 Symbol::Symbol(Symbol&& rhs)
@@ -41,6 +57,14 @@ Symbol& Symbol::operator = (Symbol&& rhs)
 
 Symbol::~Symbol() = default;
 
+void Symbol::swap(Symbol& rhs)
+{
+    using std::swap;
+    swap(myIdentifier, rhs.myIdentifier);
+    swap(myParameters, rhs.myParameters);
+    swap(myVariables, rhs.myVariables);
+}
+
 void Symbol::io(IStream& stream) const
 {
     stream.next("id", myIdentifier);
@@ -53,6 +77,15 @@ void Symbol::io(IStream& stream) const
         v->io(stream);
     stream.closeArray();
 }
+
+IMPL_CLONE_NOBASE_BEGIN(Symbol, Symbol)
+IMPL_CLONE_CHILD(myParameters)
+IMPL_CLONE_CHILD(myVariables)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_NOBASE_BEGIN(Symbol)
+IMPL_CLONE_REMAP(myParameters)
+IMPL_CLONE_REMAP(myVariables)
+IMPL_CLONE_REMAP_END
 
 bool Symbol::operator == (Symbol const& rhs) const
 {
