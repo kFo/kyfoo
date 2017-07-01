@@ -132,7 +132,7 @@ int codegenModule(kyfoo::ast::Module* m)
     kyfoo::Diagnostics dgn;
     kyfoo::StopWatch sw;
     try {
-        kyfoo::codegen::LLVMGenerator gen(dgn, m);
+        kyfoo::codegen::LLVMGenerator gen(dgn, *m);
         gen.generate();
         gen.write(kyfoo::codegen::toObjectFilepath(m->path()));
     }
@@ -212,8 +212,10 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
 
             m->parse(dgn);
             m->resolveImports(dgn);
-            for ( auto const& i : m->imports() )
-                append(i);
+            for ( auto const& i : m->imports() ) {
+                if ( i != moduleSet.axioms() )
+                    append(i);
+            }
         }
         catch (kyfoo::Diagnostics*) {
             // Handled below
@@ -239,6 +241,25 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
         queue.push(v);
     visited.clear();
 
+    {
+        // todo: better way to codegen axioms
+
+        kyfoo::Diagnostics dgn;
+        try {
+            kyfoo::codegen::LLVMGenerator gen(dgn, *moduleSet.axioms());
+            gen.generate();
+        }
+        catch (kyfoo::Diagnostics* d) {
+            // Handled below
+            d->dumpErrors(std::cout);
+            return EXIT_FAILURE;
+        }
+        catch (std::exception const& e ) {
+            std::cout << "ICE: " << e.what() << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
     while ( !queue.empty() ) {
         auto m = take();
         if ( (ret = analyzeModule(m, options & TreeDump)) != EXIT_SUCCESS )
@@ -247,9 +268,8 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
         if ( options & SemanticsOnly )
             continue;
 
-        if ( m->name() != "axioms" )
-            if ( (ret = codegenModule(m)) != EXIT_SUCCESS )
-                return ret;
+        if ( (ret = codegenModule(m)) != EXIT_SUCCESS )
+            return ret;
     }
 
     return ret;
@@ -266,6 +286,8 @@ void printHelp(fs::path const& arg0)
         "  scan, lexer, lex    Prints the lexer output of the module\n"
         "  parse, grammar      Prints the parse tree as JSON\n"
         "  semantics, sem      Checks the module for semantic errors"
+        "  semdump             Checks semantics and prints tree"
+        "  c, compile          Compiles the module"
         << std::endl;
 }
 
