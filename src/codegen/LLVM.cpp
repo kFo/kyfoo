@@ -77,51 +77,30 @@ LLVMCustomData<T>* customData(T const& decl)
     return static_cast<LLVMCustomData<T>*>(decl.codegenData());
 }
 
-llvm::Type* registerType(llvm::LLVMContext& context, ast::Declaration const& decl)
+int log2(std::uint32_t n)
 {
-    if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
-        // todo
-        if ( ds->symbol().name() == "i8" )
-            return llvm::Type::getInt8Ty(context);
+    int ret = 0;
+    while ( n >>= 1 )
+        ++ret;
+    return ret;
+}
 
-        if ( ds->symbol().name() == "i32" )
-            return llvm::Type::getInt32Ty(context);
+std::uint32_t nextPower2(std::uint32_t n)
+{
+    --n;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    ++n;
 
-        if ( ds->symbol().name() == "Pi32" )
-            return llvm::Type::getInt32PtrTy(context);
-
-        return nullptr;
-    }
-
-    if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
-        auto dpData = customData(*dp);
-        if ( dpData->type )
-            return dpData->type;
-
-        auto defn = dp->definition();
-        if ( !defn )
-            throw std::runtime_error("codegen: typereg error");
-
-        std::vector<llvm::Type*> fieldTypes;
-        fieldTypes.reserve(defn->fields().size());
-        for ( auto& f : defn->fields() ) {
-            auto type = registerType(context, *f->constraint()->declaration());
-            if ( !type )
-                throw std::runtime_error("codegen: type registration error");
-
-            fieldTypes.push_back(type);
-        }
-
-        dpData->type = llvm::StructType::create(context, fieldTypes, dp->symbol().name(), /*isPacked*/false);
-        return dpData->type;
-    }
-
-    return nullptr;
+    return n;
 }
 
 llvm::Type* toType(ast::Expression const& expr)
 {
-    auto decl = expr.declaration();
+    auto decl = resolveIndirections(expr.declaration());
     if ( !decl )
         return nullptr;
 
@@ -150,16 +129,25 @@ struct InitCodeGenPass
 
     result_t declDataSum(ast::DataSumDeclaration const& decl)
     {
+        if ( decl.symbol().hasFreeVariables() )
+            return;
+
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration>>());
     }
 
     result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& decl)
     {
+        if ( decl.symbol().hasFreeVariables() )
+            return;
+
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration::Constructor>>());
     }
 
     result_t declDataProduct(ast::DataProductDeclaration const& decl)
     {
+        if ( decl.symbol().hasFreeVariables() )
+            return;
+
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration>>());
     }
 
@@ -170,6 +158,9 @@ struct InitCodeGenPass
 
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
+        if ( decl.symbol().hasFreeVariables() )
+            return;
+
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureDeclaration>>());
 
         declVariable(*decl.result());
@@ -184,73 +175,6 @@ struct InitCodeGenPass
     result_t declVariable(ast::VariableDeclaration const& decl)
     {
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::VariableDeclaration>>());
-    }
-
-    result_t declImport(ast::ImportDeclaration const&)
-    {
-        // nop
-    }
-
-    result_t declSymbolVariable(ast::SymbolVariable const&)
-    {
-        // nop
-    }
-};
-
-//
-// RegisterTypesPass
-
-template <typename Dispatcher>
-struct RegisterTypesPass
-{
-    using result_t = void;
-    Dispatcher& dispatch;
-    Diagnostics& dgn;
-    llvm::Module* module;
-
-    RegisterTypesPass(Dispatcher& dispatch,
-                      Diagnostics& dgn,
-                      llvm::Module* module)
-        : dispatch(dispatch)
-        , dgn(dgn)
-        , module(module)
-    {
-    }
-
-    result_t declDataSum(ast::DataSumDeclaration const& ds)
-    {
-        auto data = customData(ds);
-        if ( !data->type )
-            data->type = registerType(module->getContext(), ds);
-    }
-
-    result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const&)
-    {
-        // nop
-    }
-
-    result_t declDataProduct(ast::DataProductDeclaration const& dp)
-    {
-        auto data = customData(dp);
-        if ( !data->type )
-            data->type = registerType(module->getContext(), dp);
-    }
-
-    result_t declSymbol(ast::SymbolDeclaration const&)
-    {
-        // nop
-    }
-
-    result_t declProcedure(ast::ProcedureDeclaration const& decl)
-    {
-        if ( auto defn = decl.definition() )
-            for ( auto& e : defn->childDeclarations() )
-                dispatch(*e);
-    }
-
-    result_t declVariable(ast::VariableDeclaration const&)
-    {
-        // nop
     }
 
     result_t declImport(ast::ImportDeclaration const&)
@@ -288,22 +212,22 @@ struct CodeGenPass
     {
     }
 
-    result_t declDataSum(ast::DataSumDeclaration const& )
+    result_t declDataSum(ast::DataSumDeclaration const&)
     {
         // todo
     }
 
-    result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& )
+    result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const&)
     {
         // nop
     }
 
-    result_t declDataProduct(ast::DataProductDeclaration const& )
+    result_t declDataProduct(ast::DataProductDeclaration const&)
     {
         // todo
     }
 
-    result_t declSymbol(ast::SymbolDeclaration const& )
+    result_t declSymbol(ast::SymbolDeclaration const&)
     {
         // nop
     }
@@ -367,17 +291,17 @@ struct CodeGenPass
         builder.CreateRet(inst);
     }
 
-    result_t declVariable(ast::VariableDeclaration const& )
+    result_t declVariable(ast::VariableDeclaration const&)
     {
         // nop
     }
 
-    result_t declImport(ast::ImportDeclaration const& )
+    result_t declImport(ast::ImportDeclaration const&)
     {
         // nop
     }
 
-    result_t declSymbolVariable(ast::SymbolVariable const& )
+    result_t declSymbolVariable(ast::SymbolVariable const&)
     {
         // nop
     }
@@ -468,24 +392,201 @@ private:
 };
 
 //
-// LLVMGenerator
+// LLVMGenerator::LLVMState
 
 struct LLVMGenerator::LLVMState
 {
-    LLVMState(std::string const& moduleName)
-        : context(std::make_unique<llvm::LLVMContext>())
-        , module(std::make_unique<llvm::Module>(moduleName, *context))
-    {
-    }
+    Diagnostics& dgn;
+    ast::Module& sourceModule;
 
     std::unique_ptr<llvm::LLVMContext> context;
     std::unique_ptr<llvm::Module> module;
+
+    LLVMState(Diagnostics& dgn,
+              ast::Module& sourceModule)
+        : dgn(dgn)
+        , sourceModule(sourceModule)
+        , context(std::make_unique<llvm::LLVMContext>())
+        , module(std::make_unique<llvm::Module>(sourceModule.name(), *context))
+    {
+    }
+
+    Error& error(ast::Declaration const& decl)
+    {
+        return dgn.error(&sourceModule, decl.symbol().identifier()) << "codegen: ";
+    }
+
+    Error& error(ast::Expression const& expr)
+    {
+        return dgn.error(&sourceModule, expr) << "codegen: ";
+    }
+
+    Error& error(lexer::Token const& token)
+    {
+        return dgn.error(&sourceModule, token) << "codegen: ";
+    }
+
+    Error& error()
+    {
+        return dgn.error(&sourceModule) << "codegen: ";
+    }
+
+    void die(std::string const& msg)
+    {
+        error() << msg;
+        dgn.die();
+    }
+
+    void die()
+    {
+        dgn.die();
+    }
+
+    void generate()
+    {
+        ast::ShallowApply<InitCodeGenPass> init;
+        for ( auto d : sourceModule.scope()->childDeclarations() )
+            init(*d);
+
+        for ( auto d : sourceModule.scope()->childDeclarations() )
+            registerTypes(*d);
+
+        ast::ShallowApply<CodeGenPass> gen(dgn, module.get(), &sourceModule);
+        for ( auto d : sourceModule.scope()->childDeclarations() )
+            gen(*d);
+    }
+
+    llvm::Type* intrinsicType(ast::Declaration const& decl)
+    {
+        if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
+            auto const& sym = ds->symbol();
+            if ( sym.name() == "integer" ) {
+                if ( sym.parameters().empty() )
+                    return (llvm::Type*)0x1; // todo: choose width based on expression
+
+                if ( sym.parameters().size() == 1 ) {
+                    if ( auto p = resolveIndirections(sym.parameters()[0].get())->as<ast::PrimaryExpression>() ) {
+                        if ( p->token().kind() == lexer::TokenKind::Integer ) {
+                            int n = std::atoi(p->token().lexeme().c_str());
+                            if ( n <= 0 ) {
+                                error(*p) << "cannot instantiate integer with size " << n;
+                                die();
+                            }
+
+                            return llvm::Type::getIntNTy(*context, nextPower2(n));
+                        }
+                    }
+                }
+            }
+            else if ( sym.name() == "pointer" ) {
+                if ( sym.parameters().size() == 1 ) {
+                    auto t = toType(*sym.parameters()[0]);
+                    return llvm::PointerType::get(t, 0);
+                }
+            }
+        }
+
+        if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
+            // todo
+        }
+
+        return nullptr;
+    }
+
+    llvm::Type* registerType(ast::Declaration const& decl)
+    {
+        if ( auto t = intrinsicType(decl) )
+            return t;
+
+        if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
+            auto dsData = customData(*ds);
+            if ( dsData->type )
+                return dsData->type;
+
+            auto defn = ds->definition();
+            if ( !defn ) {
+                error(*ds) << "missing definition";
+                die();
+            }
+
+            error(*ds) << "not implemented";
+            die();
+
+            return nullptr;
+        }
+
+        if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
+            auto dpData = customData(*dp);
+            if ( dpData->type )
+                return dpData->type;
+
+            auto defn = dp->definition();
+            if ( !defn ) {
+                error(*dp) << "missing definition";
+                die();
+            }
+
+            std::vector<llvm::Type*> fieldTypes;
+            fieldTypes.reserve(defn->fields().size());
+            for ( auto& f : defn->fields() ) {
+                auto type = registerType(*f->constraint()->declaration());
+                if ( !type ) {
+                    error(*f->constraint()->declaration()) << "type is not registered";
+                    die();
+                }
+
+                fieldTypes.push_back(type);
+            }
+
+            dpData->type = llvm::StructType::create(*context,
+                                                    fieldTypes,
+                                                    dp->symbol().name(),
+                                                    /*isPacked*/false);
+            return dpData->type;
+        }
+
+        return nullptr;
+    }
+
+    void registerTypes(ast::Declaration const& decl)
+    {
+        if ( auto ds = decl.as<ast::DataSumDeclaration>() )
+        {
+            if ( ds->symbol().hasFreeVariables() )
+                return;
+
+            auto data = customData(*ds);
+            if ( !data->type )
+                data->type = registerType(*ds);
+        }
+
+        if ( auto dp = decl.as<ast::DataProductDeclaration>() )
+        {
+            if ( dp->symbol().hasFreeVariables() )
+                return;
+
+            auto data = customData(*dp);
+            if ( !data->type )
+                data->type = registerType(*dp);
+        }
+
+        if ( auto proc = decl.as<ast::ProcedureDeclaration>() )
+        {
+            if ( proc->symbol().hasFreeVariables() )
+                return;
+
+            if ( auto defn = proc->definition() )
+                for ( auto& e : defn->childDeclarations() )
+                    registerTypes(*e);
+        }
+    }
 };
 
-LLVMGenerator::LLVMGenerator(Diagnostics& dgn, ast::Module* sourceModule)
-    : myDiagnostics(dgn)
-    , mySourceModule(sourceModule)
-    , myImpl(std::make_unique<LLVMState>(mySourceModule->name()))
+//
+// LLVMGenerator
+
+LLVMGenerator::LLVMGenerator(Diagnostics& dgn, ast::Module& sourceModule)
+    : myImpl(std::make_unique<LLVMState>(dgn, sourceModule))
 {
 }
 
@@ -493,20 +594,7 @@ LLVMGenerator::~LLVMGenerator() = default;
 
 void LLVMGenerator::generate()
 {
-    ast::ShallowApply<InitCodeGenPass> init;
-    for ( auto d : mySourceModule->scope()->childDeclarations() )
-        init(*d);
-
-    ast::ShallowApply<RegisterTypesPass> regTypes(myDiagnostics,
-                                                  myImpl->module.get());
-    for ( auto d : mySourceModule->scope()->childDeclarations() )
-        regTypes(*d);
-
-    ast::ShallowApply<CodeGenPass> gen(myDiagnostics,
-                                       myImpl->module.get(),
-                                       mySourceModule);
-    for ( auto d : mySourceModule->scope()->childDeclarations() )
-        gen(*d);
+    myImpl->generate();
 }
 
 void LLVMGenerator::write(std::experimental::filesystem::path const& path)
@@ -536,7 +624,7 @@ void LLVMGenerator::write(std::experimental::filesystem::path const& path)
     auto target = llvm::TargetRegistry::lookupTarget(targetTriple, err);
 
     if ( !target ) {
-        error() << err;
+        myImpl->error() << err;
         return;
     }
 
@@ -549,9 +637,9 @@ void LLVMGenerator::write(std::experimental::filesystem::path const& path)
 
     m->setDataLayout(targetMachine->createDataLayout());
 
-    auto sourcePath = mySourceModule->path();
+    auto sourcePath = myImpl->sourceModule.path();
     if ( sourcePath.empty() ) {
-        error() << "cannot determine output name for module";
+        myImpl->error() << "cannot determine output name for module";
         return;
     }
 
@@ -559,23 +647,18 @@ void LLVMGenerator::write(std::experimental::filesystem::path const& path)
     llvm::raw_fd_ostream outFile(path.string(), ec, llvm::sys::fs::F_None);
 
     if ( ec ) {
-        error() << "failed to write object file: " << ec.message();
+        myImpl->error() << "failed to write object file: " << ec.message();
         return;
     }
 
     llvm::legacy::PassManager pass;
     if ( targetMachine->addPassesToEmitFile(pass, outFile, llvm::TargetMachine::CGFT_ObjectFile) ) {
-        error() << "cannot emit a file of this type for target machine " << targetTriple;
+        myImpl->error() << "cannot emit a file of this type for target machine " << targetTriple;
         return;
     }
 
     pass.run(*m);
     outFile.flush();
-}
-
-Error& LLVMGenerator::error()
-{
-    return myDiagnostics.error(mySourceModule) << "codegen: ";
 }
 
     } // namespace codegen
