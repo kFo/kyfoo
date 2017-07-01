@@ -30,11 +30,25 @@ Declaration::Declaration(DeclKind kind,
                          DeclarationScope* scope)
     : myScope(scope)
     , myKind(kind)
-    , mySymbol(std::move(symbol))
+    , mySymbol(std::make_unique<Symbol>(std::move(symbol)))
+{
+}
+
+Declaration::Declaration(Declaration const& rhs)
+    : myKind(rhs.myKind)
 {
 }
 
 Declaration::~Declaration() = default;
+
+void Declaration::swap(Declaration& rhs)
+{
+    using std::swap;
+    swap(myKind, rhs.myKind);
+    swap(mySymbol, rhs.mySymbol);
+    swap(myScope, rhs.myScope);
+    // myCodeGenData does not get copied
+}
 
 void Declaration::io(IStream& stream) const
 {
@@ -43,6 +57,16 @@ void Declaration::io(IStream& stream) const
     stream.next("symbol", mySymbol);
 }
 
+void Declaration::cloneChildren(Declaration& c, clone_map_t& map) const
+{
+    c.mySymbol = ast::clone(mySymbol, map);
+}
+
+IMPL_CLONE_REMAP_NOBASE_BEGIN(Declaration)
+IMPL_CLONE_REMAP(myScope)
+IMPL_CLONE_REMAP(mySymbol)
+IMPL_CLONE_REMAP_END
+
 DeclKind Declaration::kind() const
 {
     return myKind;
@@ -50,17 +74,17 @@ DeclKind Declaration::kind() const
 
 Symbol& Declaration::symbol()
 {
-    return mySymbol;
+    return *mySymbol;
 }
 
 Symbol const& Declaration::symbol() const
 {
-    return mySymbol;
+    return *mySymbol;
 }
 
 lexer::Token const& Declaration::identifier() const
 {
-    return mySymbol.identifier();
+    return mySymbol->identifier();
 }
 
 DeclarationScope* Declaration::scope()
@@ -107,12 +131,31 @@ DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
 {
 }
 
+DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const& rhs)
+    : Declaration(rhs)
+{
+}
+
 DataSumDeclaration::~DataSumDeclaration() = default;
+
+void DataSumDeclaration::swap(DataSumDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myDefinition, rhs.myDefinition);
+}
 
 void DataSumDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
 }
+
+IMPL_CLONE_BEGIN(DataSumDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myDefinition)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, Declaration)
+IMPL_CLONE_REMAP(myDefinition)
+IMPL_CLONE_REMAP_END
 
 void DataSumDeclaration::resolveSymbols(Diagnostics& dgn)
 {
@@ -149,13 +192,42 @@ DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
 {
 }
 
+DataSumDeclaration::Constructor::Constructor(Constructor const& rhs)
+    : Declaration(rhs)
+    , myParent(rhs.myParent)
+    , myParameters(ast::clone(rhs.myParameters))
+{
+}
+
+DataSumDeclaration::Constructor& DataSumDeclaration::Constructor::operator = (Constructor const& rhs)
+{
+    Constructor(rhs).swap(*this);
+    return *this;
+}
+
 DataSumDeclaration::Constructor::~Constructor() = default;
+
+void DataSumDeclaration::Constructor::swap(Constructor& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myParent, rhs.myParent);
+    swap(myParameters, rhs.myParameters);
+}
 
 void DataSumDeclaration::Constructor::io(IStream& stream) const
 {
     Declaration::io(stream);
     stream.next("parameters", myParameters);
 }
+
+IMPL_CLONE_BEGIN(DataSumDeclaration::Constructor, Declaration, Declaration)
+IMPL_CLONE_CHILD(myParameters)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration::Constructor, Declaration)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myParameters)
+IMPL_CLONE_REMAP_END
 
 void DataSumDeclaration::Constructor::resolveSymbols(Diagnostics& dgn)
 {
@@ -197,7 +269,19 @@ DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
 {
 }
 
+DataProductDeclaration::DataProductDeclaration(DataProductDeclaration const& rhs)
+    : Declaration(rhs)
+{
+}
+
 DataProductDeclaration::~DataProductDeclaration() = default;
+
+void DataProductDeclaration::swap(DataProductDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myDefinition, rhs.myDefinition);
+}
 
 void DataProductDeclaration::io(IStream& stream) const
 {
@@ -205,6 +289,13 @@ void DataProductDeclaration::io(IStream& stream) const
     if ( definition() )
         definition()->io(stream);
 }
+
+IMPL_CLONE_BEGIN(DataProductDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myDefinition)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, Declaration)
+IMPL_CLONE_REMAP(myDefinition)
+IMPL_CLONE_REMAP_END
 
 void DataProductDeclaration::resolveSymbols(Diagnostics& dgn)
 {
@@ -241,13 +332,38 @@ SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
 {
 }
 
+SymbolDeclaration::SymbolDeclaration(SymbolDeclaration const& rhs)
+    : Declaration(rhs)
+{
+}
+
+SymbolDeclaration& SymbolDeclaration::operator = (SymbolDeclaration const& rhs)
+{
+    SymbolDeclaration(rhs).swap(*this);
+    return *this;
+}
+
 SymbolDeclaration::~SymbolDeclaration() = default;
+
+void SymbolDeclaration::swap(SymbolDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myExpression, rhs.myExpression);
+}
 
 void SymbolDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
     myExpression->io(stream);
 }
+
+IMPL_CLONE_BEGIN(SymbolDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(SymbolDeclaration, Declaration)
+IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP_END
 
 void SymbolDeclaration::resolveSymbols(Diagnostics& dgn)
 {
@@ -280,7 +396,20 @@ VariableDeclaration::VariableDeclaration(Symbol&& symbol,
 {
 }
 
+VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs)
+    : Declaration(rhs)
+{
+}
+
 VariableDeclaration::~VariableDeclaration() = default;
+
+void VariableDeclaration::swap(VariableDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myConstraint, rhs.myConstraint);
+    swap(myInitialization, rhs.myInitialization);
+}
 
 void VariableDeclaration::io(IStream& stream) const
 {
@@ -289,6 +418,15 @@ void VariableDeclaration::io(IStream& stream) const
     if ( myInitialization )
         stream.next("init", myInitialization);
 }
+
+IMPL_CLONE_BEGIN(VariableDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myConstraint)
+IMPL_CLONE_CHILD(myInitialization)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(VariableDeclaration, Declaration)
+IMPL_CLONE_REMAP(myConstraint)
+IMPL_CLONE_REMAP(myInitialization)
+IMPL_CLONE_REMAP_END
 
 void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
 {
@@ -343,12 +481,37 @@ ProcedureParameter::ProcedureParameter(Symbol&& symbol,
 {
 }
 
+ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs)
+    : VariableDeclaration(rhs)
+    , myParent(rhs.myParent)
+{
+}
+
+ProcedureParameter& ProcedureParameter::operator = (ProcedureParameter const& rhs)
+{
+    ProcedureParameter(rhs).swap(*this);
+    return *this;
+}
+
 ProcedureParameter::~ProcedureParameter() = default;
+
+void ProcedureParameter::swap(ProcedureParameter& rhs)
+{
+    VariableDeclaration::swap(rhs);
+    using std::swap;
+    swap(myParent, rhs.myParent);
+}
 
 void ProcedureParameter::io(IStream& stream) const
 {
     VariableDeclaration::io(stream);
 }
+
+IMPL_CLONE_BEGIN(ProcedureParameter, VariableDeclaration, Declaration)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, VariableDeclaration)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP_END
 
 void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
@@ -388,7 +551,30 @@ ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
         p->setParent(this);
 }
 
+ProcedureDeclaration::ProcedureDeclaration(ProcedureDeclaration const& rhs)
+    : Declaration(rhs)
+    , myParameters(ast::clone(rhs.myParameters))
+    , myResult(ast::clone(rhs.myResult))
+    , myDefinition(ast::clone(rhs.myDefinition))
+{
+}
+
+ProcedureDeclaration& ProcedureDeclaration::operator = (ProcedureDeclaration const& rhs)
+{
+    ProcedureDeclaration(rhs).swap(*this);
+    return *this;
+}
+
 ProcedureDeclaration::~ProcedureDeclaration() = default;
+
+void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myParameters, rhs.myParameters);
+    swap(myResult, rhs.myResult);
+    swap(myDefinition, rhs.myDefinition);
+}
 
 void ProcedureDeclaration::io(IStream& stream) const
 {
@@ -399,6 +585,17 @@ void ProcedureDeclaration::io(IStream& stream) const
     if ( myDefinition )
         stream.next("definition", myDefinition);
 }
+
+IMPL_CLONE_BEGIN(ProcedureDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myParameters)
+IMPL_CLONE_CHILD(myResult)
+IMPL_CLONE_CHILD(myDefinition)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
+IMPL_CLONE_REMAP(myParameters)
+IMPL_CLONE_REMAP(myResult)
+IMPL_CLONE_REMAP(myDefinition)
+IMPL_CLONE_REMAP_END
 
 void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 {
@@ -412,7 +609,7 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     Context ctx(dgn, resolver);
 
     // Resolve return
-    if ( !myResult ) {
+    if ( !myResult->constraint() ) {
         ctx.error(symbol().identifier()) << "inferred return type not implemented";
         return;
     }
@@ -442,7 +639,7 @@ ProcedureScope const* ProcedureDeclaration::definition() const
 void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
 {
     if ( myDefinition )
-        throw std::runtime_error("procedure " + mySymbol.name() + " is already defined");
+        throw std::runtime_error("procedure " + mySymbol->name() + " is already defined");
 
     myDefinition = std::move(definition);
     myDefinition->setDeclaration(this);
@@ -489,14 +686,33 @@ ImportDeclaration::ImportDeclaration(Symbol&& symbol)
 {
 }
 
-ImportDeclaration::~ImportDeclaration()
+ImportDeclaration::ImportDeclaration(ImportDeclaration const& rhs)
+    : Declaration(rhs)
 {
+}
+
+ImportDeclaration& ImportDeclaration::operator = (ImportDeclaration const& rhs)
+{
+    ImportDeclaration(rhs).swap(*this);
+    return *this;
+}
+
+ImportDeclaration::~ImportDeclaration() = default;
+
+void ImportDeclaration::swap(ImportDeclaration& rhs)
+{
+    Declaration::swap(rhs);
 }
 
 void ImportDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
 }
+
+IMPL_CLONE_BEGIN(ImportDeclaration, Declaration, Declaration)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ImportDeclaration, Declaration)
+IMPL_CLONE_REMAP_END
 
 void ImportDeclaration::resolveSymbols(Diagnostics&)
 {
@@ -513,13 +729,42 @@ SymbolVariable::SymbolVariable(Symbol& parent, std::string const& name)
 {
 }
 
+SymbolVariable::SymbolVariable(SymbolVariable const& rhs)
+    : Declaration(rhs)
+    , myParent(rhs.myParent)
+    , myName(rhs.myName)
+    , myBoundExpression(rhs.myBoundExpression)
+{
+}
+
+SymbolVariable& SymbolVariable::operator = (SymbolVariable const& rhs)
+{
+    SymbolVariable(rhs).swap(*this);
+    return *this;
+}
+
 SymbolVariable::~SymbolVariable() = default;
+
+void SymbolVariable::swap(SymbolVariable& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myParent, rhs.myParent);
+    swap(myName, rhs.myName);
+    swap(myBoundExpression, rhs.myBoundExpression);
+}
 
 void SymbolVariable::io(IStream& stream) const
 {
     Declaration::io(stream);
     stream.next("name", myName);
 }
+
+IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(SymbolVariable, Declaration)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP_END
 
 void SymbolVariable::resolveSymbols(Diagnostics&)
 {

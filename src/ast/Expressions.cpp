@@ -14,17 +14,6 @@
 namespace kyfoo {
     namespace ast {
 
-template <typename T>
-std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs)
-{
-    std::vector<std::unique_ptr<T>> ret;
-    ret.reserve(rhs.size());
-    for ( auto const& e : rhs )
-        ret.emplace_back(e->clone());
-
-    return ret;
-}
-
 //
 // Expression
 
@@ -56,6 +45,16 @@ void Expression::swap(Expression& rhs)
     swap(myDeclaration, rhs.myDeclaration);
 }
 
+void Expression::cloneChildren(Expression& c, clone_map_t& map) const
+{
+    IMPL_CLONE_CHILD(myConstraints)
+}
+
+IMPL_CLONE_REMAP_NOBASE_BEGIN(Expression)
+IMPL_CLONE_REMAP(myConstraints)
+IMPL_CLONE_REMAP(myDeclaration)
+IMPL_CLONE_REMAP_END
+
 void Expression::addConstraint(std::unique_ptr<Expression> expr)
 {
     myConstraints.emplace_back(std::move(expr));
@@ -85,13 +84,13 @@ const Slice<Expression*> Expression::constraints() const
 // PrimaryExpression
 
 PrimaryExpression::PrimaryExpression(lexer::Token const& token)
-    : base_t(Expression::Kind::Primary)
+    : Expression(Expression::Kind::Primary)
     , myToken(token)
 {
 }
 
 PrimaryExpression::PrimaryExpression(PrimaryExpression const& rhs)
-    : base_t(rhs)
+    : Expression(rhs)
     , myToken(rhs.myToken)
 {
 }
@@ -116,6 +115,11 @@ void PrimaryExpression::io(IStream& stream) const
 {
     stream.next("primary", myToken);
 }
+
+IMPL_CLONE_BEGIN(PrimaryExpression, Expression, Expression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(PrimaryExpression, Expression)
+IMPL_CLONE_REMAP_END
 
 void PrimaryExpression::resolveSymbols(Context& ctx)
 {
@@ -214,7 +218,7 @@ const char* presentTupleWeave(TupleKind)
 
 TupleExpression::TupleExpression(TupleKind kind,
                                  std::vector<std::unique_ptr<Expression>>&& expressions)
-    : base_t(Expression::Kind::Tuple)
+    : Expression(Expression::Kind::Tuple)
     , myKind(kind)
     , myExpressions(std::move(expressions))
 {
@@ -223,7 +227,7 @@ TupleExpression::TupleExpression(TupleKind kind,
 TupleExpression::TupleExpression(lexer::Token const& open,
                                  lexer::Token const& close,
                                  std::vector<std::unique_ptr<Expression>>&& expressions)
-    : base_t(Expression::Kind::Tuple)
+    : Expression(Expression::Kind::Tuple)
     , myKind(toTupleKind(open.kind(), close.kind()))
     , myExpressions(std::move(expressions))
     , myOpenToken(open)
@@ -232,9 +236,8 @@ TupleExpression::TupleExpression(lexer::Token const& open,
 }
 
 TupleExpression::TupleExpression(TupleExpression const& rhs)
-    : base_t(rhs)
+    : Expression(rhs)
     , myKind(rhs.myKind)
-    , myExpressions(ast::clone(rhs.myExpressions))
 {
 }
 
@@ -262,6 +265,13 @@ void TupleExpression::io(IStream& stream) const
         e->io(stream);
     stream.closeArray();
 }
+
+IMPL_CLONE_BEGIN(TupleExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(TupleExpression, Expression)
+IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_END
 
 void TupleExpression::resolveSymbols(Context& ctx)
 {
@@ -331,14 +341,13 @@ void TupleExpression::flattenOpenTuples()
 // ApplyExpression
 
 ApplyExpression::ApplyExpression(std::vector<std::unique_ptr<Expression>>&& expressions)
-    : base_t(Expression::Kind::Apply)
+    : Expression(Expression::Kind::Apply)
     , myExpressions(std::move(expressions))
 {
 }
 
 ApplyExpression::ApplyExpression(ApplyExpression const& rhs)
-    : base_t(rhs)
-    , myExpressions(ast::clone(rhs.myExpressions))
+    : Expression(rhs)
 {
 }
 
@@ -362,6 +371,13 @@ void ApplyExpression::io(IStream& stream) const
 {
     stream.next("expressions", myExpressions);
 }
+
+IMPL_CLONE_BEGIN(ApplyExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ApplyExpression, Expression)
+IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_END
 
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
@@ -461,14 +477,14 @@ ProcedureDeclaration const* ApplyExpression::declaration() const
 
 SymbolExpression::SymbolExpression(lexer::Token const& identifier,
                                    std::vector<std::unique_ptr<Expression>>&& expressions)
-    : base_t(Expression::Kind::Symbol)
+    : Expression(Expression::Kind::Symbol)
     , myIdentifier(identifier)
     , myExpressions(std::move(expressions))
 {
 }
 
 SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& expressions)
-    : base_t(Expression::Kind::Symbol)
+    : Expression(Expression::Kind::Symbol)
     , myExpressions(std::move(expressions))
 {
 }
@@ -476,7 +492,7 @@ SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& ex
 SymbolExpression::SymbolExpression(lexer::Token const& open,
                                    lexer::Token const& close,
                                    std::vector<std::unique_ptr<Expression>>&& expressions)
-    : base_t(Expression::Kind::Symbol)
+    : Expression(Expression::Kind::Symbol)
     , myExpressions(std::move(expressions))
     , myOpenToken(open)
     , myCloseToken(close)
@@ -484,8 +500,7 @@ SymbolExpression::SymbolExpression(lexer::Token const& open,
 }
 
 SymbolExpression::SymbolExpression(SymbolExpression const& rhs)
-    : base_t(rhs)
-    , myExpressions(ast::clone(rhs.myExpressions))
+    : Expression(rhs)
 {
 }
 
@@ -509,6 +524,13 @@ void SymbolExpression::io(IStream& stream) const
 {
     stream.next("expressions", myExpressions);
 }
+
+IMPL_CLONE_BEGIN(SymbolExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(SymbolExpression, Expression)
+IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_END
 
 void SymbolExpression::resolveSymbols(Context& ctx)
 {

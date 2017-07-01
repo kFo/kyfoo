@@ -50,14 +50,24 @@ protected:
                 Symbol&& symbol,
                 DeclarationScope* scope);
 
+    Declaration(Declaration const& rhs);
+    void operator = (Declaration const&) = delete;
+
+    Declaration(Declaration&&) = delete;
+
 public:
     ~Declaration();
+
+    void swap(Declaration& rhs);
 
     // IIO
 public:
     void io(IStream& stream) const override;
 
 public:
+    virtual Declaration* clone(clone_map_t& map) const = 0;
+    virtual void cloneChildren(Declaration& c, clone_map_t& map) const;
+    virtual void remapReferences(clone_map_t const& map);
     virtual void resolveSymbols(Diagnostics& dgn) = 0;
 
 public:
@@ -80,7 +90,7 @@ public:
 
 protected:
     DeclKind myKind;
-    Symbol mySymbol;
+    std::unique_ptr<Symbol> mySymbol;
     DeclarationScope* myScope = nullptr;
     mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
@@ -95,7 +105,17 @@ public:
     public:
         Constructor(Symbol&& symbol,
                     std::vector<std::unique_ptr<VariableDeclaration>>&& parameters);
+
+    protected:
+        Constructor(Constructor const& rhs);
+        Constructor& operator = (Constructor const& rhs);
+
+    public:
+        Constructor(Constructor&&) = delete;
+
         ~Constructor();
+
+        void swap(Constructor& rhs);
 
         // IIO
     public:
@@ -103,6 +123,7 @@ public:
 
         // Declaration
     public:
+        DECL_CLONE_ALL(Declaration)
         void resolveSymbols(Diagnostics& dgn) override;
 
     public:
@@ -119,7 +140,17 @@ public:
 
 public:
     explicit DataSumDeclaration(Symbol&& symbol);
+
+protected:
+    DataSumDeclaration(DataSumDeclaration const& rhs);
+    void operator = (DataSumDeclaration const& rhs);
+
+public:
+    DataSumDeclaration(DataSumDeclaration&&) = delete;
+
     ~DataSumDeclaration();
+
+    void swap(DataSumDeclaration& rhs);
 
     // IIO
 public:
@@ -127,6 +158,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -142,7 +174,17 @@ class DataProductDeclaration : public Declaration
 {
 public:
     explicit DataProductDeclaration(Symbol&& symbol);
+
+protected:
+    DataProductDeclaration(DataProductDeclaration const& rhs);
+    DataProductDeclaration& operator = (DataProductDeclaration const& rhs);
+
+public:
+    DataProductDeclaration(DataProductDeclaration&&) = delete;
+
     ~DataProductDeclaration();
+
+    void swap(DataProductDeclaration& rhs);
 
     // IIO
 public:
@@ -150,6 +192,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -166,7 +209,17 @@ class SymbolDeclaration : public Declaration
 public:
     SymbolDeclaration(Symbol&& symbol,
                       std::unique_ptr<Expression> expression);
+
+protected:
+    SymbolDeclaration(SymbolDeclaration const& rhs);
+    SymbolDeclaration& operator = (SymbolDeclaration const& rhs);
+
+public:
+    SymbolDeclaration(SymbolDeclaration&&) = delete;
+
     ~SymbolDeclaration();
+
+    void swap(SymbolDeclaration& rhs);
 
     // IIO
 public:
@@ -174,6 +227,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -191,7 +245,16 @@ public:
                         std::unique_ptr<Expression> constraint,
                         std::unique_ptr<Expression> init);
 
+protected:
+    VariableDeclaration(VariableDeclaration const& rhs);
+    VariableDeclaration& operator = (VariableDeclaration const& rhs);
+
+public:
+    VariableDeclaration(VariableDeclaration&&) = delete;
+
     ~VariableDeclaration();
+
+    void swap(VariableDeclaration& rhs);
 
     // IIO
 public:
@@ -199,6 +262,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -216,7 +280,17 @@ class ProcedureParameter : public VariableDeclaration
 public:
     ProcedureParameter(Symbol&& symbol,
                        std::unique_ptr<Expression> constraint);
+
+protected:
+    ProcedureParameter(ProcedureParameter const& rhs);
+    ProcedureParameter& operator = (ProcedureParameter const& rhs);
+
+public:
+    ProcedureParameter(ProcedureParameter&&) = delete;
+
     ~ProcedureParameter();
+
+    void swap(ProcedureParameter& rhs);
 
     // IIO
 public:
@@ -224,6 +298,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -240,7 +315,17 @@ public:
     ProcedureDeclaration(Symbol&& symbol,
                          std::vector<std::unique_ptr<ProcedureParameter>> parameters,
                          std::unique_ptr<ast::Expression> returnTypeExpression);
+
+protected:
+    ProcedureDeclaration(ProcedureDeclaration const& rhs);
+    ProcedureDeclaration& operator = (ProcedureDeclaration const& rhs);
+
+public:
+    ProcedureDeclaration(ProcedureDeclaration&&) = delete;
+
     ~ProcedureDeclaration();
+
+    void swap(ProcedureDeclaration& rhs);
 
     // IIO
 public:
@@ -248,6 +333,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -274,7 +360,17 @@ class ImportDeclaration : public Declaration
 {
 public:
     explicit ImportDeclaration(Symbol&& symbol);
+
+protected:
+    ImportDeclaration(ImportDeclaration const& rhs);
+    ImportDeclaration& operator = (ImportDeclaration const& rhs);
+
+public:
+    ImportDeclaration(ImportDeclaration&&) = delete;
+
     ~ImportDeclaration();
+
+    void swap(ImportDeclaration& rhs);
 
     // IIO
 public:
@@ -282,6 +378,7 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
 };
 
@@ -289,7 +386,17 @@ class SymbolVariable : public Declaration
 {
 public:
     SymbolVariable(Symbol& parent, std::string const& name);
+
+protected:
+    SymbolVariable(SymbolVariable const& rhs);
+    SymbolVariable& operator = (SymbolVariable const& rhs);
+
+public:
+    SymbolVariable(SymbolVariable&&) = delete;
+
     ~SymbolVariable();
+
+    void swap(SymbolVariable& rhs);
 
     // IIO
 public:
@@ -297,15 +404,20 @@ public:
 
     // Declaration
 public:
+    DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn);
 
 public:
     Symbol const& parent() const;
     std::string const& name() const;
 
+    void bindExpression(Expression const* expr);
+    Expression const* boundExpression() const;
+
 private:
     Symbol* myParent = nullptr;
     std::string myName;
+    Expression const* myBoundExpression = nullptr;
 };
 
 // sugar to avoid switching on DeclKind

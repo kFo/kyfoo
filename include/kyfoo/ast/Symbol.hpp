@@ -25,20 +25,31 @@ public:
     using paramlist_t = std::vector<std::unique_ptr<Expression>>;
 
 public:
+    explicit Symbol(std::string const& name);
     Symbol(lexer::Token const& identifier,
            std::vector<std::unique_ptr<Expression>>&& parameters);
     explicit Symbol(lexer::Token const& identifier);
 
-    Symbol(Symbol const&) = delete;
+protected:
+    Symbol(Symbol const& rhs);
+    Symbol& operator = (Symbol const& rhs);
 
+public:
     Symbol(Symbol&& rhs);
     Symbol& operator = (Symbol&& rhs);
 
     ~Symbol();
 
+    void swap(Symbol& rhs);
+
     // IIO
 public:
     void io(IStream& stream) const override;
+
+public:
+    Symbol* clone(clone_map_t& map) const;
+    void cloneChildren(Symbol& c, clone_map_t& map) const;
+    void remapReferences(clone_map_t const& map);
 
 public:
     bool operator == (Symbol const& rhs) const;

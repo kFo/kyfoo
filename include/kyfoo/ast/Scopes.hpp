@@ -142,13 +142,27 @@ public:
     explicit DeclarationScope(DeclarationScope* parent);
     DeclarationScope(DeclarationScope* parent,
                      Declaration& decl);
+
+protected:
+    DeclarationScope(DeclarationScope const& rhs);
+    DeclarationScope& operator = (DeclarationScope const& rhs);
+
+public:
+    DeclarationScope(DeclarationScope&&) = delete;
+
     ~DeclarationScope();
+
+    void swap(DeclarationScope& rhs);
 
     // IIO
 public:
     void io(IStream& stream) const override;
 
 public:
+    virtual DeclarationScope* clone(clone_map_t& map) const;
+    virtual void cloneChildren(DeclarationScope& c, clone_map_t& map) const;
+    virtual void remapReferences(clone_map_t const& map);
+
     virtual void resolveImports(Diagnostics& dgn);
     virtual void resolveSymbols(Diagnostics& dgn);
 
@@ -190,7 +204,17 @@ class DataSumScope : public DeclarationScope
 public:
     DataSumScope(DeclarationScope* parent,
                  DataSumDeclaration& declaration);
+
+protected:
+    DataSumScope(DataSumScope const& rhs);
+    DataSumScope& operator = (DataSumScope const& rhs);
+
+public:
+    DataSumScope(DataSumScope&&) = delete;
+
     ~DataSumScope();
+
+    void swap(DataSumScope& rhs);
 
     // IIO
 public:
@@ -198,6 +222,7 @@ public:
 
     // DeclarationScope
 public:
+    DECL_CLONE_ALL(DeclarationScope)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -209,7 +234,17 @@ class DataProductScope : public DeclarationScope
 public:
     DataProductScope(DeclarationScope* parent,
                      DataProductDeclaration& declaration);
+
+protected:
+    DataProductScope(DataProductScope const& rhs);
+    DataProductScope& operator = (DataProductScope const& rhs);
+
+public:
+    DataProductScope(DataProductScope&&) = delete;
+
     ~DataProductScope();
+
+    void swap(DataProductScope& rhs);
 
     // IIO
 public:
@@ -217,6 +252,7 @@ public:
 
     // DeclarationScope
 public:
+    DECL_CLONE_ALL(DeclarationScope)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
@@ -233,7 +269,17 @@ class ProcedureScope : public DeclarationScope
 public:
     ProcedureScope(DeclarationScope* parent,
                    ProcedureDeclaration& declaration);
+
+protected:
+    ProcedureScope(ProcedureScope const& rhs);
+    ProcedureScope& operator = (ProcedureScope const& rhs);
+
+public:
+    ProcedureScope(ProcedureScope&&) = delete;
+
     ~ProcedureScope();
+
+    void swap(ProcedureScope& rhs);
 
     // IIO
 public:
@@ -241,6 +287,7 @@ public:
 
     // DeclarationScope
 public:
+    DECL_CLONE_ALL(DeclarationScope)
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
