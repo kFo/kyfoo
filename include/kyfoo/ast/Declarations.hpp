@@ -429,6 +429,8 @@ private:
 #undef X
 
 bool isDataDeclaration(DeclKind kind);
+bool isMacroDeclaration(DeclKind kind);
+bool hasIndirection(DeclKind kind);
 
     } // namespace ast
 } // namespace kyfoo

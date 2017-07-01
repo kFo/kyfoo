@@ -12,6 +12,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
@@ -106,8 +107,8 @@ public:
     template <typename T>
     T const* as() const
     {
-        if ( myDecl )
-            return myDecl->as<T>();
+        if ( decl() )
+            return decl()->as<T>();
 
         return nullptr;
     }
@@ -172,8 +173,8 @@ public:
     void import(Module& module);
 
     LookupHit findEquivalent(SymbolReference const& symbol) const;
-    LookupHit findValue(SymbolReference const& symbol) const;
-    LookupHit findProcedureOverload(SymbolReference const& procOverload) const;
+    LookupHit findValue(Diagnostics& dgn, SymbolReference const& symbol) const;
+    LookupHit findProcedureOverload(Diagnostics& dgn, SymbolReference const& procOverload) const;
 
     SymbolSet* createSymbolSet(std::string const& name);
     SymbolSet* createProcedureOverloadSet(std::string const& name);
