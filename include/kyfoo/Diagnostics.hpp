@@ -68,7 +68,9 @@ public:
 
 public:
     Error& operator << (lexer::Token const& token);
-    Error& operator << (std::string const& rhs);
+
+    template <typename T>
+    friend Error& operator << (Error&, T&&);
 
 private:
     ast::Module const* myModule = nullptr;
@@ -78,6 +80,13 @@ private:
     std::ostringstream myInfo;
     std::vector<ast::Declaration const*> myReferences;
 };
+
+template <typename T>
+Error& operator << (Error& err, T&& rhs)
+{
+    err.myInfo << std::forward<T>(rhs);
+    return err;
+}
 
 std::ostream& operator << (std::ostream& sink, Error const& err);
 
