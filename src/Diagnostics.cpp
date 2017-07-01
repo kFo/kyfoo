@@ -79,12 +79,6 @@ Error& Error::operator << (lexer::Token const& token)
     return *this;
 }
 
-Error& Error::operator << (std::string const& rhs)
-{
-    myInfo << rhs;
-    return *this;
-}
-
 std::ostream& operator << (std::ostream& sink, Error const& err)
 {
     auto startLine = [&] {
