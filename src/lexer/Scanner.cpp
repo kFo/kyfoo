@@ -58,6 +58,24 @@ namespace
         return false;
     }
 
+    bool isIdentifierStart(char c)
+    {
+        return isLetter(c);
+    }
+
+    bool isIdentifierMid(char c)
+    {
+        if ( isLetter(c) || isNumber(c) )
+            return true;
+
+        switch (c) {
+        case '_': return true;
+        case '-': return true;
+        }
+
+        return false;
+    }
+
     bool isFreeVariable(char c)
     {
         return c == '\\';
@@ -284,9 +302,9 @@ Token Scanner::readNext()
     // Resync column with start of lexeme
     column = myColumn;
 
-    if ( isLetter(c) ) {
+    if ( isIdentifierStart(c) ) {
         do lexeme += nextChar();
-        while ( isLetter(peekChar()) || isNumber(peekChar()) );
+        while ( isIdentifierMid(peekChar()) );
 
         return Token(identifierKind(lexeme), myLine, column, lexeme);
     }
