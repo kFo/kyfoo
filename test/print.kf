@@ -1,0 +1,4 @@
+;WriteFile(handle : i32, buffer : Pi8, len : i32, written : Pi32, overlapped : Pvoid) : i1
+
+ftest(x : i32, y : i32) : i32 =>
+    add (add x y) y
