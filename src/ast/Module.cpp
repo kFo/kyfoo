@@ -260,6 +260,11 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
     return myImports.back();
 }
 
+void Module::appendTemplateInstance(Declaration const* instance)
+{
+    myTemplateInstantiations.push_back(instance);
+}
+
 AxiomsModule* Module::axioms()
 {
     return myModuleSet->axioms();
@@ -293,6 +298,11 @@ bool Module::imports(Module* module) const
 bool Module::parsed() const
 {
     return myScope.get() != nullptr;
+}
+
+Slice<Declaration const*> Module::templateInstantiations() const
+{
+    return myTemplateInstantiations;
 }
 
     } // namespace ast

@@ -8,6 +8,7 @@ namespace kyfoo {
     namespace ast {
 
 class DataSumDeclaration;
+class ProcedureDeclaration;
 class ModuleSet;
 
 class AxiomsModule : public Module
@@ -27,11 +28,14 @@ public:
     DataSumDeclaration const* integerTemplate() const;
     DataSumDeclaration const* pointerTemplate() const;
 
+    ProcedureDeclaration const* addInstruction() const;
+
 private:
     std::unique_ptr<DataSumDeclaration> myEmptyType;
     DataSumDeclaration const* myIntegerType = nullptr;
     DataSumDeclaration const* myIntegerTemplate = nullptr;
     DataSumDeclaration const* myPointerTemplate = nullptr;
+    ProcedureDeclaration const* myAddInstruction = nullptr;
 };
 
     } // namespace ast

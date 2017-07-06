@@ -124,7 +124,8 @@ std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs
 template <typename T>
 void remap(std::unique_ptr<T>& rhs, clone_map_t const& map)
 {
-    rhs->remapReferences(map);
+    if ( rhs )
+        rhs->remapReferences(map);
 }
 
 template <typename T>

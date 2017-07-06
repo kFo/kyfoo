@@ -179,8 +179,13 @@ LookupHit DeclarationScope::findValue(Diagnostics& dgn, SymbolReference const& s
 {
     LookupHit hit;
     auto symSet = findSymbol(symbol.name());
-    if ( symSet )
-        hit.lookup(symSet, symSet->findValue(dgn, symbol.parameters()));
+    if ( symSet ) {
+        auto t = symSet->findValue(dgn, symbol.parameters());
+        if ( t.instance )
+            myModule->appendTemplateInstance(t.instance);
+
+        hit.lookup(symSet, t.instance ? t.instance : t.parent);
+    }
 
     return hit;
 }
@@ -189,8 +194,14 @@ LookupHit DeclarationScope::findProcedureOverload(Diagnostics& dgn, SymbolRefere
 {
     LookupHit hit;
     auto symSet = findProcedure(procOverload.name());
-    if ( symSet )
-        hit.lookup(symSet, static_cast<ProcedureDeclaration const*>(symSet->findValue(dgn, procOverload.parameters())));
+    if ( symSet ) {
+        auto t = symSet->findValue(dgn, procOverload.parameters());
+        auto decl = t.instance ? t.instance : t.parent;
+        if ( t.instance )
+            myModule->appendTemplateInstance(t.instance);
+
+        hit.lookup(symSet, static_cast<ProcedureDeclaration const*>(decl));
+    }
 
     return hit;
 }

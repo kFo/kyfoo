@@ -17,6 +17,7 @@ namespace kyfoo {
 
     namespace ast {
 
+class Declaration;
 class DeclarationScope;
 class Module;
 class AxiomsModule;
@@ -74,7 +75,10 @@ public:
 
     Module const* import(Module* module);
     Module const* import(Diagnostics& dgn, lexer::Token const& token);
-    
+
+    void appendTemplateInstance(Declaration const* instance);
+
+public:
     AxiomsModule* axioms();
     AxiomsModule const* axioms() const;
 
@@ -85,11 +89,14 @@ public:
     bool imports(Module* module) const;
     bool parsed() const;
 
+    Slice<Declaration const*> templateInstantiations() const;
+
 private:
     ModuleSet* myModuleSet = nullptr;
     std::experimental::filesystem::path myPath;
     std::string myName;
     std::unique_ptr<DeclarationScope> myScope;
+    std::vector<Declaration const*> myTemplateInstantiations;
 
     std::vector<Module*> myImports;
 };

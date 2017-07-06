@@ -62,7 +62,7 @@ public:
 
 public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
-    void bindSymbols(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings);
+    void bindVariables(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings);
     SymbolVariable* findVariable(std::string const& identifier);
     SymbolVariable const* findVariable(std::string const& identifier) const;
     SymbolVariable* createVariable(std::string const& identifier);
@@ -71,6 +71,7 @@ public:
     lexer::Token const& identifier() const;
     std::string const& name() const;
     paramlist_t const& parameters() const;
+    bool isConcrete() const;
     bool hasFreeVariables() const;
 
 private:
@@ -138,15 +139,20 @@ public:
     Declaration* findEquivalent(paramlist_t const& paramlist);
     Declaration const* findEquivalent(paramlist_t const& paramlist) const;
 
-    Declaration* findValue(Diagnostics& dgn,
-                           paramlist_t const& paramlist);
-    Declaration const* findValue(Diagnostics& dgn,
-                                 paramlist_t const& paramlist) const;
+    struct TemplateInstance {
+        Declaration const* parent;
+        Declaration const* instance;
+    };
+
+    TemplateInstance findValue(Diagnostics& dgn,
+                               paramlist_t const& paramlist);
+    TemplateInstance const findValue(Diagnostics& dgn,
+                                     paramlist_t const& paramlist) const;
 
 private:
-    Declaration* instantiate(Diagnostics& dgn,
-                             SymbolTemplate& proto,
-                             binding_set_t const& bindingSet);
+    TemplateInstance instantiate(Diagnostics& dgn,
+                                 SymbolTemplate& proto,
+                                 binding_set_t const& bindingSet);
 
 private:
     DeclarationScope* myScope = nullptr;

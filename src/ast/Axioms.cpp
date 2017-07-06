@@ -4,13 +4,17 @@ auto source = R"axioms(
 :| integer<\n : integer>
 :| pointer<\T>
 
+i32 = integer<32>
+
 wordSize = 64
 size_t = integer<wordSize>
+
+add(x : i32, y : i32) : i32
 
 staticSize<\T>(p : pointer T) : size_t => wordSize
 
 :& array<\T>
-    ptr : pointer T
+    base : pointer T
     count : size_t
 )axioms";
 
@@ -55,6 +59,11 @@ DataSumDeclaration const* AxiomsModule::pointerTemplate() const
     return myPointerTemplate;
 }
 
+ProcedureDeclaration const* AxiomsModule::addInstruction() const
+{
+    return myAddInstruction;
+}
+
 bool AxiomsModule::init()
 {
     std::stringstream s(source);
@@ -78,6 +87,9 @@ bool AxiomsModule::init()
             }
             else if ( sym.name() == "pointer" && sym.parameters().size() == 1 ) {
                 myPointerTemplate = decl->as<DataSumDeclaration>();
+            }
+            else if ( sym.name() == "add" ) {
+                myAddInstruction = decl->as<ProcedureDeclaration>();
             }
         }
 

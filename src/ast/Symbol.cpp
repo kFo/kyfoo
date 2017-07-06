@@ -108,6 +108,21 @@ Symbol::paramlist_t const& Symbol::parameters() const
     return myParameters;
 }
 
+bool Symbol::isConcrete() const
+{
+    for ( auto const& v : myVariables ) {
+        auto expr = resolveIndirections(v->boundExpression());
+        if ( !expr || !expr->declaration() )
+            return false;
+
+        if ( auto sv = expr->declaration()->as<SymbolVariable>() )
+            if ( !sv->boundExpression() )
+                return false;
+    }
+
+    return true;
+}
+
 bool Symbol::hasFreeVariables() const
 {
     for ( auto const& e : myVariables )
@@ -135,10 +150,16 @@ void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
     ctx.resolveExpressions(myParameters);
 }
 
-void Symbol::bindSymbols(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings)
+void Symbol::bindVariables(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings)
 {
+    if ( bindings.size() != myVariables.size() )
+        throw std::runtime_error("template parameter binding mismatch");
+
     for ( auto const& e : bindings ) {
-        auto var = createVariable(e.first->name());
+        auto var = findVariable(e.first->name());
+        if ( !var )
+            throw std::runtime_error("template parameter binding mismatch");
+
         var->bindExpression(e.second);
     }
 
@@ -287,34 +308,37 @@ Declaration const* SymbolSet::findEquivalent(SymbolReference::paramlist_t const&
     return const_cast<SymbolSet*>(this)->findEquivalent(paramlist);
 }
 
-Declaration* SymbolSet::findValue(Diagnostics& dgn,
-                                  SymbolReference::paramlist_t const& paramlist)
+SymbolSet::TemplateInstance
+SymbolSet::findValue(Diagnostics& dgn,
+                     SymbolReference::paramlist_t const& paramlist)
 {
     for ( auto& e : mySet ) {
         ValueMatcher m;
         if ( m.matchValue(e.paramlist, paramlist) ) {
-            if ( !e.declaration->symbol().hasFreeVariables() )
-                return e.declaration;
+            if ( e.declaration->symbol().isConcrete() )
+                return { e.declaration, nullptr };
 
             if ( !m.rightBindings.empty() )
-                return e.declaration;
+                return { e.declaration, nullptr };
 
             return instantiate(dgn, e, m.leftBindings);
         }
     }
 
-    return nullptr;
+    return { nullptr, nullptr };
 }
 
-Declaration const* SymbolSet::findValue(Diagnostics& dgn,
-                                        SymbolReference::paramlist_t const& paramlist) const
+SymbolSet::TemplateInstance const
+SymbolSet::findValue(Diagnostics& dgn,
+                     SymbolReference::paramlist_t const& paramlist) const
 {
     return const_cast<SymbolSet*>(this)->findValue(dgn, paramlist);
 }
 
-Declaration* SymbolSet::instantiate(Diagnostics& dgn,
-                                    SymbolTemplate& proto,
-                                    binding_set_t const& bindingSet)
+SymbolSet::TemplateInstance
+SymbolSet::instantiate(Diagnostics& dgn,
+                       SymbolTemplate& proto,
+                       binding_set_t const& bindingSet)
 {
     // use existing instantiation if it exists
     for ( auto const& e : proto.instanceBindings ) {
@@ -334,14 +358,14 @@ Declaration* SymbolSet::instantiate(Diagnostics& dgn,
         }
 
         if ( l == end(e) )
-            return proto.instantiations[index];
+            return { proto.declaration, proto.instantiations[index] };
     }
 
     // create new instantiation
     auto instance = ast::clone(proto.declaration);
 
     ScopeResolver resolver(myScope);
-    instance->symbol().bindSymbols(dgn, resolver, bindingSet);
+    instance->symbol().bindVariables(dgn, resolver, bindingSet);
 
     if ( auto proc = instance->as<ProcedureDeclaration>() )
         proc->resolvePrototypeSymbols(dgn);
@@ -350,7 +374,7 @@ Declaration* SymbolSet::instantiate(Diagnostics& dgn,
 
     proto.instantiations.push_back(instance.get());
     myScope->append(std::move(instance));
-    return proto.instantiations.back();
+    return { proto.declaration, proto.instantiations.back() };
 }
 
     } // namespace ast
