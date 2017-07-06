@@ -30,6 +30,7 @@
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
 
+#include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
@@ -129,15 +130,19 @@ struct InitCodeGenPass
 
     result_t declDataSum(ast::DataSumDeclaration const& decl)
     {
-        if ( decl.symbol().hasFreeVariables() )
+        if ( !decl.symbol().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration>>());
+
+        if ( auto defn = decl.definition() )
+            for ( auto& e : defn->childDeclarations() )
+                dispatch(*e);
     }
 
     result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& decl)
     {
-        if ( decl.symbol().hasFreeVariables() )
+        if ( !decl.symbol().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration::Constructor>>());
@@ -145,20 +150,25 @@ struct InitCodeGenPass
 
     result_t declDataProduct(ast::DataProductDeclaration const& decl)
     {
-        if ( decl.symbol().hasFreeVariables() )
+        if ( !decl.symbol().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration>>());
+
+        if ( auto defn = decl.definition() )
+            for ( auto& e : defn->childDeclarations() )
+                dispatch(*e);
     }
 
-    result_t declSymbol(ast::SymbolDeclaration const&)
+    result_t declSymbol(ast::SymbolDeclaration const& s)
     {
-        // nop
+        if ( s.expression() && s.expression()->declaration() )
+            dispatch(*s.expression()->declaration());
     }
 
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
-        if ( decl.symbol().hasFreeVariables() )
+        if ( !decl.symbol().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureDeclaration>>());
@@ -174,7 +184,8 @@ struct InitCodeGenPass
 
     result_t declVariable(ast::VariableDeclaration const& decl)
     {
-        decl.setCodegenData(std::make_unique<LLVMCustomData<ast::VariableDeclaration>>());
+        if ( !decl.codegenData() )
+            decl.setCodegenData(std::make_unique<LLVMCustomData<ast::VariableDeclaration>>());
     }
 
     result_t declImport(ast::ImportDeclaration const&)
@@ -182,9 +193,10 @@ struct InitCodeGenPass
         // nop
     }
 
-    result_t declSymbolVariable(ast::SymbolVariable const&)
+    result_t declSymbolVariable(ast::SymbolVariable const& sv)
     {
-        // nop
+        if ( sv.boundExpression() && sv.boundExpression()->declaration() )
+            dispatch(*sv.boundExpression()->declaration());
     }
 };
 
@@ -234,7 +246,17 @@ struct CodeGenPass
 
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
+        if ( !decl.symbol().isConcrete() )
+            return;
+
         auto fun = customData(decl);
+        if ( fun->body ) {
+            error(decl.symbol().identifier()) << "defined more than once";
+            die();
+        }
+
+        if ( fun->proto )
+            return;
 
         auto returnType = toType(*decl.returnType());
         std::vector<llvm::Type*> params;
@@ -244,27 +266,8 @@ struct CodeGenPass
 
         fun->proto = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
-        if ( !decl.definition() ) {
-            // hack: intrinsics
-            fun->body = llvm::Function::Create(fun->proto,
-                                               llvm::Function::ExternalLinkage, // todo
-                                               decl.symbol().name(),
-                                               module);
-
-            auto bb = llvm::BasicBlock::Create(module->getContext(), "entry", fun->body);
-            llvm::IRBuilder<> builder(bb);
-
-            if ( decl.symbol().name() == "add" ) {
-                auto args = fun->body->arg_begin();
-                auto p1 = &*args;
-                ++args;
-                auto p2 = &*args;
-                auto add = builder.CreateAdd(p1, p2);
-                builder.CreateRet(add);
-            }
-
+        if ( !decl.definition() )
             return;
-        }
 
         fun->body = llvm::Function::Create(fun->proto,
                                            llvm::Function::ExternalLinkage, // todo
@@ -280,15 +283,17 @@ struct CodeGenPass
         auto bb = llvm::BasicBlock::Create(module->getContext(), "entry", fun->body);
         llvm::IRBuilder<> builder(bb);
 
-        llvm::Instruction* inst = nullptr;
+        llvm::Value* lastInst = nullptr;
         for ( auto const& e : decl.definition()->expressions() ) {
-            inst = addInstruction(builder, *e);
-            if ( !inst )
-                die("invalid instruction");
+            lastInst = addInstruction(builder, *e);
+            if ( !lastInst ) {
+                error(*e) << "invalid instruction";
+                die();
+            }
         }
 
         // todo
-        builder.CreateRet(inst);
+        builder.CreateRet(lastInst);
     }
 
     result_t declVariable(ast::VariableDeclaration const&)
@@ -307,9 +312,29 @@ struct CodeGenPass
     }
 
 private:
+    Error& error()
+    {
+        return dgn.error(sourceModule) << "codegen: ";
+    }
+
+    Error& error(ast::Expression const& expr)
+    {
+        return dgn.error(sourceModule, expr) << "codegen: ";
+    }
+
+    Error& error(lexer::Token const& token)
+    {
+        return dgn.error(sourceModule, token) << "codegen: ";
+    }
+
     void die(const char* msg)
     {
-        dgn.error(sourceModule) << "codegen: " << msg;
+        error() << msg;
+        die();
+    }
+
+    void die()
+    {
         dgn.die();
     }
 
@@ -361,9 +386,30 @@ private:
         return addInstruction(builder, expr);
     }
 
-    llvm::Instruction* addInstruction(llvm::IRBuilder<>& builder,
+    llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
                                       ast::Expression const& expr)
     {
+        const auto axioms = sourceModule->axioms();
+
+        if ( auto a = expr.as<ast::ApplyExpression>() ) {
+            auto const& exprs = a->expressions();
+            auto const decl = a->declaration();
+            if ( decl == axioms->addInstruction() ) {
+                auto p1 = toValue(builder, *exprs[1]);
+                auto p2 = toValue(builder, *exprs[2]);
+                return builder.CreateAdd(p1, p2);
+            }
+        }
+
+        return nullptr;
+    }
+
+    llvm::Value* addInstruction(llvm::IRBuilder<>& builder,
+                                ast::Expression const& expr)
+    {
+        if ( auto inst = intrinsicInstruction(builder, expr) )
+            return inst;
+
         if ( auto p = expr.as<ast::PrimaryExpression>() ) {
             auto decl = p->declaration();
             if ( !decl )
@@ -448,8 +494,16 @@ struct LLVMGenerator::LLVMState
         for ( auto d : sourceModule.scope()->childDeclarations() )
             init(*d);
 
-        for ( auto d : sourceModule.scope()->childDeclarations() )
-            registerTypes(*d);
+        for ( auto d : sourceModule.templateInstantiations() )
+            init(*d);
+
+        registerTypes(*sourceModule.scope());
+        for ( auto d : sourceModule.templateInstantiations() ) {
+            if ( d->symbol().isConcrete() ) {
+                auto decl = resolveIndirections(d);
+                registerType(*decl);
+            }
+        }
 
         ast::ShallowApply<CodeGenPass> gen(dgn, module.get(), &sourceModule);
         for ( auto d : sourceModule.scope()->childDeclarations() )
@@ -459,10 +513,16 @@ struct LLVMGenerator::LLVMState
     llvm::Type* intrinsicType(ast::Declaration const& decl)
     {
         if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
+            auto dsData = customData(*ds);
+            if ( dsData->type )
+                return dsData->type;
+
             auto const& sym = ds->symbol();
             if ( sym.name() == "integer" ) {
-                if ( sym.parameters().empty() )
-                    return (llvm::Type*)0x1; // todo: choose width based on expression
+                if ( sym.parameters().empty() ) {
+                    dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
+                    return dsData->type;
+                }
 
                 if ( sym.parameters().size() == 1 ) {
                     if ( auto p = resolveIndirections(sym.parameters()[0].get())->as<ast::PrimaryExpression>() ) {
@@ -473,7 +533,8 @@ struct LLVMGenerator::LLVMState
                                 die();
                             }
 
-                            return llvm::Type::getIntNTy(*context, nextPower2(n));
+                            dsData->type = llvm::Type::getIntNTy(*context, nextPower2(n));
+                            return dsData->type;
                         }
                     }
                 }
@@ -481,7 +542,8 @@ struct LLVMGenerator::LLVMState
             else if ( sym.name() == "pointer" ) {
                 if ( sym.parameters().size() == 1 ) {
                     auto t = toType(*sym.parameters()[0]);
-                    return llvm::PointerType::get(t, 0);
+                    dsData->type = llvm::PointerType::get(t, 0);
+                    return dsData->type;
                 }
             }
         }
@@ -499,15 +561,13 @@ struct LLVMGenerator::LLVMState
             return t;
 
         if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
+            auto defn = ds->definition();
+            if ( !defn )
+                return nullptr;
+
             auto dsData = customData(*ds);
             if ( dsData->type )
                 return dsData->type;
-
-            auto defn = ds->definition();
-            if ( !defn ) {
-                error(*ds) << "missing definition";
-                die();
-            }
 
             error(*ds) << "not implemented";
             die();
@@ -516,15 +576,13 @@ struct LLVMGenerator::LLVMState
         }
 
         if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
+            auto defn = dp->definition();
+            if ( !defn )
+                return nullptr;
+
             auto dpData = customData(*dp);
             if ( dpData->type )
                 return dpData->type;
-
-            auto defn = dp->definition();
-            if ( !defn ) {
-                error(*dp) << "missing definition";
-                die();
-            }
 
             std::vector<llvm::Type*> fieldTypes;
             fieldTypes.reserve(defn->fields().size());
@@ -548,36 +606,27 @@ struct LLVMGenerator::LLVMState
         return nullptr;
     }
 
-    void registerTypes(ast::Declaration const& decl)
+    void registerTypes(ast::DeclarationScope const& scope)
     {
-        if ( auto ds = decl.as<ast::DataSumDeclaration>() )
-        {
-            if ( ds->symbol().hasFreeVariables() )
-                return;
+        for ( auto const& decl : scope.childDeclarations() ) {
+            if ( !decl->symbol().isConcrete() )
+                continue;
 
-            auto data = customData(*ds);
-            if ( !data->type )
-                data->type = registerType(*ds);
-        }
+            auto d = resolveIndirections(decl);
+            registerType(*d);
 
-        if ( auto dp = decl.as<ast::DataProductDeclaration>() )
-        {
-            if ( dp->symbol().hasFreeVariables() )
-                return;
-
-            auto data = customData(*dp);
-            if ( !data->type )
-                data->type = registerType(*dp);
-        }
-
-        if ( auto proc = decl.as<ast::ProcedureDeclaration>() )
-        {
-            if ( proc->symbol().hasFreeVariables() )
-                return;
-
-            if ( auto defn = proc->definition() )
-                for ( auto& e : defn->childDeclarations() )
-                    registerTypes(*e);
+            if ( auto ds = d->as<ast::DataSumDeclaration>() ) {
+                if ( auto defn = ds->definition() )
+                    registerTypes(*defn);
+            }
+            else if ( auto dp = d->as<ast::DataProductDeclaration>() ) {
+                if ( auto defn = dp->definition() )
+                    registerTypes(*defn);
+            }
+            else if ( auto proc = d->as<ast::ProcedureDeclaration>() ) {
+                if ( auto defn = proc->definition() )
+                    registerTypes(*defn);
+            }
         }
     }
 };
