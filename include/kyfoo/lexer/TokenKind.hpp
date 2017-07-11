@@ -16,7 +16,7 @@ namespace kyfoo {
     \
     X(Integer, "integer") \
     X(String, "string") \
-    X(Decimal, "decimal") \
+    X(Rational, "rational") \
     \
     X(Equal, "equal") \
     X(OpenParen, "openParen") \

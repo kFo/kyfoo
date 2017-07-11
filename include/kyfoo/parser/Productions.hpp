@@ -17,7 +17,7 @@ using lexer::Token;
 using id = g::Terminal<TokenKind::Identifier>;
 using free = g::Terminal<TokenKind::FreeVariable>;
 using integer = g::Terminal<TokenKind::Integer>;
-using decimal = g::Terminal<TokenKind::Decimal>;
+using rational = g::Terminal<TokenKind::Rational>;
 using string = g::Terminal<TokenKind::String>;
 using comma = g::Terminal<TokenKind::Comma>;
 using equal = g::Terminal<TokenKind::Equal>;
@@ -34,7 +34,7 @@ using closeAngle = g::Terminal<TokenKind::CloseAngle>;
 using _import = g::Terminal<TokenKind::_import>;
 
 struct Primary : public
-    g::Or<id, free, integer, decimal, string>
+    g::Or<id, free, integer, rational, string>
 {
     std::unique_ptr<ast::PrimaryExpression> make() const
     {

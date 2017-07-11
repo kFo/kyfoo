@@ -614,9 +614,10 @@ bool isCovariant(lexer::Token const& target, lexer::Token const& query)
 bool isCovariant(Declaration const& target, lexer::Token const& query)
 {
     if ( isDataDeclaration(target.kind()) ) {
+        // todo: implicit conversions
         if ( query.kind() == lexer::TokenKind::Integer )
             return target.symbol().name() == "integer";
-        else if ( query.kind() == lexer::TokenKind::Decimal )
+        else if ( query.kind() == lexer::TokenKind::Rational )
             return target.symbol().name() == "rational";
         else if ( query.kind() == lexer::TokenKind::String )
             return target.symbol().name() == "ascii";

@@ -369,7 +369,7 @@ private:
                 return llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder.getContext()),
                                               p->token().lexeme(), 10);
 
-            case lexer::TokenKind::Decimal:
+            case lexer::TokenKind::Rational:
                 // todo
                 return llvm::ConstantFP::get(llvm::Type::getDoubleTy(builder.getContext()),
                                              p->token().lexeme());
