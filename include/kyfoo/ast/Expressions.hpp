@@ -11,6 +11,7 @@ namespace kyfoo {
 
     namespace ast {
 
+class Context;
 class IResolver;
 class Expression;
 class Declaration;

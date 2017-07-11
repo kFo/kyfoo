@@ -62,7 +62,10 @@ public:
 
 public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
-    void bindVariables(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings);
+    void bindVariables(Diagnostics& dgn,
+                       IResolver& resolver,
+                       Symbol& parentTemplate,
+                       binding_set_t const& bindings);
     SymbolVariable* findVariable(std::string const& identifier);
     SymbolVariable const* findVariable(std::string const& identifier) const;
     SymbolVariable* createVariable(std::string const& identifier);
@@ -71,6 +74,8 @@ public:
     lexer::Token const& identifier() const;
     std::string const& name() const;
     paramlist_t const& parameters() const;
+    Slice<SymbolVariable*> symbolVariables() const;
+    Symbol const* parentTemplate() const;
     bool isConcrete() const;
     bool hasFreeVariables() const;
 
@@ -78,6 +83,7 @@ private:
     lexer::Token myIdentifier;
     paramlist_t myParameters;
     std::vector<std::unique_ptr<SymbolVariable>> myVariables;
+    Symbol* myParentTemplate = nullptr;
 };
 
 class SymbolReference
@@ -152,7 +158,7 @@ public:
 private:
     TemplateInstance instantiate(Diagnostics& dgn,
                                  SymbolTemplate& proto,
-                                 binding_set_t const& bindingSet);
+                                 binding_set_t&& bindingSet);
 
 private:
     DeclarationScope* myScope = nullptr;

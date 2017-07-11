@@ -691,6 +691,28 @@ Expression const* resolveIndirections(Expression const* expr)
     return expr;
 }
 
+Symbol const* rootTemplate(Symbol const& symbol)
+{
+    auto ret = &symbol;
+    while ( ret->parentTemplate() )
+        ret = ret->parentTemplate();
+
+    return ret;
+}
+
+bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
+{
+    auto p = &instance;
+    while ( p ) {
+        if ( p == &parent )
+            return true;
+
+        p = p->parentTemplate();
+    }
+
+    return false;
+}
+
 //
 // ValueMatcher
 
@@ -763,6 +785,9 @@ bool ValueMatcher::matchValue(Expression const& lhs, Expression const& rhs)
 
             return false;
         }
+
+        if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
+            return matchValue(targetDecl->symbol().parameters(), queryDecl->symbol().parameters());
 
         return isCovariant(*targetDecl, *queryDecl);
     }

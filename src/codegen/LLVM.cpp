@@ -259,10 +259,22 @@ struct CodeGenPass
             return;
 
         auto returnType = toType(*decl.returnType());
+        if ( !returnType ) {
+            error(decl.symbol().identifier()) << "cannot resolve return type";
+            die();
+        }
+
         std::vector<llvm::Type*> params;
         params.reserve(decl.parameters().size());
-        for ( auto const& p : decl.parameters() )
-            params.push_back(toType(*p->constraint()));
+        for ( auto const& p : decl.parameters() ) {
+            auto paramType = toType(*p->constraint());
+            if ( !paramType ) {
+                error(p->symbol().identifier()) << "cannot resolve parameter type";
+                die();
+            }
+
+            params.push_back(paramType);
+        }
 
         fun->proto = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
@@ -394,7 +406,17 @@ private:
         if ( auto a = expr.as<ast::ApplyExpression>() ) {
             auto const& exprs = a->expressions();
             auto const decl = a->declaration();
-            if ( decl == axioms->addInstruction() ) {
+            if ( decl == axioms->intrinsic(ast::Addu1)
+              || decl == axioms->intrinsic(ast::Addu8)
+              || decl == axioms->intrinsic(ast::Addu16)
+              || decl == axioms->intrinsic(ast::Addu32)
+              || decl == axioms->intrinsic(ast::Addu64)
+              || decl == axioms->intrinsic(ast::Addi8)
+              || decl == axioms->intrinsic(ast::Addi16)
+              || decl == axioms->intrinsic(ast::Addi32)
+              || decl == axioms->intrinsic(ast::Addi64)
+              || decl == axioms->intrinsic(ast::Addi128) )
+            {
                 auto p1 = toValue(builder, *exprs[1]);
                 auto p2 = toValue(builder, *exprs[2]);
                 return builder.CreateAdd(p1, p2);
@@ -512,39 +534,37 @@ struct LLVMGenerator::LLVMState
 
     llvm::Type* intrinsicType(ast::Declaration const& decl)
     {
+        auto const axioms = sourceModule.axioms();
+
         if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
             auto dsData = customData(*ds);
             if ( dsData->type )
                 return dsData->type;
 
-            auto const& sym = ds->symbol();
-            if ( sym.name() == "integer" ) {
-                if ( sym.parameters().empty() ) {
-                    dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
-                    return dsData->type;
-                }
-
-                if ( sym.parameters().size() == 1 ) {
-                    if ( auto p = resolveIndirections(sym.parameters()[0].get())->as<ast::PrimaryExpression>() ) {
-                        if ( p->token().kind() == lexer::TokenKind::Integer ) {
-                            int n = std::atoi(p->token().lexeme().c_str());
-                            if ( n <= 0 ) {
-                                error(*p) << "cannot instantiate integer with size " << n;
-                                die();
-                            }
-
-                            dsData->type = llvm::Type::getIntNTy(*context, nextPower2(n));
-                            return dsData->type;
-                        }
-                    }
-                }
+            if ( ds == axioms->integerType()
+              || ds == axioms->rationalType()
+              || ds == axioms->stringType() )
+            {
+                dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
+                return dsData->type;
             }
-            else if ( sym.name() == "pointer" ) {
-                if ( sym.parameters().size() == 1 ) {
-                    auto t = toType(*sym.parameters()[0]);
-                    dsData->type = llvm::PointerType::get(t, 0);
-                    return dsData->type;
-                }
+            else if ( ds == axioms->intrinsic(ast::u1  ) ) return dsData->type = llvm::Type::getInt1Ty  (*context);
+            else if ( ds == axioms->intrinsic(ast::u8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
+            else if ( ds == axioms->intrinsic(ast::u16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
+            else if ( ds == axioms->intrinsic(ast::u32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
+            else if ( ds == axioms->intrinsic(ast::u64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
+            else if ( ds == axioms->intrinsic(ast::u128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
+            else if ( ds == axioms->intrinsic(ast::i8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
+            else if ( ds == axioms->intrinsic(ast::i16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
+            else if ( ds == axioms->intrinsic(ast::i32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
+            else if ( ds == axioms->intrinsic(ast::i64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
+            else if ( ds == axioms->intrinsic(ast::i128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
+
+            auto const& sym = ds->symbol();
+            if ( rootTemplate(sym) == &axioms->intrinsic(ast::PointerTemplate)->symbol() ) {
+                auto t = toType(*sym.parameters()[0]);
+                dsData->type = llvm::PointerType::get(t, 0);
+                return dsData->type;
             }
         }
 
@@ -609,10 +629,10 @@ struct LLVMGenerator::LLVMState
     void registerTypes(ast::DeclarationScope const& scope)
     {
         for ( auto const& decl : scope.childDeclarations() ) {
-            if ( !decl->symbol().isConcrete() )
+            auto d = resolveIndirections(decl);
+            if ( !d->symbol().isConcrete() )
                 continue;
 
-            auto d = resolveIndirections(decl);
             registerType(*d);
 
             if ( auto ds = d->as<ast::DataSumDeclaration>() ) {

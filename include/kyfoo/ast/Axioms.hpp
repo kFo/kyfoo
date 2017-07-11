@@ -11,6 +11,51 @@ class DataSumDeclaration;
 class ProcedureDeclaration;
 class ModuleSet;
 
+enum DataSumIntrinsics
+{
+    Empty,
+    Integer,
+    Rational,
+    String,
+
+    PointerTemplate,
+    UnsignedTemplate,
+    SignedTemplate,
+
+    u1,
+    u8,
+    u16,
+    u32,
+    u64,
+    u128,
+
+    i8,
+    i16,
+    i32,
+    i64,
+    i128,
+
+    DataSumInstrinsicsCount
+};
+
+enum InstructionIntrinsics
+{
+    Addu1,
+    Addu8,
+    Addu16,
+    Addu32,
+    Addu64,
+    Addu128,
+
+    Addi8,
+    Addi16,
+    Addi32,
+    Addi64,
+    Addi128,
+
+    InstructionIntrinsicsCount
+};
+
 class AxiomsModule : public Module
 {
 protected:
@@ -23,19 +68,37 @@ public:
     ~AxiomsModule();
 
 public:
+    /**
+     * Empty expression ()
+     */
     DataSumDeclaration const* emptyType() const;
-    DataSumDeclaration const* integerType() const;
-    DataSumDeclaration const* integerTemplate() const;
-    DataSumDeclaration const* pointerTemplate() const;
 
-    ProcedureDeclaration const* addInstruction() const;
+    /**
+     * Integer literal types
+     */
+    DataSumDeclaration const* integerType() const;
+
+    /**
+     * Rational literal types
+     */
+    DataSumDeclaration const* rationalType() const;
+
+    /**
+     * String literal types
+     */
+    DataSumDeclaration const* stringType() const;
+
+    DataSumDeclaration const* intrinsic(DataSumIntrinsics i) const;
+    ProcedureDeclaration const* intrinsic(InstructionIntrinsics i) const;
 
 private:
     std::unique_ptr<DataSumDeclaration> myEmptyType;
-    DataSumDeclaration const* myIntegerType = nullptr;
-    DataSumDeclaration const* myIntegerTemplate = nullptr;
-    DataSumDeclaration const* myPointerTemplate = nullptr;
-    ProcedureDeclaration const* myAddInstruction = nullptr;
+    std::unique_ptr<DataSumDeclaration> myIntegerType;
+    std::unique_ptr<DataSumDeclaration> myRationalType;
+    std::unique_ptr<DataSumDeclaration> myStringType;
+
+    DataSumDeclaration const* myDataSumDecls[DataSumInstrinsicsCount];
+    ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
 };
 
     } // namespace ast

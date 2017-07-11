@@ -123,7 +123,27 @@ IMPL_CLONE_REMAP_END
 
 void PrimaryExpression::resolveSymbols(Context& ctx)
 {
-    if ( myToken.kind() == lexer::TokenKind::FreeVariable ) {
+    switch ( myToken.kind() ) {
+    case lexer::TokenKind::Integer:
+    {
+        myDeclaration = ctx.module()->axioms()->integerType();
+        return;
+    }
+
+    case lexer::TokenKind::Rational:
+    {
+        myDeclaration = ctx.module()->axioms()->rationalType();
+        return;
+    }
+
+    case lexer::TokenKind::String:
+    {
+        myDeclaration = ctx.module()->axioms()->stringType();
+        return;
+    }
+
+    case lexer::TokenKind::FreeVariable:
+    {
         if ( !myDeclaration ) {
             ctx.error(myToken) << "free variable not expected in this context";
             return;
@@ -132,22 +152,22 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
         return;
     }
 
-    if ( myToken.kind() == lexer::TokenKind::Integer ) {
-        myDeclaration = ctx.module()->axioms()->integerType();
+    case lexer::TokenKind::Identifier:
+    {
+        auto hit = ctx.matchValue(Symbol(myToken));
+        if ( !hit ) {
+            if ( !hit.symSet() )
+                ctx.error(myToken) << "undeclared identifier";
+            return;
+        }
+
+        myDeclaration = hit.decl();
         return;
     }
 
-    if ( myToken.kind() != lexer::TokenKind::Identifier )
-        return;
-
-    auto hit = ctx.matchValue(Symbol(myToken));
-    if ( !hit ) {
-        if ( !hit.symSet() )
-            ctx.error(myToken) << "undeclared identifier";
-        return;
+    default:
+        throw std::runtime_error("unhandled primary expression");
     }
-
-    myDeclaration = hit.decl();
 }
 
 lexer::Token const& PrimaryExpression::token() const
@@ -388,10 +408,11 @@ IMPL_CLONE_REMAP_END
 
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
-    ctx.resolveExpressions(myExpressions);
+    ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
 
     if ( auto symExpr = myExpressions.front()->as<SymbolExpression>() ) {
         // explicit procedure lookup
+        ctx.resolveExpression(myExpressions.front());
         return;
     }
 
@@ -551,9 +572,13 @@ void SymbolExpression::resolveSymbols(Context& ctx)
             return;
         }
 
+        auto subjectExpression = std::move(myExpressions.front());
         myIdentifier = subject->token();
         rotate(begin(myExpressions), next(begin(myExpressions)), end(myExpressions));
         myExpressions.pop_back();
+
+        if ( myExpressions.empty() )
+            return ctx.rewrite(std::move(subjectExpression));
     }
 
     ctx.resolveExpressions(myExpressions);

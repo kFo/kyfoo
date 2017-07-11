@@ -108,6 +108,16 @@ Symbol::paramlist_t const& Symbol::parameters() const
     return myParameters;
 }
 
+Slice<SymbolVariable*> Symbol::symbolVariables() const
+{
+    return myVariables;
+}
+
+Symbol const* Symbol::parentTemplate() const
+{
+    return myParentTemplate;
+}
+
 bool Symbol::isConcrete() const
 {
     for ( auto const& v : myVariables ) {
@@ -150,8 +160,16 @@ void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
     ctx.resolveExpressions(myParameters);
 }
 
-void Symbol::bindVariables(Diagnostics& dgn, IResolver& resolver, binding_set_t const& bindings)
+void Symbol::bindVariables(Diagnostics& dgn,
+                           IResolver& resolver,
+                           Symbol& parentTemplate,
+                           binding_set_t const& bindings)
 {
+    if ( myParentTemplate )
+        throw std::runtime_error("template can only be bound once");
+
+    myParentTemplate = &parentTemplate;
+
     if ( bindings.size() != myVariables.size() )
         throw std::runtime_error("template parameter binding mismatch");
 
@@ -321,7 +339,7 @@ SymbolSet::findValue(Diagnostics& dgn,
             if ( !m.rightBindings.empty() )
                 return { e.declaration, nullptr };
 
-            return instantiate(dgn, e, m.leftBindings);
+            return instantiate(dgn, e, std::move(m.leftBindings));
         }
     }
 
@@ -338,14 +356,14 @@ SymbolSet::findValue(Diagnostics& dgn,
 SymbolSet::TemplateInstance
 SymbolSet::instantiate(Diagnostics& dgn,
                        SymbolTemplate& proto,
-                       binding_set_t const& bindingSet)
+                       binding_set_t&& bindingSet)
 {
     // use existing instantiation if it exists
-    for ( auto const& e : proto.instanceBindings ) {
+    for ( std::size_t i = 0; i < proto.instanceBindings.size(); ++i ) {
+        auto const& e = proto.instanceBindings[i];
         if ( e.size() != bindingSet.size() )
             continue;
 
-        std::size_t index = 0;
         auto l = begin(e);
         auto r = begin(bindingSet);
         while ( l != end(e) ) {
@@ -354,24 +372,24 @@ SymbolSet::instantiate(Diagnostics& dgn,
 
             ++l;
             ++r;
-            ++index;
         }
 
         if ( l == end(e) )
-            return { proto.declaration, proto.instantiations[index] };
+            return { proto.declaration, proto.instantiations[i] };
     }
 
     // create new instantiation
     auto instance = ast::clone(proto.declaration);
 
     ScopeResolver resolver(myScope);
-    instance->symbol().bindVariables(dgn, resolver, bindingSet);
+    instance->symbol().bindVariables(dgn, resolver, proto.declaration->symbol(), bindingSet);
 
     if ( auto proc = instance->as<ProcedureDeclaration>() )
         proc->resolvePrototypeSymbols(dgn);
 
     instance->resolveSymbols(dgn);
 
+    proto.instanceBindings.emplace_back(std::move(bindingSet));
     proto.instantiations.push_back(instance.get());
     myScope->append(std::move(instance));
     return { proto.declaration, proto.instantiations.back() };
