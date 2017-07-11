@@ -79,22 +79,20 @@ void SymbolDependencyTracker::add(Declaration& decl)
 }
 
 void SymbolDependencyTracker::addDependency(Declaration& decl,
-                               std::string const& name,
-                               std::size_t arity)
+                                            std::string const& name,
+                                            std::size_t arity)
 {
     auto group = findOrCreate(decl.symbol().name(), decl.symbol().parameters().size());
     auto dependency = findOrCreate(name, arity);
 
     dependency->addDependent(*group);
 
-    if ( group->pass < dependency->pass ) {
-        auto& err = dgn.error(mod, decl.symbol().identifier()) << "circular reference detected";
-        for ( auto const& d : dependency->declarations )
-            err.see(d);
-        return;
-    }
-    else if ( group->pass == dependency->pass ) {
-        group->defer(dependency->pass + 1);
+    if ( group->pass <= dependency->pass ) {
+        if ( !group->defer(group, dependency->pass + 1) ) {
+            auto& err = dgn.error(mod, decl.symbol().identifier()) << "circular reference detected";
+            for ( auto const& d : dependency->declarations )
+                err.see(d);
+        }
     }
 }
 
@@ -192,9 +190,11 @@ struct SymbolDependencyBuilder
         traceSymbol();
     }
 
-    result_t declSymbol(SymbolDeclaration&)
+    result_t declSymbol(SymbolDeclaration& s)
     {
         traceSymbol();
+        if ( s.expression() )
+            dispatch(*s.expression());
     }
 
     result_t declProcedure(ProcedureDeclaration& proc)
