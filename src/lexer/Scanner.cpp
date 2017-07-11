@@ -342,7 +342,7 @@ Token Scanner::readNext()
                     if ( c != '-' && c != '+' ) {
                         myStream.unget(); // e
 
-                        return TOK(Decimal);
+                        return TOK(Rational);
                     }
 
                     c = nextChar();
@@ -350,7 +350,7 @@ Token Scanner::readNext()
                         myStream.unget(); // e
                         myStream.unget(); // c
 
-                        return TOK(Decimal);
+                        return TOK(Rational);
                     }
 
                     lexeme += e;
@@ -363,10 +363,10 @@ Token Scanner::readNext()
                 do lexeme += nextChar();
                 while ( isNumber(peekChar()) );
 
-                return TOK(Decimal);
+                return TOK(Rational);
             }
 
-            return TOK(Decimal);
+            return TOK(Rational);
         }
 
         return TOK(Integer);
