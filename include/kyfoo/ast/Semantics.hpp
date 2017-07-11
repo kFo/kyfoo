@@ -169,6 +169,8 @@ bool isCovariant(Declaration const& target, Declaration const& query);
 Expression const* lookThrough(Declaration const* decl);
 Declaration const* resolveIndirections(Declaration const* decl);
 Expression const* resolveIndirections(Expression const* expr);
+Symbol const* rootTemplate(Symbol const& symbol);
+bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 
 // todo: functor like ValueMatcher
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);

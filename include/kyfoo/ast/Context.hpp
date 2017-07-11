@@ -96,6 +96,8 @@ public:
     void rewrite(std::unique_ptr<Expression> expr);
 
     void resolveExpression(std::unique_ptr<Expression>& expression);
+    void resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
+                            std::vector<std::unique_ptr<Expression>>::iterator right);
     void resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
 
 private:

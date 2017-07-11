@@ -105,16 +105,19 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
     for ( auto const& symGroup : tracker.groups ) {
         for ( auto const& d : symGroup->declarations ) {
             d->symbol().resolveSymbols(dgn, resolver);
-            if ( !addSymbol(dgn, d->symbol(), *d) )
-                continue;
 
             if ( auto proc = d->as<ProcedureDeclaration>() ) {
                 proc->resolvePrototypeSymbols(dgn);
-                addProcedure(dgn, proc->symbol(), *proc);
+                if ( !addProcedure(dgn, proc->symbol(), *proc) )
+                    continue;
             }
-            else if ( isMacroDeclaration(d->kind()) ) {
+            else {
+                if ( !addSymbol(dgn, d->symbol(), *d) )
+                    continue;
+            }
+
+            if ( isMacroDeclaration(d->kind()) )
                 d->resolveSymbols(dgn);
-            }
         }
     }
 
@@ -278,7 +281,7 @@ bool DeclarationScope::addProcedure(Diagnostics& dgn, Symbol const& sym, Procedu
 SymbolSet const* DeclarationScope::findSymbol(std::string const& identifier) const
 {
     auto symSet = lower_bound(begin(mySymbols), end(mySymbols), identifier);
-    if ( symSet != end(mySymbols) && symSet->name() == identifier )
+    if ( symSet != end(mySymbols) && *symSet == identifier )
         return &*symSet;
 
     return nullptr;
@@ -287,7 +290,7 @@ SymbolSet const* DeclarationScope::findSymbol(std::string const& identifier) con
 SymbolSet const* DeclarationScope::findProcedure(std::string const& identifier) const
 {
     auto procOverloads = lower_bound(begin(myProcedureOverloads), end(myProcedureOverloads), identifier);
-    if ( procOverloads != end(myProcedureOverloads) && procOverloads->name() == identifier )
+    if ( procOverloads != end(myProcedureOverloads) && *procOverloads == identifier )
         return &*procOverloads;
 
     return nullptr;

@@ -212,16 +212,22 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
     }
 }
 
-void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
+void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
+                                 std::vector<std::unique_ptr<Expression>>::iterator right)
 {
     myRewrite.reset();
-    for ( auto i = begin(expressions); i != end(expressions); ++i ) {
+    for ( auto i = left; i != right; ++i ) {
         (*i)->resolveSymbols(*this);
         while ( myRewrite ) {
             *i = std::move(std::move(myRewrite));
             (*i)->resolveSymbols(*this);
         }
     }
+}
+
+void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
+{
+    return resolveExpressions(begin(expressions), end(expressions));
 }
 
     } // namespace ast
