@@ -116,14 +116,20 @@ struct SymbolDependencyTracker
             dependents.push_back(&group);
         }
 
-        void defer(int deferPass)
+        bool defer(SymGroup* startSym, int deferPass)
         {
             if ( pass >= deferPass )
-                return;
+                return true;
 
             pass = deferPass;
-            for ( auto& d : dependents )
-                d->defer(pass + 1);
+            for ( auto& d : dependents ) {
+                if ( d == startSym )
+                    return false;
+
+                d->defer(startSym, pass + 1);
+            }
+
+            return true;
         }
     };
 
