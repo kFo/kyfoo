@@ -84,6 +84,8 @@ public:
 
     Slice<Module*> imports();
     Slice<Module*> imports() const;
+
+    DeclarationScope* scope();
     DeclarationScope const* scope() const;
 
     bool imports(Module* module) const;

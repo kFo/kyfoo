@@ -22,6 +22,7 @@ namespace kyfoo {
     X(DataSum       , "data sum"       , DataSumDeclaration) \
     X(DataSumCtor   , "data sum ctor"  , DataSumDeclaration::Constructor) \
     X(DataProduct   , "data product"   , DataProductDeclaration) \
+    X(Field         , "field"          , DataProductDeclaration::Field) \
     X(Symbol        , "symbol"         , SymbolDeclaration) \
     X(Procedure     , "procedure"      , ProcedureDeclaration) \
     X(Variable      , "variable"       , VariableDeclaration) \
@@ -81,6 +82,7 @@ public:
 
 public:
     DeclarationScope* scope();
+    DeclarationScope const* scope() const;
     void setScope(DeclarationScope& parent);
 
     codegen::CustomData* codegenData();
@@ -172,6 +174,46 @@ private:
 
 class DataProductDeclaration : public Declaration
 {
+public:
+    class Field : public Declaration
+    {
+    public:
+        Field(Symbol&& symbol,
+              std::unique_ptr<Expression> constraint);
+
+    protected:
+        Field(Field const& rhs);
+        Field& operator = (Field const& rhs);
+
+    public:
+        Field(Field&&) = delete;
+
+        ~Field();
+
+        void swap(Field& rhs);
+
+        // IIO
+    public:
+        void io(IStream& stream) const override;
+
+        // Declaration
+    public:
+        DECL_CLONE_ALL(Declaration)
+        void resolveSymbols(Diagnostics& dgn) override;
+
+    public:
+        void setParent(DataProductDeclaration* dpDecl);
+        DataProductDeclaration* parent();
+        DataProductDeclaration const* parent() const;
+
+        Expression& constraint();
+        Expression const& constraint() const;
+
+    private:
+        DataProductDeclaration* myParent = nullptr;
+        std::unique_ptr<Expression> myConstraint;
+    };
+
 public:
     explicit DataProductDeclaration(Symbol&& symbol);
 
@@ -359,7 +401,8 @@ private:
 class ImportDeclaration : public Declaration
 {
 public:
-    explicit ImportDeclaration(Symbol&& symbol);
+    explicit ImportDeclaration(Symbol&& sym);
+    explicit ImportDeclaration(std::vector<lexer::Token>&& modulePath);
 
 protected:
     ImportDeclaration(ImportDeclaration const& rhs);
@@ -380,6 +423,9 @@ public:
 public:
     DECL_CLONE_ALL(Declaration)
     void resolveSymbols(Diagnostics& dgn) override;
+
+private:
+    std::vector<lexer::Token> myModulePath;
 };
 
 class SymbolVariable : public Declaration

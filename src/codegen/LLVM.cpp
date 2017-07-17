@@ -72,6 +72,13 @@ struct LLVMCustomData<ast::DataProductDeclaration> : public CustomData
     llvm::Type* type = nullptr;
 };
 
+template<>
+struct LLVMCustomData<ast::DataProductDeclaration::Field> : public CustomData
+{
+    llvm::Type* type = nullptr;
+    std::uint32_t index = 0;
+};
+
 template <typename T>
 LLVMCustomData<T>* customData(T const& decl)
 {
@@ -155,9 +162,21 @@ struct InitCodeGenPass
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration>>());
 
-        if ( auto defn = decl.definition() )
+        if ( auto defn = decl.definition() ) {
+            auto const& fields = defn->fields();
+            for ( std::size_t i = 0; i < fields.size(); ++i ) {
+                fields[i]->setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration::Field>>());
+                customData(*fields[i])->index = static_cast<std::uint32_t>(i);
+            }
+
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
+        }
+    }
+
+    result_t declField(ast::DataProductDeclaration::Field const&)
+    {
+        // nop
     }
 
     result_t declSymbol(ast::SymbolDeclaration const& s)
@@ -239,6 +258,11 @@ struct CodeGenPass
         // todo
     }
 
+    result_t declField(ast::DataProductDeclaration::Field const&)
+    {
+        // todo
+    }
+
     result_t declSymbol(ast::SymbolDeclaration const&)
     {
         // nop
@@ -297,7 +321,7 @@ struct CodeGenPass
 
         llvm::Value* lastInst = nullptr;
         for ( auto const& e : decl.definition()->expressions() ) {
-            lastInst = addInstruction(builder, *e);
+            lastInst = toValue(builder, *e);
             if ( !lastInst ) {
                 error(*e) << "invalid instruction";
                 die();
@@ -352,6 +376,9 @@ private:
 
     llvm::Value* toValue(llvm::IRBuilder<>& builder, ast::Expression const& expr)
     {
+        if ( auto inst = intrinsicInstruction(builder, expr) )
+            return inst;
+
         if ( auto p = expr.as<ast::PrimaryExpression>() ) {
             switch (p->token().kind()) {
             case lexer::TokenKind::Identifier:
@@ -394,8 +421,33 @@ private:
 
             return nullptr;
         }
+        else if ( auto a = expr.as<ast::ApplyExpression>() ) {
+            std::vector<llvm::Value*> params;
+            params.reserve(a->expressions().size() - 1);
+            if ( a->expressions().size() > 1 )
+                for ( auto const& e : a->expressions()(1, a->expressions().size()) )
+                    params.push_back(toValue(builder, *e));
 
-        return addInstruction(builder, expr);
+            auto fun = customData(*a->expressions()[0]->declaration()->as<ast::ProcedureDeclaration>());
+            return builder.CreateCall(fun->body, params);
+        }
+        else if ( auto dot = expr.as<ast::DotExpression>() ) {
+            llvm::Value* ret = nullptr;
+            auto exprs = dot->expressions();
+            for ( auto const& e : exprs ) {
+                if ( auto field = e->declaration()->as<ast::DataProductDeclaration::Field>() ) {
+                    auto fieldData = customData(*field);
+                    ret = builder.CreateStructGEP(ret->getType(), ret, fieldData->index);
+                }
+                else {
+                    ret = toValue(builder, *e);
+                }
+            }
+
+            return ret;
+        }
+
+        return nullptr;
     }
 
     llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
@@ -421,38 +473,6 @@ private:
                 auto p2 = toValue(builder, *exprs[2]);
                 return builder.CreateAdd(p1, p2);
             }
-        }
-
-        return nullptr;
-    }
-
-    llvm::Value* addInstruction(llvm::IRBuilder<>& builder,
-                                ast::Expression const& expr)
-    {
-        if ( auto inst = intrinsicInstruction(builder, expr) )
-            return inst;
-
-        if ( auto p = expr.as<ast::PrimaryExpression>() ) {
-            auto decl = p->declaration();
-            if ( !decl )
-                return nullptr;
-
-            auto procDecl = decl->as<ast::ProcedureDeclaration>();
-            if ( !procDecl )
-                return nullptr;
-
-            return builder.CreateCall(customData(*procDecl)->body, llvm::None);
-        }
-
-        if ( auto a = expr.as<ast::ApplyExpression>() ) {
-            std::vector<llvm::Value*> params;
-            params.reserve(a->expressions().size() - 1);
-            if ( a->expressions().size() > 1 )
-                for ( auto const& e : a->expressions()(1, a->expressions().size()) )
-                    params.push_back(toValue(builder, *e));
-
-            auto fun = customData(*a->expressions()[0]->declaration()->as<ast::ProcedureDeclaration>());
-            return builder.CreateCall(fun->body, params);
         }
 
         return nullptr;
@@ -607,9 +627,9 @@ struct LLVMGenerator::LLVMState
             std::vector<llvm::Type*> fieldTypes;
             fieldTypes.reserve(defn->fields().size());
             for ( auto& f : defn->fields() ) {
-                auto type = registerType(*f->constraint()->declaration());
+                auto type = registerType(*f->constraint().declaration());
                 if ( !type ) {
-                    error(*f->constraint()->declaration()) << "type is not registered";
+                    error(*f->constraint().declaration()) << "type is not registered";
                     die();
                 }
 

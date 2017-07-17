@@ -555,12 +555,12 @@ public:
         myWeaveCaptures.clear();
 
         std::size_t m0 = 0;
-        if ( !myLhs.match(scan, m) )
+        if ( !myLhs.match(scan, m0) )
             return false;
 
         matches += m0;
         myCaptures.push_back(myLhs);
-        
+
         for (;;) {
             m0 = 0;
             std::size_t m1 = 0;
@@ -573,6 +573,11 @@ public:
         }
 
         return scan.commit();
+    }
+
+    std::vector<U> const& captures() const
+    {
+        return myCaptures;
     }
 
 private:

@@ -285,6 +285,11 @@ Slice<Module*> Module::imports() const
     return myImports;
 }
 
+DeclarationScope* Module::scope()
+{
+    return myScope.get();
+}
+
 DeclarationScope const* Module::scope() const
 {
     return myScope.get();

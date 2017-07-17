@@ -1,7 +1,5 @@
 #pragma once
 
-#include <csetjmp>
-
 #include <memory>
 #include <vector>
 
@@ -17,6 +15,7 @@ namespace kyfoo {
     namespace ast {
 
 class DeclarationScope;
+class Declaration;
 class Expression;
 class LookupHit;
 class Module;
@@ -37,7 +36,7 @@ public:
 class ScopeResolver : public IResolver
 {
 public:
-    explicit ScopeResolver(DeclarationScope* scope);
+    explicit ScopeResolver(DeclarationScope const* scope);
 
     // IResolver
 public:
@@ -51,7 +50,7 @@ public:
     LookupHit matchSupplementary(SymbolReference const& symbol) const;
 
 private:
-    DeclarationScope* myScope = nullptr;
+    DeclarationScope const* myScope = nullptr;
     std::vector<Symbol const*> mySupplementarySymbols;
 };
 
@@ -86,13 +85,19 @@ public:
     LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const override;
 
 public:
+    Diagnostics& diagnostics();
+    IResolver& resolver();
+
+public:
     Error& error(lexer::Token const& token);
     Error& error(Expression const& expr);
+    Error& error(Declaration const& decl);
     std::size_t errorCount() const;
 
     LookupHit matchValue(SymbolReference const& sym) const;
     LookupHit matchProcedure(SymbolReference const& sym) const;
 
+    IResolver* changeResolver(IResolver& resolver);
     void rewrite(std::unique_ptr<Expression> expr);
 
     void resolveExpression(std::unique_ptr<Expression>& expression);

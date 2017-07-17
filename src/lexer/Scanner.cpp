@@ -408,6 +408,17 @@ Token Scanner::readNext()
 
         return TOK2(Equal, "=");
     }
+    else if ( c == '-' ) {
+        c = nextChar();
+
+        if ( peekChar() == '>' ) {
+            nextChar();
+
+            return TOK2(Map, "->");
+        }
+
+        return TOK2(Minus, "-");
+    }
     else if ( c == ':' ) {
         c = nextChar();
 
@@ -420,7 +431,7 @@ Token Scanner::readNext()
         if ( peekChar() == '&' ) {
             nextChar();
 
-            return TOK2(AmpersandPipe, ":&");
+            return TOK2(ColonAmpersand, ":&");
         }
 
         return TOK2(Colon, ":");
@@ -441,7 +452,6 @@ Token Scanner::readNext()
     case '|': return TOK2(Pipe        , "|");
     case ',': return TOK2(Comma       , ",");
     case '+': return TOK2(Plus        , "+");
-    case '-': return TOK2(Minus       , "-");
     case '*': return TOK2(Star        , "*");
     case '/': return TOK2(Slash       , "/");
     }

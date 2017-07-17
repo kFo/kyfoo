@@ -20,10 +20,11 @@ using integer = g::Terminal<TokenKind::Integer>;
 using rational = g::Terminal<TokenKind::Rational>;
 using string = g::Terminal<TokenKind::String>;
 using comma = g::Terminal<TokenKind::Comma>;
+using dot = g::Terminal<TokenKind::Dot>;
 using equal = g::Terminal<TokenKind::Equal>;
 using colon = g::Terminal<TokenKind::Colon>;
 using colonPipe = g::Terminal<TokenKind::ColonPipe>;
-using colonAmpersand = g::Terminal<TokenKind::AmpersandPipe>;
+using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
 using yield = g::Terminal<TokenKind::Yield>;
 using openParen = g::Terminal<TokenKind::OpenParen>;
 using closeParen = g::Terminal<TokenKind::CloseParen>;
@@ -160,6 +161,33 @@ struct Tuple : public
     }
 };
 
+struct BasicExpression : public
+    g::Or<Tuple, Primary>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        return monoMake<ast::Expression>();
+    }
+};
+
+struct DotExpression : public
+    g::And<g::Opt<dot>, g::OneOrMore2<BasicExpression, dot>>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        bool global = factor<0>().capture() != nullptr;
+        auto const& list = factor<1>().captures();
+        std::vector<std::unique_ptr<ast::Expression>> exprs;
+        for ( auto const& be : list )
+            exprs.emplace_back(be.make());
+
+        if ( !global && exprs.size() == 1 )
+            return std::move(exprs.front());
+
+        return std::make_unique<ast::DotExpression>(global, std::move(exprs));
+    }
+};
+
 struct Symbol : public
     g::Or<
           g::And<id, g::Opt<TupleSymbol>>
@@ -199,7 +227,7 @@ struct ProcedureDeclaration : public
             parameters.emplace_back(
                 std::make_unique<ast::ProcedureParameter>(
                     ast::Symbol(e.factor<0>().token()),
-                    e.factor<2>().make()));
+                                e.factor<2>().make()));
 
         std::unique_ptr<ast::Expression> returnTypeExpression;
         if ( auto r = factor<4>().capture() )
@@ -221,11 +249,15 @@ struct SymbolDeclaration : public
 };
 
 struct ImportDeclaration : public
-    g::And<_import, id>
+    g::And<_import, g::OneOrMore2<id, dot>>
 {
     std::unique_ptr<ast::ImportDeclaration> make() const
     {
-        return std::make_unique<ast::ImportDeclaration>(ast::Symbol(factor<1>().token()));
+        std::vector<lexer::Token> modulePath;
+        for ( auto const& e : factor<1>().captures() )
+            modulePath.emplace_back(e.token());
+
+        return std::make_unique<ast::ImportDeclaration>(std::move(modulePath));
     }
 };
 
