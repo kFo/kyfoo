@@ -222,9 +222,7 @@ void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
 
 void DeclarationScope::import(Module& module)
 {
-    append(
-        std::make_unique<ImportDeclaration>(
-            Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
+    append(std::make_unique<ImportDeclaration>(Symbol(module.name())));
 }
 
 SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
@@ -301,12 +299,27 @@ Module* DeclarationScope::module()
     return myModule;
 }
 
+Module const* DeclarationScope::module() const
+{
+    return myModule;
+}
+
 Declaration* DeclarationScope::declaration()
 {
     return myDeclaration;
 }
 
+Declaration const* DeclarationScope::declaration() const
+{
+    return myDeclaration;
+}
+
 DeclarationScope* DeclarationScope::parent()
+{
+    return myParent;
+}
+
+DeclarationScope const* DeclarationScope::parent() const
 {
     return myParent;
 }
@@ -418,7 +431,7 @@ IMPL_CLONE_REMAP_END
 void DataProductScope::resolveSymbols(Diagnostics& dgn)
 {
     for ( auto& d : myDeclarations )
-        if ( auto v = d->as<VariableDeclaration>() )
+        if ( auto v = d->as<DataProductDeclaration::Field>() )
             myFields.push_back(v);
 
     DeclarationScope::resolveSymbols(dgn);
@@ -429,12 +442,12 @@ DataProductDeclaration* DataProductScope::declaration()
     return static_cast<DataProductDeclaration*>(myDeclaration);
 }
 
-Slice<VariableDeclaration*> DataProductScope::fields()
+Slice<DataProductDeclaration::Field*> DataProductScope::fields()
 {
     return myFields;
 }
 
-const Slice<VariableDeclaration*> DataProductScope::fields() const
+const Slice<DataProductDeclaration::Field*> DataProductScope::fields() const
 {
     return myFields;
 }

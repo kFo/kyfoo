@@ -35,9 +35,11 @@ add(x : signed<unsigned<128>>, y : signed<unsigned<128>>) : signed<unsigned<128>
 
 staticSize<\T>(p : pointer T) : size_t => wordSize
 
+:& array<\T, \card : integer>
+
 :& array<\T>
     base : pointer T
-    count : size_t
+    card : size_t
 )axioms";
 
 #include <kyfoo/ast/Axioms.hpp>

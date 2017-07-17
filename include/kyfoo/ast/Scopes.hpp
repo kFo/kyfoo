@@ -184,8 +184,13 @@ public:
     SymbolSet const* findProcedure(std::string const& identifier) const;
 
     Module* module();
+    Module const* module() const;
+
     Declaration* declaration();
+    Declaration const* declaration() const;
+
     DeclarationScope* parent();
+    DeclarationScope const* parent() const;
 
     Slice<Declaration*> childDeclarations() const;
 
@@ -258,11 +263,11 @@ public:
 
 public:
     DataProductDeclaration* declaration();
-    Slice<VariableDeclaration*> fields();
-    const Slice<VariableDeclaration*> fields() const;
+    Slice<DataProductDeclaration::Field*> fields();
+    const Slice<DataProductDeclaration::Field*> fields() const;
 
 private:
-    std::vector<VariableDeclaration*> myFields;
+    std::vector<DataProductDeclaration::Field*> myFields;
 };
 
 class ProcedureScope : public DeclarationScope

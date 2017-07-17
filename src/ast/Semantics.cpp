@@ -160,6 +160,12 @@ struct SymbolDependencyBuilder
             dispatch(*e);
     }
 
+    result_t exprDot(DotExpression& d)
+    {
+        for ( auto const& e : d.expressions() )
+            dispatch(*e);
+    }
+
     // declarations
 
     void traceSymbol(Symbol& sym)
@@ -176,6 +182,7 @@ struct SymbolDependencyBuilder
     result_t declDataSum(DataSumDeclaration&)
     {
         traceSymbol();
+        // todo
     }
 
     result_t declDataSumCtor(DataSumDeclaration::Constructor& dsCtor)
@@ -185,7 +192,15 @@ struct SymbolDependencyBuilder
             dispatch.operator()<Declaration>(*field);
     }
 
-    result_t declDataProduct(DataProductDeclaration&)
+    result_t declDataProduct(DataProductDeclaration& dp)
+    {
+        traceSymbol();
+        if ( auto defn = dp.definition() )
+            for ( auto const& field : defn->fields() )
+                declField(*field);
+    }
+
+    result_t declField(DataProductDeclaration::Field&)
     {
         traceSymbol();
     }
@@ -227,106 +242,6 @@ void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
     ShallowApply<SymbolDependencyBuilder> op(tracker, decl);
     tracker.add(decl);
     op(decl);
-}
-
-template <typename Dispatcher>
-struct StateCounter
-{
-    using result_t = std::size_t;
-    Dispatcher& dispatch;
-    Context& ctx;
-    Expression const& expr;
-
-    StateCounter(Dispatcher& dispatch,
-                 Context& ctx,
-                 Expression const& expr)
-        : dispatch(dispatch)
-        , ctx(ctx)
-        , expr(expr)
-    {
-    }
-
-    result_t declDataSum(DataSumDeclaration const& ds)
-    {
-        result_t ret = 0;
-        for ( auto const& decl : ds.definition()->childDeclarations() )
-            ret += dispatch(*decl);
-
-        return ret;
-    }
-
-    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
-    {
-        result_t ret = 1;
-        for ( auto const& e : dsCtor.fields() )
-            ret += declVariable(*e);
-
-        return ret;
-    }
-
-    result_t declDataProduct(DataProductDeclaration const& dp)
-    {
-        result_t ret = 0;
-        for ( auto const& e : dp.definition()->childDeclarations() )
-            dispatch(*e);
-
-        return ret;
-    }
-
-    result_t declSymbol(SymbolDeclaration const& sym)
-    {
-        auto s = sym.expression()->as<SymbolExpression>();
-        if ( !s ) {
-            ctx.error(*sym.expression()) << "expected symbol expression in this context";
-            return 0;
-        }
-
-        return dispatch(*s->declaration());
-    }
-
-    result_t declProcedure(ProcedureDeclaration const&)
-    {
-        return 0;
-    }
-
-    result_t declVariable(VariableDeclaration const& var)
-    {
-        auto s = var.constraint()->as<SymbolExpression>();
-        if ( !s ) {
-            ctx.error(*var.constraint()) << "does not identify a data type";
-            return 0;
-        }
-
-        return dispatch(*s->declaration());
-    }
-
-    result_t declImport(ImportDeclaration const&)
-    {
-        ctx.error(expr) << "does not identify a data type";
-        return 0;
-    }
-
-    result_t declSymbolVariable(SymbolVariable const&)
-    {
-        return std::numeric_limits<result_t>::max();
-    }
-};
-
-std::size_t stateCount(Context& ctx, Expression const& expr)
-{
-    auto s = expr.as<SymbolExpression>();
-    if ( !s ) {
-        ctx.error(expr) << "expected symbol expression";
-        return 0;
-    }
-
-    if ( s->declaration()->kind() == DeclKind::Variable ) {
-        ctx.error(*s) << "expected a data type, received a variable";
-        return 0;
-    }
-
-    ShallowApply<StateCounter> op(ctx, expr);
-    return op(*s->declaration());
 }
 
 template <typename O>
@@ -839,6 +754,12 @@ struct FreeVariableVisitor
         for ( auto const& e : s.expressions() )
             dispatch(*e);
     }
+
+    result_t exprDot(DotExpression& d)
+    {
+        for ( auto const& e : d.expressions() )
+            dispatch(*e);
+    }
 };
 
 template <typename F>
@@ -895,6 +816,15 @@ struct HasFreeVariable
     result_t exprSymbol(SymbolExpression const& s)
     {
         for ( auto const& e : s.expressions() )
+            if ( dispatch(*e) )
+                return true;
+
+        return false;
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        for ( auto const& e : d.expressions() )
             if ( dispatch(*e) )
                 return true;
 

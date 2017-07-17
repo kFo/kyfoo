@@ -7,30 +7,24 @@ namespace kyfoo {
 // Expression
 
 struct Expression::impl : public
-    g::And<g::OneOrMore<g::Or<Tuple, Primary>>, g::Opt<g::And<colon, Expression>>>
+    g::And<g::OneOrMore<DotExpression>, g::Opt<g::And<colon, Expression>>>
 {
     std::unique_ptr<ast::Expression> make() const
     {
-        auto const& primary = factor<0>();
+        std::vector<std::unique_ptr<ast::Expression>> exprs;
+        for ( auto const& e : factor<0>().captures() )
+            exprs.emplace_back(e.make());
 
-        std::unique_ptr<ast::Expression> subject;
-        if ( primary.captures().size() == 1 ) {
-            subject = primary.captures().front().monoMake<ast::Expression>();
-        }
-        else {
-            std::vector<std::unique_ptr<ast::Expression>> exprs;
-            for ( std::size_t i = 0; i < primary.captures().size(); ++i ) {
-                auto const& a = primary.captures()[i];
-                exprs.emplace_back(a.monoMake<ast::Expression>());
-            }
-
-            subject = std::make_unique<ast::ApplyExpression>(std::move(exprs));
-        }
+        std::unique_ptr<ast::Expression> expr;
+        if ( exprs.size() == 1 )
+            expr = std::move(exprs.front());
+        else
+            expr = std::make_unique<ast::ApplyExpression>(std::move(exprs));
 
         if ( auto c = factor<1>().capture() )
-            subject->addConstraint(c->factor<1>().make());
+            expr->addConstraint(c->factor<1>().make());
 
-        return subject;
+        return expr;
     }
 };
 

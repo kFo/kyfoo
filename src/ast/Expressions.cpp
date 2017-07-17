@@ -632,6 +632,116 @@ std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions(
 }
 
 //
+// DotExpression
+
+DotExpression::DotExpression(bool global,
+                             std::vector<std::unique_ptr<Expression>>&& exprs)
+    : Expression(Kind::Dot)
+    , myExpressions(std::move(exprs))
+    , myGlobal(global)
+{
+}
+
+DotExpression::DotExpression(DotExpression const& rhs)
+    : Expression(rhs)
+{
+    // myFirst, mySecond cloned
+}
+
+DotExpression& DotExpression::operator = (DotExpression const& rhs)
+{
+    DotExpression(rhs).swap(*this);
+    return *this;
+}
+
+DotExpression::~DotExpression()
+{
+}
+
+void DotExpression::swap(DotExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myExpressions, rhs.myExpressions);
+}
+
+void DotExpression::io(IStream& stream) const
+{
+    stream.next("expression", myExpressions);
+}
+
+IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DotExpression, Expression)
+IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_END
+
+void DotExpression::resolveSymbols(Context& ctx)
+{
+    Declaration const* lastDecl = nullptr;
+    for ( auto& e : myExpressions ) {
+        if ( !lastDecl ) {
+            IResolver* prevResolver = nullptr;
+            ScopeResolver modScope(ctx.module()->scope());
+            if ( isModuleScope() )
+                prevResolver = ctx.changeResolver(modScope);
+
+            ctx.resolveExpression(e);
+            lastDecl = e->declaration();
+
+            if ( prevResolver )
+                ctx.changeResolver(*prevResolver);
+
+            continue;
+        }
+
+        if ( auto var = lastDecl->as<VariableDeclaration>() ) {
+            auto varDecl = var->constraint()->declaration();
+            if ( !varDecl ) {
+                ctx.error(*var) << "unknown type";
+                return;
+            }
+
+            if ( auto dpDecl = varDecl->as<DataProductDeclaration>() ) {
+                if ( auto p = e->as<PrimaryExpression>() ) {
+                    Symbol sym(p->token());
+                    auto hit = dpDecl->scope()->findValue(ctx.diagnostics(), sym);
+                    if ( hit ) {
+                        myDeclaration = hit.decl();
+                    }
+                }
+            }
+        }
+    }
+}
+
+Slice<Expression*> DotExpression::expressions()
+{
+    return myExpressions;
+}
+
+Slice<Expression*> DotExpression::expressions() const
+{
+    return myExpressions;
+}
+
+Expression& DotExpression::top()
+{
+    return *myExpressions.back();
+}
+
+Expression const& DotExpression::top() const
+{
+    return *myExpressions.back();
+}
+
+bool DotExpression::isModuleScope() const
+{
+    return myGlobal;
+}
+
+//
 // Utilities
 
 template <typename Dispatcher>
@@ -674,6 +784,11 @@ struct FrontExpression
 
         return dispatch(*s.expressions()[0]);
     }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        return dispatch(*d.expressions()[0]);
+    }
 };
 
 lexer::Token const& front(Expression const& expr)
@@ -696,12 +811,12 @@ struct PrintOperator
     {
     }
 
-    std::ostream& exprPrimary(PrimaryExpression const& p)
+    result_t exprPrimary(PrimaryExpression const& p)
     {
         return stream << p.token().lexeme();
     }
 
-    std::ostream& exprTuple(TupleExpression const& t)
+    result_t exprTuple(TupleExpression const& t)
     {
         stream << presentTupleOpen(t.kind());
 
@@ -717,7 +832,7 @@ struct PrintOperator
         return stream << presentTupleClose(t.kind());
     }
 
-    std::ostream& exprApply(ApplyExpression const& a)
+    result_t exprApply(ApplyExpression const& a)
     {
         auto first = true;
         for ( auto const& e : a.expressions() ) {
@@ -739,7 +854,7 @@ struct PrintOperator
         return stream;
     }
 
-    std::ostream& exprSymbol(SymbolExpression const& s)
+    result_t exprSymbol(SymbolExpression const& s)
     {
         auto const& id = s.identifier().lexeme();
         if ( !id.empty() )
@@ -759,6 +874,25 @@ struct PrintOperator
 
         if ( id.empty() )
             return stream << "<>";
+
+        return stream;
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        if ( d.isModuleScope() )
+            stream << ".";
+
+        auto l = begin(d.expressions());
+        auto r = end(d.expressions());
+        if ( l != r )
+            dispatch(*(*l));
+
+        ++l;
+        for ( ; l != r; ++l ) {
+            stream << ".";
+            dispatch(*(*l));
+        }
 
         return stream;
     }
@@ -805,6 +939,12 @@ struct EnforceResolution
     void exprSymbol(SymbolExpression const& s)
     {
         for ( auto const& e : s.expressions() )
+            dispatch(*e);
+    }
+
+    void exprDot(DotExpression const& d)
+    {
+        for ( auto const& e : d.expressions() )
             dispatch(*e);
     }
 };

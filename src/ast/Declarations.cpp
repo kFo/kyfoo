@@ -92,6 +92,11 @@ DeclarationScope* Declaration::scope()
     return myScope;
 }
 
+DeclarationScope const* Declaration::scope() const
+{
+    return myScope;
+}
+
 void Declaration::setScope(DeclarationScope& scope)
 {
     if ( myScope )
@@ -320,6 +325,87 @@ DataProductScope* DataProductDeclaration::definition()
 DataProductScope const* DataProductDeclaration::definition() const
 {
     return myDefinition.get();
+}
+
+//
+// DataProductDeclaration::Field
+
+DataProductDeclaration::Field::Field(Symbol&& symbol, std::unique_ptr<Expression> constraint)
+    : Declaration(DeclKind::Field, std::move(symbol), nullptr)
+    , myConstraint(std::move(constraint))
+{
+}
+
+DataProductDeclaration::Field::Field(Field const& rhs)
+    : Declaration(rhs)
+    , myParent(rhs.myParent)
+{
+    // clone myExpression
+}
+
+DataProductDeclaration::Field& DataProductDeclaration::Field::operator = (Field const& rhs)
+{
+    Field(rhs).swap(*this);
+    return *this;
+}
+
+DataProductDeclaration::Field::~Field() = default;
+
+void DataProductDeclaration::Field::swap(Field& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myParent, rhs.myParent);
+    swap(myConstraint, rhs.myConstraint);
+}
+
+void DataProductDeclaration::Field::io(IStream& stream) const
+{
+    Declaration::io(stream);
+    stream.next("constraint", myConstraint);
+}
+
+IMPL_CLONE_BEGIN(DataProductDeclaration::Field, Declaration, Declaration)
+IMPL_CLONE_CHILD(myConstraint)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration::Field, Declaration)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myConstraint)
+IMPL_CLONE_REMAP_END
+
+void DataProductDeclaration::Field::resolveSymbols(Diagnostics& dgn)
+{
+    ScopeResolver resolver(myParent->scope());
+    Context ctx(dgn, resolver);
+    ctx.resolveExpression(myConstraint);
+}
+
+void DataProductDeclaration::Field::setParent(DataProductDeclaration* dpDecl)
+{
+    if ( parent() )
+        throw std::runtime_error("field can only belong to one product type");
+
+    myParent = dpDecl;
+}
+
+DataProductDeclaration* DataProductDeclaration::Field::parent()
+{
+    return myParent;
+}
+
+DataProductDeclaration const* DataProductDeclaration::Field::parent() const
+{
+    return myParent;
+}
+
+Expression& DataProductDeclaration::Field::constraint()
+{
+    return *myConstraint;
+}
+
+Expression const& DataProductDeclaration::Field::constraint() const
+{
+    return *myConstraint;
 }
 
 //
@@ -681,8 +767,15 @@ ProcedureParameter const* ProcedureDeclaration::result() const
 //
 // ImportDeclaration
 
-ImportDeclaration::ImportDeclaration(Symbol&& symbol)
-    : Declaration(DeclKind::Import, std::move(symbol), nullptr)
+ImportDeclaration::ImportDeclaration(Symbol&& sym)
+    : Declaration(DeclKind::Import, std::move(sym), nullptr)
+{
+    myModulePath.push_back(symbol().identifier());
+}
+
+ImportDeclaration::ImportDeclaration(std::vector<lexer::Token>&& modulePath)
+    : Declaration(DeclKind::Import, Symbol(modulePath.back()), nullptr)
+    , myModulePath(std::move(modulePath))
 {
 }
 

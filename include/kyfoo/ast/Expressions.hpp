@@ -19,11 +19,12 @@ class ProcedureDeclaration;
 class SymbolReference;
 class LookupHit;
 
-#define EXPRESSION_KINDS(X) \
+#define EXPRESSION_KINDS(X)       \
     X(Primary, PrimaryExpression) \
-    X(Tuple  , TupleExpression) \
-    X(Apply  , ApplyExpression) \
-    X(Symbol , SymbolExpression)
+    X(Tuple  , TupleExpression)   \
+    X(Apply  , ApplyExpression)   \
+    X(Symbol , SymbolExpression)  \
+    X(Dot    , DotExpression)
 
 class Expression : public INode
 {
@@ -246,6 +247,44 @@ private:
 
     lexer::Token myOpenToken;
     lexer::Token myCloseToken;
+};
+
+class DotExpression : public Expression
+{
+public:
+    DotExpression(bool global,
+                  std::vector<std::unique_ptr<Expression>>&& exprs);
+
+protected:
+    DotExpression(DotExpression const& rhs);
+    DotExpression& operator = (DotExpression const& rhs);
+
+public:
+    ~DotExpression();
+
+    void swap(DotExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    void resolveSymbols(Context& ctx) override;
+
+public:
+    Slice<Expression*> expressions();
+    Slice<Expression*> expressions() const;
+
+    Expression& top();
+    Expression const& top() const;
+
+    bool isModuleScope() const;
+
+private:
+    std::vector<std::unique_ptr<Expression>> myExpressions;
+    bool myGlobal = false;
 };
 
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }

@@ -10,7 +10,7 @@ namespace kyfoo {
 //
 // ScopeResolver
 
-ScopeResolver::ScopeResolver(DeclarationScope* scope)
+ScopeResolver::ScopeResolver(DeclarationScope const* scope)
     : myScope(scope)
 {
     if ( !scope )
@@ -172,6 +172,16 @@ LookupHit Context::matchProcedure(Diagnostics& dgn, SymbolReference const& sym) 
     return myResolver->matchProcedure(dgn, sym);
 }
 
+Diagnostics& Context::diagnostics()
+{
+    return *myDiagnostics;
+}
+
+IResolver& Context::resolver()
+{
+    return *myResolver;
+}
+
 Error& Context::error(lexer::Token const& token)
 {
     return myDiagnostics->error(module(), token);
@@ -180,6 +190,11 @@ Error& Context::error(lexer::Token const& token)
 Error& Context::error(Expression const& expr)
 {
     return myDiagnostics->error(module(), expr);
+}
+
+Error& Context::error(Declaration const& decl)
+{
+    return myDiagnostics->error(module(), decl.symbol().identifier());
 }
 
 std::size_t Context::errorCount() const
@@ -195,6 +210,13 @@ LookupHit Context::matchValue(SymbolReference const& sym) const
 LookupHit Context::matchProcedure(SymbolReference const& sym) const
 {
     return myResolver->matchProcedure(*myDiagnostics, sym);
+}
+
+IResolver* Context::changeResolver(IResolver& resolver)
+{
+    auto ret = myResolver;
+    myResolver = &resolver;
+    return ret;
 }
 
 void Context::rewrite(std::unique_ptr<Expression> expr)

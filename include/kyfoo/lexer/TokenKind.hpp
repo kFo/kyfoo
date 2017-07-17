@@ -34,13 +34,14 @@ namespace kyfoo {
     X(Pipe, "pipe") \
     X(Comma, "comma") \
     X(ColonPipe, "colonPipe") \
-    X(AmpersandPipe, "ampersandPipe") \
+    X(ColonAmpersand, "colonAmpersand") \
     \
     X(Plus, "plus") \
     X(Minus, "minus") \
     X(Star, "star") \
     X(Slash, "slash") \
     X(Yield, "yield") \
+    X(Map, "map") \
     \
     X(_keywordStart, "keyword start") \
     X(_if, "if") \
