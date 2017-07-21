@@ -4,6 +4,9 @@
 #include <functional>
 #include <set>
 
+#include <boost/multiprecision/cpp_int.hpp>
+#include <boost/numeric/interval.hpp>
+
 #include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/TokenKind.hpp>
@@ -16,6 +19,10 @@
 
 namespace kyfoo {
     namespace ast {
+
+    using boost::multiprecision::cpp_int;
+    using boost::numeric::interval;
+    using bounds_t = interval<cpp_int>;
 
 namespace {
     template <typename T>
@@ -50,6 +57,16 @@ namespace {
         // todo: print diagnostics on mismatch
         return matchEquivalent(ctx, *e->second, expr);
     }
+
+    bounds_t bitsToBounds(int bits)
+    {
+        cpp_int const c(pow(cpp_int(2), std::abs(bits)));
+        if ( bits < 0 )
+            return bounds_t(-c / 2, c / 2 - 1);
+
+        return bounds_t(0, c - 1);
+    }
+
 } // namespace
 
 //
@@ -411,29 +428,19 @@ bool isCovariant(Context&, lexer::Token const& target, lexer::Token const& query
 
 bool isCovariant(Context& ctx, Declaration const& target, lexer::Token const& query)
 {
-    if ( lhs.empty() )
-        return rhs.empty();
+    auto const& axioms = ctx.axioms();
 
-    auto const size = lhs.size();
-    if ( size != rhs.size() )
-        return false;
+    if ( auto intMeta = axioms.integerMetaData(target) ) {
+        if ( query.kind() != lexer::TokenKind::Integer )
+            return false; // todo: diagnostics
 
+        cpp_int const n(query.lexeme());
+        bounds_t const bounds = bitsToBounds(intMeta->bits);
 
-bool isCovariant(lexer::Token const& target, lexer::Token const& query)
-{
-    return target.lexeme() == query.lexeme();
-}
+        if ( !in(n, bounds) )
+            return false; // todo: error diagnostics
 
-bool isCovariant(Declaration const& target, lexer::Token const& query)
-{
-    if ( isDataDeclaration(target.kind()) ) {
-        // todo: implicit conversions
-        if ( query.kind() == lexer::TokenKind::Integer )
-            return target.symbol().name() == "integer";
-        else if ( query.kind() == lexer::TokenKind::Rational )
-            return target.symbol().name() == "rational";
-        else if ( query.kind() == lexer::TokenKind::String )
-            return target.symbol().name() == "ascii";
+        return true;
     }
 
     return false;
@@ -452,6 +459,15 @@ bool isCovariant(Context& ctx, Declaration const& target, Declaration const& que
 
     if ( auto v = query.as<VariableDeclaration>() )
         return isCovariant(ctx, target, *v->constraint()->declaration());
+
+    if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
+        if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
+            auto const targetBounds = bitsToBounds(targetInteger->bits);
+            auto const queryBounds = bitsToBounds(queryInteger->bits);
+
+            return subset(queryBounds, targetBounds);
+        }
+    }
 
     // todo: removeme
     if ( &query == ctx.axioms().pointerNullLiteralType() )

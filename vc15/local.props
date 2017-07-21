@@ -4,6 +4,8 @@
   <PropertyGroup Label="UserMacros">
     <LLVM_LIB_PATH>..\..\..\llvm\build\$(Configuration)\lib</LLVM_LIB_PATH>
     <LLVM_INCLUDE_PATH>..\..\..\llvm\install\include</LLVM_INCLUDE_PATH>
+    <BOOST_LIB_PATH>..\..\..\boost\boost_1_64_0\stage\lib</BOOST_LIB_PATH>
+    <BOOST_INCLUDE_PATH>..\..\..\boost\boost_1_64_0</BOOST_INCLUDE_PATH>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />
@@ -13,6 +15,12 @@
     </BuildMacro>
     <BuildMacro Include="LLVM_INCLUDE_PATH">
       <Value>$(LLVM_INCLUDE_PATH)</Value>
+    </BuildMacro>
+    <BuildMacro Include="BOOST_LIB_PATH">
+      <Value>$(BOOST_LIB_PATH)</Value>
+    </BuildMacro>
+    <BuildMacro Include="BOOST_INCLUDE_PATH">
+      <Value>$(BOOST_INCLUDE_PATH)</Value>
     </BuildMacro>
   </ItemGroup>
 </Project>
