@@ -319,6 +319,8 @@ void TupleExpression::resolveSymbols(Context& ctx)
             return ctx.rewrite(std::move(myExpressions[0]));
         }
     }
+
+    flattenOpenTuples();
 }
 
 TupleKind TupleExpression::kind() const
@@ -355,8 +357,10 @@ void TupleExpression::flattenOpenTuples()
         if ( (*i)->kind() == Expression::Kind::Tuple ) {
             auto tuple = static_cast<TupleExpression*>(i->get());
             if ( tuple->kind() == TupleKind::Open ) {
+                auto index = distance(begin(myExpressions), i) + tuple->myExpressions.size();
                 move(begin(tuple->myExpressions), end(tuple->myExpressions),
                      std::inserter(myExpressions, i));
+                i = next(begin(myExpressions), index);
                 goto L_removeItem;
             }
         }
@@ -417,6 +421,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     if ( !subject ) {
         // explicit procedure lookup
         ctx.resolveExpressions(myExpressions);
+        flatten();
 
         if ( !allResolved(myExpressions) ) {
             ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
@@ -436,6 +441,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
         }
 
         ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
+        flatten(next(begin(myExpressions)));
 
         if ( !allResolved(slice(myExpressions, 1)) ) {
             ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
@@ -482,20 +488,22 @@ void ApplyExpression::resolveSymbols(Context& ctx)
  */
 void ApplyExpression::flatten()
 {
-    for ( auto i = begin(myExpressions); i != end(myExpressions); ) {
-        if ( auto apply = (*i)->as<ApplyExpression>() ) {
-            if ( auto p = apply->expressions()[0]->as<PrimaryExpression>() ) {
-                if ( auto d = p->declaration() )
-                    if ( d->as<ProcedureDeclaration>() )
-                        goto L_next;
-            }
+    return flatten(begin(myExpressions));
+}
 
-            move(begin(apply->myExpressions), end(apply->myExpressions),
-                 std::inserter(myExpressions, i));
-            goto L_removeItem;
+void ApplyExpression::flatten(std::vector<std::unique_ptr<Expression>>::iterator first)
+{
+    for ( auto i = first; i != end(myExpressions); ) {
+        if ( auto tuple = (*i)->as<TupleExpression>() ) {
+            if ( tuple->kind() == TupleKind::Open ) {
+                auto index = distance(begin(myExpressions), i) + tuple->myExpressions.size();
+                move(begin(tuple->myExpressions), end(tuple->myExpressions),
+                     std::inserter(myExpressions, i));
+                i = next(begin(myExpressions), index);
+                goto L_removeItem;
+            }
         }
 
-    L_next:
         ++i;
         continue;
 

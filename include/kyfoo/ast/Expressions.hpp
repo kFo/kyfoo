@@ -195,6 +195,7 @@ protected:
 
 public:
     void flatten();
+    void flatten(std::vector<std::unique_ptr<Expression>>::iterator first);
 
 public:
     Slice<Expression*> expressions() const;
