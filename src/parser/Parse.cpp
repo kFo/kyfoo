@@ -32,6 +32,15 @@ std::unique_ptr<ast::ImportDeclaration> parseImportDeclaration(lexer::Scanner& s
     return nullptr;
 }
 
+std::unique_ptr<ast::VariableDeclaration> parseVariableDeclaration(lexer::Scanner& scanner)
+{
+    VariableDeclaration grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
 std::unique_ptr<ast::SymbolDeclaration> parseSymbolDeclaration(lexer::Scanner& scanner)
 {
     SymbolDeclaration grammar;
@@ -300,8 +309,11 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
             return declParse;
     }
 
-    auto expr = parseExpression(scanner);
-    if ( expr ) {
+    if ( auto varDecl = parseVariableDeclaration(scanner) ) {
+        static_cast<ast::DeclarationScope*>(scope())->append(std::move(varDecl));
+        return std::make_tuple(true, nullptr);
+    }
+    else if ( auto expr = parseExpression(scanner) ) {
         scope()->append(std::move(expr));
         return std::make_tuple(true, nullptr);
     }
