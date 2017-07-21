@@ -530,6 +530,24 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
     return false;
 }
 
+DeclarationScope const* memberScope(Declaration const& decl)
+{
+    if ( auto var = decl.as<VariableDeclaration>() )
+        return memberScope(*resolveIndirections(var->constraint()->declaration()));
+
+    if ( auto field = decl.as<DataProductDeclaration::Field>() )
+        return memberScope(*resolveIndirections(field->constraint().declaration()));
+
+    if ( auto ds = decl.as<DataSumDeclaration>() )
+        return ds->definition();
+
+    if ( auto dp = decl.as<DataProductDeclaration>() )
+        return dp->definition();
+
+    // todo: imports
+    return nullptr;
+}
+
 //
 // ValueMatcher
 
