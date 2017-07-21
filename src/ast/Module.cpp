@@ -27,11 +27,18 @@ namespace kyfoo {
 ModuleSet::ModuleSet()
     : myAxioms(new AxiomsModule(this, "axioms"))
 {
-    if ( !myAxioms->init() )
-        myAxioms.reset();
 }
 
 ModuleSet::~ModuleSet() = default;
+
+bool ModuleSet::init(Diagnostics& dgn)
+{
+    myAxioms->init(dgn);
+    if ( dgn.errorCount() )
+        myAxioms.reset();
+
+    return myAxioms != nullptr;
+}
 
 Module* ModuleSet::create(std::string const& name)
 {

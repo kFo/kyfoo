@@ -29,6 +29,8 @@ public:
     ~ModuleSet();
 
 public:
+    bool init(Diagnostics& dgn);
+
     Module* create(std::string const& name);
     Module* create(std::experimental::filesystem::path const& path);
 
