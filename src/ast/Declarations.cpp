@@ -919,5 +919,90 @@ bool hasIndirection(DeclKind kind)
     return isMacroDeclaration(kind) || kind == DeclKind::SymbolVariable;
 }
 
+template <typename Dispatch>
+struct DeclarationPrinter
+{
+    using result_t = std::ostream&;
+    Dispatch& dispatch;
+    result_t stream;
+
+    explicit DeclarationPrinter(Dispatch& dispatch, std::ostream& stream)
+        : dispatch(dispatch)
+        , stream(stream)
+    {
+    }
+
+    result_t declDataSum(DataSumDeclaration const& ds)
+    {
+        return stream << ds.symbol().name();
+    }
+
+    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
+    {
+        return stream << dsCtor.symbol().name();
+    }
+
+    result_t declDataProduct(DataProductDeclaration const& dp)
+    {
+        return stream << dp.symbol().name();
+    }
+
+    result_t declField(DataProductDeclaration::Field const& f)
+    {
+        return stream << f.symbol().name();
+    }
+
+    result_t declSymbol(SymbolDeclaration const& s)
+    {
+        return stream << s.symbol().name();
+    }
+
+    result_t print(ProcedureParameter const& param)
+    {
+        ast::print(stream, *param.constraint());
+
+        return stream;
+    }
+
+    result_t declProcedure(ProcedureDeclaration const& proc)
+    {
+        ast::print(stream, proc.symbol());
+        stream << "(";
+        auto first = begin(proc.parameters());
+        auto last = end(proc.parameters());
+        if ( first != last )
+            print(**first);
+
+        for ( ++first; first != last; ++first ) {
+            stream << ", ";
+            print(**first);
+        }
+
+        stream << ")";
+        return stream;
+    }
+
+    result_t declVariable(VariableDeclaration const& var)
+    {
+        return stream << var.symbol().name();
+    }
+
+    result_t declImport(ImportDeclaration const& imp)
+    {
+        return stream << imp.symbol().name();
+    }
+
+    result_t declSymbolVariable(SymbolVariable const& symVar)
+    {
+        return stream << symVar.symbol().name();
+    }
+};
+
+std::ostream& print(std::ostream& stream, Declaration const& decl)
+{
+    ShallowApply<DeclarationPrinter> op(stream);
+    return op(decl);
+}
+
     } // namespace ast
 } // namespace kyfoo
