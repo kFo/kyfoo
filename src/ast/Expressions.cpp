@@ -697,41 +697,46 @@ IMPL_CLONE_REMAP_END
 
 void DotExpression::resolveSymbols(Context& ctx)
 {
-    Declaration const* lastDecl = nullptr;
-    for ( auto& e : myExpressions ) {
-        if ( !lastDecl ) {
-            IResolver* prevResolver = nullptr;
-            ScopeResolver modScope(ctx.module()->scope());
-            if ( isModuleScope() )
-                prevResolver = ctx.changeResolver(modScope);
+    IResolver* originalResolver = &ctx.resolver();
+    ScopeResolver resolver(*ctx.module().scope());
+    if ( isModuleScope() )
+        ctx.changeResolver(resolver);
 
-            ctx.resolveExpression(e);
-            lastDecl = e->declaration();
+    ctx.resolveExpression(myExpressions.front());
+    if ( !myExpressions.front()->declaration() )
+        return;
 
-            if ( prevResolver )
-                ctx.changeResolver(*prevResolver);
-
-            continue;
+    {
+        auto scope = memberScope(*resolveIndirections(myExpressions.front()->declaration()));
+        if ( !scope ) {
+            ctx.error(*myExpressions.front()) << "does not have any accessible members";
+            return;
         }
 
-        if ( auto var = lastDecl->as<VariableDeclaration>() ) {
-            auto varDecl = var->constraint()->declaration();
-            if ( !varDecl ) {
-                ctx.error(*var) << "unknown type";
-                return;
-            }
-
-            if ( auto dpDecl = varDecl->as<DataProductDeclaration>() ) {
-                if ( auto p = e->as<PrimaryExpression>() ) {
-                    Symbol sym(p->token());
-                    auto hit = dpDecl->scope()->findValue(ctx.diagnostics(), sym);
-                    if ( hit ) {
-                        myDeclaration = hit.decl();
-                    }
-                }
-            }
-        }
+        resolver = ScopeResolver(*scope);
+        ctx.changeResolver(resolver);
     }
+
+    for ( std::size_t i = 1; i < myExpressions.size() - 1; ++i ) {
+        auto& e = myExpressions[i];
+        ctx.resolveExpression(e);
+        if ( !e->declaration() )
+            return;
+
+        auto scope = memberScope(*resolveIndirections(e->declaration()));
+        if ( !scope ) {
+            ctx.error(*e) << "does not have any accessible members";
+            return;
+        }
+
+        resolver = ScopeResolver(*scope);
+    }
+
+    ctx.resolveExpression(myExpressions.back());
+    if ( myExpressions.back()->declaration() )
+        myDeclaration = myExpressions.back()->declaration();
+
+    ctx.changeResolver(*originalResolver);
 }
 
 Slice<Expression*> DotExpression::expressions()
