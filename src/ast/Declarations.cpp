@@ -36,6 +36,7 @@ Declaration::Declaration(DeclKind kind,
 
 Declaration::Declaration(Declaration const& rhs)
     : myKind(rhs.myKind)
+    , myScope(rhs.myScope)
 {
 }
 
@@ -87,19 +88,19 @@ lexer::Token const& Declaration::identifier() const
     return mySymbol->identifier();
 }
 
-DeclarationScope* Declaration::scope()
+DeclarationScope& Declaration::scope()
 {
-    return myScope;
+    return *myScope;
 }
 
-DeclarationScope const* Declaration::scope() const
+DeclarationScope const& Declaration::scope() const
 {
-    return myScope;
+    return *myScope;
 }
 
 void Declaration::setScope(DeclarationScope& scope)
 {
-    if ( myScope )
+    if ( myScope && myScope != &scope )
         throw std::runtime_error("declaration parent set twice");
 
     myScope = &scope;
@@ -237,7 +238,7 @@ IMPL_CLONE_REMAP_END
 void DataSumDeclaration::Constructor::resolveSymbols(Diagnostics& dgn)
 {
     for ( auto& e : myParameters )
-        e->setScope(*scope());
+        e->setScope(scope());
 
     for ( auto& e : myParameters )
         e->resolveSymbols(dgn);

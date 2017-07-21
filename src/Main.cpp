@@ -216,7 +216,7 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
             m->parse(dgn);
             m->resolveImports(dgn);
             for ( auto const& i : m->imports() ) {
-                if ( i != moduleSet.axioms() )
+                if ( i != &moduleSet.axioms() )
                     append(i);
             }
         }
@@ -249,7 +249,7 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
 
         kyfoo::Diagnostics dgn;
         try {
-            kyfoo::codegen::LLVMGenerator gen(dgn, *moduleSet.axioms());
+            kyfoo::codegen::LLVMGenerator gen(dgn, moduleSet.axioms());
             gen.generate();
         }
         catch (kyfoo::Diagnostics* d) {

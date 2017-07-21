@@ -5,6 +5,10 @@
 #include <set>
 
 #include <kyfoo/Diagnostics.hpp>
+
+#include <kyfoo/lexer/TokenKind.hpp>
+
+#include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Symbol.hpp>
@@ -33,7 +37,7 @@ namespace {
         return true;
     }
 
-    bool bind(binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
+    bool bind(Context& ctx, binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
     {
         auto e = bindings.find(&symVar);
         if ( e == end(bindings) ) {
@@ -44,14 +48,14 @@ namespace {
 
         // existing binding must be consistent
         // todo: print diagnostics on mismatch
-        return matchEquivalent(*e->second, expr);
+        return matchEquivalent(ctx, *e->second, expr);
     }
 } // namespace
 
 //
 // SymbolDependencyTracker
 
-SymbolDependencyTracker::SymbolDependencyTracker(Module* mod, Diagnostics& dgn)
+SymbolDependencyTracker::SymbolDependencyTracker(Module& mod, Diagnostics& dgn)
     : mod(mod)
     , dgn(dgn)
 {
@@ -302,6 +306,12 @@ L_error:
 
 struct MatchEquivalent
 {
+    Context& ctx;
+    explicit MatchEquivalent(Context& ctx)
+        : ctx(ctx)
+    {
+    }
+
     // Primary match
 
     bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
@@ -336,28 +346,28 @@ struct MatchEquivalent
             return false;
         }
 
-        return isCovariant(l.token(), r.token());
+        return isCovariant(ctx, l.token(), r.token());
     }
 
     // Tuple match
 
     bool operator()(TupleExpression const& l, TupleExpression const& r)
     {
-        return matchEquivalent(l.expressions(), r.expressions());
+        return matchEquivalent(ctx, l.expressions(), r.expressions());
     }
 
     // Apply match
 
     bool operator()(ApplyExpression const& l, ApplyExpression const& r)
     {
-        return matchEquivalent(l.expressions(), r.expressions());
+        return matchEquivalent(ctx, l.expressions(), r.expressions());
     }
 
     // Symbol match
 
     bool operator()(SymbolExpression const& l, SymbolExpression const& r)
     {
-        return matchEquivalent(l.expressions(), r.expressions());
+        return matchEquivalent(ctx, l.expressions(), r.expressions());
     }
 
     // else
@@ -382,129 +392,24 @@ struct MatchEquivalent
  *
  * \todo Match should return degree in presence of specialization
  */
-bool matchEquivalent(Expression const& lhs, Expression const& rhs)
+bool matchEquivalent(Context& ctx, Expression const& lhs, Expression const& rhs)
 {
-    MatchEquivalent op;
+    MatchEquivalent op(ctx);
     return noncommute(op, lhs, rhs);
 }
 
-bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
+bool matchEquivalent(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
-    auto op = [](auto const& l, auto const& r) { return matchEquivalent(l, r); };
+    auto op = [&ctx](auto const& l, auto const& r) { return matchEquivalent(ctx, l, r); };
     return compare(lhs, rhs, op);
 }
 
-struct MatchInstantiable
+bool isCovariant(Context&, lexer::Token const& target, lexer::Token const& query)
 {
-    binding_set_t& bindingSet;
-
-    MatchInstantiable(binding_set_t& bindingSet)
-        : bindingSet(bindingSet)
-    {
-    }
-
-    bool bindSymVar(SymbolVariable const& sym, Expression const& expr)
-    {
-        auto e = bindingSet.find(&sym);
-        if ( e != end(bindingSet) ) {
-            // expr must agree with what is already bound
-            return matchEquivalent(*e->second, expr);
-        }
-
-        bindingSet[&sym] = &expr;
-        return true;
-    }
-
-    // Primary match
-
-    bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
-    {
-        if ( isIdentifier(l.token().kind()) ) {
-            if ( auto symVar = l.declaration()->as<SymbolVariable>() )
-                return bindSymVar(*symVar, r);
-
-            // todo: are these needed?
-            if ( auto s = l.declaration()->as<SymbolDeclaration>() )
-                return noncommute(*this, *s->expression(), r);
-
-            if ( isIdentifier(r.token().kind()) ) {
-                if ( r.declaration()->kind() == DeclKind::SymbolVariable )
-                    return false;
-
-                // todo: are these needed?
-                if ( auto s = r.declaration()->as<SymbolDeclaration>() )
-                    return noncommute(*this, l, *s->expression());
-
-                return l.declaration() == r.declaration();
-            }
-
-            return isCovariant(*l.declaration(), r.token());
-        }
-
-        if ( isIdentifier(r.token().kind()) ) {
-            if ( r.declaration()->kind() == DeclKind::SymbolVariable )
-                return false;
-
-            if ( auto s = r.declaration()->as<SymbolDeclaration>() )
-                return noncommute(*this, l, *s->expression());
-
-            return false;
-        }
-
-        return isCovariant(l.token(), r.token());
-    }
-
-    // Tuple match
-
-    bool operator()(TupleExpression const& l, TupleExpression const& r)
-    {
-        return matchEquivalent(l.expressions(), r.expressions());
-    }
-
-    // Apply match
-
-    bool operator()(ApplyExpression const& l, ApplyExpression const& r)
-    {
-        return matchEquivalent(l.expressions(), r.expressions());
-    }
-
-    // Symbol match
-
-    bool operator()(SymbolExpression const& l, SymbolExpression const& r)
-    {
-        return matchEquivalent(l.expressions(), r.expressions());
-    }
-
-    // else
-
-    bool operator()(Expression const& l, Expression const& r)
-    {
-        // todo: symvar binding
-        if ( auto p = l.as<PrimaryExpression>() )
-            return p->declaration()->kind() == DeclKind::SymbolVariable;
-
-        if ( auto p = r.as<PrimaryExpression>() )
-            return p->declaration()->kind() == DeclKind::SymbolVariable;
-
-        return false;
-    }
-};
-
-/**
- * Answers whether \p lhs could be instantiated by \p rhs for an
- * unknown binding of symbol variables
- */
-bool matchInstantiable(binding_set_t& bindingSet,
-                       Expression const& lhs,
-                       Expression const& rhs)
-{
-    MatchInstantiable op(bindingSet);
-    return noncommute(op, lhs, rhs);
+    return target.lexeme() == query.lexeme();
 }
 
-bool matchInstantiable(binding_set_t& bindingSet,
-                       Slice<Expression*> lhs,
-                       Slice<Expression*> rhs)
+bool isCovariant(Context& ctx, Declaration const& target, lexer::Token const& query)
 {
     if ( lhs.empty() )
         return rhs.empty();
@@ -513,13 +418,6 @@ bool matchInstantiable(binding_set_t& bindingSet,
     if ( size != rhs.size() )
         return false;
 
-    for ( std::size_t i = 0; i < size; ++i ) {
-        if ( !matchInstantiable(bindingSet, *lhs[i], *rhs[i]) )
-            return false;
-    }
-
-    return true;
-}
 
 bool isCovariant(lexer::Token const& target, lexer::Token const& query)
 {
@@ -541,19 +439,23 @@ bool isCovariant(Declaration const& target, lexer::Token const& query)
     return false;
 }
 
-bool isCovariant(Declaration const& target, Declaration const& query)
+bool isCovariant(Context& ctx, Declaration const& target, Declaration const& query)
 {
     if ( &target == &query )
         return true;
 
     if ( auto dsCtor = query.as<DataSumDeclaration::Constructor>() )
-        return isCovariant(target, *dsCtor->parent());
+        return isCovariant(ctx, target, *dsCtor->parent());
 
     if ( auto f = query.as<ProcedureDeclaration>() )
-        return isCovariant(target, *f->returnType()->declaration());
+        return isCovariant(ctx, target, *f->returnType()->declaration());
 
     if ( auto v = query.as<VariableDeclaration>() )
-        return isCovariant(target, *v->constraint()->declaration());
+        return isCovariant(ctx, target, *v->constraint()->declaration());
+
+    // todo: removeme
+    if ( &query == ctx.axioms().pointerNullLiteralType() )
+        return descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol());
 
     return false;
 }
@@ -631,6 +533,11 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 //
 // ValueMatcher
 
+ValueMatcher::ValueMatcher(Context& ctx)
+    : ctx(ctx)
+{
+}
+
 void ValueMatcher::reset()
 {
     leftBindings.clear();
@@ -647,6 +554,15 @@ bool ValueMatcher::matchValue(Expression const& lhs, Expression const& rhs)
     auto queryDecl = rhs.declaration();
     auto targetDecl = lhs.declaration();
 
+    if ( !targetDecl ) {
+        ctx.error(lhs) << "compilation stopped due to unresolved expression";
+        return false;
+    }
+    else if ( !queryDecl ) {
+        ctx.error(rhs) << "compilation stopped due to unresolved expression";
+        return false;
+    }
+
     {
         // resolve ast aliases and run again (normalizing)
         auto l = lookThrough(targetDecl);
@@ -656,58 +572,55 @@ bool ValueMatcher::matchValue(Expression const& lhs, Expression const& rhs)
             return matchValue(l ? *l : lhs, r ? *r : rhs);
     }
 
-    if ( queryDecl ) {
-        // look through storage declarations to their constraints
-        // similar to looking through ast aliases (more normalization)
-        if ( auto proc = queryDecl->as<ProcedureDeclaration>() )
-            return matchValue(lhs, *proc->returnType());
+    // look through storage declarations to their constraints
+    // similar to looking through ast aliases (more normalization)
+    if ( auto proc = queryDecl->as<ProcedureDeclaration>() )
+        return matchValue(lhs, *proc->returnType());
 
-        if ( auto v = queryDecl->as<VariableDeclaration>() )
-            return matchValue(lhs, *v->constraint());
-    }
+    if ( auto v = queryDecl->as<VariableDeclaration>() )
+        return matchValue(lhs, *v->constraint());
+
+    if ( auto f = queryDecl->as<DataProductDeclaration::Field>() )
+        return matchValue(lhs, f->constraint());
 
     // assumes lhs is:
     // - literal
     // - data declaration
     // - symbol variable
 
-    if ( !targetDecl ) {
+    auto lhsPrimary = lhs.as<PrimaryExpression>();
+    auto rhsPrimary = rhs.as<PrimaryExpression>();
+    if ( lhsPrimary && isLiteral(lhsPrimary->token().kind()) ) {
         // lhs is a literal
-        auto lhsPrimary = lhs.as<PrimaryExpression>();
-        if ( !lhsPrimary )
-            return false;
-
-        if ( !queryDecl ) {
-            auto rhsPrimary = rhs.as<PrimaryExpression>();
-            if ( !rhsPrimary )
-                return false;
-
-            return isCovariant(lhsPrimary->token(), rhsPrimary->token());
+        if ( rhsPrimary && isLiteral(rhsPrimary->token().kind()) ) {
+            return isCovariant(ctx, lhsPrimary->token(), rhsPrimary->token());
         }
         else {
             // todo: compile time execute
+            return false;
         }
     }
     else {
         // lhs is an identifier
         if ( auto symVar = targetDecl->as<SymbolVariable>() )
-            return bind(leftBindings, *symVar, rhs);
+            return bind(ctx, leftBindings, *symVar, rhs);
 
-        if ( !queryDecl ) {
-            // rhs is a literal
-            if ( auto p = rhs.as<PrimaryExpression>() )
-                return isCovariant(*targetDecl, p->token());
-
-            return false;
+        if ( rhsPrimary ) {
+            if ( isLiteral(rhsPrimary->token().kind()) ) {
+                // rhs is a literal
+                return isCovariant(ctx, *targetDecl, rhsPrimary->token());
+            }
+            else {
+                // rhs is an identifier
+            }
         }
 
         if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
-            return matchValue(targetDecl->symbol().parameters(), queryDecl->symbol().parameters());
+            if ( matchValue(targetDecl->symbol().parameters(), queryDecl->symbol().parameters()) )
+                return true;
 
-        return isCovariant(*targetDecl, *queryDecl);
+        return isCovariant(ctx, *targetDecl, *queryDecl);
     }
-
-    return false;
 }
 
 bool ValueMatcher::matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs)

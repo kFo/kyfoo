@@ -70,7 +70,7 @@ DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
 
     scanner.next();
 
-    declaration.define(std::make_unique<ast::DataSumScope>(myScope, declaration));
+    declaration.define(std::make_unique<ast::DataSumScope>(*myScope, declaration));
     return std::make_unique<DataSumScopeParser>(declaration.definition());
 }
 
@@ -85,7 +85,7 @@ DeclarationScopeParser::parseDataProductDefinition(Diagnostics& /*dgn*/,
 
     scanner.next();
 
-    declaration.define(std::make_unique<ast::DataProductScope>(myScope, declaration));
+    declaration.define(std::make_unique<ast::DataProductScope>(*myScope, declaration));
     return std::make_unique<DataProductScopeParser>(declaration.definition());
 }
 
@@ -97,7 +97,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
     // Check if a procedure definition follows
     if ( scanner.peek().kind() == TokenKind::Yield ) {
         scanner.next(); // yield
-        declaration.define(std::make_unique<ast::ProcedureScope>(myScope, declaration));
+        declaration.define(std::make_unique<ast::ProcedureScope>(*myScope, declaration));
         if ( !isIndent(scanner.peek().kind()) ) {
             auto expr = parseExpression(scanner);
             if ( !expr ) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 
 #include <kyfoo/ast/Module.hpp>
@@ -13,12 +14,12 @@ class ModuleSet;
 
 enum DataSumIntrinsics
 {
-    Empty,
-    Integer,
-    Rational,
-    String,
+    EmptyLiteralType,
+    IntegerLiteralType,
+    RationalLiteralType,
+    StringLiteralType,
+    PointerNullLiteralType,
 
-    PointerTemplate,
     UnsignedTemplate,
     SignedTemplate,
 
@@ -34,6 +35,10 @@ enum DataSumIntrinsics
     i32,
     i64,
     i128,
+
+    PointerTemplate,
+    ArrayStaticTemplate,
+    ArrayDynamicTemplate,
 
     DataSumInstrinsicsCount
 };
@@ -53,16 +58,25 @@ enum InstructionIntrinsics
     Addi64,
     Addi128,
 
+    Addr,
+
     InstructionIntrinsicsCount
 };
 
 class AxiomsModule : public Module
 {
+public:
+    struct IntegerMetaData
+    {
+        DataSumDeclaration const* decl;
+        int bits;
+    };
+
 protected:
     friend class ModuleSet;
     AxiomsModule(ModuleSet* moduleSet, std::string const& name);
     
-    bool init();
+    void init(Diagnostics& dgn);
 
 public:
     ~AxiomsModule();
@@ -71,34 +85,69 @@ public:
     /**
      * Empty expression ()
      */
-    DataSumDeclaration const* emptyType() const;
+    DataSumDeclaration const* emptyLiteralType() const;
 
     /**
      * Integer literal types
      */
-    DataSumDeclaration const* integerType() const;
+    DataSumDeclaration const* integerLiteralType() const;
 
     /**
      * Rational literal types
      */
-    DataSumDeclaration const* rationalType() const;
+    DataSumDeclaration const* rationalLiteralType() const;
 
     /**
      * String literal types
      */
-    DataSumDeclaration const* stringType() const;
+    DataSumDeclaration const* stringLiteralType() const;
 
+    /**
+     * Null literal type
+     */
+    DataSumDeclaration const* pointerNullLiteralType() const;
+
+    /**
+     * Intrinsic accessors by ordinal
+     */
+    /** { */
     DataSumDeclaration const* intrinsic(DataSumIntrinsics i) const;
     ProcedureDeclaration const* intrinsic(InstructionIntrinsics i) const;
+    /** } */
+
+    /**
+     * Test whether a declaration is an intrinsic
+     */
+    /** { */
+    bool isIntrinsic(DataSumDeclaration const& decl) const;
+    bool isIntrinsic(ProcedureDeclaration const& decl) const;
+    bool isIntrinsic(Declaration const& decl) const;
+    /** } */
+
+    /**
+     * Test whether a declaration is a literal
+     */
+    /** { */
+    bool isLiteral(DataSumDeclaration const& decl) const;
+    bool isLiteral(Declaration const& decl) const;
+    /** } */
+
+    IntegerMetaData const* integerMetaData(Declaration const& decl) const;
 
 private:
-    std::unique_ptr<DataSumDeclaration> myEmptyType;
-    std::unique_ptr<DataSumDeclaration> myIntegerType;
-    std::unique_ptr<DataSumDeclaration> myRationalType;
-    std::unique_ptr<DataSumDeclaration> myStringType;
+    std::unique_ptr<DataSumDeclaration> myEmptyLiteralType;
+    std::unique_ptr<DataSumDeclaration> myIntegerLiteralType;
+    std::unique_ptr<DataSumDeclaration> myRationalLiteralType;
+    std::unique_ptr<DataSumDeclaration> myStringLiteralType;
+    std::unique_ptr<DataSumDeclaration> myPointerNullLiteralType;
 
     DataSumDeclaration const* myDataSumDecls[DataSumInstrinsicsCount];
     ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
+
+private:
+    void buildMetaData();
+
+    std::array<IntegerMetaData, i128 - u1 + 1> myIntegerMetaData;
 };
 
     } // namespace ast

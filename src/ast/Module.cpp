@@ -100,14 +100,14 @@ Module* ModuleSet::find(std::experimental::filesystem::path const& path)
     return nullptr;
 }
 
-AxiomsModule* ModuleSet::axioms()
+AxiomsModule& ModuleSet::axioms()
 {
-    return myAxioms.get();
+    return *myAxioms;
 }
 
-AxiomsModule const* ModuleSet::axioms() const
+AxiomsModule const& ModuleSet::axioms() const
 {
-    return myAxioms.get();
+    return *myAxioms;
 }
 
 //
@@ -118,8 +118,7 @@ Module::Module(ModuleSet* moduleSet,
     : myModuleSet(moduleSet)
     , myName(name)
 {
-    if ( moduleSet->axioms() )
-        myImports.push_back(moduleSet->axioms());
+    myImports.push_back(&moduleSet->axioms());
 }
 
 Module::Module(ModuleSet* moduleSet,
@@ -128,8 +127,7 @@ Module::Module(ModuleSet* moduleSet,
     , myPath(canonical(path).make_preferred())
 {
     myName = path.filename().replace_extension("").string();
-    if ( moduleSet->axioms() )
-        myImports.push_back(moduleSet->axioms());
+    myImports.push_back(&moduleSet->axioms());
 }
 
 Module::~Module() = default;
@@ -156,7 +154,7 @@ void Module::parse(Diagnostics& dgn)
 {
     std::ifstream fin(path());
     if ( !fin ) {
-        dgn.error(this) << "failed to open source file";
+        dgn.error(*this) << "failed to open source file";
         dgn.die();
     }
 
@@ -169,7 +167,7 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
 
     using lexer::TokenKind;
 
-    myScope = std::make_unique<ast::DeclarationScope>(this);
+    myScope = std::make_unique<ast::DeclarationScope>(*this);
     
     std::vector<std::unique_ptr<parser::DeclarationScopeParser>> scopeStack;
     scopeStack.emplace_back(std::make_unique<parser::DeclarationScopeParser>(myScope.get()));
@@ -202,7 +200,7 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
 
             while ( scanner.peek().kind() == TokenKind::IndentLT ) {
                 if ( scopeStack.empty() ) {
-                    dgn.error(this, scanner.peek()) << "indentation doesn't match an existing scope";
+                    dgn.error(*this, scanner.peek()) << "indentation doesn't match an existing scope";
                     dgn.die();
                 }
 
@@ -213,7 +211,7 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
     }
 
     if ( scanner.hasError() ) {
-        dgn.error(this, scanner.peek()) << "lexical error";
+        dgn.error(*this, scanner.peek()) << "lexical error";
         dgn.die();
     }
 
@@ -250,7 +248,7 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
         importPath.replace_extension(".kf");
 
         if ( !exists(importPath) ) {
-            dgn.error(this, token) << "import does not exist: " << importPath.string();
+            dgn.error(*this, token) << "import does not exist: " << importPath.string();
             return nullptr;
         }
 
@@ -272,12 +270,12 @@ void Module::appendTemplateInstance(Declaration const* instance)
     myTemplateInstantiations.push_back(instance);
 }
 
-AxiomsModule* Module::axioms()
+AxiomsModule& Module::axioms()
 {
     return myModuleSet->axioms();
 }
 
-AxiomsModule const* Module::axioms() const
+AxiomsModule const& Module::axioms() const
 {
     return myModuleSet->axioms();
 }

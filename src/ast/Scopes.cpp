@@ -16,21 +16,21 @@ namespace kyfoo {
 //
 // DeclarationScope
 
-DeclarationScope::DeclarationScope(Module* module)
-    : myModule(module)
+DeclarationScope::DeclarationScope(Module& module)
+    : myModule(&module)
     , myParent(nullptr)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope* parent)
-    : myModule(parent->module())
+    : myModule(&parent->module())
     , myParent(parent)
 {
 }
 
-DeclarationScope::DeclarationScope(DeclarationScope* parent, Declaration& decl)
-    : myModule(parent->module())
-    , myParent(parent)
+DeclarationScope::DeclarationScope(DeclarationScope& parent, Declaration& decl)
+    : myModule(&parent.module())
+    , myParent(&parent)
     , myDeclaration(&decl)
 {
 }
@@ -83,7 +83,7 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 {
     for ( auto& e : myDeclarations ) {
         if ( auto d = e->as<ImportDeclaration>() ) {
-            module()->import(dgn, d->identifier());
+            module().import(dgn, d->identifier());
         }
     }
 }
@@ -99,7 +99,7 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 
     tracker.sortPasses();
 
-    ScopeResolver resolver(this);
+    ScopeResolver resolver(*this);
 
     // Resolve top-level declarations
     for ( auto const& symGroup : tracker.groups ) {
@@ -146,11 +146,11 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
  * mytype<n : ascii>
  * \endcode
  */
-LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
+LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const
 {
     auto symSet = findSymbol(symbol.name());
     if ( symSet )
-        return LookupHit(symSet, symSet->findEquivalent(symbol.parameters()));
+        return LookupHit(symSet, symSet->findEquivalent(dgn, symbol.parameters()));
 
     if ( myDeclaration && symbol.parameters().empty() )
         return LookupHit(symSet, myDeclaration->symbol().findVariable(symbol.name()));
@@ -248,7 +248,7 @@ SymbolSet* DeclarationScope::createProcedureOverloadSet(std::string const& name)
 bool DeclarationScope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
 {
     auto symSet = createSymbolSet(sym.name());
-    if ( auto other = symSet->findEquivalent(sym.parameters()) ) {
+    if ( auto other = symSet->findEquivalent(dgn, sym.parameters()) ) {
         auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
         err.see(other);
         return false;
@@ -261,7 +261,7 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaratio
 bool DeclarationScope::addProcedure(Diagnostics& dgn, Symbol const& sym, ProcedureDeclaration& procDecl)
 {
     auto procSet = createProcedureOverloadSet(sym.name());
-    if ( auto other = procSet->findEquivalent(sym.parameters()) ) {
+    if ( auto other = procSet->findEquivalent(dgn, sym.parameters()) ) {
         auto& err = dgn.error(module(), sym.identifier()) << "procedure declaration conflicts with existing overload";
         err.see(other);
         return false;
@@ -294,14 +294,14 @@ SymbolSet const* DeclarationScope::findProcedure(std::string const& identifier) 
     return nullptr;
 }
 
-Module* DeclarationScope::module()
+Module& DeclarationScope::module()
 {
-    return myModule;
+    return *myModule;
 }
 
-Module const* DeclarationScope::module() const
+Module const& DeclarationScope::module() const
 {
-    return myModule;
+    return *myModule;
 }
 
 Declaration* DeclarationScope::declaration()
@@ -332,7 +332,7 @@ Slice<Declaration*> DeclarationScope::childDeclarations() const
 //
 // DataSumScope
 
-DataSumScope::DataSumScope(DeclarationScope* parent,
+DataSumScope::DataSumScope(DeclarationScope& parent,
                            DataSumDeclaration& declaration)
     : DeclarationScope(parent, declaration)
 {
@@ -368,7 +368,7 @@ IMPL_CLONE_REMAP_END
 
 void DataSumScope::resolveSymbols(Diagnostics& dgn)
 {
-    ScopeResolver resolver(this);
+    ScopeResolver resolver(*this);
     for ( auto const& d : myDeclarations ) {
         auto dsCtor = d->as<DataSumDeclaration::Constructor>();
         if ( !dsCtor )
@@ -390,7 +390,7 @@ DataSumDeclaration* DataSumScope::declaration()
 //
 // DataProductScope
 
-DataProductScope::DataProductScope(DeclarationScope* parent,
+DataProductScope::DataProductScope(DeclarationScope& parent,
                                    DataProductDeclaration& declaration)
     : DeclarationScope(parent, declaration)
 {
@@ -455,7 +455,7 @@ const Slice<DataProductDeclaration::Field*> DataProductScope::fields() const
 //
 // ProcedureScope
 
-ProcedureScope::ProcedureScope(DeclarationScope* parent,
+ProcedureScope::ProcedureScope(DeclarationScope& parent,
                                ProcedureDeclaration& declaration)
     : DeclarationScope(parent, declaration)
 {
@@ -496,7 +496,7 @@ IMPL_CLONE_REMAP_END
 
 void ProcedureScope::resolveSymbols(Diagnostics& dgn)
 {
-    ScopeResolver resolver(this);
+    ScopeResolver resolver(*this);
 
     // Resolve parameters
     for ( auto const& p : declaration()->parameters() ) {

@@ -14,6 +14,7 @@ namespace kyfoo {
 
     namespace ast {
 
+class AxiomsModule;
 class DeclarationScope;
 class Declaration;
 class Expression;
@@ -27,8 +28,9 @@ class IResolver
 public:
     virtual ~IResolver() = default;
 
-    virtual Module const* module() const = 0;
-    virtual LookupHit matchEquivalent(SymbolReference const& symbol) const = 0;
+    virtual Module const& module() const = 0;
+
+    virtual LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
     virtual LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
     virtual LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const = 0;
 };
@@ -36,12 +38,20 @@ public:
 class ScopeResolver : public IResolver
 {
 public:
-    explicit ScopeResolver(DeclarationScope const* scope);
+    explicit ScopeResolver(DeclarationScope const& scope);
+
+    ScopeResolver(ScopeResolver&& rhs);
+    ScopeResolver& operator = (ScopeResolver&& rhs);
+
+    ~ScopeResolver();
+
+    void swap(ScopeResolver& rhs);
 
     // IResolver
 public:
-    Module const* module() const override;
-    LookupHit matchEquivalent(SymbolReference const& symbol) const override;
+    Module const& module() const;
+
+    LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const override;
     LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const override;
     LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const override;
 
@@ -54,39 +64,21 @@ private:
     std::vector<Symbol const*> mySupplementarySymbols;
 };
 
-class SymbolVariableCreatorFailoverResolver : public IResolver
-{
-public:
-    SymbolVariableCreatorFailoverResolver(IResolver& resolver, Symbol& symbol);
-    ~SymbolVariableCreatorFailoverResolver();
-
-public:
-    Module const* module() const override;
-    LookupHit matchEquivalent(SymbolReference const& symbol) const override;
-    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const override;
-    LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const override;
-
-private:
-    IResolver* myResolver = nullptr;
-    Symbol* mySymbol = nullptr;
-};
-
-class Context : public IResolver
+class Context
 {
 public:
     Context(Diagnostics& dgn, IResolver& resolver);
     ~Context();
 
-    // IResolver
 public:
-    Module const* module() const override;
-    LookupHit matchEquivalent(SymbolReference const& sym) const override;
-    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& sym) const override;
-    LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const override;
+    AxiomsModule const& axioms() const;
+    Module const& module() const;
 
-public:
     Diagnostics& diagnostics();
+    Diagnostics const& diagnostics() const;
+
     IResolver& resolver();
+    IResolver const& resolver() const;
 
 public:
     Error& error(lexer::Token const& token);

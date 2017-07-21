@@ -30,6 +30,7 @@ class Expression : public INode
 {
 public:
     friend class Context;
+    friend class DotExpression;
 
     enum class Kind
     {
@@ -121,6 +122,9 @@ private:
 
 class TupleExpression : public Expression
 {
+public:
+    friend class ApplyExpression;
+
 public:
     TupleExpression(TupleKind kind,
                     std::vector<std::unique_ptr<Expression>>&& expressions);
@@ -297,7 +301,7 @@ EXPRESSION_KINDS(X)
 
 lexer::Token const& front(Expression const& expr);
 std::ostream& print(std::ostream& stream, Expression const& expr);
-void enforceResolution(Context& ctx, Expression const& expr);
+bool allResolved(Slice<Expression*> const& exprs);
 
     } // namespace ast
 } // namespace kyfoo

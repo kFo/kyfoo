@@ -16,6 +16,7 @@ namespace kyfoo {
 
     namespace ast {
 
+class Context;
 class DeclarationScope;
 class IResolver;
 class Expression;
@@ -58,12 +59,8 @@ public:
     void remapReferences(clone_map_t const& map);
 
 public:
-    bool operator == (Symbol const& rhs) const;
-
-public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
-    void bindVariables(Diagnostics& dgn,
-                       IResolver& resolver,
+    void bindVariables(Context& ctx,
                        Symbol& parentTemplate,
                        binding_set_t const& bindings);
     SymbolVariable* findVariable(std::string const& identifier);
@@ -142,21 +139,19 @@ public:
 
     void append(paramlist_t const& paramlist, Declaration& declaration);
 
-    Declaration* findEquivalent(paramlist_t const& paramlist);
-    Declaration const* findEquivalent(paramlist_t const& paramlist) const;
+    Declaration* findEquivalent(Diagnostics& dgn, paramlist_t const& paramlist);
+    Declaration const* findEquivalent(Diagnostics& dgn, paramlist_t const& paramlist) const;
 
     struct TemplateInstance {
         Declaration const* parent;
         Declaration const* instance;
     };
 
-    TemplateInstance findValue(Diagnostics& dgn,
-                               paramlist_t const& paramlist);
-    TemplateInstance const findValue(Diagnostics& dgn,
-                                     paramlist_t const& paramlist) const;
+    TemplateInstance findValue(Diagnostics& dgn, paramlist_t const& paramlist);
+    TemplateInstance const findValue(Diagnostics& dgn, paramlist_t const& paramlist) const;
 
 private:
-    TemplateInstance instantiate(Diagnostics& dgn,
+    TemplateInstance instantiate(Context& ctx,
                                  SymbolTemplate& proto,
                                  binding_set_t&& bindingSet);
 

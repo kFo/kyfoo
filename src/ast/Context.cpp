@@ -10,26 +10,46 @@ namespace kyfoo {
 //
 // ScopeResolver
 
-ScopeResolver::ScopeResolver(DeclarationScope const* scope)
-    : myScope(scope)
+ScopeResolver::ScopeResolver(DeclarationScope const& scope)
+    : myScope(&scope)
 {
-    if ( !scope )
-        throw std::runtime_error("scope resolver scope cannot be null");
 }
 
-Module const* ScopeResolver::module() const
+ScopeResolver::ScopeResolver(ScopeResolver&& rhs)
+    : myScope(rhs.myScope)
+    , mySupplementarySymbols(std::move(rhs.mySupplementarySymbols))
+{
+    rhs.myScope = nullptr;
+}
+
+ScopeResolver& ScopeResolver::operator = (ScopeResolver&& rhs)
+{
+    ScopeResolver(std::move(rhs)).swap(*this);
+    return *this;
+}
+
+ScopeResolver::~ScopeResolver() = default;
+
+void ScopeResolver::swap(ScopeResolver& rhs)
+{
+    using std::swap;
+    swap(myScope, rhs.myScope);
+    swap(mySupplementarySymbols, rhs.mySupplementarySymbols);
+}
+
+Module const& ScopeResolver::module() const
 {
     return myScope->module();
 }
 
-LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
+LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const
 {
     LookupHit hit = matchSupplementary(symbol);
     if ( hit )
         return hit;
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findEquivalent(symbol)) )
+        if ( hit.append(scope->findEquivalent(dgn, symbol)) )
             return hit;
 
         if ( symbol.parameters().empty() )
@@ -38,8 +58,8 @@ LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
                     return std::move(hit.lookup(s));
     }
 
-    for ( auto m : module()->imports() )
-        if ( hit.append(m->scope()->findEquivalent(symbol)) )
+    for ( auto m : myScope->module().imports() )
+        if ( hit.append(m->scope()->findEquivalent(dgn, symbol)) )
             return hit;
 
     return hit;
@@ -61,7 +81,7 @@ LookupHit ScopeResolver::matchValue(Diagnostics& dgn, SymbolReference const& sym
                     return std::move(hit.lookup(s));
     }
 
-    for ( auto m : module()->imports() )
+    for ( auto m : myScope->module().imports() )
         if ( hit.append(m->scope()->findValue(dgn, symbol)) )
             return hit;
 
@@ -75,7 +95,7 @@ LookupHit ScopeResolver::matchProcedure(Diagnostics& dgn, SymbolReference const&
         if ( hit.append(scope->findProcedureOverload(dgn, procOverload)) )
             return hit;
     
-    for ( auto m : module()->imports() )
+    for ( auto m : myScope->module().imports() )
         if ( hit.append(m->scope()->findProcedureOverload(dgn, procOverload)) )
             return hit;
 
@@ -99,49 +119,6 @@ LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
 }
 
 //
-// SymbolVariableCreatorFailoverResolver
-
-SymbolVariableCreatorFailoverResolver::SymbolVariableCreatorFailoverResolver(IResolver& resolver, Symbol& symbol)
-    : myResolver(&resolver)
-    , mySymbol(&symbol)
-{
-}
-
-SymbolVariableCreatorFailoverResolver::~SymbolVariableCreatorFailoverResolver() = default;
-
-Module const* SymbolVariableCreatorFailoverResolver::module() const
-{
-    return myResolver->module();
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::matchEquivalent(SymbolReference const& symbol) const
-{
-    if ( auto hit = myResolver->matchEquivalent(symbol) )
-        return hit;
-
-    if ( symbol.parameters().empty() )
-        return LookupHit(mySymbol->createVariable(symbol.name()));
-
-    return LookupHit();
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::matchValue(Diagnostics& dgn, SymbolReference const& symbol) const
-{
-    if ( auto hit = myResolver->matchValue(dgn, symbol) )
-        return hit;
-
-    if ( symbol.parameters().empty() )
-        return LookupHit(mySymbol->createVariable(symbol.name()));
-
-    return LookupHit();
-}
-
-LookupHit SymbolVariableCreatorFailoverResolver::matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const
-{
-    return myResolver->matchProcedure(dgn, procOverload);
-}
-
-//
 // Context
 
 Context::Context(Diagnostics& dgn, IResolver& resolver)
@@ -152,24 +129,39 @@ Context::Context(Diagnostics& dgn, IResolver& resolver)
 
 Context::~Context() = default;
 
-Module const* Context::module() const
+//Module& Context::module()
+//{
+//    return myResovler->modile();
+//}
+//
+//Module const& Context::module() const
+//{
+//    return myResolver->module();
+//}
+//
+//LookupHit Context::matchEquivalent(Diagnostics& dgn, SymbolReference const& sym) const
+//{
+//    return myResolver->matchEquivalent(dgn, sym);
+//}
+//
+//LookupHit Context::matchValue(Diagnostics& dgn, SymbolReference const& sym) const
+//{
+//    return myResolver->matchValue(dgn, sym);
+//}
+//
+//LookupHit Context::matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const
+//{
+//    return myResolver->matchProcedure(dgn, sym);
+//}
+
+AxiomsModule const& Context::axioms() const
+{
+    return module().axioms();
+}
+
+Module const& Context::module() const
 {
     return myResolver->module();
-}
-
-LookupHit Context::matchEquivalent(SymbolReference const& sym) const
-{
-    return myResolver->matchEquivalent(sym);
-}
-
-LookupHit Context::matchValue(Diagnostics& dgn, SymbolReference const& sym) const
-{
-    return myResolver->matchValue(dgn, sym);
-}
-
-LookupHit Context::matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const
-{
-    return myResolver->matchProcedure(dgn, sym);
 }
 
 Diagnostics& Context::diagnostics()
@@ -177,7 +169,17 @@ Diagnostics& Context::diagnostics()
     return *myDiagnostics;
 }
 
+Diagnostics const& Context::diagnostics() const
+{
+    return *myDiagnostics;
+}
+
 IResolver& Context::resolver()
+{
+    return *myResolver;
+}
+
+IResolver const& Context::resolver() const
 {
     return *myResolver;
 }
