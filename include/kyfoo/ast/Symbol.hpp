@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -160,6 +161,8 @@ private:
     std::string myName;
     std::vector<SymbolTemplate> mySet;
 };
+
+std::ostream& print(std::ostream& stream, Symbol const& sym);
 
     } // namesapce ast
 } // namespace kyfoo

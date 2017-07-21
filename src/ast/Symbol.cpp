@@ -391,5 +391,26 @@ SymbolSet::instantiate(Context& ctx,
     return { proto.declaration, proto.instantiations.back() };
 }
 
+std::ostream& print(std::ostream& stream, Symbol const& sym)
+{
+    stream << sym.identifier().lexeme();
+    if ( !sym.parameters().empty() ) {
+        stream << "<";
+        auto first = begin(sym.parameters());
+        auto last = end(sym.parameters());
+        if ( first != last )
+            print(stream, **first);
+
+        for ( ++first; first != last; ++first ) {
+            stream << ", ";
+            print(stream, **first);
+        }
+
+        stream << ">";
+    }
+
+    return stream;
+}
+
     } // namespace ast
 } // namespace kyfoo
