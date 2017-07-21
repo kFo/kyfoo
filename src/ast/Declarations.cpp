@@ -330,9 +330,12 @@ DataProductScope const* DataProductDeclaration::definition() const
 //
 // DataProductDeclaration::Field
 
-DataProductDeclaration::Field::Field(Symbol&& symbol, std::unique_ptr<Expression> constraint)
+DataProductDeclaration::Field::Field(Symbol&& symbol,
+                                     std::unique_ptr<Expression> constraint,
+                                     std::unique_ptr<Expression> init)
     : Declaration(DeclKind::Field, std::move(symbol), nullptr)
     , myConstraint(std::move(constraint))
+    , myInitializer(std::move(init))
 {
 }
 

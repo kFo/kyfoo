@@ -179,7 +179,8 @@ public:
     {
     public:
         Field(Symbol&& symbol,
-              std::unique_ptr<Expression> constraint);
+              std::unique_ptr<Expression> constraint,
+              std::unique_ptr<Expression> init);
 
     protected:
         Field(Field const& rhs);
@@ -212,6 +213,7 @@ public:
     private:
         DataProductDeclaration* myParent = nullptr;
         std::unique_ptr<Expression> myConstraint;
+        std::unique_ptr<Expression> myInitializer;
     };
 
 public:

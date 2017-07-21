@@ -301,16 +301,15 @@ struct DataProductDeclaration : public
 struct DataProductDeclarationField : public
     g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
 {
-    std::unique_ptr<ast::VariableDeclaration> make() const
+    std::unique_ptr<ast::DataProductDeclaration::Field> make() const
     {
         std::unique_ptr<ast::Expression> init;
         if ( auto c = factor<3>().capture() )
             init = c->factor<1>().make();
 
-        return std::make_unique<ast::VariableDeclaration>(ast::Symbol(factor<0>().token()), factor<2>().make(), std::move(init));
+        return std::make_unique<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), factor<2>().make(), std::move(init));
     }
 };
 
     } // namespace parser
 } // namespace kyfoo
-

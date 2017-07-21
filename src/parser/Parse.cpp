@@ -142,7 +142,7 @@ parseDataProductDeclaration(lexer::Scanner& scanner)
     return nullptr;
 }
 
-std::unique_ptr<ast::VariableDeclaration>
+std::unique_ptr<ast::DataProductDeclaration::Field>
 parseDataProductDeclarationField(lexer::Scanner& scanner)
 {
     DataProductDeclarationField grammar;
@@ -261,6 +261,7 @@ std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DataProductScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 {
     if ( auto field = parseDataProductDeclarationField(scanner) ) {
+        field->setParent(scope()->declaration()->as<ast::DataProductDeclaration>());
         myScope->append(std::move(field));
         return std::make_tuple(true, nullptr);
     }
