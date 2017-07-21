@@ -1,4 +1,10 @@
-;WriteFile(handle : i32, buffer : Pi8, len : i32, written : Pi32, overlapped : Pvoid) : i1
+WriteFile(handle : u32, buffer : pointer u8, len : u32, written : pointer u32, overlapped : pointer<()>) : u32
+
+stdout = 1
+
+WriteWrapper(str : array<u8>) : () =>
+    written : u32 = 0
+    WriteFile(stdout, str.base, str.card, addr written, null)
 
 ftest(x : i32, y : i32) : i32 =>
     add (add x y) y
