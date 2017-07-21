@@ -165,15 +165,18 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
 {
     auto ret = EXIT_SUCCESS;
     kyfoo::ast::ModuleSet moduleSet;
-    try {
-        if ( !moduleSet.axioms() ) {
-            std::cout << "ICE: axioms module contains errors" << std::endl;
+    {
+        kyfoo::Diagnostics dgn;
+        try {
+            if ( !moduleSet.init(dgn) ) {
+                dgn.dumpErrors(std::cout);
+                return EXIT_FAILURE;
+            }
+        }
+        catch (std::exception const& e) {
+            std::cout << "ICE: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
-    }
-    catch (std::exception const& e) {
-        std::cout << "ICE: " << e.what() << std::endl;
-        return EXIT_FAILURE;
     }
 
     std::set<kyfoo::ast::Module*> visited;
