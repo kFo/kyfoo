@@ -19,19 +19,26 @@ using free = g::Terminal<TokenKind::FreeVariable>;
 using integer = g::Terminal<TokenKind::Integer>;
 using rational = g::Terminal<TokenKind::Rational>;
 using string = g::Terminal<TokenKind::String>;
+
 using comma = g::Terminal<TokenKind::Comma>;
 using dot = g::Terminal<TokenKind::Dot>;
 using equal = g::Terminal<TokenKind::Equal>;
+using ampersand = g::Terminal<TokenKind::Ampersand>;
+
 using colon = g::Terminal<TokenKind::Colon>;
 using colonPipe = g::Terminal<TokenKind::ColonPipe>;
 using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
+using colonEqual = g::Terminal<TokenKind::ColonEqual>;
+
 using yield = g::Terminal<TokenKind::Yield>;
+
 using openParen = g::Terminal<TokenKind::OpenParen>;
 using closeParen = g::Terminal<TokenKind::CloseParen>;
 using openBracket = g::Terminal<TokenKind::OpenBracket>;
 using closeBracket = g::Terminal<TokenKind::CloseBracket>;
 using openAngle = g::Terminal<TokenKind::OpenAngle>;
 using closeAngle = g::Terminal<TokenKind::CloseAngle>;
+
 using _import = g::Terminal<TokenKind::_import>;
 
 struct Primary : public
@@ -149,15 +156,7 @@ struct Tuple : public
 {
     std::unique_ptr<ast::Expression> make() const
     {
-        switch (index()) {
-        case 0: return term<0>().make();
-        case 1: return term<1>().make();
-        case 2: return term<2>().make();
-        case 3: return term<3>().make();
-        case 4: return term<4>().make();
-        default:
-            throw std::runtime_error("invalid tuple expression");
-        }
+        return monoMake<ast::Expression>();
     }
 };
 
@@ -216,9 +215,10 @@ struct ProcedureDeclaration : public
     g::And<
         Symbol,
         openParen,
-        g::Repeat2<g::And<id, colon, Expression>, comma>,
+        g::Repeat2<g::And<g::Opt<equal>, id, colon, Expression>, comma>,
         closeParen,
-        g::Opt<g::And<colon, Expression>>>
+        g::Opt<g::Or<g::And<colon, Expression>,
+                     g::And<colonEqual, Expression>>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
@@ -226,16 +226,80 @@ struct ProcedureDeclaration : public
         for ( auto& e : factor<2>().captures() )
             parameters.emplace_back(
                 std::make_unique<ast::ProcedureParameter>(
-                    ast::Symbol(e.factor<0>().token()),
-                                e.factor<2>().make()));
+                    ast::Symbol(e.factor<1>().token()),
+                    e.factor<3>().make(),
+                    e.factor<0>().capture() != nullptr));
 
         std::unique_ptr<ast::Expression> returnTypeExpression;
-        if ( auto r = factor<4>().capture() )
-            returnTypeExpression = r->factor<1>().make();
+        bool returnByReference = false;
+        if ( auto r = factor<4>().capture() ) {
+            if ( r->index() == 0 ) {
+                returnTypeExpression = r->term<0>().factor<1>().make();
+            }
+            else {
+                returnTypeExpression = r->term<1>().factor<1>().make();
+                returnByReference = true;
+            }
+        }
 
         return std::make_unique<ast::ProcedureDeclaration>(factor<0>().make(),
                                                            std::move(parameters),
-                                                           std::move(returnTypeExpression));
+                                                           std::move(returnTypeExpression),
+                                                           returnByReference);
+    }
+};
+
+struct ExplicitVariableDeclaration : public
+    g::And<colonEqual
+         , id
+         , g::Opt<g::And<colon, Expression>>
+         , g::Opt<g::And<equal, Expression>>>
+{
+    std::unique_ptr<ast::VariableDeclaration> make() const
+    {
+        std::unique_ptr<ast::Expression> constraint;
+        if ( auto c = factor<2>().capture() )
+            constraint = c->factor<1>().make();
+
+        std::unique_ptr<ast::Expression> init;
+        if ( auto i = factor<3>().capture() )
+            init = i->factor<1>().make();
+
+        return std::make_unique<ast::VariableDeclaration>(ast::Symbol(factor<1>().token()),
+                                                          std::move(constraint),
+                                                          std::move(init));
+    }
+};
+
+struct ImplicitVariableDeclaration : public
+    g::And<id
+         , colon
+         , g::Opt<Expression>
+         , equal
+         , g::Opt<Expression>>
+{
+    std::unique_ptr<ast::VariableDeclaration> make() const
+    {
+        std::unique_ptr<ast::Expression> constraint;
+        if ( auto c = factor<2>().capture() )
+            constraint = c->make();
+
+        std::unique_ptr<ast::Expression> init;
+        if ( auto i = factor<4>().capture() )
+            init = i->make();
+
+        return std::make_unique<ast::VariableDeclaration>(ast::Symbol(factor<0>().token()),
+                                                          std::move(constraint),
+                                                          std::move(init));
+    }
+};
+
+struct VariableDeclaration : public
+    g::Or<ExplicitVariableDeclaration, ImplicitVariableDeclaration>
+{
+    std::unique_ptr<ast::VariableDeclaration> make() const
+    {
+        return monoMake<ast::VariableDeclaration>();
     }
 };
 

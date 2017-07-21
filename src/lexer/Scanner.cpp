@@ -434,6 +434,12 @@ Token Scanner::readNext()
             return TOK2(ColonAmpersand, ":&");
         }
 
+        if ( peekChar() == '=' ) {
+            nextChar();
+
+            return TOK2(ColonEqual, ":=");
+        }
+
         return TOK2(Colon, ":");
     }
 

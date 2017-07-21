@@ -323,7 +323,8 @@ class ProcedureParameter : public VariableDeclaration
 {
 public:
     ProcedureParameter(Symbol&& symbol,
-                       std::unique_ptr<Expression> constraint);
+                       std::unique_ptr<Expression> constraint,
+                       bool byReference);
 
 protected:
     ProcedureParameter(ProcedureParameter const& rhs);
@@ -351,6 +352,7 @@ public:
 
 private:
     ProcedureDeclaration* myParent = nullptr;
+    bool myByReference = false;
 };
 
 class ProcedureDeclaration : public Declaration
@@ -358,7 +360,8 @@ class ProcedureDeclaration : public Declaration
 public:
     ProcedureDeclaration(Symbol&& symbol,
                          std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                         std::unique_ptr<ast::Expression> returnTypeExpression);
+                         std::unique_ptr<ast::Expression> returnTypeExpression,
+                         bool returnByReference);
 
 protected:
     ProcedureDeclaration(ProcedureDeclaration const& rhs);

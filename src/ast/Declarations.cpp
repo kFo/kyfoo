@@ -378,7 +378,7 @@ IMPL_CLONE_REMAP_END
 
 void DataProductDeclaration::Field::resolveSymbols(Diagnostics& dgn)
 {
-    ScopeResolver resolver(myParent->scope());
+    ScopeResolver resolver(*myParent->definition());
     Context ctx(dgn, resolver);
     ctx.resolveExpression(myConstraint);
 }
@@ -525,16 +525,10 @@ void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
     if ( myConstraint ) {
         ctx.resolveExpression(myConstraint);
 
-        auto s = myConstraint->as<SymbolExpression>();
-        if ( !s ) {
-            ctx.error(*myConstraint) << "expected symbol expression";
-            return;
-        }
-
         if ( dgn.errorCount() )
             return;
 
-        if ( !isDataDeclaration(s->declaration()->kind()) ) {
+        if ( !isDataDeclaration(resolveIndirections(myConstraint.get())->declaration()->kind()) ) {
             ctx.error(*myConstraint) << "does not identify a data type";
             return;
         }
@@ -565,8 +559,10 @@ Expression const* VariableDeclaration::constraint() const
 // ProcedureParameter
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
-                                       std::unique_ptr<Expression> constraint)
+                                       std::unique_ptr<Expression> constraint,
+                                       bool byReference)
     : VariableDeclaration(std::move(symbol), std::move(constraint), nullptr)
+    , myByReference(byReference)
 {
 }
 
@@ -630,10 +626,11 @@ ProcedureDeclaration* ProcedureParameter::parent()
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
                                            std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                                           std::unique_ptr<Expression> resultExpression)
+                                           std::unique_ptr<Expression> resultExpression,
+                                           bool returnByReference)
     : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
     , myParameters(std::move(parameters))
-    , myResult(std::make_unique<ProcedureParameter>(Symbol(lexer::Token()), std::move(resultExpression)))
+    , myResult(std::make_unique<ProcedureParameter>(Symbol(lexer::Token()), std::move(resultExpression), returnByReference))
 {
     myResult->setParent(this);
     for ( auto& p : myParameters )
