@@ -1,6 +1,4 @@
 auto source = R"axioms(
-:| pointer<\T>
-
 :| unsigned<\n : integer>
 :| signed<unsigned<\n : integer>>
 
@@ -17,8 +15,18 @@ i32  = signed<u32 >
 i64  = signed<u64 >
 i128 = signed<u128>
 
+:| pointer<\T>
+
+:& array<\T, \card : integer>
+
+:& array<\T>
+    base : pointer T
+    card : size_t
+
 wordSize = 64
 size_t = unsigned<wordSize>
+
+staticSize<\T>(p : pointer T) : size_t => wordSize
 
 add(x : unsigned<1  >, y : unsigned<1  >) : unsigned<1  >
 add(x : unsigned<8  >, y : unsigned<8  >) : unsigned<8  >
@@ -33,13 +41,8 @@ add(x : signed<unsigned<32 >>, y : signed<unsigned<32 >>) : signed<unsigned<32 >
 add(x : signed<unsigned<64 >>, y : signed<unsigned<64 >>) : signed<unsigned<64 >>
 add(x : signed<unsigned<128>>, y : signed<unsigned<128>>) : signed<unsigned<128>>
 
-staticSize<\T>(p : pointer T) : size_t => wordSize
+addr<\T>(=x : T) : pointer T
 
-:& array<\T, \card : integer>
-
-:& array<\T>
-    base : pointer T
-    card : size_t
 )axioms";
 
 #include <kyfoo/ast/Axioms.hpp>
@@ -56,39 +59,47 @@ namespace kyfoo {
 //
 // AxiomsModule
 
-AxiomsModule::AxiomsModule(ModuleSet* moduleSet, std::string const& name)
+AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
+                           std::string const& name)
     : Module(moduleSet, name)
-    , myEmptyType(std::make_unique<DataSumDeclaration>(Symbol("")))
-    , myIntegerType(std::make_unique<DataSumDeclaration>(Symbol("integer")))
-    , myRationalType(std::make_unique<DataSumDeclaration>(Symbol("rational")))
-    , myStringType(std::make_unique<DataSumDeclaration>(Symbol("string")))
+    , myEmptyLiteralType      (std::make_unique<DataSumDeclaration>(Symbol(""        )))
+    , myIntegerLiteralType    (std::make_unique<DataSumDeclaration>(Symbol("integer" )))
+    , myRationalLiteralType   (std::make_unique<DataSumDeclaration>(Symbol("rational")))
+    , myStringLiteralType     (std::make_unique<DataSumDeclaration>(Symbol("string"  )))
+    , myPointerNullLiteralType(std::make_unique<DataSumDeclaration>(Symbol("nil_t"   )))
 {
-    myDataSumDecls[Empty] = myEmptyType.get();
-    myDataSumDecls[Integer] = myIntegerType.get();
-    myDataSumDecls[Rational] = myRationalType.get();
-    myDataSumDecls[String] = myStringType.get();
+    myDataSumDecls[EmptyLiteralType      ] = myEmptyLiteralType.get();
+    myDataSumDecls[IntegerLiteralType    ] = myIntegerLiteralType.get();
+    myDataSumDecls[RationalLiteralType   ] = myRationalLiteralType.get();
+    myDataSumDecls[StringLiteralType     ] = myStringLiteralType.get();
+    myDataSumDecls[PointerNullLiteralType] = myPointerNullLiteralType.get();
 }
 
 AxiomsModule::~AxiomsModule() = default;
 
-DataSumDeclaration const* AxiomsModule::emptyType() const
+DataSumDeclaration const* AxiomsModule::emptyLiteralType() const
 {
-    return myEmptyType.get();
+    return myEmptyLiteralType.get();
 }
 
-DataSumDeclaration const* AxiomsModule::integerType() const
+DataSumDeclaration const* AxiomsModule::integerLiteralType() const
 {
-    return myIntegerType.get();
+    return myIntegerLiteralType.get();
 }
 
-DataSumDeclaration const* AxiomsModule::rationalType() const
+DataSumDeclaration const* AxiomsModule::rationalLiteralType() const
 {
-    return myRationalType.get();
+    return myRationalLiteralType.get();
 }
 
-DataSumDeclaration const* AxiomsModule::stringType() const
+DataSumDeclaration const* AxiomsModule::stringLiteralType() const
 {
-    return myStringType.get();
+    return myStringLiteralType.get();
+}
+
+DataSumDeclaration const* AxiomsModule::pointerNullLiteralType() const
+{
+    return myPointerNullLiteralType.get();
 }
 
 DataSumDeclaration const* AxiomsModule::intrinsic(DataSumIntrinsics i) const
@@ -101,42 +112,100 @@ ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) con
     return myInstructionDecls[i];
 }
 
-bool AxiomsModule::init()
+bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
+{
+    for ( std::size_t i = 0; i < DataSumInstrinsicsCount; ++i )
+        if ( myDataSumDecls[i] == &decl )
+            return true;
+
+    return false;
+}
+
+bool AxiomsModule::isIntrinsic(ProcedureDeclaration const& decl) const
+{
+    for ( std::size_t i = 0; i < InstructionIntrinsicsCount; ++i )
+        if ( myInstructionDecls[i] == &decl )
+            return true;
+
+    return false;
+}
+
+bool AxiomsModule::isIntrinsic(Declaration const& decl) const
+{
+    if ( auto ds = decl.as<DataSumDeclaration>() )
+        return isIntrinsic(*ds);
+
+    if ( auto proc = decl.as<ProcedureDeclaration>() )
+        return isIntrinsic(*proc);
+
+    return false;
+}
+
+bool AxiomsModule::isLiteral(DataSumDeclaration const& decl) const
+{
+    for ( std::size_t i = EmptyLiteralType; i <= PointerNullLiteralType; ++i )
+        if ( myDataSumDecls[i] == &decl )
+            return true;
+
+    return false;
+}
+
+bool AxiomsModule::isLiteral(Declaration const& decl) const
+{
+    if ( auto ds = decl.as<DataSumDeclaration>() )
+        return isLiteral(*ds);
+
+    return false;
+}
+
+AxiomsModule::IntegerMetaData const* AxiomsModule::integerMetaData(Declaration const& decl) const
+{
+    for ( auto const& e : myIntegerMetaData )
+        if ( e.decl == &decl )
+            return &e;
+
+    return nullptr;
+}
+
+void AxiomsModule::init(Diagnostics& dgn)
 {
     std::stringstream s(source);
-    Diagnostics dgn;
     try {
         parse(dgn, s);
         if ( dgn.errorCount() )
-            return false;
+            return;
 
         resolveImports(dgn);
         if ( dgn.errorCount() )
-            return false;
+            return;
 
         semantics(dgn);
         if ( dgn.errorCount() )
-            return false;
+            return;
 
-        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent(Symbol("u1"  )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent(Symbol("u8"  )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent(Symbol("u16" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent(Symbol("u32" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent(Symbol("u64" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent(Symbol("u128")).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u1"  )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u8"  )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u16" )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u32" )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u64" )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u128")).decl())->as<DataSumDeclaration>();
 
-        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent(Symbol("i8"  )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent(Symbol("i16" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent(Symbol("i32" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent(Symbol("i64" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent(Symbol("i128")).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i8"  )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i16" )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i32" )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i64" )).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i128")).decl())->as<DataSumDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
         for ( auto decl = begin(childDecls); decl != end(childDecls); ++decl )
         {
             auto const& sym = (*decl)->symbol();
-            if ( sym.name() == "pointer" ) {
-                for ( int i = PointerTemplate; i <= SignedTemplate; ++decl, ++i )
+            if ( sym.name() == "unsigned" ) {
+                for ( int i = UnsignedTemplate; i <= SignedTemplate; ++decl, ++i )
+                    myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
+            }
+            else if ( sym.name() == "pointer" ) {
+                for ( int i = PointerTemplate; i <= ArrayDynamicTemplate; ++decl, ++i )
                     myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
             }
             else if ( sym.name() == "add" ) {
@@ -145,7 +214,7 @@ bool AxiomsModule::init()
             }
         }
 
-        return true;
+        buildMetaData();
     }
     catch (Diagnostics*) {
         // fall through
@@ -153,8 +222,22 @@ bool AxiomsModule::init()
     catch (std::exception const&) {
         // fall through
     }
+}
 
-    return false;
+void AxiomsModule::buildMetaData()
+{
+    myIntegerMetaData[0 ] = IntegerMetaData{ intrinsic(u1  ), 1   };
+    myIntegerMetaData[1 ] = IntegerMetaData{ intrinsic(u8  ), 8   };
+    myIntegerMetaData[2 ] = IntegerMetaData{ intrinsic(u16 ), 16  };
+    myIntegerMetaData[3 ] = IntegerMetaData{ intrinsic(u32 ), 32  };
+    myIntegerMetaData[4 ] = IntegerMetaData{ intrinsic(u64 ), 64  };
+    myIntegerMetaData[5 ] = IntegerMetaData{ intrinsic(u128), 128 };
+
+    myIntegerMetaData[6 ] = IntegerMetaData{ intrinsic(i8  ), -8   };
+    myIntegerMetaData[7 ] = IntegerMetaData{ intrinsic(i16 ), -16  };
+    myIntegerMetaData[8 ] = IntegerMetaData{ intrinsic(i32 ), -32  };
+    myIntegerMetaData[9 ] = IntegerMetaData{ intrinsic(i64 ), -64  };
+    myIntegerMetaData[10] = IntegerMetaData{ intrinsic(i128), -128 };
 }
 
     } // namespace ast

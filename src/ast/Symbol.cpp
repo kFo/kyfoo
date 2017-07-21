@@ -88,11 +88,6 @@ IMPL_CLONE_REMAP(myParameters)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-bool Symbol::operator == (Symbol const& rhs) const
-{
-    return name() == rhs.name() && matchEquivalent(parameters(), rhs.parameters());
-}
-
 lexer::Token const& Symbol::identifier() const
 {
     return myIdentifier;
@@ -160,8 +155,7 @@ void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
     ctx.resolveExpressions(myParameters);
 }
 
-void Symbol::bindVariables(Diagnostics& dgn,
-                           IResolver& resolver,
+void Symbol::bindVariables(Context& ctx,
                            Symbol& parentTemplate,
                            binding_set_t const& bindings)
 {
@@ -181,7 +175,6 @@ void Symbol::bindVariables(Diagnostics& dgn,
         var->bindExpression(e.second);
     }
 
-    Context ctx(dgn, resolver);
     ctx.resolveExpressions(myParameters);
 }
 
@@ -311,27 +304,31 @@ void SymbolSet::append(paramlist_t const& paramlist, Declaration& declaration)
     mySet.push_back(overload);
 }
 
-Declaration* SymbolSet::findEquivalent(SymbolReference::paramlist_t const& paramlist)
+Declaration* SymbolSet::findEquivalent(Diagnostics& dgn, SymbolReference::paramlist_t const& paramlist)
 {
+    ScopeResolver resolver(*myScope);
+    Context ctx(dgn, resolver);
     for ( auto const& e : mySet ) {
-        if ( matchEquivalent(e.paramlist, paramlist) )
+        if ( matchEquivalent(ctx, e.paramlist, paramlist) )
             return e.declaration;
     }
 
     return nullptr;
 }
 
-Declaration const* SymbolSet::findEquivalent(SymbolReference::paramlist_t const& paramlist) const
+Declaration const* SymbolSet::findEquivalent(Diagnostics& dgn, SymbolReference::paramlist_t const& paramlist) const
 {
-    return const_cast<SymbolSet*>(this)->findEquivalent(paramlist);
+    return const_cast<SymbolSet*>(this)->findEquivalent(dgn, paramlist);
 }
 
 SymbolSet::TemplateInstance
 SymbolSet::findValue(Diagnostics& dgn,
                      SymbolReference::paramlist_t const& paramlist)
 {
+    ScopeResolver resolver(*myScope);
+    Context ctx(dgn, resolver);
     for ( auto& e : mySet ) {
-        ValueMatcher m;
+        ValueMatcher m(ctx);
         if ( m.matchValue(e.paramlist, paramlist) ) {
             if ( e.declaration->symbol().isConcrete() )
                 return { e.declaration, nullptr };
@@ -339,7 +336,7 @@ SymbolSet::findValue(Diagnostics& dgn,
             if ( !m.rightBindings.empty() )
                 return { e.declaration, nullptr };
 
-            return instantiate(dgn, e, std::move(m.leftBindings));
+            return instantiate(ctx, e, std::move(m.leftBindings));
         }
     }
 
@@ -354,7 +351,7 @@ SymbolSet::findValue(Diagnostics& dgn,
 }
 
 SymbolSet::TemplateInstance
-SymbolSet::instantiate(Diagnostics& dgn,
+SymbolSet::instantiate(Context& ctx,
                        SymbolTemplate& proto,
                        binding_set_t&& bindingSet)
 {
@@ -367,7 +364,7 @@ SymbolSet::instantiate(Diagnostics& dgn,
         auto l = begin(e);
         auto r = begin(bindingSet);
         while ( l != end(e) ) {
-            if ( !matchEquivalent(*l->second, *r->second) )
+            if ( !matchEquivalent(ctx, *l->second, *r->second) )
                 break;
 
             ++l;
@@ -381,13 +378,12 @@ SymbolSet::instantiate(Diagnostics& dgn,
     // create new instantiation
     auto instance = ast::clone(proto.declaration);
 
-    ScopeResolver resolver(myScope);
-    instance->symbol().bindVariables(dgn, resolver, proto.declaration->symbol(), bindingSet);
+    instance->symbol().bindVariables(ctx, proto.declaration->symbol(), bindingSet);
 
     if ( auto proc = instance->as<ProcedureDeclaration>() )
-        proc->resolvePrototypeSymbols(dgn);
+        proc->resolvePrototypeSymbols(ctx.diagnostics());
 
-    instance->resolveSymbols(dgn);
+    instance->resolveSymbols(ctx.diagnostics());
 
     proto.instanceBindings.emplace_back(std::move(bindingSet));
     proto.instantiations.push_back(instance.get());

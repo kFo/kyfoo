@@ -133,11 +133,11 @@ struct SymbolDependencyTracker
         }
     };
 
-    Module* mod;
+    Module& mod;
     Diagnostics& dgn;
     std::vector<std::unique_ptr<SymGroup>> groups;
 
-    SymbolDependencyTracker(Module* mod, Diagnostics& dgn);
+    SymbolDependencyTracker(Module& mod, Diagnostics& dgn);
 
     SymGroup* create(std::string const& name, std::size_t arity);
     SymGroup* findOrCreate(std::string const& name, std::size_t arity);
@@ -152,8 +152,11 @@ struct SymbolDependencyTracker
 
 struct ValueMatcher
 {
+    Context& ctx;
     binding_set_t leftBindings;
     binding_set_t rightBindings;
+
+    explicit ValueMatcher(Context& ctx);
 
     void reset();
     bool matchValue(Expression const& lhs, Expression const& rhs);
@@ -162,19 +165,20 @@ struct ValueMatcher
 
 void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
 
-bool isCovariant(lexer::Token const& target, lexer::Token const& query);
-bool isCovariant(Declaration const& target, lexer::Token const& query);
-bool isCovariant(Declaration const& target, Declaration const& query);
+bool isCovariant(Context& ctx, lexer::Token const& target, lexer::Token const& query);
+bool isCovariant(Context& ctx, Declaration const& target, lexer::Token const& query);
+bool isCovariant(Context& ctx, Declaration const& target, Declaration const& query);
 
 Expression const* lookThrough(Declaration const* decl);
 Declaration const* resolveIndirections(Declaration const* decl);
 Expression const* resolveIndirections(Expression const* expr);
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
+DeclarationScope const* memberScope(Declaration const& decl);
 
 // todo: functor like ValueMatcher
-bool matchEquivalent(Expression const& lhs, Expression const& rhs);
-bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
+bool matchEquivalent(Context& ctx, Expression const& lhs, Expression const& rhs);
+bool matchEquivalent(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
 bool hasFreeVariable(Expression const& expr);

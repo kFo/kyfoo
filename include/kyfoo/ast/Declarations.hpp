@@ -81,8 +81,8 @@ public:
     template <typename T> T const* as() const = delete;
 
 public:
-    DeclarationScope* scope();
-    DeclarationScope const* scope() const;
+    DeclarationScope& scope();
+    DeclarationScope const& scope() const;
     void setScope(DeclarationScope& parent);
 
     codegen::CustomData* codegenData();
@@ -482,6 +482,8 @@ private:
 bool isDataDeclaration(DeclKind kind);
 bool isMacroDeclaration(DeclKind kind);
 bool hasIndirection(DeclKind kind);
+
+std::ostream& print(std::ostream& stream, Declaration const& decl);
 
     } // namespace ast
 } // namespace kyfoo

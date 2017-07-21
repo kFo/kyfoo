@@ -126,19 +126,19 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
     switch ( myToken.kind() ) {
     case lexer::TokenKind::Integer:
     {
-        myDeclaration = ctx.module()->axioms()->integerType();
+        myDeclaration = ctx.axioms().integerLiteralType();
         return;
     }
 
     case lexer::TokenKind::Rational:
     {
-        myDeclaration = ctx.module()->axioms()->rationalType();
+        myDeclaration = ctx.axioms().rationalLiteralType();
         return;
     }
 
     case lexer::TokenKind::String:
     {
-        myDeclaration = ctx.module()->axioms()->stringType();
+        myDeclaration = ctx.axioms().stringLiteralType();
         return;
     }
 
@@ -154,6 +154,12 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
 
     case lexer::TokenKind::Identifier:
     {
+        // todo: removeme
+        if ( myToken.lexeme() == "null" ) {
+            myDeclaration = ctx.axioms().pointerNullLiteralType();
+            return;
+        }
+
         auto hit = ctx.matchValue(Symbol(myToken));
         if ( !hit ) {
             if ( !hit.symSet() )
@@ -306,9 +312,8 @@ void TupleExpression::resolveSymbols(Context& ctx)
 
     if ( myKind == TupleKind::Open ) {
         if ( myExpressions.empty() ) {
-            auto p = std::make_unique<PrimaryExpression>(myOpenToken);
-            p->myDeclaration = ctx.module()->axioms()->emptyType();
-            return ctx.rewrite(std::move(p));
+            myDeclaration = ctx.axioms().emptyLiteralType();
+            return;
         }
         else if ( myExpressions.size() == 1 ) {
             return ctx.rewrite(std::move(myExpressions[0]));
@@ -408,53 +413,62 @@ IMPL_CLONE_REMAP_END
 
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
-    ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
-
-    if ( auto symExpr = myExpressions.front()->as<SymbolExpression>() ) {
-        // explicit procedure lookup
-        ctx.resolveExpression(myExpressions.front());
-        return;
-    }
-
-    // implicit procedure lookup
     auto subject = myExpressions.front()->as<PrimaryExpression>();
-    if ( !subject || !isIdentifier(subject->token().kind()) ) {
-        ctx.error(*this) << "implicit procedure application must begin with an identifier";
-        return;
-    }
+    if ( !subject ) {
+        // explicit procedure lookup
+        ctx.resolveExpressions(myExpressions);
 
-    if ( subject->token().kind() == lexer::TokenKind::FreeVariable ) {
-        // defer symbol lookup until concrete expression is instantiated
-        return;
+        if ( !allResolved(myExpressions) ) {
+            ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
+            return;
+        }
+    }
+    else {
+        // implicit procedure lookup
+        if ( !isIdentifier(subject->token().kind()) ) {
+            ctx.error(*this) << "implicit procedure application must begin with an identifier";
+            return;
+        }
+
+        if ( subject->token().kind() == lexer::TokenKind::FreeVariable ) {
+            // defer symbol lookup until concrete expression is instantiated
+            return;
+        }
+
+        ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
+
+        if ( !allResolved(slice(myExpressions, 1)) ) {
+            ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
+            return;
+        }
     }
 
     Slice<Expression*> args;
-    if ( !myExpressions.empty() )
-        args = slice(myExpressions, 1);
+    args = slice(myExpressions, 1);
 
     SymbolReference sym(subject->token().lexeme(), args);
 
     // Look for hit on symbol
-    auto symHit = ctx.matchValue(sym);
-    if ( symHit ) {
+    auto hit = ctx.matchValue(sym);
+    if ( hit ) {
         // Transmute apply-expression into symbol-expression
         auto id = subject->token();
         auto expr = std::move(myExpressions);
-        rotate(begin(expr), next(begin(expr)), end(expr));
+        move(next(begin(expr)), end(expr), begin(expr));
         expr.pop_back();
         return ctx.rewrite(std::make_unique<SymbolExpression>(id, std::move(expr)));
     }
 
     // Search procedure overloads by arguments
-    auto procHit = ctx.matchProcedure(sym);
-    auto procDecl = procHit.as<ProcedureDeclaration>();
+    hit = ctx.matchProcedure(sym);
+    auto procDecl = hit.as<ProcedureDeclaration>();
     if ( !procDecl ) {
         auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
         // todo: references to potential overloads
         // todo: chained symbol sets
         // todo: lookup failures are not returning symbol sets
-        if ( symHit.symSet() ) {
-            for ( auto const& sd : symHit.symSet()->prototypes() )
+        if ( hit.symSet() ) {
+            for ( auto const& sd : hit.symSet()->prototypes() )
                 err.see(sd.declaration);
         }
         return;
@@ -550,6 +564,7 @@ void SymbolExpression::swap(SymbolExpression& rhs)
 
 void SymbolExpression::io(IStream& stream) const
 {
+    stream.next("identifier", myIdentifier);
     stream.next("expressions", myExpressions);
 }
 
@@ -574,7 +589,8 @@ void SymbolExpression::resolveSymbols(Context& ctx)
 
         auto subjectExpression = std::move(myExpressions.front());
         myIdentifier = subject->token();
-        rotate(begin(myExpressions), next(begin(myExpressions)), end(myExpressions));
+        move(next(begin(myExpressions)), end(myExpressions),
+             begin(myExpressions));
         myExpressions.pop_back();
 
         if ( myExpressions.empty() )
@@ -582,14 +598,8 @@ void SymbolExpression::resolveSymbols(Context& ctx)
     }
 
     ctx.resolveExpressions(myExpressions);
-
-    {
-        auto const startCount = ctx.errorCount();
-        enforceResolution(ctx, *this);
-
-        if ( ctx.errorCount() - startCount )
-            return;
-    }
+    if ( !allResolved(myExpressions) )
+        return;
 
     SymbolReference sym(myIdentifier.lexeme(), myExpressions);
     auto hit = ctx.matchValue(sym);
@@ -904,55 +914,13 @@ std::ostream& print(std::ostream& stream, Expression const& expr)
     return op(expr);
 }
 
-template <typename Dispatcher>
-struct EnforceResolution
+bool allResolved(Slice<Expression*> const& exprs)
 {
-    using result_t = void;
+    for ( auto const& e : exprs )
+        if ( !e->declaration() )
+            return false;
 
-    Dispatcher& dispatch;
-    Context& ctx;
-
-    EnforceResolution(Dispatcher& dispatch, Context& ctx)
-        : dispatch(dispatch)
-        , ctx(ctx)
-    {
-    }
-
-    void exprPrimary(PrimaryExpression const& p) const
-    {
-        if ( p.token().kind() == lexer::TokenKind::Identifier && !p.declaration() )
-            ctx.error(p.token()) << "does not identify a declaration";
-    }
-
-    void exprTuple(TupleExpression const& t)
-    {
-        for ( auto const& e : t.expressions() )
-            dispatch(*e);
-    }
-
-    void exprApply(ApplyExpression const& a)
-    {
-        for ( auto const& e : a.expressions() )
-            dispatch(*e);
-    }
-
-    void exprSymbol(SymbolExpression const& s)
-    {
-        for ( auto const& e : s.expressions() )
-            dispatch(*e);
-    }
-
-    void exprDot(DotExpression const& d)
-    {
-        for ( auto const& e : d.expressions() )
-            dispatch(*e);
-    }
-};
-
-void enforceResolution(Context& ctx, Expression const& expr)
-{
-    ShallowApply<EnforceResolution> op(ctx);
-    op(expr);
+    return true;
 }
 
     } // namespace ast

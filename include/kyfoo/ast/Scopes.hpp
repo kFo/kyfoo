@@ -139,9 +139,9 @@ private:
 class DeclarationScope : public INode
 {
 public:
-    explicit DeclarationScope(Module* module);
+    explicit DeclarationScope(Module& module);
     explicit DeclarationScope(DeclarationScope* parent);
-    DeclarationScope(DeclarationScope* parent,
+    DeclarationScope(DeclarationScope& parent,
                      Declaration& decl);
 
 protected:
@@ -172,7 +172,7 @@ public:
     void append(std::unique_ptr<Declaration> declaration);
     void import(Module& module);
 
-    LookupHit findEquivalent(SymbolReference const& symbol) const;
+    LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
     LookupHit findValue(Diagnostics& dgn, SymbolReference const& symbol) const;
     LookupHit findProcedureOverload(Diagnostics& dgn, SymbolReference const& procOverload) const;
 
@@ -183,8 +183,8 @@ public:
     SymbolSet const* findSymbol(std::string const& identifier) const;
     SymbolSet const* findProcedure(std::string const& identifier) const;
 
-    Module* module();
-    Module const* module() const;
+    Module& module();
+    Module const& module() const;
 
     Declaration* declaration();
     Declaration const* declaration() const;
@@ -208,7 +208,7 @@ protected:
 class DataSumScope : public DeclarationScope
 {
 public:
-    DataSumScope(DeclarationScope* parent,
+    DataSumScope(DeclarationScope& parent,
                  DataSumDeclaration& declaration);
 
 protected:
@@ -238,7 +238,7 @@ public:
 class DataProductScope : public DeclarationScope
 {
 public:
-    DataProductScope(DeclarationScope* parent,
+    DataProductScope(DeclarationScope& parent,
                      DataProductDeclaration& declaration);
 
 protected:
@@ -273,7 +273,7 @@ private:
 class ProcedureScope : public DeclarationScope
 {
 public:
-    ProcedureScope(DeclarationScope* parent,
+    ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration);
 
 protected:

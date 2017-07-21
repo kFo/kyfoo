@@ -8,39 +8,39 @@ namespace kyfoo {
 //
 // Error
 
-Error::Error(ast::Module const* module)
-    : myModule(module)
+Error::Error(ast::Module const& module)
+    : myModule(&module)
 {
 }
 
-Error::Error(ast::Module const* module,
+Error::Error(ast::Module const& module,
              lexer::Token const& token)
     : Error(module, token, General)
 {
 }
 
-Error::Error(ast::Module const* module,
+Error::Error(ast::Module const& module,
              lexer::Token const& token,
              Error::Code code)
-    : myModule(module)
+    : myModule(&module)
     , myToken(token)
     , myCode(code)
 {
 }
 
-Error::Error(ast::Module const* module,
+Error::Error(ast::Module const& module,
              ast::Expression const& expr,
              Code code)
-    : myModule(module)
+    : myModule(&module)
     , myExpression(&expr)
     , myToken(front(expr))
     , myCode(code)
 {
 }
 
-ast::Module const* Error::module() const
+ast::Module const& Error::module() const
 {
-    return myModule;
+    return *myModule;
 }
 
 std::string Error::what() const
@@ -82,10 +82,10 @@ Error& Error::operator << (lexer::Token const& token)
 std::ostream& operator << (std::ostream& sink, Error const& err)
 {
     auto startLine = [&] {
-        if ( !err.module()->path().empty() )
-            sink << err.module()->path().string();
+        if ( !err.module().path().empty() )
+            sink << err.module().path().string();
         else
-            sink << err.module()->name();
+            sink << err.module().name();
     };
     startLine();
     sink << "(" << err.token().line() << ", " << err.token().column() << "): error: ";
@@ -129,25 +129,25 @@ void Diagnostics::die()
     throw this;
 }
 
-Error& Diagnostics::error(ast::Module const* module)
+Error& Diagnostics::error(ast::Module const& module)
 {
     myErrors.emplace_back(std::make_unique<Error>(module));
     return *myErrors.back();
 }
 
-Error& Diagnostics::error(ast::Module const* module, lexer::Token const& token)
+Error& Diagnostics::error(ast::Module const& module, lexer::Token const& token)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, token));
     return *myErrors.back();
 }
 
-Error& Diagnostics::error(ast::Module const* module, ast::Expression const& expr)
+Error& Diagnostics::error(ast::Module const& module, ast::Expression const& expr)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, expr, Error::Code::General));
     return *myErrors.back();
 }
 
-Error& Diagnostics::undeclared(ast::Module const* module, lexer::Token const& token)
+Error& Diagnostics::undeclared(ast::Module const& module, lexer::Token const& token)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, token, Error::Undeclared));
     return *myErrors.back();

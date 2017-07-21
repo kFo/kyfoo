@@ -49,14 +49,14 @@ public:
     };
 
 public:
-    explicit Error(ast::Module const* module);
-    Error(ast::Module const* module, lexer::Token const& token);
-    Error(ast::Module const* module, lexer::Token const& token, Code code);
-    Error(ast::Module const* module, ast::Expression const& expr, Code code);
+    explicit Error(ast::Module const& module);
+    Error(ast::Module const& module, lexer::Token const& token);
+    Error(ast::Module const& module, lexer::Token const& token, Code code);
+    Error(ast::Module const& module, ast::Expression const& expr, Code code);
     Error(Error& rhs) = delete;
 
 public:
-    ast::Module const* module() const;
+    ast::Module const& module() const;
     std::string what() const;
     ast::Expression const* expression() const;
     lexer::Token const& token() const;
@@ -95,10 +95,10 @@ class Diagnostics
 public:
     void die();
 
-    Error& error(ast::Module const* module);
-    Error& error(ast::Module const* module, lexer::Token const& token);
-    Error& error(ast::Module const* module, ast::Expression const& expr);
-    Error& undeclared(ast::Module const* module, lexer::Token const& token);
+    Error& error(ast::Module const& module);
+    Error& error(ast::Module const& module, lexer::Token const& token);
+    Error& error(ast::Module const& module, ast::Expression const& expr);
+    Error& undeclared(ast::Module const& module, lexer::Token const& token);
 
     void dumpErrors(std::ostream& stream);
 

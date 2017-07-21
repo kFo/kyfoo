@@ -39,11 +39,8 @@ public:
     Module* find(std::string const& name);
     Module* find(std::experimental::filesystem::path const& path);
 
-    AxiomsModule* axioms();
-    AxiomsModule const* axioms() const;
-
-private:
-    std::unique_ptr<AxiomsModule> createAxiomsModule();
+    AxiomsModule& axioms();
+    AxiomsModule const& axioms() const;
 
 private:
     std::unique_ptr<AxiomsModule> myAxioms;
@@ -81,8 +78,8 @@ public:
     void appendTemplateInstance(Declaration const* instance);
 
 public:
-    AxiomsModule* axioms();
-    AxiomsModule const* axioms() const;
+    AxiomsModule& axioms();
+    AxiomsModule const& axioms() const;
 
     Slice<Module*> imports();
     Slice<Module*> imports() const;
