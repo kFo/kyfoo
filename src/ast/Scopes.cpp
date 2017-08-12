@@ -60,7 +60,6 @@ void DeclarationScope::swap(DeclarationScope& rhs)
     swap(myParent, rhs.myParent);
     swap(myDeclarations, rhs.myDeclarations);
     swap(mySymbols, rhs.mySymbols);
-    swap(myProcedureOverloads, rhs.myProcedureOverloads);
     swap(myImports, rhs.myImports);
 }
 
@@ -106,15 +105,11 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         for ( auto const& d : symGroup->declarations ) {
             d->symbol().resolveSymbols(dgn, resolver);
 
-            if ( auto proc = d->as<ProcedureDeclaration>() ) {
+            if ( auto proc = d->as<ProcedureDeclaration>() )
                 proc->resolvePrototypeSymbols(dgn);
-                if ( !addProcedure(dgn, proc->symbol(), *proc) )
-                    continue;
-            }
-            else {
-                if ( !addSymbol(dgn, d->symbol(), *d) )
-                    continue;
-            }
+
+            if ( !addSymbol(dgn, d->symbol(), *d) )
+                continue;
 
             if ( isMacroDeclaration(d->kind()) )
                 d->resolveSymbols(dgn);
@@ -126,7 +121,7 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         if ( isMacroDeclaration(e->kind()) )
             continue;
 
-        if ( !e->symbol().hasFreeVariables() )
+        if ( !e->symbol().prototype().hasFreeVariables() )
             e->resolveSymbols(dgn);
     }
 }
@@ -148,12 +143,12 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
  */
 LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const
 {
-    auto symSet = findSymbol(symbol.name());
-    if ( symSet )
-        return LookupHit(symSet, symSet->findEquivalent(dgn, symbol.parameters()));
+    auto symSpace = findSymbolSpace(dgn, symbol.name());
+    if ( symSpace )
+        return LookupHit(symSpace, symSpace->findEquivalent(dgn, symbol.parameters()));
 
     if ( myDeclaration && symbol.parameters().empty() )
-        return LookupHit(symSet, myDeclaration->symbol().findVariable(symbol.name()));
+        return LookupHit(symSpace, myDeclaration->symbol().prototype().findVariable(symbol.name()));
 
     return LookupHit();
 }
@@ -178,32 +173,18 @@ LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference con
  * mytype<"str">
  * \endcode
  */
-LookupHit DeclarationScope::findValue(Diagnostics& dgn, SymbolReference const& symbol) const
+LookupHit DeclarationScope::findValue(Diagnostics& dgn,
+                                      std::string const& name,
+                                      SymbolReference::param_list_t const& params)
 {
     LookupHit hit;
-    auto symSet = findSymbol(symbol.name());
-    if ( symSet ) {
-        auto t = symSet->findValue(dgn, symbol.parameters());
+    auto symSpace = findSymbolSpace(dgn, name);
+    if ( symSpace ) {
+        auto t = symSpace->findValue(dgn, params);
         if ( t.instance )
             myModule->appendTemplateInstance(t.instance);
 
-        hit.lookup(symSet, t.instance ? t.instance : t.parent);
-    }
-
-    return hit;
-}
-
-LookupHit DeclarationScope::findProcedureOverload(Diagnostics& dgn, SymbolReference const& procOverload) const
-{
-    LookupHit hit;
-    auto symSet = findProcedure(procOverload.name());
-    if ( symSet ) {
-        auto t = symSet->findValue(dgn, procOverload.parameters());
-        auto decl = t.instance ? t.instance : t.parent;
-        if ( t.instance )
-            myModule->appendTemplateInstance(t.instance);
-
-        hit.lookup(symSet, static_cast<ProcedureDeclaration const*>(decl));
+        hit.lookup(symSpace, t.instance ? t.instance : t.parent);
     }
 
     return hit;
@@ -222,76 +203,50 @@ void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
 
 void DeclarationScope::import(Module& module)
 {
-    append(std::make_unique<ImportDeclaration>(Symbol(module.name())));
+    append(std::make_unique<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
 }
 
-SymbolSet* DeclarationScope::createSymbolSet(std::string const& name)
+SymbolSpace* DeclarationScope::createSymbolSet(Diagnostics&, std::string const& name)
 {
-    auto l = lower_bound(begin(mySymbols), end(mySymbols), name);
+    auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
+    auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( l != end(mySymbols) && l->name() == name )
         return &*l;
 
-    l = mySymbols.insert(l, SymbolSet(this, name));
+    l = mySymbols.insert(l, SymbolSpace(this, name));
     return &*l;
 }
 
-SymbolSet* DeclarationScope::createProcedureOverloadSet(std::string const& name)
+bool DeclarationScope::addSymbol(Diagnostics& dgn,
+                                 Symbol const& sym,
+                                 Declaration& decl)
 {
-    auto l = lower_bound(begin(myProcedureOverloads), end(myProcedureOverloads), name);
-    if ( l != end(myProcedureOverloads) && l->name() == name )
-        return &*l;
-
-    l = myProcedureOverloads.insert(l, SymbolSet(this, name));
-    return &*l;
-}
-
-bool DeclarationScope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
-{
-    auto symSet = createSymbolSet(sym.name());
-    if ( auto other = symSet->findEquivalent(dgn, sym.parameters()) ) {
+    auto symSpace = createSymbolSet(dgn, sym.identifier().lexeme());
+    if ( auto other = symSpace->findEquivalent(dgn, sym.prototype().parameters()) ) {
         auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
-        err.see(other);
+        err.see(*other);
         return false;
     }
 
-    symSet->append(sym.parameters(), decl);
+    ScopeResolver resolver(*this);
+    Context ctx(dgn, resolver);
+    symSpace->append(ctx, sym.prototype(), decl);
     return true;
 }
 
-bool DeclarationScope::addProcedure(Diagnostics& dgn, Symbol const& sym, ProcedureDeclaration& procDecl)
+SymbolSpace const* DeclarationScope::findSymbolSpace(Diagnostics&, std::string const& name) const
 {
-    auto procSet = createProcedureOverloadSet(sym.name());
-    if ( auto other = procSet->findEquivalent(dgn, sym.parameters()) ) {
-        auto& err = dgn.error(module(), sym.identifier()) << "procedure declaration conflicts with existing overload";
-        err.see(other);
-        return false;
-    }
-
-    std::vector<Expression*> paramConstraints;
-    paramConstraints.reserve(procDecl.parameters().size());
-    for ( auto const& e : procDecl.parameters() )
-        paramConstraints.push_back(e->constraint());
-
-    procSet->append(paramConstraints, procDecl);
-    return true;
-}
-
-SymbolSet const* DeclarationScope::findSymbol(std::string const& identifier) const
-{
-    auto symSet = lower_bound(begin(mySymbols), end(mySymbols), identifier);
-    if ( symSet != end(mySymbols) && *symSet == identifier )
+    auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
+    auto symSet = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
+    if ( symSet != end(mySymbols) && symSet->name() == name )
         return &*symSet;
 
     return nullptr;
 }
 
-SymbolSet const* DeclarationScope::findProcedure(std::string const& identifier) const
+SymbolSpace* DeclarationScope::findSymbolSpace(Diagnostics& dgn, std::string const& name)
 {
-    auto procOverloads = lower_bound(begin(myProcedureOverloads), end(myProcedureOverloads), identifier);
-    if ( procOverloads != end(myProcedureOverloads) && *procOverloads == identifier )
-        return &*procOverloads;
-
-    return nullptr;
+    return const_cast<SymbolSpace*>(const_cast<DeclarationScope const*>(this)->findSymbolSpace(dgn, name));
 }
 
 Module& DeclarationScope::module()
@@ -531,6 +486,54 @@ Slice<Expression*> ProcedureScope::expressions()
 const Slice<Expression*> ProcedureScope::expressions() const
 {
     return myExpressions;
+}
+
+//
+// TemplateScope
+
+TemplateScope::TemplateScope(DeclarationScope& parent,
+                             TemplateDeclaration& declaration)
+    : DeclarationScope(parent, declaration)
+{
+}
+
+TemplateScope::TemplateScope(TemplateScope const& rhs)
+    : DeclarationScope(rhs)
+{
+}
+
+TemplateScope& TemplateScope::operator = (TemplateScope const& rhs)
+{
+    TemplateScope(rhs).swap(*this);
+    return *this;
+}
+
+TemplateScope::~TemplateScope() = default;
+
+void TemplateScope::swap(TemplateScope& rhs)
+{
+    DeclarationScope::swap(rhs);
+}
+
+void TemplateScope::io(IStream& stream) const
+{
+    DeclarationScope::io(stream);
+}
+
+IMPL_CLONE_BEGIN(TemplateScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(TemplateScope, DeclarationScope)
+IMPL_CLONE_REMAP_END
+
+void TemplateScope::resolveSymbols(Diagnostics& dgn)
+{
+    // Resolve declarations
+    DeclarationScope::resolveSymbols(dgn);
+}
+
+TemplateDeclaration* TemplateScope::declaration()
+{
+    return static_cast<TemplateDeclaration*>(myDeclaration);
 }
 
     } // namespace ast

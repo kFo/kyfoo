@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include <kyfoo/FlatMap.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/IO.hpp>
@@ -18,6 +19,7 @@ namespace kyfoo {
     namespace ast {
 
 class Context;
+class Declaration;
 class DeclarationScope;
 class IResolver;
 class Expression;
@@ -25,17 +27,65 @@ class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
 
-using binding_set_t = std::map<SymbolVariable const*, Expression const*>;
+using binding_set_t = FlatMap<SymbolVariable const*, Expression const*>;
+using Parameters = std::vector<std::unique_ptr<Expression>>;
+
+class ParametersPrototype : public IIO
+{
+public:
+    friend class ParametersInstance;
+
+public:
+    ParametersPrototype();
+    ParametersPrototype(std::vector<std::unique_ptr<Expression>>&& parameters);
+
+protected:
+    ParametersPrototype(ParametersPrototype const& rhs);
+    ParametersPrototype& operator = (ParametersPrototype const& rhs);
+
+public:
+    ParametersPrototype(ParametersPrototype&& rhs);
+    ParametersPrototype& operator = (ParametersPrototype&& rhs);
+
+    ~ParametersPrototype();
+
+    void swap(ParametersPrototype& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+public:
+    DECL_CLONE_ALL_NOBASE(ParametersPrototype)
+
+public:
+    void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
+
+public:
+    Slice<Expression*> parameters() const;
+    Slice<SymbolVariable*> symbolVariables() const;
+
+public:
+    void bindVariables(Context& ctx, binding_set_t const& bindings);
+    SymbolVariable* findVariable(std::string const& identifier);
+    SymbolVariable const* findVariable(std::string const& identifier) const;
+    SymbolVariable* createVariable(lexer::Token const& identifier);
+    bool isConcrete() const;
+    bool hasFreeVariables() const;
+
+private:
+    Parameters myParameters;
+    std::vector<std::unique_ptr<SymbolVariable>> myVariables;
+};
 
 class Symbol : public IIO
 {
 public:
-    using paramlist_t = std::vector<std::unique_ptr<Expression>>;
+    friend class SymbolSpace;
 
 public:
-    explicit Symbol(std::string const& name);
     Symbol(lexer::Token const& identifier,
-           std::vector<std::unique_ptr<Expression>>&& parameters);
+           ParametersPrototype&& params);
     explicit Symbol(lexer::Token const& identifier);
 
 protected:
@@ -50,116 +100,100 @@ public:
 
     void swap(Symbol& rhs);
 
-    // IIO
 public:
     void io(IStream& stream) const override;
 
 public:
-    Symbol* clone(clone_map_t& map) const;
-    void cloneChildren(Symbol& c, clone_map_t& map) const;
-    void remapReferences(clone_map_t const& map);
+    DECL_CLONE_ALL_NOBASE(Symbol);
 
 public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
-    void bindVariables(Context& ctx,
-                       Symbol& parentTemplate,
-                       binding_set_t const& bindings);
-    SymbolVariable* findVariable(std::string const& identifier);
-    SymbolVariable const* findVariable(std::string const& identifier) const;
-    SymbolVariable* createVariable(std::string const& identifier);
 
 public:
     lexer::Token const& identifier() const;
-    std::string const& name() const;
-    paramlist_t const& parameters() const;
-    Slice<SymbolVariable*> symbolVariables() const;
-    Symbol const* parentTemplate() const;
-    bool isConcrete() const;
-    bool hasFreeVariables() const;
+    ParametersPrototype const& prototype() const;
+    Symbol const* prototypeParent() const;
 
 private:
     lexer::Token myIdentifier;
-    paramlist_t myParameters;
-    std::vector<std::unique_ptr<SymbolVariable>> myVariables;
-    Symbol* myParentTemplate = nullptr;
+    std::unique_ptr<ParametersPrototype> myPrototype;
+    Symbol const* myPrototypeParent = nullptr;
 };
 
 class SymbolReference
 {
 public:
-    using paramlist_t = Slice<Expression*>;
+    using param_list_t = Slice<Expression*>;
 
 public:
-    /*implicit*/ SymbolReference(Symbol const& symbol);
+    SymbolReference(std::string const& name, param_list_t parameters);
+    /*implicit*/ SymbolReference(Symbol const& sym);
     /*implicit*/ SymbolReference(std::string const& name);
-    SymbolReference(std::string const& name, paramlist_t parameters);
+    /*implicit*/ SymbolReference(const char* name);
     ~SymbolReference();
 
 public:
     std::string const& name() const;
-    paramlist_t const& parameters() const;
+    param_list_t const& parameters() const;
 
 private:
     std::string const* myName;
-    paramlist_t myParameters;
+    param_list_t myParameters;
 };
 
-class Declaration;
-class SymbolSet
+class SymbolSpace
 {
 public:
-    using paramlist_t = SymbolReference::paramlist_t;
+    using param_list_t = SymbolReference::param_list_t;
 
-    struct SymbolTemplate {
-        std::vector<Expression*> paramlist;
-        Declaration* declaration;
-        std::vector<binding_set_t> instanceBindings;
-        std::vector<Declaration*> instantiations;
+    struct ParametersDecl {
+        ParametersPrototype const* params;
+        Declaration const* decl;
     };
 
-public:
-    SymbolSet(DeclarationScope* scope, std::string const& name);
+    struct Prototype {
+        ParametersDecl proto;
+        std::vector<ParametersDecl> instances;
+    };
 
-    SymbolSet(SymbolSet const& rhs);
-    SymbolSet& operator = (SymbolSet const& rhs);
-
-    SymbolSet(SymbolSet&& rhs);
-    SymbolSet& operator = (SymbolSet&& rhs);
-
-    ~SymbolSet();
-
-    void swap(SymbolSet& rhs);
-
-public:
-    bool operator < (std::string const& rhs) const { return myName < rhs; }
-    bool operator == (std::string const& rhs) const { return myName == rhs; }
-
-public:
-    std::string const& name() const;
-    Slice<SymbolTemplate> const prototypes() const;
-
-    void append(paramlist_t const& paramlist, Declaration& declaration);
-
-    Declaration* findEquivalent(Diagnostics& dgn, paramlist_t const& paramlist);
-    Declaration const* findEquivalent(Diagnostics& dgn, paramlist_t const& paramlist) const;
-
-    struct TemplateInstance {
+    struct DeclInstance {
         Declaration const* parent;
         Declaration const* instance;
     };
 
-    TemplateInstance findValue(Diagnostics& dgn, paramlist_t const& paramlist);
-    TemplateInstance const findValue(Diagnostics& dgn, paramlist_t const& paramlist) const;
+public:
+    SymbolSpace(DeclarationScope* scope, std::string const& name);
+
+    SymbolSpace(SymbolSpace const& rhs) = delete;
+    SymbolSpace& operator = (SymbolSpace const& rhs) = delete;
+
+    SymbolSpace(SymbolSpace&& rhs);
+    SymbolSpace& operator = (SymbolSpace&& rhs);
+
+    ~SymbolSpace();
+
+    void swap(SymbolSpace& rhs);
+
+public:
+    std::string const& name() const;
+    Slice<Prototype> prototypes() const;
+
+    void append(Context& ctx,
+                ParametersPrototype const& prototype,
+                Declaration& declaration);
+
+    Declaration const* findEquivalent(Diagnostics& dgn, param_list_t const& paramlist) const;
+    DeclInstance findValue(Diagnostics& dgn, param_list_t const& paramlist);
 
 private:
-    TemplateInstance instantiate(Context& ctx,
-                                 SymbolTemplate& proto,
-                                 binding_set_t&& bindingSet);
+    DeclInstance instantiate(Context& ctx,
+                             Prototype& proto,
+                             binding_set_t&& bindingSet);
 
 private:
     DeclarationScope* myScope = nullptr;
     std::string myName;
-    std::vector<SymbolTemplate> mySet;
+    std::vector<Prototype> myPrototypes;
 };
 
 std::ostream& print(std::ostream& stream, Symbol const& sym);

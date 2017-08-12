@@ -102,6 +102,9 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\FlatMap.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">

@@ -137,7 +137,7 @@ struct InitCodeGenPass
 
     result_t declDataSum(ast::DataSumDeclaration const& decl)
     {
-        if ( !decl.symbol().isConcrete() || decl.codegenData() )
+        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration>>());
@@ -149,7 +149,7 @@ struct InitCodeGenPass
 
     result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& decl)
     {
-        if ( !decl.symbol().isConcrete() || decl.codegenData() )
+        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration::Constructor>>());
@@ -157,7 +157,7 @@ struct InitCodeGenPass
 
     result_t declDataProduct(ast::DataProductDeclaration const& decl)
     {
-        if ( !decl.symbol().isConcrete() || decl.codegenData() )
+        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration>>());
@@ -187,7 +187,7 @@ struct InitCodeGenPass
 
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
-        if ( !decl.symbol().isConcrete() || decl.codegenData() )
+        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureDeclaration>>());
@@ -216,6 +216,16 @@ struct InitCodeGenPass
     {
         if ( sv.boundExpression() && sv.boundExpression()->declaration() )
             dispatch(*sv.boundExpression()->declaration());
+    }
+
+    result_t declTemplate(ast::TemplateDeclaration const& decl)
+    {
+        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
+            return;
+
+        if ( auto defn = decl.definition() )
+            for ( auto& e : defn->childDeclarations() )
+                dispatch(*e);
     }
 };
 
@@ -270,7 +280,7 @@ struct CodeGenPass
 
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
-        if ( !decl.symbol().isConcrete() )
+        if ( !decl.symbol().prototype().isConcrete() )
             return;
 
         if ( sourceModule.axioms().isIntrinsic(decl) )
@@ -310,7 +320,7 @@ struct CodeGenPass
 
         fun->body = llvm::Function::Create(fun->proto,
                                            llvm::Function::ExternalLinkage, // todo
-                                           decl.symbol().name(),
+                                           decl.symbol().identifier().lexeme(),
                                            module);
 
         {
@@ -348,6 +358,11 @@ struct CodeGenPass
     result_t declSymbolVariable(ast::SymbolVariable const&)
     {
         // nop
+    }
+
+    result_t declTemplate(ast::TemplateDeclaration const&)
+    {
+        // todo
     }
 
 private:
@@ -475,12 +490,51 @@ private:
               || decl == axioms.intrinsic(ast::Addi8)
               || decl == axioms.intrinsic(ast::Addi16)
               || decl == axioms.intrinsic(ast::Addi32)
-              || decl == axioms.intrinsic(ast::Addi64)
-              || decl == axioms.intrinsic(ast::Addi128) )
+              || decl == axioms.intrinsic(ast::Addi64) )
             {
                 auto p1 = toValue(builder, *exprs[1]);
                 auto p2 = toValue(builder, *exprs[2]);
                 return builder.CreateAdd(p1, p2);
+            }
+            else if ( decl == axioms.intrinsic(ast::Truncu1u8)
+                   || decl == axioms.intrinsic(ast::Truncu1u16)
+                   || decl == axioms.intrinsic(ast::Truncu1u32)
+                   || decl == axioms.intrinsic(ast::Truncu1u64)
+                   || decl == axioms.intrinsic(ast::Truncu1u128) )
+            {
+                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt1Ty(builder.getContext()));
+            }
+            else if ( decl == axioms.intrinsic(ast::Truncu8u16)
+                   || decl == axioms.intrinsic(ast::Truncu8u32)
+                   || decl == axioms.intrinsic(ast::Truncu8u64)
+                   || decl == axioms.intrinsic(ast::Truncu8u128)
+                   || decl == axioms.intrinsic(ast::Trunci8i16)
+                   || decl == axioms.intrinsic(ast::Trunci8i32)
+                   || decl == axioms.intrinsic(ast::Trunci8i64)
+                   || decl == axioms.intrinsic(ast::Trunci8i128) )
+            {
+                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt8Ty(builder.getContext()));
+            }
+            else if ( decl == axioms.intrinsic(ast::Truncu16u32)
+                   || decl == axioms.intrinsic(ast::Truncu16u64)
+                   || decl == axioms.intrinsic(ast::Truncu16u128)
+                   || decl == axioms.intrinsic(ast::Trunci16i32)
+                   || decl == axioms.intrinsic(ast::Trunci16i64)
+                   || decl == axioms.intrinsic(ast::Trunci16i128) )
+            {
+                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt16Ty(builder.getContext()));
+            }
+            else if ( decl == axioms.intrinsic(ast::Truncu32u64)
+                   || decl == axioms.intrinsic(ast::Truncu32u128)
+                   || decl == axioms.intrinsic(ast::Trunci32i64)
+                   || decl == axioms.intrinsic(ast::Trunci32i128) )
+            {
+                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt32Ty(builder.getContext()));
+            }
+            else if ( decl == axioms.intrinsic(ast::Truncu64u128)
+                   || decl == axioms.intrinsic(ast::Trunci64i128) )
+            {
+                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt128Ty(builder.getContext()));
             }
             else if ( decl == axioms.intrinsic(ast::Addr) ) {
                 return toValue(builder, *exprs[1]);
@@ -553,7 +607,7 @@ struct LLVMGenerator::LLVMState
 
         registerTypes(*sourceModule.scope());
         for ( auto d : sourceModule.templateInstantiations() ) {
-            if ( d->symbol().isConcrete() ) {
+            if ( d->symbol().prototype().isConcrete() ) {
                 auto decl = resolveIndirections(d);
                 registerType(*decl);
             }
@@ -585,16 +639,14 @@ struct LLVMGenerator::LLVMState
             else if ( ds == axioms.intrinsic(ast::u16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
             else if ( ds == axioms.intrinsic(ast::u32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
             else if ( ds == axioms.intrinsic(ast::u64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
-            else if ( ds == axioms.intrinsic(ast::u128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
             else if ( ds == axioms.intrinsic(ast::i8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
             else if ( ds == axioms.intrinsic(ast::i16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
             else if ( ds == axioms.intrinsic(ast::i32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
             else if ( ds == axioms.intrinsic(ast::i64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
-            else if ( ds == axioms.intrinsic(ast::i128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
 
             auto const& sym = ds->symbol();
             if ( rootTemplate(sym) == &axioms.intrinsic(ast::PointerTemplate)->symbol() ) {
-                auto t = toType(*sym.parameters()[0]);
+                auto t = toType(*sym.prototype().parameters()[0]);
                 dsData->type = llvm::PointerType::get(t, 0);
                 return dsData->type;
             }
@@ -650,7 +702,7 @@ struct LLVMGenerator::LLVMState
 
             dpData->type = llvm::StructType::create(*context,
                                                     fieldTypes,
-                                                    dp->symbol().name(),
+                                                    dp->symbol().identifier().lexeme(),
                                                     /*isPacked*/false);
             return dpData->type;
         }
@@ -662,7 +714,7 @@ struct LLVMGenerator::LLVMState
     {
         for ( auto const& decl : scope.childDeclarations() ) {
             auto d = resolveIndirections(decl);
-            if ( !d->symbol().isConcrete() )
+            if ( !d->symbol().prototype().isConcrete() )
                 continue;
 
             registerType(*d);

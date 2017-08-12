@@ -51,12 +51,37 @@ enum InstructionIntrinsics
     Addu32,
     Addu64,
     Addu128,
-
     Addi8,
     Addi16,
     Addi32,
     Addi64,
     Addi128,
+
+    Truncu1u8,
+    Truncu1u16,
+    Truncu1u32,
+    Truncu1u64,
+    Truncu1u128,
+    Truncu8u16,
+    Truncu8u32,
+    Truncu8u64,
+    Truncu8u128,
+    Truncu16u32,
+    Truncu16u64,
+    Truncu16u128,
+    Truncu32u64,
+    Truncu32u128,
+    Truncu64u128,
+    Trunci8i16,
+    Trunci8i32,
+    Trunci8i64,
+    Trunci8i128,
+    Trunci16i32,
+    Trunci16i64,
+    Trunci16i128,
+    Trunci32i64,
+    Trunci32i128,
+    Trunci64i128,
 
     Addr,
 
@@ -76,7 +101,7 @@ protected:
     friend class ModuleSet;
     AxiomsModule(ModuleSet* moduleSet, std::string const& name);
     
-    void init(Diagnostics& dgn);
+    bool init(Diagnostics& dgn);
 
 public:
     ~AxiomsModule();

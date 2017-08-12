@@ -3,6 +3,8 @@
 #include <memory>
 #include <vector>
 
+#include <kyfoo/ast/Symbol.hpp>
+
 namespace kyfoo {
 
     class Diagnostics;
@@ -20,8 +22,6 @@ class Declaration;
 class Expression;
 class LookupHit;
 class Module;
-class Symbol;
-class SymbolReference;
 
 class IResolver
 {
@@ -31,13 +31,16 @@ public:
     virtual Module const& module() const = 0;
 
     virtual LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const = 0;
+    virtual LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) = 0;
+    virtual LookupHit matchProcedure(Diagnostics& dgn,
+                                     SymbolReference const& procOverload,
+                                     SymbolReference::param_list_t const& params) const = 0;
 };
 
 class ScopeResolver : public IResolver
 {
 public:
+    explicit ScopeResolver(DeclarationScope& scope);
     explicit ScopeResolver(DeclarationScope const& scope);
 
     ScopeResolver(ScopeResolver&& rhs);
@@ -52,15 +55,17 @@ public:
     Module const& module() const;
 
     LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const override;
-    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) const override;
-    LookupHit matchProcedure(Diagnostics& dgn, SymbolReference const& procOverload) const override;
+    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) override;
+    LookupHit matchProcedure(Diagnostics& dgn,
+                             SymbolReference const& procOverload,
+                             SymbolReference::param_list_t const& params) const override;
 
 public:
     void addSupplementarySymbol(Symbol const& sym);
     LookupHit matchSupplementary(SymbolReference const& symbol) const;
 
 private:
-    DeclarationScope const* myScope = nullptr;
+    DeclarationScope* myScope = nullptr;
     std::vector<Symbol const*> mySupplementarySymbols;
 };
 
@@ -87,7 +92,8 @@ public:
     std::size_t errorCount() const;
 
     LookupHit matchValue(SymbolReference const& sym) const;
-    LookupHit matchProcedure(SymbolReference const& sym) const;
+    LookupHit matchProcedure(SymbolReference const& sym,
+                             SymbolReference::param_list_t const& params) const;
 
     IResolver* changeResolver(IResolver& resolver);
     void rewrite(std::unique_ptr<Expression> expr);

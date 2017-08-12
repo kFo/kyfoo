@@ -11,64 +11,54 @@ namespace kyfoo {
     namespace ast {
 
 //
-// Symbol
+// ParametersPrototype
 
-Symbol::Symbol(std::string const& name)
-    : Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, name))
+ParametersPrototype::ParametersPrototype()
 {
 }
 
-Symbol::Symbol(lexer::Token const& identifier,
-               std::vector<std::unique_ptr<Expression>>&& parameters)
-    : myIdentifier(identifier)
-    , myParameters(std::move(parameters))
+ParametersPrototype::ParametersPrototype(std::vector<std::unique_ptr<Expression>>&& parameters)
+    : myParameters(std::move(parameters))
 {
 }
 
-Symbol::Symbol(lexer::Token const& identifier)
-    : myIdentifier(identifier)
+ParametersPrototype::ParametersPrototype(ParametersPrototype const&)
 {
+    // clone myParameters
+    // clone myVariables
 }
 
-Symbol::Symbol(Symbol const& rhs)
-    : myIdentifier(rhs.myIdentifier)
+ParametersPrototype& ParametersPrototype::operator = (ParametersPrototype const& rhs)
 {
-}
-
-Symbol& Symbol::operator = (Symbol const& rhs)
-{
-    Symbol(rhs).swap(*this);
+    ParametersPrototype(rhs).swap(*this);
     return *this;
 }
 
-Symbol::Symbol(Symbol&& rhs)
-    : myIdentifier(std::move(rhs.myIdentifier))
-    , myParameters(std::move(rhs.myParameters))
+ParametersPrototype::ParametersPrototype(ParametersPrototype&& rhs)
+    : myParameters(std::move(rhs.myParameters))
     , myVariables(std::move(rhs.myVariables))
 {
 }
 
-Symbol& Symbol::operator = (Symbol&& rhs)
+ParametersPrototype& ParametersPrototype::operator = (ParametersPrototype&& rhs)
 {
-    this->~Symbol();
-    new (this) Symbol(std::move(rhs));
+    this->~ParametersPrototype();
+    new (this) ParametersPrototype(std::move(rhs));
 
     return *this;
 }
 
-Symbol::~Symbol() = default;
+ParametersPrototype::~ParametersPrototype() = default;
 
-void Symbol::swap(Symbol& rhs)
+void ParametersPrototype::swap(ParametersPrototype& rhs)
 {
     using std::swap;
-    swap(myIdentifier, rhs.myIdentifier);
     swap(myParameters, rhs.myParameters);
     swap(myVariables, rhs.myVariables);
 }
 
-void Symbol::io(IStream& stream) const
+void ParametersPrototype::io(IStream& stream) const
 {
-    stream.next("id", myIdentifier);
     stream.openArray("params");
     for ( auto const& p : myParameters )
         p->io(stream);
@@ -79,41 +69,83 @@ void Symbol::io(IStream& stream) const
     stream.closeArray();
 }
 
-IMPL_CLONE_NOBASE_BEGIN(Symbol, Symbol)
+IMPL_CLONE_NOBASE_BEGIN(ParametersPrototype, ParametersPrototype)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myVariables)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_NOBASE_BEGIN(Symbol)
+IMPL_CLONE_REMAP_NOBASE_BEGIN(ParametersPrototype)
 IMPL_CLONE_REMAP(myParameters)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-lexer::Token const& Symbol::identifier() const
+void ParametersPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
-    return myIdentifier;
+    Context ctx(dgn, resolver);
+
+    for ( auto const& param : myParameters ) {
+        auto fv = gatherFreeVariables(*param);
+        for ( auto& p : fv ) {
+            myVariables.push_back(std::make_unique<SymbolVariable>(*this, p->token()));
+            p->setFreeVariable(myVariables.back().get());
+        }
+    }
+
+    ctx.resolveExpressions(myParameters);
 }
 
-std::string const& Symbol::name() const
-{
-    return myIdentifier.lexeme();
-}
-
-Symbol::paramlist_t const& Symbol::parameters() const
+Slice<Expression*> ParametersPrototype::parameters() const
 {
     return myParameters;
 }
 
-Slice<SymbolVariable*> Symbol::symbolVariables() const
+Slice<SymbolVariable*> ParametersPrototype::symbolVariables() const
 {
     return myVariables;
 }
 
-Symbol const* Symbol::parentTemplate() const
+void ParametersPrototype::bindVariables(Context& ctx,
+                                        binding_set_t const& bindings)
 {
-    return myParentTemplate;
+    if ( bindings.size() != myVariables.size() )
+        throw std::runtime_error("template parameter binding mismatch");
+
+    for ( std::size_t i = 0; i < bindings.size(); ++i ) {
+        auto const& key = bindings.keys()[i];
+        auto const& value = bindings.values()[i];
+        auto var = findVariable(key->identifier().lexeme());
+        if ( !var )
+            throw std::runtime_error("template parameter binding mismatch");
+
+        var->bindExpression(value);
+    }
+
+    ctx.resolveExpressions(myParameters);
 }
 
-bool Symbol::isConcrete() const
+SymbolVariable* ParametersPrototype::findVariable(std::string const& identifier)
+{
+    for ( std::size_t i = 0; i < myVariables.size(); ++i )
+        if ( myVariables[i]->identifier().lexeme() == identifier )
+            return myVariables[i].get();
+
+    return nullptr;
+}
+
+SymbolVariable const* ParametersPrototype::findVariable(std::string const& identifier) const
+{
+    return const_cast<ParametersPrototype*>(this)->findVariable(identifier);
+}
+
+SymbolVariable* ParametersPrototype::createVariable(lexer::Token const& identifier)
+{
+    if ( auto symvar = findVariable(identifier.lexeme()) )
+        return symvar;
+
+    myVariables.emplace_back(std::make_unique<SymbolVariable>(*this, identifier));
+    return myVariables.back().get();
+}
+
+bool ParametersPrototype::isConcrete() const
 {
     for ( auto const& v : myVariables ) {
         auto expr = resolveIndirections(v->boundExpression());
@@ -128,7 +160,7 @@ bool Symbol::isConcrete() const
     return true;
 }
 
-bool Symbol::hasFreeVariables() const
+bool ParametersPrototype::hasFreeVariables() const
 {
     for ( auto const& e : myVariables )
         if ( !e->boundExpression() )
@@ -137,87 +169,111 @@ bool Symbol::hasFreeVariables() const
     return false;
 }
 
+//
+// SymbolPrototype
+
+Symbol::Symbol(lexer::Token const& identifier,
+               ParametersPrototype&& params)
+    : myIdentifier(identifier)
+    , myPrototype(std::make_unique<ParametersPrototype>(std::move(params)))
+{
+}
+
+Symbol::Symbol(lexer::Token const& identifier)
+    : Symbol(identifier, ParametersPrototype())
+{
+}
+
+Symbol::Symbol(Symbol const& rhs)
+    : myIdentifier(rhs.myIdentifier)
+    , myPrototypeParent(rhs.myPrototypeParent)
+{
+    // clone myPrototype
+}
+
+Symbol& Symbol::operator = (Symbol const& rhs)
+{
+    Symbol(rhs).swap(*this);
+    return *this;
+}
+
+Symbol::Symbol(Symbol&& rhs)
+    : myIdentifier(rhs.myIdentifier)
+    , myPrototype(std::move(rhs.myPrototype))
+{
+}
+
+Symbol& Symbol::operator = (Symbol&& rhs)
+{
+    this->~Symbol();
+    new (this) Symbol(std::move(rhs));
+    return *this;
+}
+
+Symbol::~Symbol() = default;
+
+void Symbol::swap(Symbol& rhs)
+{
+    using std::swap;
+    swap(myIdentifier, rhs.myIdentifier);
+    swap(myPrototype, rhs.myPrototype);
+}
+
+void Symbol::io(IStream& stream) const
+{
+    stream.next("symbol", myIdentifier);
+    myPrototype->io(stream);
+}
+
+IMPL_CLONE_NOBASE_BEGIN(Symbol, Symbol)
+IMPL_CLONE_CHILD(myPrototype)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_NOBASE_BEGIN(Symbol)
+IMPL_CLONE_REMAP(myPrototype)
+IMPL_CLONE_REMAP(myPrototypeParent)
+IMPL_CLONE_REMAP_END
+
 void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
-    Context ctx(dgn, resolver);
-
-    for ( auto const& param : myParameters ) {
-        auto fv = gatherFreeVariables(*param);
-        for ( auto& primary : fv ) {
-            auto symVar = createVariable(primary->token().lexeme());
-            if ( !symVar )
-                ctx.error(*primary) << "invalid symbol variable";
-            else
-                primary->setFreeVariable(symVar);
-        }
-    }
-
-    ctx.resolveExpressions(myParameters);
+    myPrototype->resolveSymbols(dgn, resolver);
 }
 
-void Symbol::bindVariables(Context& ctx,
-                           Symbol& parentTemplate,
-                           binding_set_t const& bindings)
+lexer::Token const& Symbol::identifier() const
 {
-    if ( myParentTemplate )
-        throw std::runtime_error("template can only be bound once");
-
-    myParentTemplate = &parentTemplate;
-
-    if ( bindings.size() != myVariables.size() )
-        throw std::runtime_error("template parameter binding mismatch");
-
-    for ( auto const& e : bindings ) {
-        auto var = findVariable(e.first->name());
-        if ( !var )
-            throw std::runtime_error("template parameter binding mismatch");
-
-        var->bindExpression(e.second);
-    }
-
-    ctx.resolveExpressions(myParameters);
+    return myIdentifier;
 }
 
-SymbolVariable* Symbol::findVariable(std::string const& identifier)
+ParametersPrototype const& Symbol::prototype() const
 {
-    for ( auto& e : myVariables )
-        if ( e->identifier().lexeme() == identifier )
-            return e.get();
-
-    return nullptr;
+    return *myPrototype;
 }
 
-SymbolVariable const* Symbol::findVariable(std::string const& identifier) const
+Symbol const* Symbol::prototypeParent() const
 {
-    return const_cast<Symbol*>(this)->findVariable(identifier);
-}
-
-SymbolVariable* Symbol::createVariable(std::string const& identifier)
-{
-    if ( auto symvar = findVariable(identifier) )
-        return symvar;
-
-    myVariables.emplace_back(std::make_unique<SymbolVariable>(*this, identifier));
-    return myVariables.back().get();
+    return myPrototypeParent;
 }
 
 //
 // SymbolReference
 
-SymbolReference::SymbolReference(Symbol const& symbol)
-    : SymbolReference(symbol.name(), symbol.parameters())
+SymbolReference::SymbolReference(std::string const& name, param_list_t parameters)
+    : myName(&name)
+    , myParameters(parameters)
+{
+}
+
+SymbolReference::SymbolReference(Symbol const& sym)
+    : SymbolReference(sym.identifier().lexeme(), sym.prototype().parameters())
 {
 }
 
 SymbolReference::SymbolReference(std::string const& name)
-    : SymbolReference(name, paramlist_t())
+    : SymbolReference(name, param_list_t())
 {
 }
 
-SymbolReference::SymbolReference(std::string const& name,
-                                 paramlist_t parameters)
-    : myName(&name)
-    , myParameters(parameters)
+SymbolReference::SymbolReference(const char* name)
+    : SymbolReference(name, param_list_t())
 {
 }
 
@@ -228,176 +284,172 @@ std::string const& SymbolReference::name() const
     return *myName;
 }
 
-SymbolReference::paramlist_t const& SymbolReference::parameters() const
+SymbolReference::param_list_t const& SymbolReference::parameters() const
 {
     return myParameters;
 }
 
 //
-// SymbolSet
+// SymbolSpace
 
-SymbolSet::SymbolSet(DeclarationScope* scope, std::string const& name)
+SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string const& name)
     : myScope(scope)
     , myName(name)
 {
 }
 
-SymbolSet::SymbolSet(SymbolSet const& rhs)
-    : myScope(rhs.myScope)
-    , myName(rhs.myName)
-    , mySet(rhs.mySet)
-{
-}
+//SymbolSet::SymbolSet(SymbolSet const& rhs)
+//    : myScope(rhs.myScope)
+//    , mySymbol(rhs.mySymbol)
+//    , mySet(rhs.mySet)
+//{
+//}
+//
+//SymbolSet& SymbolSet::operator = (SymbolSet const& rhs)
+//{
+//    SymbolSet(rhs).swap(*this);
+//    return *this;
+//}
 
-SymbolSet& SymbolSet::operator = (SymbolSet const& rhs)
-{
-    SymbolSet(rhs).swap(*this);
-    return *this;
-}
-
-SymbolSet::SymbolSet(SymbolSet&& rhs)
+SymbolSpace::SymbolSpace(SymbolSpace&& rhs)
     : myScope(rhs.myScope)
     , myName(std::move(rhs.myName))
-    , mySet(std::move(rhs.mySet))
+    , myPrototypes(std::move(rhs.myPrototypes))
 {
     rhs.myScope = nullptr;
 }
 
-SymbolSet& SymbolSet::operator = (SymbolSet&& rhs)
+SymbolSpace& SymbolSpace::operator = (SymbolSpace&& rhs)
 {
-    this->~SymbolSet();
-    new (this) SymbolSet(std::move(rhs));
+    this->~SymbolSpace();
+    new (this) SymbolSpace(std::move(rhs));
 
     return *this;
 }
 
-SymbolSet::~SymbolSet() = default;
+SymbolSpace::~SymbolSpace() = default;
 
-void SymbolSet::swap(SymbolSet& rhs)
+void SymbolSpace::swap(SymbolSpace& rhs)
 {
     using std::swap;
     swap(myScope, rhs.myScope);
     swap(myName, rhs.myName);
-    swap(mySet, rhs.mySet);
+    swap(myPrototypes, rhs.myPrototypes);
 }
 
-std::string const& SymbolSet::name() const
+std::string const& SymbolSpace::name() const
 {
     return myName;
 }
 
-Slice<SymbolSet::SymbolTemplate> const SymbolSet::prototypes() const
+Slice<SymbolSpace::Prototype> SymbolSpace::prototypes() const
 {
-    return mySet;
+    return myPrototypes;
 }
 
-void SymbolSet::append(paramlist_t const& paramlist, Declaration& declaration)
+void SymbolSpace::append(Context& ctx,
+                         ParametersPrototype const& prototype,
+                         Declaration& declaration)
 {
-    SymbolTemplate overload;
+    auto i = begin(myPrototypes);
+    for ( ; i != end(myPrototypes); ++i ) {
+        if ( prototype.parameters().size() < i->proto.params->parameters().size() )
+            break;
 
-    auto const size = paramlist.size();
-    overload.paramlist.reserve(size);
-    for ( auto const& e : paramlist )
-        overload.paramlist.push_back(e);
+        auto v = variance(ctx, i->proto.params->parameters(), prototype.parameters());
+        if ( v.equivalent() ) {
+            auto& err = ctx.error(declaration) << "matches existing declaration";
+            err.see(*i->proto.decl);
+            return;
+        }
+        else if ( v.covariant() ) {
+            break;
+        }
+    }
 
-    overload.declaration = &declaration;
-    mySet.push_back(overload);
+    myPrototypes.insert(i, Prototype{ {&prototype, &declaration}, std::vector<ParametersDecl>() });
 }
 
-Declaration* SymbolSet::findEquivalent(Diagnostics& dgn, SymbolReference::paramlist_t const& paramlist)
+Declaration const* SymbolSpace::findEquivalent(Diagnostics& dgn,
+                                               param_list_t const& paramlist) const
 {
     ScopeResolver resolver(*myScope);
     Context ctx(dgn, resolver);
-    for ( auto const& e : mySet ) {
-        if ( matchEquivalent(ctx, e.paramlist, paramlist) )
-            return e.declaration;
+    for ( auto const& e : myPrototypes ) {
+        if ( matchEquivalent(ctx, e.proto.params->parameters(), paramlist) )
+            return e.proto.decl;
     }
 
     return nullptr;
 }
 
-Declaration const* SymbolSet::findEquivalent(Diagnostics& dgn, SymbolReference::paramlist_t const& paramlist) const
-{
-    return const_cast<SymbolSet*>(this)->findEquivalent(dgn, paramlist);
-}
-
-SymbolSet::TemplateInstance
-SymbolSet::findValue(Diagnostics& dgn,
-                     SymbolReference::paramlist_t const& paramlist)
+SymbolSpace::DeclInstance
+SymbolSpace::findValue(Diagnostics& dgn,
+                       param_list_t const& paramlist)
 {
     ScopeResolver resolver(*myScope);
     Context ctx(dgn, resolver);
-    for ( auto& e : mySet ) {
-        ValueMatcher m(ctx);
-        if ( m.matchValue(e.paramlist, paramlist) ) {
-            if ( e.declaration->symbol().isConcrete() )
-                return { e.declaration, nullptr };
+    for ( auto& e : myPrototypes ) {
+        binding_set_t bindings;
+        if ( variance(ctx, bindings, e.proto.params->parameters(), paramlist) ) {
+            if ( e.proto.decl->symbol().prototype().isConcrete() )
+                return { e.proto.decl, nullptr };
 
-            if ( !m.rightBindings.empty() )
-                return { e.declaration, nullptr };
-
-            return instantiate(ctx, e, std::move(m.leftBindings));
+            return instantiate(ctx, e, std::move(bindings));
         }
     }
 
     return { nullptr, nullptr };
 }
 
-SymbolSet::TemplateInstance const
-SymbolSet::findValue(Diagnostics& dgn,
-                     SymbolReference::paramlist_t const& paramlist) const
-{
-    return const_cast<SymbolSet*>(this)->findValue(dgn, paramlist);
-}
-
-SymbolSet::TemplateInstance
-SymbolSet::instantiate(Context& ctx,
-                       SymbolTemplate& proto,
-                       binding_set_t&& bindingSet)
+SymbolSpace::DeclInstance
+SymbolSpace::instantiate(Context& ctx,
+                         Prototype& proto,
+                         binding_set_t&& bindingSet)
 {
     // use existing instantiation if it exists
-    for ( std::size_t i = 0; i < proto.instanceBindings.size(); ++i ) {
-        auto const& e = proto.instanceBindings[i];
-        if ( e.size() != bindingSet.size() )
+    for ( std::size_t i = 0; i < proto.instances.size(); ++i ) {
+        auto const& e = proto.instances[i];
+        auto const& instParams = e.params->parameters();
+        if ( instParams.size() != bindingSet.size() )
             continue;
 
-        auto l = begin(e);
-        auto r = begin(bindingSet);
-        while ( l != end(e) ) {
-            if ( !matchEquivalent(ctx, *l->second, *r->second) )
+        auto l = begin(instParams);
+        auto r = begin(bindingSet.values());
+        while ( l != end(instParams) ) {
+            if ( !matchEquivalent(ctx, **l, **r) )
                 break;
 
             ++l;
             ++r;
         }
 
-        if ( l == end(e) )
-            return { proto.declaration, proto.instantiations[i] };
+        if ( l == end(instParams) )
+            return { proto.proto.decl, e.decl };
     }
 
     // create new instantiation
-    auto instance = ast::clone(proto.declaration);
+    auto instance = ast::clone(proto.proto.decl);
 
-    instance->symbol().bindVariables(ctx, proto.declaration->symbol(), bindingSet);
+    instance->symbol().myPrototype->bindVariables(ctx, bindingSet);
 
     if ( auto proc = instance->as<ProcedureDeclaration>() )
         proc->resolvePrototypeSymbols(ctx.diagnostics());
 
     instance->resolveSymbols(ctx.diagnostics());
 
-    proto.instanceBindings.emplace_back(std::move(bindingSet));
-    proto.instantiations.push_back(instance.get());
+    proto.instances.emplace_back(ParametersDecl{instance->symbol().myPrototype.get(), instance.get()});
     myScope->append(std::move(instance));
-    return { proto.declaration, proto.instantiations.back() };
+    return { proto.proto.decl, proto.instances.back().decl };
 }
 
 std::ostream& print(std::ostream& stream, Symbol const& sym)
 {
     stream << sym.identifier().lexeme();
-    if ( !sym.parameters().empty() ) {
+    if ( !sym.prototype().parameters().empty() ) {
         stream << "<";
-        auto first = begin(sym.parameters());
-        auto last = end(sym.parameters());
+        auto first = begin(sym.prototype().parameters());
+        auto last = end(sym.prototype().parameters());
         if ( first != last )
             print(stream, **first);
 

@@ -10,12 +10,24 @@
         -> std::decay_t<decltype(*this)>* override;               \
     void cloneChildren(kind& c, clone_map_t& map) const override;
 
+#define DECL_CLONE_NOBASE(kind)                          \
+    auto clone(clone_map_t& map) const                   \
+        -> std::decay_t<decltype(*this)>*;               \
+    void cloneChildren(kind& c, clone_map_t& map) const;
+
 #define DECL_CLONE_REMAP \
     void remapReferences(clone_map_t const& map) override;
+
+#define DECL_CLONE_REMAP_NOBASE \
+    void remapReferences(clone_map_t const& map);
 
 #define DECL_CLONE_ALL(kind) \
     DECL_CLONE(kind)         \
     DECL_CLONE_REMAP
+
+#define DECL_CLONE_ALL_NOBASE(kind) \
+    DECL_CLONE_NOBASE(kind)         \
+    DECL_CLONE_REMAP_NOBASE
 
 #define IMPL_CLONE(type)                      \
     type* type::clone(clone_map_t& map) const \
@@ -67,10 +79,34 @@ public:
 
 using clone_map_t = std::map<void const*, void*>;
 
+template <typename T, typename D>
+std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>, T>> clone(T const& rhs, D& map)
+{
+    std::unique_ptr<T> ret(rhs.clone(map));
+    ret->remapReferences(map);
+    return ret;
+}
+
+template <typename T, typename D>
+std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs, D& dict)
+{
+    if ( !rhs )
+        return nullptr;
+
+    return std::unique_ptr<T>(rhs->clone(dict));
+}
+
 template <typename T>
 std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs)
 {
     return clone(rhs.get());
+}
+
+template <typename T>
+std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>, T>> clone(T const& rhs)
+{
+    clone_map_t map;
+    return clone(rhs, map);
 }
 
 template <typename T>
@@ -79,9 +115,18 @@ std::unique_ptr<T> clone(T const* rhs)
     if ( !rhs )
         return nullptr;
 
-    clone_map_t map;
-    std::unique_ptr<T> ret(rhs->clone(map));
-    ret->remapReferences(map);
+    return clone(*rhs);
+}
+
+template <typename T, typename D>
+std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs,
+                                      D& dict)
+{
+    std::vector<std::unique_ptr<T>> ret;
+    ret.reserve(rhs.size());
+    for ( auto const& e : rhs )
+        ret.emplace_back(std::unique_ptr<T>(e->clone(dict)));
+
     return ret;
 }
 
@@ -96,27 +141,6 @@ std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs
 
     for ( auto& e : ret )
         e->remapReferences(map);
-
-    return ret;
-}
-
-template <typename T, typename D>
-std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs, D& dict)
-{
-    if ( !rhs )
-        return nullptr;
-
-    return std::unique_ptr<T>(rhs->clone(dict));
-}
-
-template <typename T, typename D>
-std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs,
-                                      D& dict)
-{
-    std::vector<std::unique_ptr<T>> ret;
-    ret.reserve(rhs.size());
-    for ( auto const& e : rhs )
-        ret.emplace_back(std::unique_ptr<T>(e->clone(dict)));
 
     return ret;
 }

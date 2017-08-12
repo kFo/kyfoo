@@ -68,9 +68,9 @@ std::vector<ast::Declaration const*> const& Error::references() const
     return myReferences;
 }
 
-void Error::see(ast::Declaration const* declaration)
+void Error::see(ast::Declaration const& declaration)
 {
-    myReferences.push_back(declaration);
+    myReferences.push_back(&declaration);
 }
 
 Error& Error::operator << (lexer::Token const& token)

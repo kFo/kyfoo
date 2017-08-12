@@ -30,11 +30,11 @@ class LookupHit
 public:
     LookupHit() = default;
 
-    LookupHit(SymbolSet const* symSet, Declaration const* decl)
+    LookupHit(SymbolSpace const* symSpace, Declaration const* decl)
         : myDecl(decl)
     {
-        if ( symSet )
-            mySymSets.push_back(symSet);
+        if ( symSpace )
+            mySpaces.push_back(symSpace);
     }
 
     explicit LookupHit(SymbolVariable const* symVar)
@@ -45,7 +45,7 @@ public:
     LookupHit(LookupHit const&) = delete;
 
     LookupHit(LookupHit&& rhs)
-        : mySymSets(std::move(rhs.mySymSets))
+        : mySpaces(std::move(rhs.mySpaces))
         , myDecl(rhs.myDecl)
     {
         rhs.myDecl = nullptr;
@@ -62,7 +62,7 @@ public:
     void swap(LookupHit& rhs)
     {
         using std::swap;
-        swap(mySymSets, rhs.mySymSets);
+        swap(mySpaces, rhs.mySpaces);
         swap(myDecl, rhs.myDecl);
     }
 
@@ -71,10 +71,10 @@ public:
         return myDecl;
     }
 
-    LookupHit& lookup(SymbolSet const* symSet, Declaration const* decl)
+    LookupHit& lookup(SymbolSpace const* space, Declaration const* decl)
     {
-        if ( symSet )
-            mySymSets.push_back(symSet);
+        if ( space )
+            mySpaces.push_back(space);
 
         if ( myDecl )
             throw std::runtime_error("declaration reference stomped");
@@ -94,11 +94,11 @@ public:
 
     LookupHit& append(LookupHit&& rhs)
     {
-        mySymSets.insert(end(mySymSets),
-                         begin(rhs.mySymSets), end(rhs.mySymSets));
+        mySpaces.insert(end(mySpaces),
+                         begin(rhs.mySpaces), end(rhs.mySpaces));
         myDecl = rhs.myDecl;
 
-        rhs.mySymSets.clear();
+        rhs.mySpaces.clear();
         rhs.myDecl = nullptr;
 
         return *this;
@@ -113,10 +113,10 @@ public:
         return nullptr;
     }
 
-    SymbolSet const* symSet() const
+    SymbolSpace const* symSpace() const
     {
-        if ( !mySymSets.empty() )
-            return mySymSets.front();
+        if ( !mySpaces.empty() )
+            return mySpaces.front();
 
         return nullptr;
     }
@@ -126,13 +126,13 @@ public:
         return myDecl;
     }
 
-    Slice<SymbolSet const*> trace() const
+    Slice<SymbolSpace const*> trace() const
     {
-        return mySymSets;
+        return mySpaces;
     }
 
 private:
-    std::vector<SymbolSet const*> mySymSets;
+    std::vector<SymbolSpace const*> mySpaces;
     Declaration const* myDecl = nullptr;
 };
 
@@ -173,15 +173,16 @@ public:
     void import(Module& module);
 
     LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
-    LookupHit findValue(Diagnostics& dgn, SymbolReference const& symbol) const;
-    LookupHit findProcedureOverload(Diagnostics& dgn, SymbolReference const& procOverload) const;
+    LookupHit findValue(Diagnostics& dgn,
+                        std::string const& name,
+                        SymbolReference::param_list_t const& params);
 
-    SymbolSet* createSymbolSet(std::string const& name);
-    SymbolSet* createProcedureOverloadSet(std::string const& name);
-    bool addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl);
-    bool addProcedure(Diagnostics& dgn, Symbol const& sym, ProcedureDeclaration& procDecl);
-    SymbolSet const* findSymbol(std::string const& identifier) const;
-    SymbolSet const* findProcedure(std::string const& identifier) const;
+    SymbolSpace* createSymbolSet(Diagnostics& dgn, std::string const& name);
+    bool addSymbol(Diagnostics& dgn,
+                   Symbol const& sym,
+                   Declaration& decl);
+    SymbolSpace* findSymbolSpace(Diagnostics& dgn, std::string const& name);
+    SymbolSpace const* findSymbolSpace(Diagnostics& dgn, std::string const& name) const;
 
     Module& module();
     Module const& module() const;
@@ -200,8 +201,7 @@ protected:
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
-    std::vector<SymbolSet> mySymbols;
-    std::vector<SymbolSet> myProcedureOverloads;
+    std::vector<SymbolSpace> mySymbols;
     std::map<std::string, ImportDeclaration*> myImports;
 };
 
@@ -306,6 +306,36 @@ public:
 
 private:
     std::vector<std::unique_ptr<Expression>> myExpressions;
+};
+
+class TemplateScope : public DeclarationScope
+{
+public:
+    TemplateScope(DeclarationScope& parent,
+                  TemplateDeclaration& declaration);
+
+protected:
+    TemplateScope(TemplateScope const& rhs);
+    TemplateScope& operator = (TemplateScope const& rhs);
+
+public:
+    TemplateScope(TemplateScope&&) = delete;
+
+    ~TemplateScope();
+
+    void swap(TemplateScope& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // DeclarationScope
+public:
+    DECL_CLONE_ALL(DeclarationScope)
+    void resolveSymbols(Diagnostics& dgn) override;
+
+public:
+    TemplateDeclaration* declaration();
 };
 
     } // namespace ast

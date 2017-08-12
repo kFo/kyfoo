@@ -44,18 +44,18 @@ namespace {
         return true;
     }
 
-    bool bind(Context& ctx, binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
+    bool bindSymbol(Context& ctx, binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
     {
-        auto e = bindings.find(&symVar);
-        if ( e == end(bindings) ) {
+        auto i = bindings.findKeyIndex(&symVar);
+        if ( i == bindings.size() ) {
             // new binding
-            bindings[&symVar] = &expr;
+            bindings.push_back(&symVar, &expr);
             return true;
         }
 
         // existing binding must be consistent
         // todo: print diagnostics on mismatch
-        return matchEquivalent(ctx, *e->second, expr);
+        return matchEquivalent(ctx, *bindings.values()[i], expr);
     }
 
     bounds_t bitsToBounds(int bits)
@@ -95,7 +95,7 @@ SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::st
 
 void SymbolDependencyTracker::add(Declaration& decl)
 {
-    auto group = findOrCreate(decl.symbol().name(), decl.symbol().parameters().size());
+    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().parameters().size());
     group->add(decl);
 }
 
@@ -103,7 +103,7 @@ void SymbolDependencyTracker::addDependency(Declaration& decl,
                                             std::string const& name,
                                             std::size_t arity)
 {
-    auto group = findOrCreate(decl.symbol().name(), decl.symbol().parameters().size());
+    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().parameters().size());
     auto dependency = findOrCreate(name, arity);
 
     dependency->addDependent(*group);
@@ -112,7 +112,7 @@ void SymbolDependencyTracker::addDependency(Declaration& decl,
         if ( !group->defer(group, dependency->pass + 1) ) {
             auto& err = dgn.error(mod, decl.symbol().identifier()) << "circular reference detected";
             for ( auto const& d : dependency->declarations )
-                err.see(d);
+                err.see(*d);
         }
     }
 }
@@ -191,7 +191,7 @@ struct SymbolDependencyBuilder
 
     void traceSymbol(Symbol& sym)
     {
-        for ( auto const& p : sym.parameters() )
+        for ( auto const& p : sym.prototype().parameters() )
             dispatch(*p);
     }
 
@@ -255,6 +255,11 @@ struct SymbolDependencyBuilder
     result_t declSymbolVariable(SymbolVariable&)
     {
         // nop
+    }
+
+    result_t declTemplate(TemplateDeclaration&)
+    {
+        traceSymbol();
     }
 };
 
@@ -363,7 +368,7 @@ struct MatchEquivalent
             return false;
         }
 
-        return isCovariant(ctx, l.token(), r.token());
+        return variance(ctx, l.token(), r.token()).equivalent();
     }
 
     // Tuple match
@@ -421,59 +426,174 @@ bool matchEquivalent(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rh
     return compare(lhs, rhs, op);
 }
 
-bool isCovariant(Context&, lexer::Token const& target, lexer::Token const& query)
+VarianceResult variance(Context&, lexer::Token const& target, lexer::Token const& query)
 {
-    return target.lexeme() == query.lexeme();
+    return target.lexeme() == query.lexeme() ? Equivalent : Invariant;
 }
 
-bool isCovariant(Context& ctx, Declaration const& target, lexer::Token const& query)
+VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query)
 {
     auto const& axioms = ctx.axioms();
 
     if ( auto intMeta = axioms.integerMetaData(target) ) {
         if ( query.kind() != lexer::TokenKind::Integer )
-            return false; // todo: diagnostics
+            return Invariant; // todo: diagnostics
 
         cpp_int const n(query.lexeme());
         bounds_t const bounds = bitsToBounds(intMeta->bits);
 
         if ( !in(n, bounds) )
-            return false; // todo: error diagnostics
+            return Contravariant; // todo: error diagnostics
 
-        return true;
+        return Covariant;
     }
 
-    return false;
+    return Invariant;
 }
 
-bool isCovariant(Context& ctx, Declaration const& target, Declaration const& query)
+VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
 {
     if ( &target == &query )
-        return true;
+        return Equivalent;
 
     if ( auto dsCtor = query.as<DataSumDeclaration::Constructor>() )
-        return isCovariant(ctx, target, *dsCtor->parent());
+        return variance(ctx, target, *dsCtor->parent());
 
     if ( auto f = query.as<ProcedureDeclaration>() )
-        return isCovariant(ctx, target, *f->returnType()->declaration());
+        return variance(ctx, target, *f->returnType()->declaration());
 
     if ( auto v = query.as<VariableDeclaration>() )
-        return isCovariant(ctx, target, *v->constraint()->declaration());
+        return variance(ctx, target, *v->constraint()->declaration());
 
     if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
         if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
             auto const targetBounds = bitsToBounds(targetInteger->bits);
             auto const queryBounds = bitsToBounds(queryInteger->bits);
 
-            return subset(queryBounds, targetBounds);
+            return subset(queryBounds, targetBounds) ? Covariant : Contravariant;
         }
     }
 
     // todo: removeme
     if ( &query == ctx.axioms().pointerNullLiteralType() )
-        return descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol());
+        if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol()) )
+            return Covariant;
 
-    return false;
+    return Invariant;
+}
+
+/**
+ * Matches lhs :> value(rhs) semantically
+ * 
+ * Answers whether \p rhs 's value is covariant with type \p lhs
+ */
+VarianceResult variance(Context& ctx,
+                        binding_set_t& leftBindings,
+                        Expression const& lhs,
+                        Expression const& rhs)
+{
+    auto queryDecl = rhs.declaration();
+    auto targetDecl = lhs.declaration();
+
+    if ( !targetDecl ) {
+        ctx.error(lhs) << "compilation stopped due to unresolved expression";
+        return Invariant;
+    }
+    else if ( !queryDecl ) {
+        ctx.error(rhs) << "compilation stopped due to unresolved expression";
+        return Invariant;
+    }
+
+    {
+        // resolve ast aliases and run again (normalizing)
+        auto l = lookThrough(targetDecl);
+        auto r = lookThrough(queryDecl);
+
+        if ( l || r )
+            return variance(ctx, leftBindings, l ? *l : lhs, r ? *r : rhs);
+    }
+
+    // look through storage declarations to their constraints
+    // similar to looking through ast aliases (more normalization)
+    if ( auto proc = queryDecl->as<ProcedureDeclaration>() )
+        return variance(ctx, leftBindings, lhs, *proc->returnType());
+
+    if ( auto v = queryDecl->as<VariableDeclaration>() )
+        return variance(ctx, leftBindings, lhs, *v->constraint());
+
+    if ( auto f = queryDecl->as<DataProductDeclaration::Field>() )
+        return variance(ctx, leftBindings, lhs, f->constraint());
+
+    // assumes lhs is:
+    // - literal
+    // - data declaration
+    // - symbol variable
+
+    auto lhsPrimary = lhs.as<PrimaryExpression>();
+    auto rhsPrimary = rhs.as<PrimaryExpression>();
+    if ( lhsPrimary && isLiteral(lhsPrimary->token().kind()) ) {
+        // lhs is a literal
+        if ( rhsPrimary && isLiteral(rhsPrimary->token().kind()) ) {
+            return variance(ctx, lhsPrimary->token(), rhsPrimary->token());
+        }
+        else {
+            // todo: compile time execute
+            return Invariant;
+        }
+    }
+    else {
+        // lhs is an identifier
+        if ( auto symVar = targetDecl->as<SymbolVariable>() )
+            return bindSymbol(ctx, leftBindings, *symVar, rhs) ? Covariant : Invariant;
+
+        if ( rhsPrimary ) {
+            if ( isLiteral(rhsPrimary->token().kind()) ) {
+                // rhs is a literal
+                return variance(ctx, *targetDecl, rhsPrimary->token());
+            }
+            else {
+                // rhs is an identifier
+            }
+        }
+
+        if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
+            return variance(ctx, leftBindings, targetDecl->symbol().prototype().parameters(), queryDecl->symbol().prototype().parameters());
+
+        return variance(ctx, *targetDecl, *queryDecl);
+    }
+}
+
+VarianceResult variance(Context& ctx,
+                        binding_set_t& leftBindings,
+                        Slice<Expression*> lhs,
+                        Slice<Expression*> rhs)
+{
+    auto const size = lhs.size();
+    if ( size != rhs.size() )
+        return Invariant;
+
+    for ( std::size_t i = 0; i < size; ++i ) {
+        auto v = variance(ctx, leftBindings, *lhs[i], *rhs[i]);
+        if ( !v.covariant() )
+            return v;
+    }
+
+    return Covariant;
+}
+
+VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs)
+{
+    binding_set_t bindings;
+    return variance(ctx, bindings, lhs, rhs);
+}
+
+VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs)
+{
+    if ( lhs.name() != rhs.name() )
+        return Invariant;
+
+    binding_set_t bindings;
+    return variance(ctx, bindings, lhs.parameters(), rhs.parameters());
 }
 
 Expression const* lookThrough(Declaration const* decl)
@@ -527,8 +647,8 @@ Expression const* resolveIndirections(Expression const* expr)
 Symbol const* rootTemplate(Symbol const& symbol)
 {
     auto ret = &symbol;
-    while ( ret->parentTemplate() )
-        ret = ret->parentTemplate();
+    while ( ret->prototypeParent() )
+        ret = ret->prototypeParent();
 
     return ret;
 }
@@ -540,7 +660,7 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
         if ( p == &parent )
             return true;
 
-        p = p->parentTemplate();
+        p = p->prototypeParent();
     }
 
     return false;
@@ -562,105 +682,6 @@ DeclarationScope const* memberScope(Declaration const& decl)
 
     // todo: imports
     return nullptr;
-}
-
-//
-// ValueMatcher
-
-ValueMatcher::ValueMatcher(Context& ctx)
-    : ctx(ctx)
-{
-}
-
-void ValueMatcher::reset()
-{
-    leftBindings.clear();
-    rightBindings.clear();
-}
-
-/**
- * Matches lhs :> value(rhs) semantically
- * 
- * Answers whether \p rhs 's value is covariant with type \p lhs
- */
-bool ValueMatcher::matchValue(Expression const& lhs, Expression const& rhs)
-{
-    auto queryDecl = rhs.declaration();
-    auto targetDecl = lhs.declaration();
-
-    if ( !targetDecl ) {
-        ctx.error(lhs) << "compilation stopped due to unresolved expression";
-        return false;
-    }
-    else if ( !queryDecl ) {
-        ctx.error(rhs) << "compilation stopped due to unresolved expression";
-        return false;
-    }
-
-    {
-        // resolve ast aliases and run again (normalizing)
-        auto l = lookThrough(targetDecl);
-        auto r = lookThrough(queryDecl);
-
-        if ( l || r )
-            return matchValue(l ? *l : lhs, r ? *r : rhs);
-    }
-
-    // look through storage declarations to their constraints
-    // similar to looking through ast aliases (more normalization)
-    if ( auto proc = queryDecl->as<ProcedureDeclaration>() )
-        return matchValue(lhs, *proc->returnType());
-
-    if ( auto v = queryDecl->as<VariableDeclaration>() )
-        return matchValue(lhs, *v->constraint());
-
-    if ( auto f = queryDecl->as<DataProductDeclaration::Field>() )
-        return matchValue(lhs, f->constraint());
-
-    // assumes lhs is:
-    // - literal
-    // - data declaration
-    // - symbol variable
-
-    auto lhsPrimary = lhs.as<PrimaryExpression>();
-    auto rhsPrimary = rhs.as<PrimaryExpression>();
-    if ( lhsPrimary && isLiteral(lhsPrimary->token().kind()) ) {
-        // lhs is a literal
-        if ( rhsPrimary && isLiteral(rhsPrimary->token().kind()) ) {
-            return isCovariant(ctx, lhsPrimary->token(), rhsPrimary->token());
-        }
-        else {
-            // todo: compile time execute
-            return false;
-        }
-    }
-    else {
-        // lhs is an identifier
-        if ( auto symVar = targetDecl->as<SymbolVariable>() )
-            return bind(ctx, leftBindings, *symVar, rhs);
-
-        if ( rhsPrimary ) {
-            if ( isLiteral(rhsPrimary->token().kind()) ) {
-                // rhs is a literal
-                return isCovariant(ctx, *targetDecl, rhsPrimary->token());
-            }
-            else {
-                // rhs is an identifier
-            }
-        }
-
-        if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
-            if ( matchValue(targetDecl->symbol().parameters(), queryDecl->symbol().parameters()) )
-                return true;
-
-        return isCovariant(ctx, *targetDecl, *queryDecl);
-    }
-}
-
-bool ValueMatcher::matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs)
-{
-    auto op = [this](auto const& l, auto const& r) { return matchValue(l, r); };
-    return compare(lhs, rhs, op);
 }
 
 template <typename Dispatcher>

@@ -18,16 +18,17 @@ namespace kyfoo {
 
     namespace ast {
 
-#define DECLARATION_KINDS(X) \
-    X(DataSum       , "data sum"       , DataSumDeclaration) \
+#define DECLARATION_KINDS(X)                                              \
+    X(DataSum       , "data sum"       , DataSumDeclaration)              \
     X(DataSumCtor   , "data sum ctor"  , DataSumDeclaration::Constructor) \
-    X(DataProduct   , "data product"   , DataProductDeclaration) \
-    X(Field         , "field"          , DataProductDeclaration::Field) \
-    X(Symbol        , "symbol"         , SymbolDeclaration) \
-    X(Procedure     , "procedure"      , ProcedureDeclaration) \
-    X(Variable      , "variable"       , VariableDeclaration) \
-    X(Import        , "import"         , ImportDeclaration) \
-    X(SymbolVariable, "symbol variable", SymbolVariable)
+    X(DataProduct   , "data product"   , DataProductDeclaration)          \
+    X(Field         , "field"          , DataProductDeclaration::Field)   \
+    X(Symbol        , "symbol"         , SymbolDeclaration)               \
+    X(Procedure     , "procedure"      , ProcedureDeclaration)            \
+    X(Variable      , "variable"       , VariableDeclaration)             \
+    X(Import        , "import"         , ImportDeclaration)               \
+    X(SymbolVariable, "symbol variable", SymbolVariable)                  \
+    X(Template      , "template"       , TemplateDeclaration)
 
 enum class DeclKind
 {
@@ -42,6 +43,7 @@ class DeclarationScope;
 class DataSumScope;
 class DataProductScope;
 class ProcedureScope;
+class TemplateScope;
 class ValueExpression;
 
 class Declaration : public INode
@@ -436,7 +438,11 @@ private:
 class SymbolVariable : public Declaration
 {
 public:
-    SymbolVariable(Symbol& parent, std::string const& name);
+    SymbolVariable(ParametersPrototype& prototype,
+                   lexer::Token const& identifier,
+                   Expression const* expr);
+    SymbolVariable(ParametersPrototype& prototype,
+                   lexer::Token const& identifier);
 
 protected:
     SymbolVariable(SymbolVariable const& rhs);
@@ -459,16 +465,49 @@ public:
     void resolveSymbols(Diagnostics& dgn);
 
 public:
-    Symbol const& parent() const;
-    std::string const& name() const;
+    ParametersPrototype const& prototype() const;
+    lexer::Token const& identifier() const;
 
     void bindExpression(Expression const* expr);
     Expression const* boundExpression() const;
 
 private:
-    Symbol* myParent = nullptr;
-    std::string myName;
+    ParametersPrototype* myPrototype = nullptr;
     Expression const* myBoundExpression = nullptr;
+};
+
+class TemplateDeclaration : public Declaration
+{
+public:
+    explicit TemplateDeclaration(Symbol&& sym);
+
+protected:
+    TemplateDeclaration(TemplateDeclaration const& rhs);
+    TemplateDeclaration& operator = (TemplateDeclaration const& rhs);
+
+public:
+    TemplateDeclaration(TemplateDeclaration&&) = delete;
+
+    ~TemplateDeclaration();
+
+    void swap(TemplateDeclaration& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Declaration
+public:
+    DECL_CLONE_ALL(Declaration)
+    void resolveSymbols(Diagnostics& dgn) override;
+
+public:
+    TemplateScope* definition();
+    TemplateScope const* definition() const;
+    void define(std::unique_ptr<TemplateScope> definition);
+
+private:
+    std::unique_ptr<TemplateScope> myDefinition;
 };
 
 // sugar to avoid switching on DeclKind
