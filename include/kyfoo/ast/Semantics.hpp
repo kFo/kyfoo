@@ -150,24 +150,43 @@ struct SymbolDependencyTracker
     void sortPasses();
 };
 
-struct ValueMatcher
-{
-    Context& ctx;
-    binding_set_t leftBindings;
-    binding_set_t rightBindings;
-
-    explicit ValueMatcher(Context& ctx);
-
-    void reset();
-    bool matchValue(Expression const& lhs, Expression const& rhs);
-    bool matchValue(Slice<Expression*> lhs, Slice<Expression*> rhs);
-};
-
 void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
 
-bool isCovariant(Context& ctx, lexer::Token const& target, lexer::Token const& query);
-bool isCovariant(Context& ctx, Declaration const& target, lexer::Token const& query);
-bool isCovariant(Context& ctx, Declaration const& target, Declaration const& query);
+enum Variance
+{
+    Covariant,
+    Equivalent,
+    Contravariant,
+    Invariant,
+};
+
+class VarianceResult
+{
+    Variance myVariance = Invariant;
+
+public:
+    /*implicit*/ VarianceResult(Variance variance)
+        : myVariance(variance)
+    {
+    }
+
+    bool covariant() const { return myVariance <= Equivalent; }
+    bool equivalent() const { return myVariance == Equivalent; }
+    bool contravariant() const { return myVariance == Contravariant; }
+    bool invariant() const { return myVariance == Invariant; }
+
+    Variance value() const { return myVariance; }
+
+    explicit operator bool() const { return covariant(); }
+};
+
+VarianceResult variance(Context& ctx, lexer::Token const& target, lexer::Token const& query);
+VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query);
+VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
+VarianceResult variance(Context& ctx, binding_set_t& leftBindings, Expression const& lhs, Expression const& rhs);
+VarianceResult variance(Context& ctx, binding_set_t& leftBindings, Slice<Expression*> lhs, Slice<Expression*> rhs);
+VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
+VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
 
 Expression const* lookThrough(Declaration const* decl);
 Declaration const* resolveIndirections(Declaration const* decl);

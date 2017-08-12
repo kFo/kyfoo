@@ -162,7 +162,7 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
 
         auto hit = ctx.matchValue(Symbol(myToken));
         if ( !hit ) {
-            if ( !hit.symSet() )
+            if ( !hit.symSpace() )
                 ctx.error(myToken) << "undeclared identifier";
             return;
         }
@@ -418,6 +418,9 @@ IMPL_CLONE_REMAP_END
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
     auto subject = myExpressions.front()->as<PrimaryExpression>();
+    Slice<Expression*> args;
+    args = slice(myExpressions, 1);
+
     if ( !subject ) {
         // explicit procedure lookup
         ctx.resolveExpressions(myExpressions);
@@ -447,35 +450,57 @@ void ApplyExpression::resolveSymbols(Context& ctx)
             ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
             return;
         }
-    }
 
-    Slice<Expression*> args;
-    args = slice(myExpressions, 1);
+        SymbolReference sym(subject->token().lexeme(), args);
 
-    SymbolReference sym(subject->token().lexeme(), args);
-
-    // Look for hit on symbol
-    auto hit = ctx.matchValue(sym);
-    if ( hit ) {
-        // Transmute apply-expression into symbol-expression
-        auto id = subject->token();
-        auto expr = std::move(myExpressions);
-        move(next(begin(expr)), end(expr), begin(expr));
-        expr.pop_back();
-        return ctx.rewrite(std::make_unique<SymbolExpression>(id, std::move(expr)));
+        // Look for hit on symbol
+        auto hit = ctx.matchValue(sym);
+        if ( hit ) {
+            // Transmute apply-expression into symbol-expression
+            auto id = subject->token();
+            auto expr = std::move(myExpressions);
+            move(next(begin(expr)), end(expr), begin(expr));
+            expr.pop_back();
+            return ctx.rewrite(std::make_unique<SymbolExpression>(id, std::move(expr)));
+        }
     }
 
     // Search procedure overloads by arguments
-    hit = ctx.matchProcedure(sym);
+    LookupHit hit;
+    if ( subject ) {
+        hit = ctx.matchProcedure(subject->token().lexeme(), args);
+    }
+    else {
+        for ( auto expr = myExpressions.front().get(); ; ) {
+            if ( auto s = expr->as<SymbolExpression>() ) {
+                hit = ctx.matchProcedure(SymbolReference(s->identifier().lexeme(), s->expressions()), args);
+            }
+            else if ( auto d = expr->as<DotExpression>() ) {
+                // todo: change resolution scope
+                expr = &d->top();
+                continue;
+            }
+            else if ( auto p = expr->as<PrimaryExpression>() ) {
+                hit = ctx.matchProcedure(p->token().lexeme(), args);
+            }
+            else {
+                ctx.error(*this) << "invalid apply-expression";
+                return;
+            }
+
+            break;
+        }
+    }
+
     auto procDecl = hit.as<ProcedureDeclaration>();
     if ( !procDecl ) {
         auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
         // todo: references to potential overloads
         // todo: chained symbol sets
         // todo: lookup failures are not returning symbol sets
-        if ( hit.symSet() ) {
-            for ( auto const& sd : hit.symSet()->prototypes() )
-                err.see(sd.declaration);
+        if ( hit.symSpace() ) {
+            for ( auto const& p : hit.symSpace()->prototypes() )
+                err.see(*p.proto.decl);
         }
         return;
     }

@@ -64,7 +64,7 @@ public:
     std::vector<ast::Declaration const*> const& references() const;
 
 public:
-    void see(ast::Declaration const* declaration);
+    void see(ast::Declaration const& declaration);
 
 public:
     Error& operator << (lexer::Token const& token);

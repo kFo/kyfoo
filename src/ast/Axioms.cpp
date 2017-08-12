@@ -41,7 +41,33 @@ add(x : signed<unsigned<32 >>, y : signed<unsigned<32 >>) : signed<unsigned<32 >
 add(x : signed<unsigned<64 >>, y : signed<unsigned<64 >>) : signed<unsigned<64 >>
 add(x : signed<unsigned<128>>, y : signed<unsigned<128>>) : signed<unsigned<128>>
 
-addr<\T>(=x : T) : pointer T
+trunc<unsigned<1 >>(x : unsigned<8  >) : unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<16 >) : unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<32 >) : unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<64 >) : unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<128>) : unsigned<1 >
+trunc<unsigned<8 >>(x : unsigned<16 >) : unsigned<8 >
+trunc<unsigned<8 >>(x : unsigned<32 >) : unsigned<8 >
+trunc<unsigned<8 >>(x : unsigned<64 >) : unsigned<8 >
+trunc<unsigned<8 >>(x : unsigned<128>) : unsigned<8 >
+trunc<unsigned<16>>(x : unsigned<32 >) : unsigned<16>
+trunc<unsigned<16>>(x : unsigned<64 >) : unsigned<16>
+trunc<unsigned<16>>(x : unsigned<128>) : unsigned<16>
+trunc<unsigned<32>>(x : unsigned<64 >) : unsigned<32>
+trunc<unsigned<32>>(x : unsigned<128>) : unsigned<32>
+trunc<unsigned<64>>(x : unsigned<128>) : unsigned<64>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<16 >>) : signed<unsigned<8 >>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<32 >>) : signed<unsigned<8 >>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<64 >>) : signed<unsigned<8 >>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<128>>) : signed<unsigned<8 >>
+trunc<signed<unsigned<16>>>(x : signed<unsigned<32 >>) : signed<unsigned<16>>
+trunc<signed<unsigned<16>>>(x : signed<unsigned<64 >>) : signed<unsigned<16>>
+trunc<signed<unsigned<16>>>(x : signed<unsigned<128>>) : signed<unsigned<16>>
+trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) : signed<unsigned<32>>
+trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) : signed<unsigned<32>>
+trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) : signed<unsigned<64>>
+
+addr(=x : \T) : pointer T
 
 )axioms";
 
@@ -62,11 +88,11 @@ namespace kyfoo {
 AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
                            std::string const& name)
     : Module(moduleSet, name)
-    , myEmptyLiteralType      (std::make_unique<DataSumDeclaration>(Symbol(""        )))
-    , myIntegerLiteralType    (std::make_unique<DataSumDeclaration>(Symbol("integer" )))
-    , myRationalLiteralType   (std::make_unique<DataSumDeclaration>(Symbol("rational")))
-    , myStringLiteralType     (std::make_unique<DataSumDeclaration>(Symbol("string"  )))
-    , myPointerNullLiteralType(std::make_unique<DataSumDeclaration>(Symbol("nil_t"   )))
+    , myEmptyLiteralType      (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""        ))))
+    , myIntegerLiteralType    (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))))
+    , myRationalLiteralType   (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))))
+    , myStringLiteralType     (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "string"  ))))
+    , myPointerNullLiteralType(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))))
 {
     myDataSumDecls[EmptyLiteralType      ] = myEmptyLiteralType.get();
     myDataSumDecls[IntegerLiteralType    ] = myIntegerLiteralType.get();
@@ -167,54 +193,56 @@ AxiomsModule::IntegerMetaData const* AxiomsModule::integerMetaData(Declaration c
     return nullptr;
 }
 
-void AxiomsModule::init(Diagnostics& dgn)
+bool AxiomsModule::init(Diagnostics& dgn)
 {
     std::stringstream s(source);
     try {
         parse(dgn, s);
         if ( dgn.errorCount() )
-            return;
+            return false;
 
         resolveImports(dgn);
         if ( dgn.errorCount() )
-            return;
+            return false;
 
         semantics(dgn);
         if ( dgn.errorCount() )
-            return;
+            return false;
 
-        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u1"  )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u8"  )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u16" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u32" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u64" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("u128")).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent(dgn, "u1"  ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent(dgn, "u8"  ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent(dgn, "u16" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent(dgn, "u32" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent(dgn, "u64" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent(dgn, "u128").decl())->as<DataSumDeclaration>();
 
-        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i8"  )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i16" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i32" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i64" )).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent(dgn, Symbol("i128")).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent(dgn, "i8"  ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent(dgn, "i16" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent(dgn, "i32" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent(dgn, "i64" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent(dgn, "i128").decl())->as<DataSumDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
         for ( auto decl = begin(childDecls); decl != end(childDecls); ++decl )
         {
             auto const& sym = (*decl)->symbol();
-            if ( sym.name() == "unsigned" ) {
+            if ( sym.identifier().lexeme() == "unsigned" ) {
                 for ( int i = UnsignedTemplate; i <= SignedTemplate; ++decl, ++i )
                     myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
             }
-            else if ( sym.name() == "pointer" ) {
+            else if ( sym.identifier().lexeme() == "pointer" ) {
                 for ( int i = PointerTemplate; i <= ArrayDynamicTemplate; ++decl, ++i )
                     myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
             }
-            else if ( sym.name() == "add" ) {
+            else if ( sym.identifier().lexeme() == "add" ) {
                 for ( int i = Addu1; i < InstructionIntrinsicsCount; ++decl, ++i )
                     myInstructionDecls[i] = (*decl)->as<ProcedureDeclaration>();
             }
         }
 
         buildMetaData();
+
+        return true;
     }
     catch (Diagnostics*) {
         // fall through
@@ -222,6 +250,8 @@ void AxiomsModule::init(Diagnostics& dgn)
     catch (std::exception const&) {
         // fall through
     }
+
+    return false;
 }
 
 void AxiomsModule::buildMetaData()

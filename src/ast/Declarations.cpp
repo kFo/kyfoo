@@ -640,9 +640,6 @@ ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
 
 ProcedureDeclaration::ProcedureDeclaration(ProcedureDeclaration const& rhs)
     : Declaration(rhs)
-    , myParameters(ast::clone(rhs.myParameters))
-    , myResult(ast::clone(rhs.myResult))
-    , myDefinition(ast::clone(rhs.myDefinition))
 {
 }
 
@@ -726,7 +723,7 @@ ProcedureScope const* ProcedureDeclaration::definition() const
 void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
 {
     if ( myDefinition )
-        throw std::runtime_error("procedure " + mySymbol->name() + " is already defined");
+        throw std::runtime_error("procedure " + mySymbol->identifier().lexeme() + " is already defined");
 
     myDefinition = std::move(definition);
     myDefinition->setDeclaration(this);
@@ -816,17 +813,24 @@ void ImportDeclaration::resolveSymbols(Diagnostics&)
 //
 // SymbolVariable
 
-SymbolVariable::SymbolVariable(Symbol& parent, std::string const& name)
-    : Declaration(DeclKind::SymbolVariable, Symbol(lexer::Token(lexer::TokenKind::Identifier, parent.identifier().line(), parent.identifier().column(), name)), nullptr)
-    , myParent(&parent)
-    , myName(name)
+SymbolVariable::SymbolVariable(ParametersPrototype& prototype,
+                               lexer::Token const& identifier,
+                               Expression const* expr)
+    : Declaration(DeclKind::SymbolVariable, Symbol(identifier), nullptr)
+    , myPrototype(&prototype)
+    , myBoundExpression(expr)
+{
+}
+
+SymbolVariable::SymbolVariable(ParametersPrototype& prototype,
+                               lexer::Token const& identifier)
+    : SymbolVariable(prototype, identifier, nullptr)
 {
 }
 
 SymbolVariable::SymbolVariable(SymbolVariable const& rhs)
     : Declaration(rhs)
-    , myParent(rhs.myParent)
-    , myName(rhs.myName)
+    , myPrototype(rhs.myPrototype)
     , myBoundExpression(rhs.myBoundExpression)
 {
 }
@@ -843,21 +847,19 @@ void SymbolVariable::swap(SymbolVariable& rhs)
 {
     Declaration::swap(rhs);
     using std::swap;
-    swap(myParent, rhs.myParent);
-    swap(myName, rhs.myName);
+    swap(myPrototype, rhs.myPrototype);
     swap(myBoundExpression, rhs.myBoundExpression);
 }
 
 void SymbolVariable::io(IStream& stream) const
 {
     Declaration::io(stream);
-    stream.next("name", myName);
 }
 
 IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(SymbolVariable, Declaration)
-IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myPrototype)
 IMPL_CLONE_REMAP(myBoundExpression)
 IMPL_CLONE_REMAP_END
 
@@ -879,14 +881,81 @@ Expression const* SymbolVariable::boundExpression() const
     return myBoundExpression;
 }
 
-std::string const& SymbolVariable::name() const
+lexer::Token const& SymbolVariable::identifier() const
 {
-    return myName;
+    return symbol().identifier();
 }
 
-Symbol const& SymbolVariable::parent() const
+ParametersPrototype const& SymbolVariable::prototype() const
 {
-    return *myParent;
+    return *myPrototype;
+}
+
+//
+// TemplateDeclaration
+
+TemplateDeclaration::TemplateDeclaration(Symbol&& sym)
+    : Declaration(DeclKind::Template, std::move(sym), nullptr)
+{
+}
+
+TemplateDeclaration::TemplateDeclaration(TemplateDeclaration const& rhs)
+    : Declaration(rhs)
+{
+}
+
+TemplateDeclaration& TemplateDeclaration::operator = (TemplateDeclaration const& rhs)
+{
+    TemplateDeclaration(rhs).swap(*this);
+    return *this;
+}
+
+TemplateDeclaration::~TemplateDeclaration() = default;
+
+void TemplateDeclaration::swap(TemplateDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myDefinition, rhs.myDefinition);
+}
+
+void TemplateDeclaration::io(IStream& stream) const
+{
+    Declaration::io(stream);
+    if ( myDefinition )
+        stream.next("definition", myDefinition);
+}
+
+IMPL_CLONE_BEGIN(TemplateDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myDefinition)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, Declaration)
+IMPL_CLONE_REMAP(myDefinition)
+IMPL_CLONE_REMAP_END
+
+void TemplateDeclaration::resolveSymbols(Diagnostics& dgn)
+{
+    if ( auto defn = definition() )
+        defn->resolveSymbols(dgn);
+}
+
+TemplateScope* TemplateDeclaration::definition()
+{
+    return myDefinition.get();
+}
+
+TemplateScope const* TemplateDeclaration::definition() const
+{
+    return myDefinition.get();
+}
+
+void TemplateDeclaration::define(std::unique_ptr<TemplateScope> definition)
+{
+    if ( myDefinition )
+        throw std::runtime_error("template " + mySymbol->identifier().lexeme() + " is already defined");
+
+    myDefinition = std::move(definition);
+    myDefinition->setDeclaration(this);
 }
 
 //
@@ -934,27 +1003,27 @@ struct DeclarationPrinter
 
     result_t declDataSum(DataSumDeclaration const& ds)
     {
-        return stream << ds.symbol().name();
+        return stream << ds.symbol().identifier().lexeme();
     }
 
     result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
     {
-        return stream << dsCtor.symbol().name();
+        return stream << dsCtor.symbol().identifier().lexeme();
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
-        return stream << dp.symbol().name();
+        return stream << dp.symbol().identifier().lexeme();
     }
 
     result_t declField(DataProductDeclaration::Field const& f)
     {
-        return stream << f.symbol().name();
+        return stream << f.symbol().identifier().lexeme();
     }
 
     result_t declSymbol(SymbolDeclaration const& s)
     {
-        return stream << s.symbol().name();
+        return stream << s.symbol().identifier().lexeme();
     }
 
     result_t print(ProcedureParameter const& param)
@@ -984,17 +1053,22 @@ struct DeclarationPrinter
 
     result_t declVariable(VariableDeclaration const& var)
     {
-        return stream << var.symbol().name();
+        return stream << var.symbol().identifier().lexeme();
     }
 
     result_t declImport(ImportDeclaration const& imp)
     {
-        return stream << imp.symbol().name();
+        return stream << imp.symbol().identifier().lexeme();
     }
 
     result_t declSymbolVariable(SymbolVariable const& symVar)
     {
-        return stream << symVar.symbol().name();
+        return stream << symVar.symbol().identifier().lexeme();
+    }
+
+    result_t declTemplate(TemplateDeclaration const& t)
+    {
+        return stream << t.symbol().identifier().lexeme();
     }
 };
 

@@ -33,11 +33,12 @@ ModuleSet::~ModuleSet() = default;
 
 bool ModuleSet::init(Diagnostics& dgn)
 {
-    myAxioms->init(dgn);
-    if ( dgn.errorCount() )
-        myAxioms.reset();
+    if ( myAxioms->init(dgn) ) {
+        myImpliedImports.push_back(myAxioms.get());
+        return true;
+    }
 
-    return myAxioms != nullptr;
+    return false;
 }
 
 Module* ModuleSet::create(std::string const& name)
@@ -118,7 +119,6 @@ Module::Module(ModuleSet* moduleSet,
     : myModuleSet(moduleSet)
     , myName(name)
 {
-    myImports.push_back(&moduleSet->axioms());
 }
 
 Module::Module(ModuleSet* moduleSet,
@@ -127,7 +127,6 @@ Module::Module(ModuleSet* moduleSet,
     , myPath(canonical(path).make_preferred())
 {
     myName = path.filename().replace_extension("").string();
-    myImports.push_back(&moduleSet->axioms());
 }
 
 Module::~Module() = default;
