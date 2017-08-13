@@ -61,6 +61,12 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 };
 
 template<>
+struct LLVMCustomData<ast::ProcedureParameter> : public CustomData
+{
+    llvm::Value* value = nullptr;
+};
+
+template<>
 struct LLVMCustomData<ast::DataSumDeclaration> : public CustomData
 {
     llvm::Type* type = nullptr;
@@ -192,13 +198,19 @@ struct InitCodeGenPass
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureDeclaration>>());
 
-        declVariable(*decl.result());
+        declProcedureParameter(*decl.result());
         for ( auto const& p : decl.parameters() )
-            declVariable(*p);
+            declProcedureParameter(*p);
 
         if ( auto defn = decl.definition() )
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
+    }
+
+    result_t declProcedureParameter(ast::ProcedureParameter const& decl)
+    {
+        if ( !decl.codegenData() )
+            decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureParameter>>());
     }
 
     result_t declVariable(ast::VariableDeclaration const& decl)
@@ -304,7 +316,7 @@ struct CodeGenPass
         std::vector<llvm::Type*> params;
         params.reserve(decl.parameters().size());
         for ( auto const& p : decl.parameters() ) {
-            auto paramType = toType(*p->constraint());
+            auto paramType = toType(p->expression());
             if ( !paramType ) {
                 error(p->symbol().identifier()) << "cannot resolve parameter type";
                 die();
@@ -326,7 +338,7 @@ struct CodeGenPass
         {
             auto arg = fun->body->arg_begin();
             for ( auto const& p : decl.parameters() )
-                customData(*static_cast<ast::VariableDeclaration const*>(p))->value = &*(arg++);
+                customData(*p)->value = &*(arg++);
         }
 
         auto bb = llvm::BasicBlock::Create(module->getContext(), "entry", fun->body);
@@ -343,6 +355,11 @@ struct CodeGenPass
 
         // todo
         builder.CreateRet(lastInst);
+    }
+
+    result_t declProcedureParameter(ast::ProcedureParameter const&)
+    {
+        // nop
     }
 
     result_t declVariable(ast::VariableDeclaration const&)
@@ -646,7 +663,7 @@ struct LLVMGenerator::LLVMState
 
             auto const& sym = ds->symbol();
             if ( rootTemplate(sym) == &axioms.intrinsic(ast::PointerTemplate)->symbol() ) {
-                auto t = toType(*sym.prototype().parameters()[0]);
+                auto t = toType(*sym.prototype().pattern()[0]);
                 dsData->type = llvm::PointerType::get(t, 0);
                 return dsData->type;
             }

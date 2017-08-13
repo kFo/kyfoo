@@ -145,9 +145,9 @@ LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference con
 {
     auto symSpace = findSymbolSpace(dgn, symbol.name());
     if ( symSpace )
-        return LookupHit(symSpace, symSpace->findEquivalent(dgn, symbol.parameters()));
+        return LookupHit(symSpace, symSpace->findEquivalent(dgn, symbol.pattern()));
 
-    if ( myDeclaration && symbol.parameters().empty() )
+    if ( myDeclaration && symbol.pattern().empty() )
         return LookupHit(symSpace, myDeclaration->symbol().prototype().findVariable(symbol.name()));
 
     return LookupHit();
@@ -175,7 +175,7 @@ LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference con
  */
 LookupHit DeclarationScope::findValue(Diagnostics& dgn,
                                       std::string const& name,
-                                      SymbolReference::param_list_t const& params)
+                                      SymbolReference::pattern_t const& params)
 {
     LookupHit hit;
     auto symSpace = findSymbolSpace(dgn, name);
@@ -206,7 +206,7 @@ void DeclarationScope::import(Module& module)
     append(std::make_unique<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
 }
 
-SymbolSpace* DeclarationScope::createSymbolSet(Diagnostics&, std::string const& name)
+SymbolSpace* DeclarationScope::createSymbolSpace(Diagnostics&, std::string const& name)
 {
     auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
     auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
@@ -221,15 +221,45 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
                                  Symbol const& sym,
                                  Declaration& decl)
 {
-    auto symSpace = createSymbolSet(dgn, sym.identifier().lexeme());
-    if ( auto other = symSpace->findEquivalent(dgn, sym.prototype().parameters()) ) {
+    auto symSpace = createSymbolSpace(dgn, sym.identifier().lexeme());
+
+    ScopeResolver resolver(*this);
+    Context ctx(dgn, resolver);
+    if ( auto proc = decl.as<ProcedureDeclaration>() ) {
+        if ( sym.prototype().pattern().empty() ) {
+            if ( auto other = symSpace->findEquivalent(dgn, proc->prototype().pattern()) ) {
+                auto& err = dgn.error(module(), sym.identifier()) << "symbol clashes with procedure signature";
+                err.see(*other);
+                return false;
+            }
+
+            symSpace->append(ctx, proc->prototype(), decl);
+            return true;
+        }
+        else {
+            if ( auto existingDecl = symSpace->findEquivalent(dgn, sym.prototype().pattern()) ) {
+                auto templ = existingDecl->as<TemplateDeclaration>();
+                if ( !templ ) {
+                    auto& err = ctx.error(sym.identifier()) << "procedures may only be appended to openly-defined templates";
+                    err.see(*templ);
+                    return false;
+                }
+
+                ctx.error(*templ) << "templates not implemented";
+                return false;
+            }
+
+            ctx.error(sym.identifier()) << "procedure templates not implemented";
+            return false;
+        }
+    }
+
+    if ( auto other = symSpace->findEquivalent(dgn, sym.prototype().pattern()) ) {
         auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
         err.see(*other);
         return false;
     }
 
-    ScopeResolver resolver(*this);
-    Context ctx(dgn, resolver);
     symSpace->append(ctx, sym.prototype(), decl);
     return true;
 }
@@ -451,19 +481,11 @@ IMPL_CLONE_REMAP_END
 
 void ProcedureScope::resolveSymbols(Diagnostics& dgn)
 {
-    ScopeResolver resolver(*this);
-
-    // Resolve parameters
-    for ( auto const& p : declaration()->parameters() ) {
-        p->symbol().resolveSymbols(dgn, resolver);
-        if ( !addSymbol(dgn, p->symbol(), *p) )
-            continue;
-    }
-
     // Resolve declarations
     DeclarationScope::resolveSymbols(dgn);
 
     // Resolve expressions
+    ScopeResolver resolver(*this);
     Context ctx(dgn, resolver);
     ctx.resolveExpressions(myExpressions);
 }

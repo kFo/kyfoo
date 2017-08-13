@@ -70,6 +70,11 @@ Declaration const* Expression::declaration() const
     return myDeclaration;
 }
 
+void Expression::setDeclaration(Declaration& decl)
+{
+    myDeclaration = &decl;
+}
+
 Slice<Expression*> Expression::constraints()
 {
     return myConstraints;
@@ -123,6 +128,9 @@ IMPL_CLONE_REMAP_END
 
 void PrimaryExpression::resolveSymbols(Context& ctx)
 {
+    if ( myDeclaration )
+        return;
+
     switch ( myToken.kind() ) {
     case lexer::TokenKind::Integer:
     {

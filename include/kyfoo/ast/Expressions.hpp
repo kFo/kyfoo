@@ -69,6 +69,7 @@ public:
 public:
     Kind kind() const;
     Declaration const* declaration() const;
+    void setDeclaration(Declaration& decl);
 
     Slice<Expression*> constraints();
     const Slice<Expression*> constraints() const;

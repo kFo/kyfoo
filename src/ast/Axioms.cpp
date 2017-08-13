@@ -26,7 +26,7 @@ i128 = signed<u128>
 wordSize = 64
 size_t = unsigned<wordSize>
 
-staticSize<\T>(p : pointer T) : size_t => wordSize
+staticSize(p : pointer \T) : size_t => wordSize
 
 add(x : unsigned<1  >, y : unsigned<1  >) : unsigned<1  >
 add(x : unsigned<8  >, y : unsigned<8  >) : unsigned<8  >
@@ -66,8 +66,6 @@ trunc<signed<unsigned<16>>>(x : signed<unsigned<128>>) : signed<unsigned<16>>
 trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) : signed<unsigned<32>>
 trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) : signed<unsigned<32>>
 trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) : signed<unsigned<64>>
-
-addr(=x : \T) : pointer T
 
 )axioms";
 

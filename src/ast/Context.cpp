@@ -57,7 +57,7 @@ LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const
         if ( hit.append(scope->findEquivalent(dgn, symbol)) )
             return hit;
 
-        if ( symbol.parameters().empty() )
+        if ( symbol.pattern().empty() )
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.lookup(s));
@@ -77,17 +77,17 @@ LookupHit ScopeResolver::matchValue(Diagnostics& dgn, SymbolReference const& sym
         return hit;
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findValue(dgn, symbol.name(), symbol.parameters())) )
+        if ( hit.append(scope->findValue(dgn, symbol.name(), symbol.pattern())) )
             return hit;
 
-        if ( symbol.parameters().empty() )
+        if ( symbol.pattern().empty() )
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.lookup(s));
     }
 
     for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findValue(dgn, symbol.name(), symbol.parameters())) )
+        if ( hit.append(m->scope()->findValue(dgn, symbol.name(), symbol.pattern())) )
             return hit;
 
     return hit;
@@ -95,7 +95,7 @@ LookupHit ScopeResolver::matchValue(Diagnostics& dgn, SymbolReference const& sym
 
 LookupHit ScopeResolver::matchProcedure(Diagnostics& dgn,
                                         SymbolReference const& procOverload,
-                                        SymbolReference::param_list_t const& params) const
+                                        SymbolReference::pattern_t const& params) const
 {
     LookupHit hit;
     for ( auto scope = myScope; scope; scope = scope->parent() )
@@ -117,7 +117,7 @@ void ScopeResolver::addSupplementarySymbol(Symbol const& sym)
 LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
 {
     LookupHit hit;
-    if ( symbol.parameters().empty() )
+    if ( symbol.pattern().empty() )
         for ( auto& s : mySupplementarySymbols )
             if ( auto symVar = s->prototype().findVariable(symbol.name()) )
                 return std::move(hit.lookup(symVar));
@@ -217,7 +217,7 @@ LookupHit Context::matchValue(SymbolReference const& sym) const
 }
 
 LookupHit Context::matchProcedure(SymbolReference const& sym,
-                                  SymbolReference::param_list_t const& params) const
+                                  SymbolReference::pattern_t const& params) const
 {
     return myResolver->matchProcedure(*myDiagnostics, sym, params);
 }
