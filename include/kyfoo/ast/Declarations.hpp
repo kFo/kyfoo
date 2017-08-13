@@ -18,17 +18,18 @@ namespace kyfoo {
 
     namespace ast {
 
-#define DECLARATION_KINDS(X)                                              \
-    X(DataSum       , "data sum"       , DataSumDeclaration)              \
-    X(DataSumCtor   , "data sum ctor"  , DataSumDeclaration::Constructor) \
-    X(DataProduct   , "data product"   , DataProductDeclaration)          \
-    X(Field         , "field"          , DataProductDeclaration::Field)   \
-    X(Symbol        , "symbol"         , SymbolDeclaration)               \
-    X(Procedure     , "procedure"      , ProcedureDeclaration)            \
-    X(Variable      , "variable"       , VariableDeclaration)             \
-    X(Import        , "import"         , ImportDeclaration)               \
-    X(SymbolVariable, "symbol variable", SymbolVariable)                  \
-    X(Template      , "template"       , TemplateDeclaration)
+#define DECLARATION_KINDS(X)                                                      \
+    X(DataSum           , "data sum"           , DataSumDeclaration)              \
+    X(DataSumCtor       , "data sum ctor"      , DataSumDeclaration::Constructor) \
+    X(DataProduct       , "data product"       , DataProductDeclaration)          \
+    X(Field             , "field"              , DataProductDeclaration::Field)   \
+    X(Symbol            , "symbol"             , SymbolDeclaration)               \
+    X(Procedure         , "procedure"          , ProcedureDeclaration)            \
+    X(ProcedureParameter, "procedure parameter", ProcedureParameter)              \
+    X(Variable          , "variable"           , VariableDeclaration)             \
+    X(Import            , "import"             , ImportDeclaration)               \
+    X(SymbolVariable    , "symbol variable"    , SymbolVariable)                  \
+    X(Template          , "template"           , TemplateDeclaration)
 
 enum class DeclKind
 {
@@ -108,7 +109,7 @@ public:
     {
     public:
         Constructor(Symbol&& symbol,
-                    std::vector<std::unique_ptr<VariableDeclaration>>&& parameters);
+                    std::vector<std::unique_ptr<VariableDeclaration>>&& pattern);
 
     protected:
         Constructor(Constructor const& rhs);
@@ -139,7 +140,7 @@ public:
 
     private:
         DataSumDeclaration* myParent = nullptr;
-        std::vector<std::unique_ptr<VariableDeclaration>> myParameters;
+        std::vector<std::unique_ptr<VariableDeclaration>> myPattern;
     };
 
 public:
@@ -321,12 +322,12 @@ protected:
 };
 
 class ProcedureDeclaration;
-class ProcedureParameter : public VariableDeclaration
+class ProcedureParameter : public Declaration
 {
 public:
     ProcedureParameter(Symbol&& symbol,
-                       std::unique_ptr<Expression> constraint,
-                       bool byReference);
+                       ProcedureDeclaration* proc,
+                       Expression* expression);
 
 protected:
     ProcedureParameter(ProcedureParameter const& rhs);
@@ -349,21 +350,20 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    void setParent(ProcedureDeclaration* procDecl);
     ProcedureDeclaration* parent();
+    Expression const& expression() const;
 
 private:
     ProcedureDeclaration* myParent = nullptr;
-    bool myByReference = false;
+    Expression* myExpression = nullptr;
 };
 
 class ProcedureDeclaration : public Declaration
 {
 public:
     ProcedureDeclaration(Symbol&& symbol,
-                         std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                         std::unique_ptr<ast::Expression> returnTypeExpression,
-                         bool returnByReference);
+                         Pattern&& pattern,
+                         std::unique_ptr<ast::Expression> returnExpression);
 
 protected:
     ProcedureDeclaration(ProcedureDeclaration const& rhs);
@@ -392,16 +392,24 @@ public:
     ProcedureScope const* definition() const;
     void define(std::unique_ptr<ProcedureScope> definition);
 
-    std::vector<std::unique_ptr<ProcedureParameter>>& parameters();
-    Slice<ProcedureParameter*> parameters() const;
+    PatternsPrototype const& prototype() const;
+    Slice<Expression*> pattern();
+    Slice<Expression*> const pattern() const;
     Expression* returnType();
     Expression const* returnType() const;
+
+    Slice<ProcedureParameter*> parameters();
+    Slice<ProcedureParameter*> const parameters() const;
     ProcedureParameter* result();
     ProcedureParameter const* result() const;
 
 private:
+    std::unique_ptr<PatternsPrototype> myPrototype;
+    std::unique_ptr<Expression> myReturnExpression;
+
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
     std::unique_ptr<ProcedureParameter> myResult;
+
     std::unique_ptr<ProcedureScope> myDefinition;
 };
 
@@ -438,10 +446,10 @@ private:
 class SymbolVariable : public Declaration
 {
 public:
-    SymbolVariable(ParametersPrototype& prototype,
+    SymbolVariable(PatternsPrototype& prototype,
                    lexer::Token const& identifier,
                    Expression const* expr);
-    SymbolVariable(ParametersPrototype& prototype,
+    SymbolVariable(PatternsPrototype& prototype,
                    lexer::Token const& identifier);
 
 protected:
@@ -465,14 +473,14 @@ public:
     void resolveSymbols(Diagnostics& dgn);
 
 public:
-    ParametersPrototype const& prototype() const;
+    PatternsPrototype const& prototype() const;
     lexer::Token const& identifier() const;
 
     void bindExpression(Expression const* expr);
     Expression const* boundExpression() const;
 
 private:
-    ParametersPrototype* myPrototype = nullptr;
+    PatternsPrototype* myPrototype = nullptr;
     Expression const* myBoundExpression = nullptr;
 };
 

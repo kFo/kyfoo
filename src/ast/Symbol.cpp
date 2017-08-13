@@ -11,56 +11,56 @@ namespace kyfoo {
     namespace ast {
 
 //
-// ParametersPrototype
+// PatternsPrototype
 
-ParametersPrototype::ParametersPrototype()
+PatternsPrototype::PatternsPrototype()
 {
 }
 
-ParametersPrototype::ParametersPrototype(std::vector<std::unique_ptr<Expression>>&& parameters)
-    : myParameters(std::move(parameters))
+PatternsPrototype::PatternsPrototype(std::vector<std::unique_ptr<Expression>>&& pattern)
+    : myPattern(std::move(pattern))
 {
 }
 
-ParametersPrototype::ParametersPrototype(ParametersPrototype const&)
+PatternsPrototype::PatternsPrototype(PatternsPrototype const&)
 {
-    // clone myParameters
+    // clone myPattern
     // clone myVariables
 }
 
-ParametersPrototype& ParametersPrototype::operator = (ParametersPrototype const& rhs)
+PatternsPrototype& PatternsPrototype::operator = (PatternsPrototype const& rhs)
 {
-    ParametersPrototype(rhs).swap(*this);
+    PatternsPrototype(rhs).swap(*this);
     return *this;
 }
 
-ParametersPrototype::ParametersPrototype(ParametersPrototype&& rhs)
-    : myParameters(std::move(rhs.myParameters))
+PatternsPrototype::PatternsPrototype(PatternsPrototype&& rhs)
+    : myPattern(std::move(rhs.myPattern))
     , myVariables(std::move(rhs.myVariables))
 {
 }
 
-ParametersPrototype& ParametersPrototype::operator = (ParametersPrototype&& rhs)
+PatternsPrototype& PatternsPrototype::operator = (PatternsPrototype&& rhs)
 {
-    this->~ParametersPrototype();
-    new (this) ParametersPrototype(std::move(rhs));
+    this->~PatternsPrototype();
+    new (this) PatternsPrototype(std::move(rhs));
 
     return *this;
 }
 
-ParametersPrototype::~ParametersPrototype() = default;
+PatternsPrototype::~PatternsPrototype() = default;
 
-void ParametersPrototype::swap(ParametersPrototype& rhs)
+void PatternsPrototype::swap(PatternsPrototype& rhs)
 {
     using std::swap;
-    swap(myParameters, rhs.myParameters);
+    swap(myPattern, rhs.myPattern);
     swap(myVariables, rhs.myVariables);
 }
 
-void ParametersPrototype::io(IStream& stream) const
+void PatternsPrototype::io(IStream& stream) const
 {
     stream.openArray("params");
-    for ( auto const& p : myParameters )
+    for ( auto const& p : myPattern )
         p->io(stream);
     stream.closeArray();
     stream.openArray("vars");
@@ -69,20 +69,20 @@ void ParametersPrototype::io(IStream& stream) const
     stream.closeArray();
 }
 
-IMPL_CLONE_NOBASE_BEGIN(ParametersPrototype, ParametersPrototype)
-IMPL_CLONE_CHILD(myParameters)
+IMPL_CLONE_NOBASE_BEGIN(PatternsPrototype, PatternsPrototype)
+IMPL_CLONE_CHILD(myPattern)
 IMPL_CLONE_CHILD(myVariables)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_NOBASE_BEGIN(ParametersPrototype)
-IMPL_CLONE_REMAP(myParameters)
+IMPL_CLONE_REMAP_NOBASE_BEGIN(PatternsPrototype)
+IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-void ParametersPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
+void PatternsPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
     Context ctx(dgn, resolver);
 
-    for ( auto const& param : myParameters ) {
+    for ( auto const& param : myPattern ) {
         auto fv = gatherFreeVariables(*param);
         for ( auto& p : fv ) {
             myVariables.push_back(std::make_unique<SymbolVariable>(*this, p->token()));
@@ -90,20 +90,20 @@ void ParametersPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
         }
     }
 
-    ctx.resolveExpressions(myParameters);
+    ctx.resolveExpressions(myPattern);
 }
 
-Slice<Expression*> ParametersPrototype::parameters() const
+Slice<Expression*> PatternsPrototype::pattern() const
 {
-    return myParameters;
+    return myPattern;
 }
 
-Slice<SymbolVariable*> ParametersPrototype::symbolVariables() const
+Slice<SymbolVariable*> PatternsPrototype::symbolVariables() const
 {
     return myVariables;
 }
 
-void ParametersPrototype::bindVariables(Context& ctx,
+void PatternsPrototype::bindVariables(Context& ctx,
                                         binding_set_t const& bindings)
 {
     if ( bindings.size() != myVariables.size() )
@@ -119,10 +119,10 @@ void ParametersPrototype::bindVariables(Context& ctx,
         var->bindExpression(value);
     }
 
-    ctx.resolveExpressions(myParameters);
+    ctx.resolveExpressions(myPattern);
 }
 
-SymbolVariable* ParametersPrototype::findVariable(std::string const& identifier)
+SymbolVariable* PatternsPrototype::findVariable(std::string const& identifier)
 {
     for ( std::size_t i = 0; i < myVariables.size(); ++i )
         if ( myVariables[i]->identifier().lexeme() == identifier )
@@ -131,12 +131,12 @@ SymbolVariable* ParametersPrototype::findVariable(std::string const& identifier)
     return nullptr;
 }
 
-SymbolVariable const* ParametersPrototype::findVariable(std::string const& identifier) const
+SymbolVariable const* PatternsPrototype::findVariable(std::string const& identifier) const
 {
-    return const_cast<ParametersPrototype*>(this)->findVariable(identifier);
+    return const_cast<PatternsPrototype*>(this)->findVariable(identifier);
 }
 
-SymbolVariable* ParametersPrototype::createVariable(lexer::Token const& identifier)
+SymbolVariable* PatternsPrototype::createVariable(lexer::Token const& identifier)
 {
     if ( auto symvar = findVariable(identifier.lexeme()) )
         return symvar;
@@ -145,7 +145,7 @@ SymbolVariable* ParametersPrototype::createVariable(lexer::Token const& identifi
     return myVariables.back().get();
 }
 
-bool ParametersPrototype::isConcrete() const
+bool PatternsPrototype::isConcrete() const
 {
     for ( auto const& v : myVariables ) {
         auto expr = resolveIndirections(v->boundExpression());
@@ -160,7 +160,7 @@ bool ParametersPrototype::isConcrete() const
     return true;
 }
 
-bool ParametersPrototype::hasFreeVariables() const
+bool PatternsPrototype::hasFreeVariables() const
 {
     for ( auto const& e : myVariables )
         if ( !e->boundExpression() )
@@ -173,20 +173,20 @@ bool ParametersPrototype::hasFreeVariables() const
 // SymbolPrototype
 
 Symbol::Symbol(lexer::Token const& identifier,
-               ParametersPrototype&& params)
+               PatternsPrototype&& params)
     : myIdentifier(identifier)
-    , myPrototype(std::make_unique<ParametersPrototype>(std::move(params)))
+    , myPrototype(std::make_unique<PatternsPrototype>(std::move(params)))
 {
 }
 
 Symbol::Symbol(lexer::Token const& identifier)
-    : Symbol(identifier, ParametersPrototype())
+    : Symbol(identifier, PatternsPrototype())
 {
 }
 
 Symbol::Symbol(Symbol const& rhs)
     : myIdentifier(rhs.myIdentifier)
-    , myPrototypeParent(rhs.myPrototypeParent)
+    , myPrototypeParent(&rhs)
 {
     // clone myPrototype
 }
@@ -198,9 +198,11 @@ Symbol& Symbol::operator = (Symbol const& rhs)
 }
 
 Symbol::Symbol(Symbol&& rhs)
-    : myIdentifier(rhs.myIdentifier)
+    : myIdentifier(std::move(rhs.myIdentifier))
     , myPrototype(std::move(rhs.myPrototype))
+    , myPrototypeParent(rhs.myPrototypeParent)
 {
+    rhs.myPrototypeParent = nullptr;
 }
 
 Symbol& Symbol::operator = (Symbol&& rhs)
@@ -217,6 +219,7 @@ void Symbol::swap(Symbol& rhs)
     using std::swap;
     swap(myIdentifier, rhs.myIdentifier);
     swap(myPrototype, rhs.myPrototype);
+    swap(myPrototypeParent, rhs.myPrototypeParent);
 }
 
 void Symbol::io(IStream& stream) const
@@ -230,7 +233,6 @@ IMPL_CLONE_CHILD(myPrototype)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Symbol)
 IMPL_CLONE_REMAP(myPrototype)
-IMPL_CLONE_REMAP(myPrototypeParent)
 IMPL_CLONE_REMAP_END
 
 void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
@@ -243,7 +245,7 @@ lexer::Token const& Symbol::identifier() const
     return myIdentifier;
 }
 
-ParametersPrototype const& Symbol::prototype() const
+PatternsPrototype const& Symbol::prototype() const
 {
     return *myPrototype;
 }
@@ -256,24 +258,24 @@ Symbol const* Symbol::prototypeParent() const
 //
 // SymbolReference
 
-SymbolReference::SymbolReference(std::string const& name, param_list_t parameters)
+SymbolReference::SymbolReference(std::string const& name, pattern_t pattern)
     : myName(&name)
-    , myParameters(parameters)
+    , myPattern(pattern)
 {
 }
 
 SymbolReference::SymbolReference(Symbol const& sym)
-    : SymbolReference(sym.identifier().lexeme(), sym.prototype().parameters())
+    : SymbolReference(sym.identifier().lexeme(), sym.prototype().pattern())
 {
 }
 
 SymbolReference::SymbolReference(std::string const& name)
-    : SymbolReference(name, param_list_t())
+    : SymbolReference(name, pattern_t())
 {
 }
 
 SymbolReference::SymbolReference(const char* name)
-    : SymbolReference(name, param_list_t())
+    : SymbolReference(name, pattern_t())
 {
 }
 
@@ -284,9 +286,9 @@ std::string const& SymbolReference::name() const
     return *myName;
 }
 
-SymbolReference::param_list_t const& SymbolReference::parameters() const
+SymbolReference::pattern_t const& SymbolReference::pattern() const
 {
-    return myParameters;
+    return myPattern;
 }
 
 //
@@ -297,19 +299,6 @@ SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string const& name)
     , myName(name)
 {
 }
-
-//SymbolSet::SymbolSet(SymbolSet const& rhs)
-//    : myScope(rhs.myScope)
-//    , mySymbol(rhs.mySymbol)
-//    , mySet(rhs.mySet)
-//{
-//}
-//
-//SymbolSet& SymbolSet::operator = (SymbolSet const& rhs)
-//{
-//    SymbolSet(rhs).swap(*this);
-//    return *this;
-//}
 
 SymbolSpace::SymbolSpace(SymbolSpace&& rhs)
     : myScope(rhs.myScope)
@@ -348,15 +337,15 @@ Slice<SymbolSpace::Prototype> SymbolSpace::prototypes() const
 }
 
 void SymbolSpace::append(Context& ctx,
-                         ParametersPrototype const& prototype,
+                         PatternsPrototype const& prototype,
                          Declaration& declaration)
 {
     auto i = begin(myPrototypes);
     for ( ; i != end(myPrototypes); ++i ) {
-        if ( prototype.parameters().size() < i->proto.params->parameters().size() )
+        if ( prototype.pattern().size() < i->proto.params->pattern().size() )
             break;
 
-        auto v = variance(ctx, i->proto.params->parameters(), prototype.parameters());
+        auto v = variance(ctx, i->proto.params->pattern(), prototype.pattern());
         if ( v.equivalent() ) {
             auto& err = ctx.error(declaration) << "matches existing declaration";
             err.see(*i->proto.decl);
@@ -367,16 +356,16 @@ void SymbolSpace::append(Context& ctx,
         }
     }
 
-    myPrototypes.insert(i, Prototype{ {&prototype, &declaration}, std::vector<ParametersDecl>() });
+    myPrototypes.insert(i, Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
 }
 
 Declaration const* SymbolSpace::findEquivalent(Diagnostics& dgn,
-                                               param_list_t const& paramlist) const
+                                               pattern_t const& paramlist) const
 {
     ScopeResolver resolver(*myScope);
     Context ctx(dgn, resolver);
     for ( auto const& e : myPrototypes ) {
-        if ( matchEquivalent(ctx, e.proto.params->parameters(), paramlist) )
+        if ( matchEquivalent(ctx, e.proto.params->pattern(), paramlist) )
             return e.proto.decl;
     }
 
@@ -385,13 +374,13 @@ Declaration const* SymbolSpace::findEquivalent(Diagnostics& dgn,
 
 SymbolSpace::DeclInstance
 SymbolSpace::findValue(Diagnostics& dgn,
-                       param_list_t const& paramlist)
+                       pattern_t const& paramlist)
 {
     ScopeResolver resolver(*myScope);
     Context ctx(dgn, resolver);
     for ( auto& e : myPrototypes ) {
         binding_set_t bindings;
-        if ( variance(ctx, bindings, e.proto.params->parameters(), paramlist) ) {
+        if ( variance(ctx, bindings, e.proto.params->pattern(), paramlist) ) {
             if ( e.proto.decl->symbol().prototype().isConcrete() )
                 return { e.proto.decl, nullptr };
 
@@ -410,7 +399,7 @@ SymbolSpace::instantiate(Context& ctx,
     // use existing instantiation if it exists
     for ( std::size_t i = 0; i < proto.instances.size(); ++i ) {
         auto const& e = proto.instances[i];
-        auto const& instParams = e.params->parameters();
+        auto const& instParams = e.params->pattern();
         if ( instParams.size() != bindingSet.size() )
             continue;
 
@@ -438,7 +427,7 @@ SymbolSpace::instantiate(Context& ctx,
 
     instance->resolveSymbols(ctx.diagnostics());
 
-    proto.instances.emplace_back(ParametersDecl{instance->symbol().myPrototype.get(), instance.get()});
+    proto.instances.emplace_back(PatternsDecl{instance->symbol().myPrototype.get(), instance.get()});
     myScope->append(std::move(instance));
     return { proto.proto.decl, proto.instances.back().decl };
 }
@@ -446,10 +435,10 @@ SymbolSpace::instantiate(Context& ctx,
 std::ostream& print(std::ostream& stream, Symbol const& sym)
 {
     stream << sym.identifier().lexeme();
-    if ( !sym.prototype().parameters().empty() ) {
+    if ( !sym.prototype().pattern().empty() ) {
         stream << "<";
-        auto first = begin(sym.prototype().parameters());
-        auto last = end(sym.prototype().parameters());
+        auto first = begin(sym.prototype().pattern());
+        auto last = end(sym.prototype().pattern());
         if ( first != last )
             print(stream, **first);
 

@@ -175,9 +175,9 @@ public:
     LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
     LookupHit findValue(Diagnostics& dgn,
                         std::string const& name,
-                        SymbolReference::param_list_t const& params);
+                        SymbolReference::pattern_t const& params);
 
-    SymbolSpace* createSymbolSet(Diagnostics& dgn, std::string const& name);
+    SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string const& name);
     bool addSymbol(Diagnostics& dgn,
                    Symbol const& sym,
                    Declaration& decl);

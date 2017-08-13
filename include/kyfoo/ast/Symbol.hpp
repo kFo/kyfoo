@@ -28,41 +28,38 @@ class SymbolDeclaration;
 class SymbolVariable;
 
 using binding_set_t = FlatMap<SymbolVariable const*, Expression const*>;
-using Parameters = std::vector<std::unique_ptr<Expression>>;
+using Pattern = std::vector<std::unique_ptr<Expression>>;
 
-class ParametersPrototype : public IIO
+class PatternsPrototype : public IIO
 {
 public:
-    friend class ParametersInstance;
-
-public:
-    ParametersPrototype();
-    ParametersPrototype(std::vector<std::unique_ptr<Expression>>&& parameters);
+    PatternsPrototype();
+    PatternsPrototype(std::vector<std::unique_ptr<Expression>>&& pattern);
 
 protected:
-    ParametersPrototype(ParametersPrototype const& rhs);
-    ParametersPrototype& operator = (ParametersPrototype const& rhs);
+    PatternsPrototype(PatternsPrototype const& rhs);
+    PatternsPrototype& operator = (PatternsPrototype const& rhs);
 
 public:
-    ParametersPrototype(ParametersPrototype&& rhs);
-    ParametersPrototype& operator = (ParametersPrototype&& rhs);
+    PatternsPrototype(PatternsPrototype&& rhs);
+    PatternsPrototype& operator = (PatternsPrototype&& rhs);
 
-    ~ParametersPrototype();
+    ~PatternsPrototype();
 
-    void swap(ParametersPrototype& rhs);
+    void swap(PatternsPrototype& rhs);
 
     // IIO
 public:
     void io(IStream& stream) const override;
 
 public:
-    DECL_CLONE_ALL_NOBASE(ParametersPrototype)
+    DECL_CLONE_ALL_NOBASE(PatternsPrototype)
 
 public:
     void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
 
 public:
-    Slice<Expression*> parameters() const;
+    Slice<Expression*> pattern() const;
     Slice<SymbolVariable*> symbolVariables() const;
 
 public:
@@ -74,7 +71,7 @@ public:
     bool hasFreeVariables() const;
 
 private:
-    Parameters myParameters;
+    Pattern myPattern;
     std::vector<std::unique_ptr<SymbolVariable>> myVariables;
 };
 
@@ -85,7 +82,7 @@ public:
 
 public:
     Symbol(lexer::Token const& identifier,
-           ParametersPrototype&& params);
+           PatternsPrototype&& params);
     explicit Symbol(lexer::Token const& identifier);
 
 protected:
@@ -111,22 +108,22 @@ public:
 
 public:
     lexer::Token const& identifier() const;
-    ParametersPrototype const& prototype() const;
+    PatternsPrototype const& prototype() const;
     Symbol const* prototypeParent() const;
 
 private:
     lexer::Token myIdentifier;
-    std::unique_ptr<ParametersPrototype> myPrototype;
+    std::unique_ptr<PatternsPrototype> myPrototype;
     Symbol const* myPrototypeParent = nullptr;
 };
 
 class SymbolReference
 {
 public:
-    using param_list_t = Slice<Expression*>;
+    using pattern_t = Slice<Expression*>;
 
 public:
-    SymbolReference(std::string const& name, param_list_t parameters);
+    SymbolReference(std::string const& name, pattern_t pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
     /*implicit*/ SymbolReference(std::string const& name);
     /*implicit*/ SymbolReference(const char* name);
@@ -134,26 +131,26 @@ public:
 
 public:
     std::string const& name() const;
-    param_list_t const& parameters() const;
+    pattern_t const& pattern() const;
 
 private:
     std::string const* myName;
-    param_list_t myParameters;
+    pattern_t myPattern;
 };
 
 class SymbolSpace
 {
 public:
-    using param_list_t = SymbolReference::param_list_t;
+    using pattern_t = SymbolReference::pattern_t;
 
-    struct ParametersDecl {
-        ParametersPrototype const* params;
+    struct PatternsDecl {
+        PatternsPrototype const* params;
         Declaration const* decl;
     };
 
     struct Prototype {
-        ParametersDecl proto;
-        std::vector<ParametersDecl> instances;
+        PatternsDecl proto;
+        std::vector<PatternsDecl> instances;
     };
 
     struct DeclInstance {
@@ -179,11 +176,11 @@ public:
     Slice<Prototype> prototypes() const;
 
     void append(Context& ctx,
-                ParametersPrototype const& prototype,
+                PatternsPrototype const& prototype,
                 Declaration& declaration);
 
-    Declaration const* findEquivalent(Diagnostics& dgn, param_list_t const& paramlist) const;
-    DeclInstance findValue(Diagnostics& dgn, param_list_t const& paramlist);
+    Declaration const* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist) const;
+    DeclInstance findValue(Diagnostics& dgn, pattern_t const& paramlist);
 
 private:
     DeclInstance instantiate(Context& ctx,

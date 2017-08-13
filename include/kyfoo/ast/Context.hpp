@@ -34,7 +34,7 @@ public:
     virtual LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) = 0;
     virtual LookupHit matchProcedure(Diagnostics& dgn,
                                      SymbolReference const& procOverload,
-                                     SymbolReference::param_list_t const& params) const = 0;
+                                     SymbolReference::pattern_t const& params) const = 0;
 };
 
 class ScopeResolver : public IResolver
@@ -58,7 +58,7 @@ public:
     LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) override;
     LookupHit matchProcedure(Diagnostics& dgn,
                              SymbolReference const& procOverload,
-                             SymbolReference::param_list_t const& params) const override;
+                             SymbolReference::pattern_t const& params) const override;
 
 public:
     void addSupplementarySymbol(Symbol const& sym);
@@ -93,7 +93,7 @@ public:
 
     LookupHit matchValue(SymbolReference const& sym) const;
     LookupHit matchProcedure(SymbolReference const& sym,
-                             SymbolReference::param_list_t const& params) const;
+                             SymbolReference::pattern_t const& params) const;
 
     IResolver* changeResolver(IResolver& resolver);
     void rewrite(std::unique_ptr<Expression> expr);

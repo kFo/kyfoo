@@ -215,20 +215,16 @@ struct ProcedureDeclaration : public
     g::And<
         Symbol,
         openParen,
-        g::Repeat2<g::And<g::Opt<equal>, id, colon, Expression>, comma>,
+        g::Repeat2<Expression, comma>,
         closeParen,
         g::Opt<g::Or<g::And<colon, Expression>,
                      g::And<colonEqual, Expression>>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
-        std::vector<std::unique_ptr<ast::ProcedureParameter>> parameters;
+        ast::Pattern pattern;
         for ( auto& e : factor<2>().captures() )
-            parameters.emplace_back(
-                std::make_unique<ast::ProcedureParameter>(
-                    ast::Symbol(e.factor<1>().token()),
-                    e.factor<3>().make(),
-                    e.factor<0>().capture() != nullptr));
+            pattern.emplace_back(e.make());
 
         std::unique_ptr<ast::Expression> returnTypeExpression;
         bool returnByReference = false;
@@ -243,9 +239,8 @@ struct ProcedureDeclaration : public
         }
 
         return std::make_unique<ast::ProcedureDeclaration>(factor<0>().make(),
-                                                           std::move(parameters),
-                                                           std::move(returnTypeExpression),
-                                                           returnByReference);
+                                                           std::move(pattern),
+                                                           std::move(returnTypeExpression));
     }
 };
 
@@ -339,17 +334,17 @@ struct DataSumConstructor : public
 {
     std::unique_ptr<ast::DataSumDeclaration::Constructor> make() const
     {
-        std::vector<std::unique_ptr<ast::VariableDeclaration>> parameters;
+        std::vector<std::unique_ptr<ast::VariableDeclaration>> pattern;
         if ( auto c = factor<1>().capture() ) {
             for ( auto& e : c->factor<1>().captures() )
-                parameters.emplace_back(
+                pattern.emplace_back(
                     std::make_unique<ast::VariableDeclaration>(
                         ast::Symbol(e.factor<0>().token()),
                         e.factor<2>().make(),
                         nullptr));
         }
 
-        return std::make_unique<ast::DataSumDeclaration::Constructor>(factor<0>().make(), std::move(parameters));
+        return std::make_unique<ast::DataSumDeclaration::Constructor>(factor<0>().make(), std::move(pattern));
     }
 };
 

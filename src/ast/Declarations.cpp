@@ -192,16 +192,16 @@ DataSumScope const* DataSumDeclaration::definition() const
 // DataSumDeclaration::Constructor
 
 DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
-                                             std::vector<std::unique_ptr<VariableDeclaration>>&& parameters)
+                                             std::vector<std::unique_ptr<VariableDeclaration>>&& pattern)
     : Declaration(DeclKind::DataSumCtor, std::move(symbol), nullptr)
-    , myParameters(std::move(parameters))
+    , myPattern(std::move(pattern))
 {
 }
 
 DataSumDeclaration::Constructor::Constructor(Constructor const& rhs)
     : Declaration(rhs)
     , myParent(rhs.myParent)
-    , myParameters(ast::clone(rhs.myParameters))
+    , myPattern(ast::clone(rhs.myPattern))
 {
 }
 
@@ -218,29 +218,29 @@ void DataSumDeclaration::Constructor::swap(Constructor& rhs)
     Declaration::swap(rhs);
     using std::swap;
     swap(myParent, rhs.myParent);
-    swap(myParameters, rhs.myParameters);
+    swap(myPattern, rhs.myPattern);
 }
 
 void DataSumDeclaration::Constructor::io(IStream& stream) const
 {
     Declaration::io(stream);
-    stream.next("parameters", myParameters);
+    stream.next("pattern", myPattern);
 }
 
 IMPL_CLONE_BEGIN(DataSumDeclaration::Constructor, Declaration, Declaration)
-IMPL_CLONE_CHILD(myParameters)
+IMPL_CLONE_CHILD(myPattern)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration::Constructor, Declaration)
 IMPL_CLONE_REMAP(myParent)
-IMPL_CLONE_REMAP(myParameters)
+IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP_END
 
 void DataSumDeclaration::Constructor::resolveSymbols(Diagnostics& dgn)
 {
-    for ( auto& e : myParameters )
+    for ( auto& e : myPattern )
         e->setScope(scope());
 
-    for ( auto& e : myParameters )
+    for ( auto& e : myPattern )
         e->resolveSymbols(dgn);
 }
 
@@ -264,7 +264,7 @@ DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
 
 Slice<VariableDeclaration*> DataSumDeclaration::Constructor::fields() const
 {
-    return myParameters;
+    return myPattern;
 }
 
 //
@@ -560,16 +560,18 @@ Expression const* VariableDeclaration::constraint() const
 // ProcedureParameter
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
-                                       std::unique_ptr<Expression> constraint,
-                                       bool byReference)
-    : VariableDeclaration(std::move(symbol), std::move(constraint), nullptr)
-    , myByReference(byReference)
+                                       ProcedureDeclaration* proc,
+                                       Expression* expression)
+    : Declaration(DeclKind::ProcedureParameter, std::move(symbol), nullptr)
+    , myParent(proc)
+    , myExpression(expression)
 {
 }
 
 ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs)
-    : VariableDeclaration(rhs)
+    : Declaration(rhs)
     , myParent(rhs.myParent)
+    , myExpression(rhs.myExpression)
 {
 }
 
@@ -583,38 +585,27 @@ ProcedureParameter::~ProcedureParameter() = default;
 
 void ProcedureParameter::swap(ProcedureParameter& rhs)
 {
-    VariableDeclaration::swap(rhs);
+    Declaration::swap(rhs);
     using std::swap;
     swap(myParent, rhs.myParent);
+    swap(myExpression, rhs.myExpression);
 }
 
 void ProcedureParameter::io(IStream& stream) const
 {
-    VariableDeclaration::io(stream);
+    Declaration::io(stream);
 }
 
-IMPL_CLONE_BEGIN(ProcedureParameter, VariableDeclaration, Declaration)
+IMPL_CLONE_BEGIN(ProcedureParameter, Declaration, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, VariableDeclaration)
+IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, Declaration)
 IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP_END
 
-void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
+void ProcedureParameter::resolveSymbols(Diagnostics&)
 {
-    ScopeResolver resolver(parent()->scope());
-    resolver.addSupplementarySymbol(parent()->symbol());
-
-    Context ctx(dgn, resolver);
-    if ( constraint() )
-        ctx.resolveExpression(myConstraint);
-}
-
-void ProcedureParameter::setParent(ProcedureDeclaration* procDecl)
-{
-    if ( parent() )
-        throw std::runtime_error("procedure parameter can only belong to one procedure");
-
-    myParent = procDecl;
+    // nop
 }
 
 ProcedureDeclaration* ProcedureParameter::parent()
@@ -622,20 +613,21 @@ ProcedureDeclaration* ProcedureParameter::parent()
     return myParent;
 }
 
+Expression const& ProcedureParameter::expression() const
+{
+    return *myExpression;
+}
+
 //
 // ProcedureDeclaration
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
-                                           std::vector<std::unique_ptr<ProcedureParameter>> parameters,
-                                           std::unique_ptr<Expression> resultExpression,
-                                           bool returnByReference)
+                                           Pattern&& pattern,
+                                           std::unique_ptr<Expression> returnExpression)
     : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
-    , myParameters(std::move(parameters))
-    , myResult(std::make_unique<ProcedureParameter>(Symbol(lexer::Token()), std::move(resultExpression), returnByReference))
+    , myPrototype(std::make_unique<PatternsPrototype>(std::move(pattern)))
+    , myReturnExpression(std::move(returnExpression))
 {
-    myResult->setParent(this);
-    for ( auto& p : myParameters )
-        p->setParent(this);
 }
 
 ProcedureDeclaration::ProcedureDeclaration(ProcedureDeclaration const& rhs)
@@ -655,6 +647,8 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
 {
     Declaration::swap(rhs);
     using std::swap;
+    swap(myPrototype, rhs.myPrototype);
+    swap(myReturnExpression, rhs.myReturnExpression);
     swap(myParameters, rhs.myParameters);
     swap(myResult, rhs.myResult);
     swap(myDefinition, rhs.myDefinition);
@@ -663,19 +657,24 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
 void ProcedureDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
-    stream.next("parameters", myParameters);
-    stream.next("return", returnType());
+    stream.next("pattern", myPrototype);
+    stream.next("params", myParameters);
+    stream.next("return", myResult);
 
     if ( myDefinition )
         stream.next("definition", myDefinition);
 }
 
 IMPL_CLONE_BEGIN(ProcedureDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myPrototype)
+IMPL_CLONE_CHILD(myReturnExpression)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
 IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
+IMPL_CLONE_REMAP(myPrototype)
+IMPL_CLONE_REMAP(myReturnExpression)
 IMPL_CLONE_REMAP(myParameters)
 IMPL_CLONE_REMAP(myResult)
 IMPL_CLONE_REMAP(myDefinition)
@@ -692,22 +691,34 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     ScopeResolver resolver(scope());
     Context ctx(dgn, resolver);
 
+    // Resolve prototype
+    for ( auto& pattern : myPrototype->pattern() ) {
+        if ( auto p = pattern->as<PrimaryExpression>() ) {
+            if ( p->token().kind() != lexer::TokenKind::Identifier )
+                continue;
+
+            auto hit = ctx.matchProcedure(p->token().lexeme(), SymbolReference::pattern_t());
+            if ( !hit )
+                hit = ctx.matchValue(p->token().lexeme());
+
+            if ( !hit ) {
+                myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), this, p));
+                p->setDeclaration(*myParameters.back());
+                resolver.addSupplementarySymbol(myParameters.back()->symbol());
+            }
+        }
+    }
+
+    myPrototype->resolveSymbols(dgn, resolver);
+
     // Resolve return
-    if ( !myResult->constraint() ) {
+    if ( !myReturnExpression ) {
         ctx.error(symbol().identifier()) << "inferred return type not implemented";
         return;
     }
 
-    myResult->resolveSymbols(dgn);
-
-    // Resolve parameters -- ignore parameter name
-    for ( auto& p : myParameters ) {
-        if ( !p->constraint() ) {
-            ctx.error(p->symbol().identifier()) << "inferred parameter types not implemented";
-            return;
-        }
-        p->resolveSymbols(dgn);
-    }
+    ctx.resolveExpression(myReturnExpression);
+    myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token()), this, myReturnExpression.get());
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
@@ -727,29 +738,41 @@ void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
 
     myDefinition = std::move(definition);
     myDefinition->setDeclaration(this);
-
-    for ( auto& p : myParameters )
-        p->setScope(*myDefinition);
 }
 
-std::vector<std::unique_ptr<ProcedureParameter>>& ProcedureDeclaration::parameters()
+PatternsPrototype const& ProcedureDeclaration::prototype() const
 {
-    return myParameters;
+    return *myPrototype;
 }
 
-Slice<ProcedureParameter*> ProcedureDeclaration::parameters() const
+Slice<Expression*> ProcedureDeclaration::pattern()
 {
-    return myParameters;
+    return myPrototype->pattern();
+}
+
+Slice<Expression*> const ProcedureDeclaration::pattern() const
+{
+    return myPrototype->pattern();
 }
 
 Expression* ProcedureDeclaration::returnType()
 {
-    return myResult->constraint();
+    return myReturnExpression.get();
 }
 
 Expression const* ProcedureDeclaration::returnType() const
 {
-    return myResult->constraint();
+    return myReturnExpression.get();
+}
+
+Slice<ProcedureParameter*> ProcedureDeclaration::parameters()
+{
+    return myParameters;
+}
+
+Slice<ProcedureParameter*> const ProcedureDeclaration::parameters() const
+{
+    return myParameters;
 }
 
 ProcedureParameter* ProcedureDeclaration::result()
@@ -813,7 +836,7 @@ void ImportDeclaration::resolveSymbols(Diagnostics&)
 //
 // SymbolVariable
 
-SymbolVariable::SymbolVariable(ParametersPrototype& prototype,
+SymbolVariable::SymbolVariable(PatternsPrototype& prototype,
                                lexer::Token const& identifier,
                                Expression const* expr)
     : Declaration(DeclKind::SymbolVariable, Symbol(identifier), nullptr)
@@ -822,7 +845,7 @@ SymbolVariable::SymbolVariable(ParametersPrototype& prototype,
 {
 }
 
-SymbolVariable::SymbolVariable(ParametersPrototype& prototype,
+SymbolVariable::SymbolVariable(PatternsPrototype& prototype,
                                lexer::Token const& identifier)
     : SymbolVariable(prototype, identifier, nullptr)
 {
@@ -886,7 +909,7 @@ lexer::Token const& SymbolVariable::identifier() const
     return symbol().identifier();
 }
 
-ParametersPrototype const& SymbolVariable::prototype() const
+PatternsPrototype const& SymbolVariable::prototype() const
 {
     return *myPrototype;
 }
@@ -1026,28 +1049,27 @@ struct DeclarationPrinter
         return stream << s.symbol().identifier().lexeme();
     }
 
-    result_t print(ProcedureParameter const& param)
-    {
-        ast::print(stream, *param.constraint());
-
-        return stream;
-    }
-
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
         ast::print(stream, proc.symbol());
         stream << "(";
-        auto first = begin(proc.parameters());
-        auto last = end(proc.parameters());
+        auto first = begin(proc.pattern());
+        auto last = end(proc.pattern());
         if ( first != last )
-            print(**first);
+            print(stream, **first);
 
         for ( ++first; first != last; ++first ) {
             stream << ", ";
-            print(**first);
+            print(stream, **first);
         }
 
         stream << ")";
+        return stream;
+    }
+
+    result_t declProcedureParameter(ProcedureParameter const&)
+    {
+        // nop
         return stream;
     }
 

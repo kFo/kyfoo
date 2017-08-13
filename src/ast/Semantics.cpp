@@ -95,7 +95,7 @@ SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::st
 
 void SymbolDependencyTracker::add(Declaration& decl)
 {
-    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().parameters().size());
+    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().pattern().size());
     group->add(decl);
 }
 
@@ -103,7 +103,7 @@ void SymbolDependencyTracker::addDependency(Declaration& decl,
                                             std::string const& name,
                                             std::size_t arity)
 {
-    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().parameters().size());
+    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().pattern().size());
     auto dependency = findOrCreate(name, arity);
 
     dependency->addDependent(*group);
@@ -145,19 +145,19 @@ struct SymbolDependencyBuilder
 
     // expressions
 
-    result_t exprPrimary(PrimaryExpression& p)
+    result_t exprPrimary(PrimaryExpression const& p)
     {
         if ( p.token().kind() == lexer::TokenKind::Identifier )
             tracker.addDependency(decl, p.token().lexeme(), 0);
     }
 
-    result_t exprTuple(TupleExpression& t)
+    result_t exprTuple(TupleExpression const& t)
     {
         for ( auto const& e : t.expressions() )
             dispatch(*e);
     }
 
-    result_t exprApply(ApplyExpression& a)
+    result_t exprApply(ApplyExpression const& a)
     {
         // todo: failover to implicit proc call semantics
         auto subject = a.expressions()[0]->as<PrimaryExpression>();
@@ -170,7 +170,7 @@ struct SymbolDependencyBuilder
             dispatch(*e);
     }
 
-    result_t exprSymbol(SymbolExpression& s)
+    result_t exprSymbol(SymbolExpression const& s)
     {
         if ( s.identifier().kind() == lexer::TokenKind::Identifier ) {
             tracker.addDependency(decl, s.identifier().lexeme(), s.expressions().size());
@@ -181,7 +181,7 @@ struct SymbolDependencyBuilder
             dispatch(*e);
     }
 
-    result_t exprDot(DotExpression& d)
+    result_t exprDot(DotExpression const& d)
     {
         for ( auto const& e : d.expressions() )
             dispatch(*e);
@@ -191,7 +191,12 @@ struct SymbolDependencyBuilder
 
     void traceSymbol(Symbol& sym)
     {
-        for ( auto const& p : sym.prototype().parameters() )
+        tracePrototype(sym.prototype());
+    }
+
+    void tracePrototype(PatternsPrototype const& proto)
+    {
+        for ( auto const& p : proto.pattern() )
             dispatch(*p);
     }
 
@@ -200,20 +205,20 @@ struct SymbolDependencyBuilder
         traceSymbol(decl.symbol());
     }
 
-    result_t declDataSum(DataSumDeclaration&)
+    result_t declDataSum(DataSumDeclaration const&)
     {
         traceSymbol();
         // todo
     }
 
-    result_t declDataSumCtor(DataSumDeclaration::Constructor& dsCtor)
+    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
     {
         traceSymbol();
         for ( auto const& field : dsCtor.fields() )
             dispatch.operator()<Declaration>(*field);
     }
 
-    result_t declDataProduct(DataProductDeclaration& dp)
+    result_t declDataProduct(DataProductDeclaration const& dp)
     {
         traceSymbol();
         if ( auto defn = dp.definition() )
@@ -221,43 +226,47 @@ struct SymbolDependencyBuilder
                 declField(*field);
     }
 
-    result_t declField(DataProductDeclaration::Field&)
+    result_t declField(DataProductDeclaration::Field const&)
     {
         traceSymbol();
     }
 
-    result_t declSymbol(SymbolDeclaration& s)
+    result_t declSymbol(SymbolDeclaration const& s)
     {
         traceSymbol();
         if ( s.expression() )
             dispatch(*s.expression());
     }
 
-    result_t declProcedure(ProcedureDeclaration& proc)
+    result_t declProcedure(ProcedureDeclaration const& proc)
     {
         traceSymbol();
-        for ( auto const& param : proc.parameters() )
-            dispatch(*param->constraint());
+        tracePrototype(proc.prototype());
     }
 
-    result_t declVariable(VariableDeclaration& var)
+    result_t declProcedureParameter(ProcedureParameter const&)
+    {
+        // nop
+    }
+
+    result_t declVariable(VariableDeclaration const& var)
     {
         traceSymbol();
         if ( var.constraint() )
             dispatch(*var.constraint());
     }
 
-    result_t declImport(ImportDeclaration&)
+    result_t declImport(ImportDeclaration const&)
     {
         // nop
     }
 
-    result_t declSymbolVariable(SymbolVariable&)
+    result_t declSymbolVariable(SymbolVariable const&)
     {
         // nop
     }
 
-    result_t declTemplate(TemplateDeclaration&)
+    result_t declTemplate(TemplateDeclaration const&)
     {
         traceSymbol();
     }
@@ -492,8 +501,8 @@ VarianceResult variance(Context& ctx,
                         Expression const& lhs,
                         Expression const& rhs)
 {
-    auto queryDecl = rhs.declaration();
     auto targetDecl = lhs.declaration();
+    auto queryDecl = rhs.declaration();
 
     if ( !targetDecl ) {
         ctx.error(lhs) << "compilation stopped due to unresolved expression";
@@ -557,7 +566,7 @@ VarianceResult variance(Context& ctx,
         }
 
         if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
-            return variance(ctx, leftBindings, targetDecl->symbol().prototype().parameters(), queryDecl->symbol().prototype().parameters());
+            return variance(ctx, leftBindings, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
 
         return variance(ctx, *targetDecl, *queryDecl);
     }
@@ -593,7 +602,7 @@ VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReferenc
         return Invariant;
 
     binding_set_t bindings;
-    return variance(ctx, bindings, lhs.parameters(), rhs.parameters());
+    return variance(ctx, bindings, lhs.pattern(), rhs.pattern());
 }
 
 Expression const* lookThrough(Declaration const* decl)
