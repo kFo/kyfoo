@@ -267,7 +267,9 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
 
 void Module::appendTemplateInstance(Declaration const* instance)
 {
-    myTemplateInstantiations.push_back(instance);
+    auto e = find(begin(myTemplateInstantiations), end(myTemplateInstantiations), instance);
+    if ( e == end(myTemplateInstantiations) )
+        myTemplateInstantiations.push_back(instance);
 }
 
 AxiomsModule& Module::axioms()

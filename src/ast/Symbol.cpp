@@ -398,23 +398,27 @@ SymbolSpace::instantiate(Context& ctx,
 {
     // use existing instantiation if it exists
     for ( std::size_t i = 0; i < proto.instances.size(); ++i ) {
-        auto const& e = proto.instances[i];
-        auto const& instParams = e.params->pattern();
-        if ( instParams.size() != bindingSet.size() )
-            continue;
+        auto const& inst = proto.instances[i];
+        auto const& instVars = inst.params->symbolVariables();
+        if ( instVars.size() != bindingSet.size() )
+            throw std::runtime_error("invalid template instance");
 
-        auto l = begin(instParams);
+        auto l = begin(instVars);
         auto r = begin(bindingSet.values());
-        while ( l != end(instParams) ) {
-            if ( !matchEquivalent(ctx, **l, **r) )
+        while ( l != end(instVars) ) {
+            auto lhs = (*l)->boundExpression();
+            if ( !lhs )
+                break;
+
+            if ( !matchEquivalent(ctx, *lhs, **r) )
                 break;
 
             ++l;
             ++r;
         }
 
-        if ( l == end(instParams) )
-            return { proto.proto.decl, e.decl };
+        if ( l == end(instVars) )
+            return { proto.proto.decl, inst.decl };
     }
 
     // create new instantiation
