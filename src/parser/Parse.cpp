@@ -173,7 +173,7 @@ parseProcedureDeclaration(lexer::Scanner& scanner)
 }
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
 {
     if ( auto importDecl = parseImportDeclaration(scanner) ) {
         myScope->append(std::move(importDecl));
@@ -195,7 +195,18 @@ DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
-    else if ( auto procDecl = parseProcedureDeclaration(scanner) ) {
+
+    return std::make_tuple(false, nullptr);
+}
+
+std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+{
+    auto nonProc = parseNonProcedural(dgn, scanner);
+    if ( std::get<0>(nonProc) )
+        return nonProc;
+
+    if ( auto procDecl = parseProcedureDeclaration(scanner) ) {
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *procDecl);
         myScope->append(std::move(procDecl));
 
@@ -304,7 +315,7 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 {
     // Allow declarations
     {
-        auto declParse = DeclarationScopeParser::parseNext(dgn, scanner);
+        auto declParse = DeclarationScopeParser::parseNonProcedural(dgn, scanner);
         if ( std::get<0>(declParse) )
             return declParse;
     }
