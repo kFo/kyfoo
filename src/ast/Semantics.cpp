@@ -484,7 +484,7 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
     }
 
     // todo: removeme
-    if ( &query == ctx.axioms().pointerNullLiteralType() )
+    if ( &query == ctx.axioms().intrinsic(PointerNullLiteralType) )
         if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol()) )
             return Covariant;
 

@@ -92,7 +92,7 @@ public:
 
     Slice<Declaration const*> templateInstantiations() const;
 
-private:
+protected:
     ModuleSet* myModuleSet = nullptr;
     std::experimental::filesystem::path myPath;
     std::string myName;

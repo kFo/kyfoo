@@ -134,19 +134,19 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
     switch ( myToken.kind() ) {
     case lexer::TokenKind::Integer:
     {
-        myDeclaration = ctx.axioms().integerLiteralType();
+        myDeclaration = ctx.axioms().intrinsic(IntegerLiteralType);
         return;
     }
 
     case lexer::TokenKind::Rational:
     {
-        myDeclaration = ctx.axioms().rationalLiteralType();
+        myDeclaration = ctx.axioms().intrinsic(RationalLiteralType);
         return;
     }
 
     case lexer::TokenKind::String:
     {
-        myDeclaration = ctx.axioms().stringLiteralType();
+        myDeclaration = ctx.axioms().intrinsic(StringLiteralType);
         return;
     }
 
@@ -164,11 +164,11 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
     {
         // todo: removeme
         if ( myToken.lexeme() == "null" ) {
-            myDeclaration = ctx.axioms().pointerNullLiteralType();
+            myDeclaration = ctx.axioms().intrinsic(PointerNullLiteralType);
             return;
         }
 
-        auto hit = ctx.matchValue(Symbol(myToken));
+        auto hit = ctx.matchValue(SymbolReference(myToken.lexeme()));
         if ( !hit ) {
             if ( !hit.symSpace() )
                 ctx.error(myToken) << "undeclared identifier";
@@ -320,7 +320,7 @@ void TupleExpression::resolveSymbols(Context& ctx)
 
     if ( myKind == TupleKind::Open ) {
         if ( myExpressions.empty() ) {
-            myDeclaration = ctx.axioms().emptyLiteralType();
+            myDeclaration = ctx.axioms().intrinsic(EmptyLiteralType);
             return;
         }
         else if ( myExpressions.size() == 1 ) {
@@ -459,7 +459,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
             return;
         }
 
-        SymbolReference sym(subject->token().lexeme(), args);
+        SymbolReference sym(subject->token().lexeme().c_str(), args);
 
         // Look for hit on symbol
         auto hit = ctx.matchValue(sym);
@@ -481,7 +481,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     else {
         for ( auto expr = myExpressions.front().get(); ; ) {
             if ( auto s = expr->as<SymbolExpression>() ) {
-                hit = ctx.matchProcedure(SymbolReference(s->identifier().lexeme(), s->expressions()), args);
+                hit = ctx.matchProcedure(SymbolReference(s->identifier().lexeme().c_str(), s->expressions()), args);
             }
             else if ( auto d = expr->as<DotExpression>() ) {
                 // todo: change resolution scope
@@ -642,7 +642,7 @@ void SymbolExpression::resolveSymbols(Context& ctx)
     if ( !allResolved(myExpressions) )
         return;
 
-    SymbolReference sym(myIdentifier.lexeme(), myExpressions);
+    SymbolReference sym(myIdentifier.lexeme().c_str(), myExpressions);
     auto hit = ctx.matchValue(sym);
     if ( !hit ) {
         ctx.error(*this) << "undeclared symbol identifier";

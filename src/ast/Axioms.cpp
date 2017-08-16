@@ -86,45 +86,23 @@ namespace kyfoo {
 AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
                            std::string const& name)
     : Module(moduleSet, name)
-    , myEmptyLiteralType      (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""        ))))
-    , myIntegerLiteralType    (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))))
-    , myRationalLiteralType   (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))))
-    , myStringLiteralType     (std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "string"  ))))
-    , myPointerNullLiteralType(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))))
 {
-    myDataSumDecls[EmptyLiteralType      ] = myEmptyLiteralType.get();
-    myDataSumDecls[IntegerLiteralType    ] = myIntegerLiteralType.get();
-    myDataSumDecls[RationalLiteralType   ] = myRationalLiteralType.get();
-    myDataSumDecls[StringLiteralType     ] = myStringLiteralType.get();
-    myDataSumDecls[PointerNullLiteralType] = myPointerNullLiteralType.get();
+    myScope = std::make_unique<ast::DeclarationScope>(*this);
+
+    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""        ))));
+    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))));
+    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
+    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "string"  ))));
+    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
+
+    myDataSumDecls[EmptyLiteralType      ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[0]);
+    myDataSumDecls[IntegerLiteralType    ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[1]);
+    myDataSumDecls[RationalLiteralType   ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[2]);
+    myDataSumDecls[StringLiteralType     ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[3]);
+    myDataSumDecls[PointerNullLiteralType] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[4]);
 }
 
 AxiomsModule::~AxiomsModule() = default;
-
-DataSumDeclaration const* AxiomsModule::emptyLiteralType() const
-{
-    return myEmptyLiteralType.get();
-}
-
-DataSumDeclaration const* AxiomsModule::integerLiteralType() const
-{
-    return myIntegerLiteralType.get();
-}
-
-DataSumDeclaration const* AxiomsModule::rationalLiteralType() const
-{
-    return myRationalLiteralType.get();
-}
-
-DataSumDeclaration const* AxiomsModule::stringLiteralType() const
-{
-    return myStringLiteralType.get();
-}
-
-DataSumDeclaration const* AxiomsModule::pointerNullLiteralType() const
-{
-    return myPointerNullLiteralType.get();
-}
 
 DataSumDeclaration const* AxiomsModule::intrinsic(DataSumIntrinsics i) const
 {

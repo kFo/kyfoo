@@ -123,18 +123,18 @@ public:
     using pattern_t = Slice<Expression*>;
 
 public:
-    SymbolReference(std::string const& name, pattern_t pattern);
+    SymbolReference(const char* name, pattern_t pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
     /*implicit*/ SymbolReference(std::string const& name);
     /*implicit*/ SymbolReference(const char* name);
     ~SymbolReference();
 
 public:
-    std::string const& name() const;
+    const char* name() const;
     pattern_t const& pattern() const;
 
 private:
-    std::string const* myName;
+    char const* myName;
     pattern_t myPattern;
 };
 

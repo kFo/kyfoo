@@ -258,19 +258,19 @@ Symbol const* Symbol::prototypeParent() const
 //
 // SymbolReference
 
-SymbolReference::SymbolReference(std::string const& name, pattern_t pattern)
-    : myName(&name)
+SymbolReference::SymbolReference(const char* name, pattern_t pattern)
+    : myName(name)
     , myPattern(pattern)
 {
 }
 
 SymbolReference::SymbolReference(Symbol const& sym)
-    : SymbolReference(sym.identifier().lexeme(), sym.prototype().pattern())
+    : SymbolReference(sym.identifier().lexeme().c_str(), sym.prototype().pattern())
 {
 }
 
 SymbolReference::SymbolReference(std::string const& name)
-    : SymbolReference(name, pattern_t())
+    : SymbolReference(name.c_str(), pattern_t())
 {
 }
 
@@ -281,9 +281,9 @@ SymbolReference::SymbolReference(const char* name)
 
 SymbolReference::~SymbolReference() = default;
 
-std::string const& SymbolReference::name() const
+const char* SymbolReference::name() const
 {
-    return *myName;
+    return myName;
 }
 
 SymbolReference::pattern_t const& SymbolReference::pattern() const

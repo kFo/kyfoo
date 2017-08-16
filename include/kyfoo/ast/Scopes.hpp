@@ -138,6 +138,10 @@ private:
 
 class DeclarationScope : public INode
 {
+private:
+    DeclarationScope(Module* module,
+                     DeclarationScope* parent,
+                     Declaration* decl);
 public:
     explicit DeclarationScope(Module& module);
     explicit DeclarationScope(DeclarationScope* parent);
