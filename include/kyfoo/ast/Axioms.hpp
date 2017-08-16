@@ -108,31 +108,6 @@ public:
 
 public:
     /**
-     * Empty expression ()
-     */
-    DataSumDeclaration const* emptyLiteralType() const;
-
-    /**
-     * Integer literal types
-     */
-    DataSumDeclaration const* integerLiteralType() const;
-
-    /**
-     * Rational literal types
-     */
-    DataSumDeclaration const* rationalLiteralType() const;
-
-    /**
-     * String literal types
-     */
-    DataSumDeclaration const* stringLiteralType() const;
-
-    /**
-     * Null literal type
-     */
-    DataSumDeclaration const* pointerNullLiteralType() const;
-
-    /**
      * Intrinsic accessors by ordinal
      */
     /** { */
@@ -160,12 +135,6 @@ public:
     IntegerMetaData const* integerMetaData(Declaration const& decl) const;
 
 private:
-    std::unique_ptr<DataSumDeclaration> myEmptyLiteralType;
-    std::unique_ptr<DataSumDeclaration> myIntegerLiteralType;
-    std::unique_ptr<DataSumDeclaration> myRationalLiteralType;
-    std::unique_ptr<DataSumDeclaration> myStringLiteralType;
-    std::unique_ptr<DataSumDeclaration> myPointerNullLiteralType;
-
     DataSumDeclaration const* myDataSumDecls[DataSumInstrinsicsCount];
     ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
 

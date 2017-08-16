@@ -166,7 +166,8 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
 
     using lexer::TokenKind;
 
-    myScope = std::make_unique<ast::DeclarationScope>(*this);
+    if ( !myScope )
+        myScope = std::make_unique<ast::DeclarationScope>(*this);
     
     std::vector<std::unique_ptr<parser::DeclarationScopeParser>> scopeStack;
     scopeStack.emplace_back(std::make_unique<parser::DeclarationScopeParser>(myScope.get()));

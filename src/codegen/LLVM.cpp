@@ -462,7 +462,7 @@ private:
             params.reserve(a->expressions().size() - 1);
             if ( a->expressions().size() > 1 ) {
                 for ( auto const& e : a->expressions()(1, a->expressions().size()) ) {
-                    if ( e->declaration() == axioms.pointerNullLiteralType() )
+                    if ( e->declaration() == axioms.intrinsic(ast::PointerNullLiteralType) )
                         params.push_back(llvm::ConstantPointerNull::get(static_cast<llvm::PointerType*>(toType(*e))));
                     else
                         params.push_back(toValue(builder, *e));
@@ -644,9 +644,9 @@ struct LLVMGenerator::LLVMState
             if ( dsData->type )
                 return dsData->type;
 
-            if ( ds == axioms.integerLiteralType()
-              || ds == axioms.rationalLiteralType()
-              || ds == axioms.stringLiteralType() )
+            if ( ds == axioms.intrinsic(ast::IntegerLiteralType )
+              || ds == axioms.intrinsic(ast::RationalLiteralType)
+              || ds == axioms.intrinsic(ast::StringLiteralType  ) )
             {
                 dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
                 return dsData->type;
@@ -656,10 +656,12 @@ struct LLVMGenerator::LLVMState
             else if ( ds == axioms.intrinsic(ast::u16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
             else if ( ds == axioms.intrinsic(ast::u32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
             else if ( ds == axioms.intrinsic(ast::u64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
+            else if ( ds == axioms.intrinsic(ast::u128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
             else if ( ds == axioms.intrinsic(ast::i8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
             else if ( ds == axioms.intrinsic(ast::i16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
             else if ( ds == axioms.intrinsic(ast::i32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
             else if ( ds == axioms.intrinsic(ast::i64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
+            else if ( ds == axioms.intrinsic(ast::i128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
 
             auto const& sym = ds->symbol();
             if ( rootTemplate(sym) == &axioms.intrinsic(ast::PointerTemplate)->symbol() ) {
