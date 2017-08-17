@@ -23,6 +23,7 @@ class Declaration;
 class DeclarationScope;
 class IResolver;
 class Expression;
+class PrimaryExpression;
 class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
@@ -66,7 +67,7 @@ public:
     void bindVariables(Context& ctx, binding_set_t const& bindings);
     SymbolVariable* findVariable(std::string const& identifier);
     SymbolVariable const* findVariable(std::string const& identifier) const;
-    SymbolVariable* createVariable(lexer::Token const& identifier);
+    SymbolVariable* createVariable(PrimaryExpression const& primary);
     bool isConcrete() const;
     bool hasFreeVariables() const;
 

@@ -319,7 +319,14 @@ struct CodeGenPass
         std::vector<llvm::Type*> params;
         params.reserve(decl.parameters().size());
         for ( auto const& p : decl.parameters() ) {
-            auto paramType = toType(p->expression());
+            // todo: proper way to get type from constraints
+            llvm::Type* paramType = nullptr;
+            for ( auto e : p->constraints() ) {
+                paramType = toType(*e);
+                if ( paramType )
+                    break;
+            }
+
             if ( !paramType ) {
                 error(p->symbol().identifier()) << "cannot resolve parameter type";
                 die();

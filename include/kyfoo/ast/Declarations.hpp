@@ -316,9 +316,12 @@ public:
     Expression* constraint();
     Expression const* constraint() const;
 
+    Declaration const* dataType() const;
+
 protected:
     std::unique_ptr<Expression> myConstraint;
     std::unique_ptr<Expression> myInitialization;
+    Declaration const* myDataType = nullptr;
 };
 
 class ProcedureDeclaration;
@@ -326,8 +329,7 @@ class ProcedureParameter : public Declaration
 {
 public:
     ProcedureParameter(Symbol&& symbol,
-                       ProcedureDeclaration* proc,
-                       Expression* expression);
+                       ProcedureDeclaration& proc);
 
 protected:
     ProcedureParameter(ProcedureParameter const& rhs);
@@ -351,11 +353,16 @@ public:
 
 public:
     ProcedureDeclaration* parent();
-    Expression const& expression() const;
+
+    Declaration const* dataType() const;
+
+    Slice<Expression*> const constraints() const;
+    void addConstraint(Expression const& expr);
 
 private:
     ProcedureDeclaration* myParent = nullptr;
-    Expression* myExpression = nullptr;
+    std::vector<Expression const*> myConstraints;
+    Declaration const* myDataType = nullptr;
 };
 
 class ProcedureDeclaration : public Declaration
@@ -447,10 +454,10 @@ class SymbolVariable : public Declaration
 {
 public:
     SymbolVariable(PatternsPrototype& prototype,
-                   lexer::Token const& identifier,
-                   Expression const* expr);
+                   PrimaryExpression const& primary,
+                   Expression const* bindExpr);
     SymbolVariable(PatternsPrototype& prototype,
-                   lexer::Token const& identifier);
+                   PrimaryExpression const& primary);
 
 protected:
     SymbolVariable(SymbolVariable const& rhs);
@@ -481,6 +488,7 @@ public:
 
 private:
     PatternsPrototype* myPrototype = nullptr;
+    std::vector<Expression*> myConstraints;
     Expression const* myBoundExpression = nullptr;
 };
 

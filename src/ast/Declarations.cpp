@@ -488,6 +488,7 @@ VariableDeclaration::VariableDeclaration(Symbol&& symbol,
 
 VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs)
     : Declaration(rhs)
+    , myDataType(rhs.myDataType)
 {
 }
 
@@ -499,6 +500,7 @@ void VariableDeclaration::swap(VariableDeclaration& rhs)
     using std::swap;
     swap(myConstraint, rhs.myConstraint);
     swap(myInitialization, rhs.myInitialization);
+    swap(myDataType, rhs.myDataType);
 }
 
 void VariableDeclaration::io(IStream& stream) const
@@ -516,6 +518,7 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(VariableDeclaration, Declaration)
 IMPL_CLONE_REMAP(myConstraint)
 IMPL_CLONE_REMAP(myInitialization)
+IMPL_CLONE_REMAP(myDataType)
 IMPL_CLONE_REMAP_END
 
 void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
@@ -543,6 +546,13 @@ void VariableDeclaration::resolveSymbols(Diagnostics& dgn)
         return;
     }
 
+    if ( !myConstraint->declaration() ) {
+        dgn.error(scope().module(), symbol().identifier()) << "no data type determined for variable declaration";
+        return;
+    }
+
+    myDataType = myConstraint->declaration();
+
     // todo: constraint propagation via control flow
 }
 
@@ -556,22 +566,26 @@ Expression const* VariableDeclaration::constraint() const
     return myConstraint.get();
 }
 
+Declaration const* VariableDeclaration::dataType() const
+{
+    return myDataType;
+}
+
 //
 // ProcedureParameter
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
-                                       ProcedureDeclaration* proc,
-                                       Expression* expression)
-    : Declaration(DeclKind::ProcedureParameter, std::move(symbol), nullptr)
-    , myParent(proc)
-    , myExpression(expression)
+                                       ProcedureDeclaration& proc)
+    : Declaration(DeclKind::ProcedureParameter, std::move(symbol), proc.definition())
+    , myParent(&proc)
 {
 }
 
 ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs)
     : Declaration(rhs)
     , myParent(rhs.myParent)
-    , myExpression(rhs.myExpression)
+    , myConstraints(rhs.myConstraints)
+    , myDataType(rhs.myDataType)
 {
 }
 
@@ -588,7 +602,8 @@ void ProcedureParameter::swap(ProcedureParameter& rhs)
     Declaration::swap(rhs);
     using std::swap;
     swap(myParent, rhs.myParent);
-    swap(myExpression, rhs.myExpression);
+    swap(myConstraints, rhs.myConstraints);
+    swap(myDataType, rhs.myDataType);
 }
 
 void ProcedureParameter::io(IStream& stream) const
@@ -600,12 +615,32 @@ IMPL_CLONE_BEGIN(ProcedureParameter, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, Declaration)
 IMPL_CLONE_REMAP(myParent)
-IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP(myConstraints)
+IMPL_CLONE_REMAP(myDataType)
 IMPL_CLONE_REMAP_END
 
-void ProcedureParameter::resolveSymbols(Diagnostics&)
+void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
 {
-    // nop
+    for ( auto c : myConstraints ) {
+        auto decl = resolveIndirections(c->declaration());
+        if ( !decl ) {
+            dgn.error(scope().module(), *c) << "compilation stopped due to unresolved symbols";
+            return;
+        }
+
+        if ( isDataDeclaration(decl->kind()) ) {
+            if ( myDataType ) {
+                auto& err = dgn.error(scope().module(), *c) << "expression already has a data type";
+                err.see(*myDataType);
+                return;
+            }
+
+            myDataType = decl;
+        }
+    }
+
+    if ( !myDataType )
+        dgn.error(scope().module(), symbol().identifier()) << "parameter is missing data type";
 }
 
 ProcedureDeclaration* ProcedureParameter::parent()
@@ -613,10 +648,21 @@ ProcedureDeclaration* ProcedureParameter::parent()
     return myParent;
 }
 
-Expression const& ProcedureParameter::expression() const
+Declaration const* ProcedureParameter::dataType() const
 {
-    return *myExpression;
+    return myDataType;
 }
+
+Slice<Expression*> const ProcedureParameter::constraints() const
+{
+    return myConstraints;
+}
+
+void ProcedureParameter::addConstraint(Expression const& expr)
+{
+    myConstraints.push_back(&expr);
+}
+
 
 //
 // ProcedureDeclaration
@@ -682,8 +728,12 @@ IMPL_CLONE_REMAP_END
 
 void ProcedureDeclaration::resolveSymbols(Diagnostics& dgn)
 {
-    if ( auto defn = definition() )
+    if ( auto defn = definition() ) {
+        for ( auto const& p : myParameters )
+            defn->addSymbol(dgn, p->symbol(), *p);
+
         defn->resolveSymbols(dgn);
+    }
 }
 
 void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
@@ -692,6 +742,7 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     Context ctx(dgn, resolver);
 
     // Resolve prototype
+    std::vector<PrimaryExpression*> primaryParams;
     for ( auto& pattern : myPrototype->pattern() ) {
         if ( auto p = pattern->as<PrimaryExpression>() ) {
             if ( p->token().kind() != lexer::TokenKind::Identifier )
@@ -702,7 +753,8 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
                 hit = ctx.matchValue(p->token().lexeme());
 
             if ( !hit ) {
-                myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), this, p));
+                primaryParams.push_back(p);
+                myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this));
                 p->setDeclaration(*myParameters.back());
                 resolver.addSupplementarySymbol(myParameters.back()->symbol());
             }
@@ -710,6 +762,17 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     }
 
     myPrototype->resolveSymbols(dgn, resolver);
+    for ( auto p : primaryParams ) {
+        for ( auto& param : myParameters ) {
+            if ( param->symbol().identifier().lexeme() == p->token().lexeme() ) {
+                for ( auto c : p->constraints() )
+                    param->addConstraint(*c);
+            }
+        }
+    }
+
+    for ( auto& p : myParameters )
+        p->resolveSymbols(dgn);
 
     // Resolve return
     if ( !myReturnExpression ) {
@@ -718,7 +781,10 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     }
 
     ctx.resolveExpression(myReturnExpression);
-    myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token()), this, myReturnExpression.get());
+    myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token(lexer::TokenKind::Identifier, symbol().identifier().line(), symbol().identifier().column(), "result")), *this);
+    myResult->addConstraint(*myReturnExpression);
+
+    myResult->resolveSymbols(dgn);
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
@@ -837,23 +903,26 @@ void ImportDeclaration::resolveSymbols(Diagnostics&)
 // SymbolVariable
 
 SymbolVariable::SymbolVariable(PatternsPrototype& prototype,
-                               lexer::Token const& identifier,
-                               Expression const* expr)
-    : Declaration(DeclKind::SymbolVariable, Symbol(identifier), nullptr)
+                               PrimaryExpression const& primary,
+                               Expression const* bindExpr)
+    : Declaration(DeclKind::SymbolVariable, Symbol(primary.token()), nullptr)
     , myPrototype(&prototype)
-    , myBoundExpression(expr)
+    , myBoundExpression(bindExpr)
 {
+    for ( auto const& c : primary.constraints() )
+        myConstraints.push_back(c);
 }
 
 SymbolVariable::SymbolVariable(PatternsPrototype& prototype,
-                               lexer::Token const& identifier)
-    : SymbolVariable(prototype, identifier, nullptr)
+                               PrimaryExpression const& primary)
+    : SymbolVariable(prototype, primary, nullptr)
 {
 }
 
 SymbolVariable::SymbolVariable(SymbolVariable const& rhs)
     : Declaration(rhs)
     , myPrototype(rhs.myPrototype)
+    , myConstraints(rhs.myConstraints)
     , myBoundExpression(rhs.myBoundExpression)
 {
 }
@@ -871,6 +940,7 @@ void SymbolVariable::swap(SymbolVariable& rhs)
     Declaration::swap(rhs);
     using std::swap;
     swap(myPrototype, rhs.myPrototype);
+    swap(myConstraints, rhs.myConstraints);
     swap(myBoundExpression, rhs.myBoundExpression);
 }
 
@@ -883,6 +953,7 @@ IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(SymbolVariable, Declaration)
 IMPL_CLONE_REMAP(myPrototype)
+IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myBoundExpression)
 IMPL_CLONE_REMAP_END
 
