@@ -295,6 +295,9 @@ struct CodeGenPass
         if ( !decl.symbol().prototype().isConcrete() )
             return;
 
+        if ( !decl.prototype().isConcrete() )
+            return;
+
         if ( sourceModule.axioms().isIntrinsic(decl) )
             return;
 
@@ -623,12 +626,8 @@ struct LLVMGenerator::LLVMState
             init(*d);
 
         registerTypes(*sourceModule.scope());
-        for ( auto d : sourceModule.templateInstantiations() ) {
-            if ( d->symbol().prototype().isConcrete() ) {
-                auto decl = resolveIndirections(d);
-                registerType(*decl);
-            }
-        }
+        for ( auto d : sourceModule.templateInstantiations() )
+            registerTypes(*d);
 
         ast::ShallowApply<CodeGenPass> gen(dgn, module.get(), sourceModule);
         for ( auto d : sourceModule.scope()->childDeclarations() )
@@ -731,25 +730,29 @@ struct LLVMGenerator::LLVMState
 
     void registerTypes(ast::DeclarationScope const& scope)
     {
-        for ( auto const& decl : scope.childDeclarations() ) {
-            auto d = resolveIndirections(decl);
-            if ( !d->symbol().prototype().isConcrete() )
-                continue;
+        for ( auto d : scope.childDeclarations() )
+            registerTypes(*d);
+    }
 
-            registerType(*d);
+    void registerTypes(ast::Declaration const& decl)
+    {
+        auto d = resolveIndirections(&decl);
+        if ( !d->symbol().prototype().isConcrete() )
+            return;
 
-            if ( auto ds = d->as<ast::DataSumDeclaration>() ) {
-                if ( auto defn = ds->definition() )
-                    registerTypes(*defn);
-            }
-            else if ( auto dp = d->as<ast::DataProductDeclaration>() ) {
-                if ( auto defn = dp->definition() )
-                    registerTypes(*defn);
-            }
-            else if ( auto proc = d->as<ast::ProcedureDeclaration>() ) {
-                if ( auto defn = proc->definition() )
-                    registerTypes(*defn);
-            }
+        registerType(*d);
+
+        if ( auto ds = d->as<ast::DataSumDeclaration>() ) {
+            if ( auto defn = ds->definition() )
+                registerTypes(*defn);
+        }
+        else if ( auto dp = d->as<ast::DataProductDeclaration>() ) {
+            if ( auto defn = dp->definition() )
+                registerTypes(*defn);
+        }
+        else if ( auto proc = d->as<ast::ProcedureDeclaration>() ) {
+            if ( auto defn = proc->definition() )
+                registerTypes(*defn);
         }
     }
 };

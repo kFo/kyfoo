@@ -185,6 +185,9 @@ public:
     bool addSymbol(Diagnostics& dgn,
                    Symbol const& sym,
                    Declaration& decl);
+    bool addProcedure(Diagnostics& dgn,
+                      PatternsPrototype const& proto,
+                      ProcedureDeclaration& proc);
     SymbolSpace* findSymbolSpace(Diagnostics& dgn, std::string const& name);
     SymbolSpace const* findSymbolSpace(Diagnostics& dgn, std::string const& name) const;
 

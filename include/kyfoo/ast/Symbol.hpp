@@ -180,6 +180,7 @@ public:
                 Declaration& declaration);
 
     Declaration const* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist) const;
+    Declaration* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist);
     DeclInstance findValue(Diagnostics& dgn, pattern_t const& paramlist);
 
 private:
