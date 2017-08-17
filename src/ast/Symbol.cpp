@@ -85,7 +85,7 @@ void PatternsPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
     for ( auto const& param : myPattern ) {
         auto fv = gatherFreeVariables(*param);
         for ( auto& p : fv ) {
-            myVariables.push_back(std::make_unique<SymbolVariable>(*this, p->token()));
+            myVariables.push_back(std::make_unique<SymbolVariable>(*this, *p));
             p->setFreeVariable(myVariables.back().get());
         }
     }
@@ -136,12 +136,12 @@ SymbolVariable const* PatternsPrototype::findVariable(std::string const& identif
     return const_cast<PatternsPrototype*>(this)->findVariable(identifier);
 }
 
-SymbolVariable* PatternsPrototype::createVariable(lexer::Token const& identifier)
+SymbolVariable* PatternsPrototype::createVariable(PrimaryExpression const& primary)
 {
-    if ( auto symvar = findVariable(identifier.lexeme()) )
+    if ( auto symvar = findVariable(primary.token().lexeme()) )
         return symvar;
 
-    myVariables.emplace_back(std::make_unique<SymbolVariable>(*this, identifier));
+    myVariables.emplace_back(std::make_unique<SymbolVariable>(*this, primary));
     return myVariables.back().get();
 }
 

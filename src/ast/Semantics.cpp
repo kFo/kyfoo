@@ -242,6 +242,8 @@ struct SymbolDependencyBuilder
     {
         traceSymbol();
         tracePrototype(proc.prototype());
+        if ( proc.returnType() )
+            dispatch(*proc.returnType());
     }
 
     result_t declProcedureParameter(ProcedureParameter const&)
@@ -504,6 +506,25 @@ VarianceResult variance(Context& ctx,
     auto targetDecl = lhs.declaration();
     auto queryDecl = rhs.declaration();
 
+    auto getDataType = [](Declaration const* decl) -> Declaration const* {
+        if ( !decl )
+            return nullptr;
+
+        if ( auto proc = decl->as<ProcedureDeclaration>() )
+            return proc->result()->dataType();
+
+        if ( auto param = decl->as<ProcedureParameter>() )
+            return param->dataType();
+
+        if ( auto v = decl->as<VariableDeclaration>() )
+            return v->dataType();
+
+        return decl;
+    };
+
+    targetDecl = getDataType(targetDecl);
+    queryDecl = getDataType(queryDecl);
+
     if ( !targetDecl ) {
         ctx.error(lhs) << "compilation stopped due to unresolved expression";
         return Invariant;
@@ -524,12 +545,6 @@ VarianceResult variance(Context& ctx,
 
     // look through storage declarations to their constraints
     // similar to looking through ast aliases (more normalization)
-    if ( auto proc = queryDecl->as<ProcedureDeclaration>() )
-        return variance(ctx, leftBindings, lhs, *proc->returnType());
-
-    if ( auto v = queryDecl->as<VariableDeclaration>() )
-        return variance(ctx, leftBindings, lhs, *v->constraint());
-
     if ( auto f = queryDecl->as<DataProductDeclaration::Field>() )
         return variance(ctx, leftBindings, lhs, f->constraint());
 
@@ -678,8 +693,11 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 
 DeclarationScope const* memberScope(Declaration const& decl)
 {
+    if ( auto param = decl.as<ProcedureParameter>() )
+        return memberScope(*resolveIndirections(param->dataType()));
+
     if ( auto var = decl.as<VariableDeclaration>() )
-        return memberScope(*resolveIndirections(var->constraint()->declaration()));
+        return memberScope(*resolveIndirections(var->dataType()));
 
     if ( auto field = decl.as<DataProductDeclaration::Field>() )
         return memberScope(*resolveIndirections(field->constraint().declaration()));
