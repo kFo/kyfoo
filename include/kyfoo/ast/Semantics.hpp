@@ -81,6 +81,70 @@ private:
     operator_t myOperator;
 };
 
+template <template<class> typename Op>
+class DeepApply
+{
+public:
+    using operator_t = Op<DeepApply>;
+
+    DeepApply()
+        : myOperator(*this)
+    {
+    }
+
+    template <typename... Args>
+    DeepApply(Args&&... args)
+        : myOperator(*this, std::forward<Args>(args)...)
+    {
+    }
+
+    template <typename U>
+    typename operator_t::result_t operator()(U&) = delete;
+
+    template<>
+    typename operator_t::result_t operator()(Expression const& expr)
+    {
+#define X(a,b) if ( auto e = expr.as<b>() ) { myOperator.expr##a(*e); for ( auto c : e->constraints() ) operator()(*c); return; }
+        EXPRESSION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid expression kind");
+    }
+
+    template<>
+    typename operator_t::result_t operator()(Expression& expr)
+    {
+#define X(a,b) if ( auto e = expr.as<b>() ) { myOperator.expr##a(*e); for ( auto c : e->constraints() ) operator()(*c); return; }
+        EXPRESSION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid expression kind");
+    }
+
+    template <>
+    typename operator_t::result_t operator()(Declaration& decl)
+    {
+#define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
+        DECLARATION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid declaration kind");
+    }
+
+    template <>
+    typename operator_t::result_t operator()(Declaration const& decl)
+    {
+#define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
+        DECLARATION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid declaration kind");
+    }
+
+private:
+    operator_t myOperator;
+};
+
 struct SymbolDependencyTracker
 {
     struct SymGroup {

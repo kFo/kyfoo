@@ -867,9 +867,20 @@ struct PrintOperator
     {
     }
 
+    result_t printConstraints(Expression const& expr)
+    {
+        for ( auto c : expr.constraints() ) {
+            stream << ": ";
+            dispatch(*c);
+        }
+
+        return stream;
+    }
+
     result_t exprPrimary(PrimaryExpression const& p)
     {
-        return stream << p.token().lexeme();
+        stream << p.token().lexeme();
+        return printConstraints(p);
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -885,7 +896,8 @@ struct PrintOperator
             }
         }
 
-        return stream << presentTupleClose(t.kind());
+        stream << presentTupleClose(t.kind());
+        return printConstraints(t);
     }
 
     result_t exprApply(ApplyExpression const& a)
@@ -907,7 +919,7 @@ struct PrintOperator
                 stream << ")";
         }
 
-        return stream;
+        return printConstraints(a);
     }
 
     result_t exprSymbol(SymbolExpression const& s)
@@ -929,9 +941,9 @@ struct PrintOperator
         }
 
         if ( id.empty() )
-            return stream << "<>";
+            stream << "<>";
 
-        return stream;
+        return printConstraints(s);
     }
 
     result_t exprDot(DotExpression const& d)
@@ -950,7 +962,7 @@ struct PrintOperator
             dispatch(*(*l));
         }
 
-        return stream;
+        return printConstraints(d);
     }
 };
 
