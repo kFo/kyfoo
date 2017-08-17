@@ -372,6 +372,12 @@ Declaration const* SymbolSpace::findEquivalent(Diagnostics& dgn,
     return nullptr;
 }
 
+Declaration* SymbolSpace::findEquivalent(Diagnostics& dgn,
+                                         pattern_t const& paramlist)
+{
+    return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(dgn, paramlist));
+}
+
 SymbolSpace::DeclInstance
 SymbolSpace::findValue(Diagnostics& dgn,
                        pattern_t const& paramlist)

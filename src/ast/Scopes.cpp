@@ -16,22 +16,28 @@ namespace kyfoo {
 //
 // DeclarationScope
 
+DeclarationScope::DeclarationScope(Module* module,
+                                   DeclarationScope* parent,
+                                   Declaration* decl)
+    : myModule(module)
+    , myParent(parent)
+    , myDeclaration(decl)
+{
+    mySymbols.emplace_back(this, "");
+}
+
 DeclarationScope::DeclarationScope(Module& module)
-    : myModule(&module)
-    , myParent(nullptr)
+    : DeclarationScope(&module, nullptr, nullptr)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope* parent)
-    : myModule(&parent->module())
-    , myParent(parent)
+    : DeclarationScope(&parent->module(), parent, nullptr)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope& parent, Declaration& decl)
-    : myModule(&parent.module())
-    , myParent(&parent)
-    , myDeclaration(&decl)
+    : DeclarationScope(&parent.module(), &parent, &decl)
 {
 }
 
@@ -237,20 +243,28 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
             return true;
         }
         else {
+            TemplateDeclaration* templ = nullptr;
             if ( auto existingDecl = symSpace->findEquivalent(dgn, sym.prototype().pattern()) ) {
-                auto templ = existingDecl->as<TemplateDeclaration>();
+                templ = existingDecl->as<TemplateDeclaration>();
                 if ( !templ ) {
                     auto& err = ctx.error(sym.identifier()) << "procedures may only be appended to openly-defined templates";
                     err.see(*templ);
                     return false;
                 }
-
-                ctx.error(*templ) << "templates not implemented";
-                return false;
+            }
+            else {
+                clone_map_t cloneMap;
+                std::unique_ptr<Symbol> templSym(sym.clone(cloneMap));
+                templSym->remapReferences(cloneMap);
+                auto templDecl = std::make_unique<TemplateDeclaration>(std::move(*templSym));
+                templDecl->define(std::make_unique<TemplateScope>(*this, *templDecl));
+                templ = templDecl.get();
+                append(std::move(templDecl));
+                symSpace->append(ctx, templ->symbol().prototype(), *templ);
             }
 
-            ctx.error(sym.identifier()) << "procedure templates not implemented";
-            return false;
+            templ->definition()->addProcedure(dgn, proc->prototype(), *proc);
+            return true;
         }
     }
 
@@ -261,6 +275,24 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
     }
 
     symSpace->append(ctx, sym.prototype(), decl);
+    return true;
+}
+
+bool DeclarationScope::addProcedure(Diagnostics& dgn,
+                                    PatternsPrototype const& proto,
+                                    ProcedureDeclaration& proc)
+{
+    auto& symSpace = mySymbols.front();
+    if ( auto decl = symSpace.findEquivalent(dgn, proto.pattern()) ) {
+        // todo: error context for procedures
+        auto& err = dgn.error(module(), myParent->declaration()->symbol().identifier()) << "procedure signature already defined";
+        err.see(*decl);
+        return false;
+    }
+
+    ScopeResolver resolver(*this);
+    Context ctx(dgn, resolver);
+    symSpace.append(ctx, proto, proc);
     return true;
 }
 
