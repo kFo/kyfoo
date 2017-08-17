@@ -239,9 +239,13 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
     myRewrite.reset();
     expression->resolveSymbols(*this);
     while ( myRewrite ) {
+        auto c = std::move(expression->myConstraints);
         expression = std::move(myRewrite);
+        expression->myConstraints = std::move(c);
         expression->resolveSymbols(*this);
     }
+
+    resolveExpressions(expression->myConstraints);
 }
 
 void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
@@ -251,9 +255,12 @@ void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::itera
     for ( auto i = left; i != right; ++i ) {
         (*i)->resolveSymbols(*this);
         while ( myRewrite ) {
+            auto c = std::move((*i)->myConstraints);
             *i = std::move(std::move(myRewrite));
+            (*i)->myConstraints = std::move(c);
             (*i)->resolveSymbols(*this);
         }
+        resolveExpressions((*i)->myConstraints);
     }
 }
 

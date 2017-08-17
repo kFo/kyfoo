@@ -274,7 +274,7 @@ struct SymbolDependencyBuilder
 
 void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
 {
-    ShallowApply<SymbolDependencyBuilder> op(tracker, decl);
+    DeepApply<SymbolDependencyBuilder> op(tracker, decl);
     tracker.add(decl);
     op(decl);
 }
@@ -565,6 +565,7 @@ VarianceResult variance(Context& ctx,
             }
         }
 
+        // todo: this is a hack for covariance
         if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
             return variance(ctx, leftBindings, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
 
@@ -742,7 +743,7 @@ struct FreeVariableVisitor
 template <typename F>
 void visitFreeVariables(Expression& expr, F&& f)
 {
-    ShallowApply<FreeVariableVisitor> op(f);
+    DeepApply<FreeVariableVisitor> op(f);
     op(expr);
 }
 
