@@ -125,6 +125,7 @@ public:
 
 public:
     SymbolReference(const char* name, pattern_t pattern);
+    SymbolReference(std::string const& name, pattern_t pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
     /*implicit*/ SymbolReference(std::string const& name);
     /*implicit*/ SymbolReference(const char* name);
@@ -182,7 +183,7 @@ public:
 
     Declaration const* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist) const;
     Declaration* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist);
-    DeclInstance findValue(Diagnostics& dgn, pattern_t const& paramlist);
+    DeclInstance findCovariant(Diagnostics& dgn, pattern_t const& paramlist);
 
 private:
     DeclInstance instantiate(Context& ctx,

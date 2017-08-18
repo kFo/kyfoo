@@ -177,9 +177,7 @@ public:
     void import(Module& module);
 
     LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
-    LookupHit findValue(Diagnostics& dgn,
-                        std::string const& name,
-                        SymbolReference::pattern_t const& params);
+    LookupHit findCovariant(Diagnostics& dgn, SymbolReference const& sym);
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string const& name);
     bool addSymbol(Diagnostics& dgn,

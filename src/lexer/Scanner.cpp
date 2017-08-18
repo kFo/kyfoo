@@ -310,11 +310,11 @@ Token Scanner::readNext()
     }
     else if ( isFreeVariable(c) ) {
         nextChar();
-        if ( !isLetter(peekChar()) )
+        if ( !isIdentifierStart(peekChar()) )
             return TOK2(Undefined, "\\");
 
         do lexeme += nextChar();
-        while ( isLetter(peekChar()) || isNumber(peekChar()) );
+        while ( isIdentifierMid(peekChar()) );
 
         return TOK(FreeVariable);
     }

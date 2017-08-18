@@ -151,6 +151,11 @@ struct SymbolDependencyBuilder
             tracker.addDependency(decl, p.token().lexeme(), 0);
     }
 
+    result_t exprReference(ReferenceExpression const& r)
+    {
+        return exprPrimary(r);
+    }
+
     result_t exprTuple(TupleExpression const& t)
     {
         for ( auto const& e : t.expressions() )
@@ -733,6 +738,11 @@ struct FreeVariableVisitor
             return visitor(p);
     }
 
+    result_t exprReference(ReferenceExpression&)
+    {
+        // nop
+    }
+
     result_t exprTuple(TupleExpression& t)
     {
         for ( auto const& e : t.expressions() )
@@ -789,6 +799,11 @@ struct HasFreeVariable
     result_t exprPrimary(PrimaryExpression const& p)
     {
         return p.token().kind() == lexer::TokenKind::FreeVariable;
+    }
+
+    result_t exprReference(ReferenceExpression const&)
+    {
+        return false;
     }
 
     result_t exprTuple(TupleExpression const& t)
