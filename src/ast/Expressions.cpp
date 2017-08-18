@@ -89,7 +89,12 @@ const Slice<Expression*> Expression::constraints() const
 // PrimaryExpression
 
 PrimaryExpression::PrimaryExpression(lexer::Token const& token)
-    : Expression(Expression::Kind::Primary)
+    : PrimaryExpression(Expression::Kind::Primary, token)
+{
+}
+
+PrimaryExpression::PrimaryExpression(Kind kind, lexer::Token const& token)
+    : Expression(kind)
     , myToken(token)
 {
 }
@@ -168,7 +173,7 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
             return;
         }
 
-        auto hit = ctx.matchValue(SymbolReference(myToken.lexeme()));
+        auto hit = ctx.matchCovariant(SymbolReference(myToken.lexeme()));
         if ( !hit ) {
             if ( !hit.symSpace() )
                 ctx.error(myToken) << "undeclared identifier";
@@ -195,6 +200,57 @@ void PrimaryExpression::setFreeVariable(Declaration const* decl)
         throw std::runtime_error("free variable can only be bound once");
 
     myDeclaration = decl;
+}
+
+//
+// ReferenceExpression
+
+ReferenceExpression::ReferenceExpression(lexer::Token const& token)
+    : PrimaryExpression(Expression::Kind::Reference, token)
+{
+}
+
+ReferenceExpression::ReferenceExpression(ReferenceExpression const& rhs)
+    : PrimaryExpression(rhs)
+{
+}
+
+ReferenceExpression& ReferenceExpression::operator = (ReferenceExpression const& rhs)
+{
+    ReferenceExpression(rhs).swap(*this);
+    return *this;
+}
+
+ReferenceExpression::~ReferenceExpression() = default;
+
+void ReferenceExpression::swap(ReferenceExpression& rhs)
+{
+    PrimaryExpression::swap(rhs);
+}
+
+void ReferenceExpression::io(IStream& stream) const
+{
+    PrimaryExpression::io(stream);
+}
+
+IMPL_CLONE_BEGIN(ReferenceExpression, PrimaryExpression, Expression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ReferenceExpression, Expression)
+IMPL_CLONE_REMAP_END
+
+void ReferenceExpression::resolveSymbols(Context& ctx)
+{
+    if ( myDeclaration )
+        return;
+
+    auto hit = ctx.matchCovariant(SymbolReference(token().lexeme()));
+    if ( !hit ) {
+        if ( !hit.symSpace() )
+            ctx.error(token()) << "undeclared identifier";
+        return;
+    }
+
+    myDeclaration = hit.decl();
 }
 
 //
@@ -459,10 +515,10 @@ void ApplyExpression::resolveSymbols(Context& ctx)
             return;
         }
 
-        SymbolReference sym(subject->token().lexeme().c_str(), args);
+        SymbolReference sym(subject->token().lexeme(), args);
 
         // Look for hit on symbol
-        auto hit = ctx.matchValue(sym);
+        auto hit = ctx.matchCovariant(sym);
         if ( hit ) {
             // Transmute apply-expression into symbol-expression
             auto id = subject->token();
@@ -476,12 +532,12 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     // Search procedure overloads by arguments
     LookupHit hit;
     if ( subject ) {
-        hit = ctx.matchProcedure(subject->token().lexeme(), args);
+        hit = ctx.matchCovariant(SymbolReference(subject->token().lexeme(), args));
     }
     else {
         for ( auto expr = myExpressions.front().get(); ; ) {
             if ( auto s = expr->as<SymbolExpression>() ) {
-                hit = ctx.matchProcedure(SymbolReference(s->identifier().lexeme().c_str(), s->expressions()), args);
+                hit = ctx.matchCovariant(SymbolReference(s->identifier().lexeme(), args));
             }
             else if ( auto d = expr->as<DotExpression>() ) {
                 // todo: change resolution scope
@@ -489,7 +545,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
                 continue;
             }
             else if ( auto p = expr->as<PrimaryExpression>() ) {
-                hit = ctx.matchProcedure(p->token().lexeme(), args);
+                hit = ctx.matchCovariant(SymbolReference(p->token().lexeme(), args));
             }
             else {
                 ctx.error(*this) << "invalid apply-expression";
@@ -643,7 +699,7 @@ void SymbolExpression::resolveSymbols(Context& ctx)
         return;
 
     SymbolReference sym(myIdentifier.lexeme().c_str(), myExpressions);
-    auto hit = ctx.matchValue(sym);
+    auto hit = ctx.matchCovariant(sym);
     if ( !hit ) {
         ctx.error(*this) << "undeclared symbol identifier";
         return;
@@ -817,6 +873,11 @@ struct FrontExpression
         return p.token();
     }
 
+    result_t exprReference(ReferenceExpression const& r)
+    {
+        return exprPrimary(r);
+    }
+
     result_t exprTuple(TupleExpression const& t)
     {
         if ( t.expressions().empty() )
@@ -881,6 +942,12 @@ struct PrintOperator
     {
         stream << p.token().lexeme();
         return printConstraints(p);
+    }
+
+    result_t exprReference(ReferenceExpression const& r)
+    {
+        stream << "=";
+        return exprPrimary(r);
     }
 
     result_t exprTuple(TupleExpression const& t)

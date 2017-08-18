@@ -22,7 +22,7 @@ ScopeResolver::ScopeResolver(DeclarationScope const& scope)
 
 ScopeResolver::ScopeResolver(ScopeResolver&& rhs)
     : myScope(rhs.myScope)
-    , mySupplementarySymbols(std::move(rhs.mySupplementarySymbols))
+    , mySupplementaryPrototypes(std::move(rhs.mySupplementaryPrototypes))
 {
     rhs.myScope = nullptr;
 }
@@ -39,7 +39,7 @@ void ScopeResolver::swap(ScopeResolver& rhs)
 {
     using std::swap;
     swap(myScope, rhs.myScope);
-    swap(mySupplementarySymbols, rhs.mySupplementarySymbols);
+    swap(mySupplementaryPrototypes, rhs.mySupplementaryPrototypes);
 }
 
 Module const& ScopeResolver::module() const
@@ -70,14 +70,14 @@ LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const
     return hit;
 }
 
-LookupHit ScopeResolver::matchValue(Diagnostics& dgn, SymbolReference const& symbol)
+LookupHit ScopeResolver::matchCovariant(Diagnostics& dgn, SymbolReference const& symbol)
 {
     LookupHit hit = matchSupplementary(symbol);
     if ( hit )
         return hit;
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findValue(dgn, symbol.name(), symbol.pattern())) )
+        if ( hit.append(scope->findCovariant(dgn, symbol)) )
             return hit;
 
         if ( symbol.pattern().empty() )
@@ -87,39 +87,23 @@ LookupHit ScopeResolver::matchValue(Diagnostics& dgn, SymbolReference const& sym
     }
 
     for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findValue(dgn, symbol.name(), symbol.pattern())) )
+        if ( hit.append(m->scope()->findCovariant(dgn, symbol)) )
             return hit;
 
     return hit;
 }
 
-LookupHit ScopeResolver::matchProcedure(Diagnostics& dgn,
-                                        SymbolReference const& procOverload,
-                                        SymbolReference::pattern_t const& params) const
+void ScopeResolver::addSupplementaryPrototype(PatternsPrototype const& proto)
 {
-    LookupHit hit;
-    for ( auto scope = myScope; scope; scope = scope->parent() )
-        if ( hit.append(scope->findValue(dgn, procOverload.name(), params)) )
-            return hit;
-    
-    for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findValue(dgn, procOverload.name(), params)) )
-            return hit;
-
-    return hit;
-}
-
-void ScopeResolver::addSupplementarySymbol(Symbol const& sym)
-{
-    mySupplementarySymbols.push_back(&sym);
+    mySupplementaryPrototypes.push_back(&proto);
 }
 
 LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
 {
     LookupHit hit;
     if ( symbol.pattern().empty() )
-        for ( auto& s : mySupplementarySymbols )
-            if ( auto symVar = s->prototype().findVariable(symbol.name()) )
+        for ( auto& proto : mySupplementaryPrototypes )
+            if ( auto symVar = proto->findVariable(symbol.name()) )
                 return std::move(hit.lookup(symVar));
 
     return hit;
@@ -135,31 +119,6 @@ Context::Context(Diagnostics& dgn, IResolver& resolver)
 }
 
 Context::~Context() = default;
-
-//Module& Context::module()
-//{
-//    return myResovler->modile();
-//}
-//
-//Module const& Context::module() const
-//{
-//    return myResolver->module();
-//}
-//
-//LookupHit Context::matchEquivalent(Diagnostics& dgn, SymbolReference const& sym) const
-//{
-//    return myResolver->matchEquivalent(dgn, sym);
-//}
-//
-//LookupHit Context::matchValue(Diagnostics& dgn, SymbolReference const& sym) const
-//{
-//    return myResolver->matchValue(dgn, sym);
-//}
-//
-//LookupHit Context::matchProcedure(Diagnostics& dgn, SymbolReference const& sym) const
-//{
-//    return myResolver->matchProcedure(dgn, sym);
-//}
 
 AxiomsModule const& Context::axioms() const
 {
@@ -211,15 +170,9 @@ std::size_t Context::errorCount() const
     return myDiagnostics->errorCount();
 }
 
-LookupHit Context::matchValue(SymbolReference const& sym) const
+LookupHit Context::matchCovariant(SymbolReference const& sym) const
 {
-    return myResolver->matchValue(*myDiagnostics, sym);
-}
-
-LookupHit Context::matchProcedure(SymbolReference const& sym,
-                                  SymbolReference::pattern_t const& params) const
-{
-    return myResolver->matchProcedure(*myDiagnostics, sym, params);
+    return myResolver->matchCovariant(*myDiagnostics, sym);
 }
 
 IResolver* Context::changeResolver(IResolver& resolver)

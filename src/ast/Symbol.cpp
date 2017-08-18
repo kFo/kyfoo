@@ -264,6 +264,12 @@ SymbolReference::SymbolReference(const char* name, pattern_t pattern)
 {
 }
 
+SymbolReference::SymbolReference(std::string const& name, pattern_t pattern)
+    : myName(name.c_str())
+    , myPattern(pattern)
+{
+}
+
 SymbolReference::SymbolReference(Symbol const& sym)
     : SymbolReference(sym.identifier().lexeme().c_str(), sym.prototype().pattern())
 {
@@ -379,7 +385,7 @@ Declaration* SymbolSpace::findEquivalent(Diagnostics& dgn,
 }
 
 SymbolSpace::DeclInstance
-SymbolSpace::findValue(Diagnostics& dgn,
+SymbolSpace::findCovariant(Diagnostics& dgn,
                        pattern_t const& paramlist)
 {
     ScopeResolver resolver(*myScope);

@@ -67,6 +67,8 @@ trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) : signed<unsigned<32>>
 trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) : signed<unsigned<32>>
 trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) : signed<unsigned<64>>
 
+addr(=p : \T) : pointer T
+
 )axioms";
 
 #include <kyfoo/ast/Axioms.hpp>

@@ -50,6 +50,18 @@ struct Primary : public
     }
 };
 
+struct Reference : public
+    g::Or<g::And<equal, id>, Primary>
+{
+    std::unique_ptr<ast::PrimaryExpression> make() const
+    {
+        if ( index() == 0 )
+            return std::make_unique<ast::ReferenceExpression>(term<0>().factor<1>().token());
+        else
+            return term<1>().make();
+    }
+};
+
 class Expression
 {
 public:
@@ -161,7 +173,7 @@ struct Tuple : public
 };
 
 struct BasicExpression : public
-    g::Or<Tuple, Primary>
+    g::Or<Tuple, Reference>
 {
     std::unique_ptr<ast::Expression> make() const
     {
@@ -240,7 +252,8 @@ struct ProcedureDeclaration : public
 
         return std::make_unique<ast::ProcedureDeclaration>(factor<0>().make(),
                                                            std::move(pattern),
-                                                           std::move(returnTypeExpression));
+                                                           std::move(returnTypeExpression),
+                                                           returnByReference);
     }
 };
 

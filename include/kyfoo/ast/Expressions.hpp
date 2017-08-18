@@ -19,12 +19,13 @@ class ProcedureDeclaration;
 class SymbolReference;
 class LookupHit;
 
-#define EXPRESSION_KINDS(X)       \
-    X(Primary, PrimaryExpression) \
-    X(Tuple  , TupleExpression)   \
-    X(Apply  , ApplyExpression)   \
-    X(Symbol , SymbolExpression)  \
-    X(Dot    , DotExpression)
+#define EXPRESSION_KINDS(X)           \
+    X(Primary  , PrimaryExpression)   \
+    X(Reference, ReferenceExpression) \
+    X(Tuple    , TupleExpression)     \
+    X(Apply    , ApplyExpression)     \
+    X(Symbol   , SymbolExpression)    \
+    X(Dot      , DotExpression)
 
 class Expression : public INode
 {
@@ -95,6 +96,8 @@ public:
     explicit PrimaryExpression(lexer::Token const& token);
 
 protected:
+    PrimaryExpression(Kind kind, lexer::Token const& token);
+
     PrimaryExpression(PrimaryExpression const& rhs);
     PrimaryExpression& operator = (PrimaryExpression const& rhs);
 
@@ -119,6 +122,30 @@ public:
 
 private:
     lexer::Token myToken;
+};
+
+class ReferenceExpression : public PrimaryExpression
+{
+public:
+    explicit ReferenceExpression(lexer::Token const& token);
+
+protected:
+    ReferenceExpression(ReferenceExpression const& rhs);
+    ReferenceExpression& operator = (ReferenceExpression const& rhs);
+
+public:
+    ~ReferenceExpression();
+
+    void swap(ReferenceExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    void resolveSymbols(Context& ctx) override;
 };
 
 class TupleExpression : public Expression

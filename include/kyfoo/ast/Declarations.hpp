@@ -370,7 +370,8 @@ class ProcedureDeclaration : public Declaration
 public:
     ProcedureDeclaration(Symbol&& symbol,
                          Pattern&& pattern,
-                         std::unique_ptr<ast::Expression> returnExpression);
+                         std::unique_ptr<ast::Expression> returnExpression,
+                         bool returnByReference);
 
 protected:
     ProcedureDeclaration(ProcedureDeclaration const& rhs);
@@ -416,6 +417,7 @@ private:
 
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
     std::unique_ptr<ProcedureParameter> myResult;
+    bool myReturnByReference = false;
 
     std::unique_ptr<ProcedureScope> myDefinition;
 };

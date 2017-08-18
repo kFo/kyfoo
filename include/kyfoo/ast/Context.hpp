@@ -31,10 +31,7 @@ public:
     virtual Module const& module() const = 0;
 
     virtual LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) = 0;
-    virtual LookupHit matchProcedure(Diagnostics& dgn,
-                                     SymbolReference const& procOverload,
-                                     SymbolReference::pattern_t const& params) const = 0;
+    virtual LookupHit matchCovariant(Diagnostics& dgn, SymbolReference const& symbol) = 0;
 };
 
 class ScopeResolver : public IResolver
@@ -55,18 +52,15 @@ public:
     Module const& module() const;
 
     LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const override;
-    LookupHit matchValue(Diagnostics& dgn, SymbolReference const& symbol) override;
-    LookupHit matchProcedure(Diagnostics& dgn,
-                             SymbolReference const& procOverload,
-                             SymbolReference::pattern_t const& params) const override;
+    LookupHit matchCovariant(Diagnostics& dgn, SymbolReference const& symbol) override;
 
 public:
-    void addSupplementarySymbol(Symbol const& sym);
+    void addSupplementaryPrototype(PatternsPrototype const& proto);
     LookupHit matchSupplementary(SymbolReference const& symbol) const;
 
 private:
     DeclarationScope* myScope = nullptr;
-    std::vector<Symbol const*> mySupplementarySymbols;
+    std::vector<PatternsPrototype const*> mySupplementaryPrototypes;
 };
 
 class Context
@@ -91,9 +85,7 @@ public:
     Error& error(Declaration const& decl);
     std::size_t errorCount() const;
 
-    LookupHit matchValue(SymbolReference const& sym) const;
-    LookupHit matchProcedure(SymbolReference const& sym,
-                             SymbolReference::pattern_t const& params) const;
+    LookupHit matchCovariant(SymbolReference const& sym) const;
 
     IResolver* changeResolver(IResolver& resolver);
     void rewrite(std::unique_ptr<Expression> expr);

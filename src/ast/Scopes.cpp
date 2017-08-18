@@ -179,14 +179,12 @@ LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference con
  * mytype<"str">
  * \endcode
  */
-LookupHit DeclarationScope::findValue(Diagnostics& dgn,
-                                      std::string const& name,
-                                      SymbolReference::pattern_t const& params)
+LookupHit DeclarationScope::findCovariant(Diagnostics& dgn, SymbolReference const& sym)
 {
     LookupHit hit;
-    auto symSpace = findSymbolSpace(dgn, name);
+    auto symSpace = findSymbolSpace(dgn, sym.name());
     if ( symSpace ) {
-        auto t = symSpace->findValue(dgn, params);
+        auto t = symSpace->findCovariant(dgn, sym.pattern());
         if ( t.instance )
             myModule->appendTemplateInstance(t.instance);
 

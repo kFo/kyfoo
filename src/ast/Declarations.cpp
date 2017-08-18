@@ -458,7 +458,7 @@ IMPL_CLONE_REMAP_END
 void SymbolDeclaration::resolveSymbols(Diagnostics& dgn)
 {
     ScopeResolver resolver(scope());
-    resolver.addSupplementarySymbol(symbol());
+    resolver.addSupplementaryPrototype(symbol().prototype());
 
     Context ctx(dgn, resolver);
     ctx.resolveExpression(myExpression);
@@ -576,7 +576,7 @@ Declaration const* VariableDeclaration::dataType() const
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
                                        ProcedureDeclaration& proc)
-    : Declaration(DeclKind::ProcedureParameter, std::move(symbol), proc.definition())
+    : Declaration(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope())
     , myParent(&proc)
 {
 }
@@ -628,7 +628,7 @@ void ProcedureParameter::resolveSymbols(Diagnostics& dgn)
             return;
         }
 
-        if ( isDataDeclaration(decl->kind()) ) {
+        if ( isDataDeclaration(decl->kind()) || decl->kind() == DeclKind::SymbolVariable ) {
             if ( myDataType ) {
                 auto& err = dgn.error(scope().module(), *c) << "expression already has a data type";
                 err.see(*myDataType);
@@ -669,10 +669,12 @@ void ProcedureParameter::addConstraint(Expression const& expr)
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
                                            Pattern&& pattern,
-                                           std::unique_ptr<Expression> returnExpression)
+                                           std::unique_ptr<Expression> returnExpression,
+                                           bool returnByReference)
     : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
     , myPrototype(std::make_unique<PatternsPrototype>(std::move(pattern)))
     , myReturnExpression(std::move(returnExpression))
+    , myReturnByReference(returnByReference)
 {
 }
 
@@ -744,24 +746,30 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     // Resolve prototype
     std::vector<PrimaryExpression*> primaryParams;
     for ( auto& pattern : myPrototype->pattern() ) {
-        if ( auto p = pattern->as<PrimaryExpression>() ) {
+        auto p = pattern->as<PrimaryExpression>();
+        if ( !p )
+            p = pattern->as<ReferenceExpression>();
+
+        if ( p ) {
             if ( p->token().kind() != lexer::TokenKind::Identifier )
                 continue;
 
-            auto hit = ctx.matchProcedure(p->token().lexeme(), SymbolReference::pattern_t());
+            auto hit = ctx.matchCovariant(SymbolReference(p->token().lexeme()));
             if ( !hit )
-                hit = ctx.matchValue(p->token().lexeme());
+                hit = ctx.matchCovariant(p->token().lexeme());
 
             if ( !hit ) {
                 primaryParams.push_back(p);
                 myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this));
                 p->setDeclaration(*myParameters.back());
-                resolver.addSupplementarySymbol(myParameters.back()->symbol());
             }
         }
     }
 
     myPrototype->resolveSymbols(dgn, resolver);
+    resolver.addSupplementaryPrototype(*myPrototype);
+
+    // Gather constraints on parameters
     for ( auto p : primaryParams ) {
         for ( auto& param : myParameters ) {
             if ( param->symbol().identifier().lexeme() == p->token().lexeme() ) {
