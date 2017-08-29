@@ -90,17 +90,17 @@ int runParserTest(fs::path const& filepath)
     return EXIT_SUCCESS;
 }
 
-int analyzeModule(kyfoo::ast::Module* m, bool treeDump)
+int analyzeModule(kyfoo::ast::Module& m, bool treeDump)
 {
     kyfoo::Diagnostics dgn;
     kyfoo::StopWatch sw;
     try {
-        m->semantics(dgn);
+        m.semantics(dgn);
         if ( treeDump ) {
-            std::ofstream fout(m->name() + ".astdump.json");
+            std::ofstream fout(m.name() + ".astdump.json");
             if ( fout ) {
                 kyfoo::ast::JsonOutput out(fout);
-                m->io(out);
+                m.io(out);
             }
         }
     }
@@ -108,13 +108,13 @@ int analyzeModule(kyfoo::ast::Module* m, bool treeDump)
         // Handled below
     }
     catch (std::exception const& e) {
-        std::cout << m->path() << ": ICE: " << e.what() << std::endl;
+        std::cout << m.path() << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     auto semTime = sw.reset();
     dgn.dumpErrors(std::cout);
-    std::cout << "semantics: " << m->name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+    std::cout << "semantics: " << m.name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -122,31 +122,24 @@ int analyzeModule(kyfoo::ast::Module* m, bool treeDump)
     return EXIT_SUCCESS;
 }
 
-int codegenModule(kyfoo::ast::Module* m)
+int codegenModule(kyfoo::Diagnostics& dgn, kyfoo::codegen::LLVMGenerator& gen, kyfoo::ast::Module const& m)
 {
-    if ( m->path().empty() ) {
-        std::cout << "ICE: " << m->name() << ": module is internal" << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    kyfoo::Diagnostics dgn;
     kyfoo::StopWatch sw;
     try {
-        kyfoo::codegen::LLVMGenerator gen(dgn, *m);
-        gen.generate();
-        gen.write(kyfoo::codegen::toObjectFilepath(m->path()));
+        gen.generate(m);
+        gen.write(m, kyfoo::codegen::toObjectFilepath(m.path()));
     }
     catch (kyfoo::Diagnostics*) {
         // Handled below
     }
     catch (std::exception const& e) {
-        std::cout << m->path() << ": ICE: " << e.what() << std::endl;
+        std::cout << m.path() << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     auto semTime = sw.reset();
     dgn.dumpErrors(std::cout);
-    std::cout << "codegen: " << m->name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+    std::cout << "codegen: " << m.name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -240,38 +233,45 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
         return ret;
 
     // semantic pass
-    for ( auto const& v : visited )
-        queue.push(v);
-    visited.clear();
+    std::vector<kyfoo::ast::Module*> allModules(begin(moduleSet.modules()), end(moduleSet.modules()));
+    allModules.erase(find(begin(allModules), end(allModules), &moduleSet.axioms()));
 
-    {
-        // todo: better way to codegen axioms
-
-        kyfoo::Diagnostics dgn;
-        try {
-            kyfoo::codegen::LLVMGenerator gen(dgn, moduleSet.axioms());
-            gen.generate();
-        }
-        catch (kyfoo::Diagnostics* d) {
-            // Handled below
-            d->dumpErrors(std::cout);
-            return EXIT_FAILURE;
-        }
-        catch (std::exception const& e ) {
-            std::cout << "ICE: " << e.what() << std::endl;
-            return EXIT_FAILURE;
+    for ( auto m = begin(allModules); m != end(allModules); ++m ) {
+        for ( auto mm = next(m); mm != end(allModules); ++mm ) {
+            if ( (*m)->imports(*mm) ) {
+                iter_swap(m, mm);
+                mm = next(m);
+            }
         }
     }
 
-    while ( !queue.empty() ) {
-        auto m = take();
-        if ( (ret = analyzeModule(m, options & TreeDump)) != EXIT_SUCCESS )
+    kyfoo::Diagnostics dgn;
+    kyfoo::codegen::LLVMGenerator gen(dgn, moduleSet);
+
+    try {
+        gen.generate(moduleSet.axioms());
+    }
+    catch (std::exception const& e) {
+        std::cout << "ICE: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+    catch (kyfoo::Diagnostics*) {
+        // nop
+    }
+
+    if ( dgn.errorCount() ) {
+        dgn.dumpErrors(std::cout);
+        return EXIT_FAILURE;
+    }
+
+    for ( auto m : allModules ) {
+        if ( (ret = analyzeModule(*m, options & TreeDump)) != EXIT_SUCCESS )
             return ret;
 
         if ( options & SemanticsOnly )
             continue;
 
-        if ( (ret = codegenModule(m)) != EXIT_SUCCESS )
+        if ( (ret = codegenModule(dgn, gen, *m)) != EXIT_SUCCESS )
             return ret;
     }
 

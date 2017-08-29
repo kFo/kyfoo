@@ -109,6 +109,15 @@ std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>, T>> clone(T const& rhs)
     return clone(rhs, map);
 }
 
+template <typename T, typename D>
+std::unique_ptr<T> clone(T const* rhs, D& dict)
+{
+    if ( !rhs )
+        return nullptr;
+
+    return clone(*rhs, dict);
+}
+
 template <typename T>
 std::unique_ptr<T> clone(T const* rhs)
 {

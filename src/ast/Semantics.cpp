@@ -310,31 +310,43 @@ template <typename O>
 auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
 {
     if ( auto l = lhs.as<PrimaryExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
+        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
+        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
+        goto L_error;
+    }
+    if ( auto l = lhs.as<ReferenceExpression>() ) {
+        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
+        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
         goto L_error;
     }
     if ( auto l = lhs.as<TupleExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
+        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
+        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
         goto L_error;
     }
     if ( auto l = lhs.as<ApplyExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
+        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
+        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
         goto L_error;
     }
     if ( auto l = lhs.as<SymbolExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>() )      return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>() )     return o(*l, *r);
+        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
+        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
+        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
+        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
         goto L_error;
     }
 
@@ -524,6 +536,9 @@ VarianceResult variance(Context& ctx,
         if ( auto v = decl->as<VariableDeclaration>() )
             return v->dataType();
 
+        if ( auto f = decl->as<DataProductDeclaration::Field>() )
+            return f->constraint().declaration();
+
         return decl;
     };
 
@@ -547,11 +562,6 @@ VarianceResult variance(Context& ctx,
         if ( l || r )
             return variance(ctx, leftBindings, l ? *l : lhs, r ? *r : rhs);
     }
-
-    // look through storage declarations to their constraints
-    // similar to looking through ast aliases (more normalization)
-    if ( auto f = queryDecl->as<DataProductDeclaration::Field>() )
-        return variance(ctx, leftBindings, lhs, f->constraint());
 
     // assumes lhs is:
     // - literal

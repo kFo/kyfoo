@@ -73,22 +73,39 @@ LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const
 LookupHit ScopeResolver::matchCovariant(Diagnostics& dgn, SymbolReference const& symbol)
 {
     LookupHit hit = matchSupplementary(symbol);
-    if ( hit )
+
+    auto appendTemplate = [&hit, &module=myScope->module()] {
+        if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
+            module.appendTemplateInstance(hit.decl());
+    };
+
+    if ( hit ) {
+        appendTemplate();
         return hit;
-
-    for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findCovariant(dgn, symbol)) )
-            return hit;
-
-        if ( symbol.pattern().empty() )
-            if ( auto decl = scope->declaration() )
-                if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
-                    return std::move(hit.lookup(s));
     }
 
-    for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findCovariant(dgn, symbol)) )
+    for ( auto scope = myScope; scope; scope = scope->parent() ) {
+        if ( hit.append(scope->findCovariant(dgn, symbol)) ) {
+            appendTemplate();
             return hit;
+        }
+
+        if ( symbol.pattern().empty() ) {
+            if ( auto decl = scope->declaration() ) {
+                if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) ) {
+                    appendTemplate();
+                    return std::move(hit.lookup(s));
+                }
+            }
+        }
+    }
+
+    for ( auto m : myScope->module().imports() ) {
+        if ( hit.append(m->scope()->findCovariant(dgn, symbol)) ) {
+            appendTemplate();
+            return hit;
+        }
+    }
 
     return hit;
 }

@@ -745,23 +745,25 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
 
     // Resolve prototype
     std::vector<PrimaryExpression*> primaryParams;
-    for ( auto& pattern : myPrototype->pattern() ) {
-        auto p = pattern->as<PrimaryExpression>();
-        if ( !p )
-            p = pattern->as<ReferenceExpression>();
+    if ( myParameters.empty() ) {
+        for ( auto& pattern : myPrototype->pattern() ) {
+            auto p = pattern->as<PrimaryExpression>();
+            if ( !p )
+                p = pattern->as<ReferenceExpression>();
 
-        if ( p ) {
-            if ( p->token().kind() != lexer::TokenKind::Identifier )
-                continue;
+            if ( p ) {
+                if ( p->token().kind() != lexer::TokenKind::Identifier )
+                    continue;
 
-            auto hit = ctx.matchCovariant(SymbolReference(p->token().lexeme()));
-            if ( !hit )
-                hit = ctx.matchCovariant(p->token().lexeme());
+                auto hit = ctx.matchCovariant(SymbolReference(p->token().lexeme()));
+                if ( !hit )
+                    hit = ctx.matchCovariant(p->token().lexeme());
 
-            if ( !hit ) {
-                primaryParams.push_back(p);
-                myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this));
-                p->setDeclaration(*myParameters.back());
+                if ( !hit ) {
+                    primaryParams.push_back(p);
+                    myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this));
+                    p->setDeclaration(*myParameters.back());
+                }
             }
         }
     }
@@ -779,8 +781,9 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
         }
     }
 
-    for ( auto& p : myParameters )
-        p->resolveSymbols(dgn);
+    if ( !primaryParams.empty() )
+        for ( auto& p : myParameters )
+            p->resolveSymbols(dgn);
 
     // Resolve return
     if ( !myReturnExpression ) {

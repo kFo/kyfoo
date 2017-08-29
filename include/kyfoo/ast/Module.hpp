@@ -6,6 +6,7 @@
 
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/Node.hpp>
+#include <kyfoo/codegen/Codegen.hpp>
 
 namespace kyfoo {
 
@@ -42,8 +43,14 @@ public:
     AxiomsModule& axioms();
     AxiomsModule const& axioms() const;
 
+    Slice<Module*> modules();
+    Slice<Module*> modules() const;
+
+    Slice<Module*> impliedImports();
+    Slice<Module*> impliedImports() const;
+
 private:
-    std::unique_ptr<AxiomsModule> myAxioms;
+    AxiomsModule* myAxioms;
     std::vector<std::unique_ptr<Module>> myModules;
     std::vector<Module*> myImpliedImports;
 };
@@ -92,6 +99,9 @@ public:
 
     Slice<Declaration const*> templateInstantiations() const;
 
+    codegen::CustomData* codegenData() const;
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
+
 protected:
     ModuleSet* myModuleSet = nullptr;
     std::experimental::filesystem::path myPath;
@@ -100,6 +110,8 @@ protected:
     std::vector<Declaration const*> myTemplateInstantiations;
 
     std::vector<Module*> myImports;
+
+    mutable std::unique_ptr<codegen::CustomData> myCodegenData;
 };
 
     } // namespace ast

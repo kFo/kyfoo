@@ -149,6 +149,11 @@ Error& Diagnostics::error(ast::Module const& module, ast::Expression const& expr
     return *myErrors.back();
 }
 
+Error& Diagnostics::error(ast::Module const& module, ast::Declaration const& decl)
+{
+    return error(module, decl.symbol().identifier());
+}
+
 Error& Diagnostics::undeclared(ast::Module const& module, lexer::Token const& token)
 {
     myErrors.emplace_back(std::make_unique<Error>(module, token, Error::Undeclared));
