@@ -482,9 +482,6 @@ IMPL_CLONE_REMAP_END
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
     auto subject = myExpressions.front()->as<PrimaryExpression>();
-    Slice<Expression*> args;
-    args = slice(myExpressions, 1);
-
     if ( !subject ) {
         // explicit procedure lookup
         ctx.resolveExpressions(myExpressions);
@@ -498,7 +495,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     else {
         // implicit procedure lookup
         if ( !isIdentifier(subject->token().kind()) ) {
-            ctx.error(*this) << "implicit procedure application must begin with an identifier";
+            ctx.error(*this) << "procedure application must begin with an identifier";
             return;
         }
 
@@ -515,49 +512,51 @@ void ApplyExpression::resolveSymbols(Context& ctx)
             return;
         }
 
-        SymbolReference sym(subject->token().lexeme(), args);
+        SymbolReference sym(subject->token().lexeme(), slice(myExpressions, 1));
 
         // Look for hit on symbol
         auto hit = ctx.matchCovariant(sym);
         if ( hit ) {
-            // Transmute apply-expression into symbol-expression
-            auto id = subject->token();
-            auto expr = std::move(myExpressions);
-            move(next(begin(expr)), end(expr), begin(expr));
-            expr.pop_back();
-            return ctx.rewrite(std::make_unique<SymbolExpression>(id, std::move(expr)));
+            myDeclaration = hit.decl();
+            return;
         }
-    }
-
-    // Search procedure overloads by arguments
-    LookupHit hit;
-    if ( subject ) {
-        hit = ctx.matchCovariant(SymbolReference(subject->token().lexeme(), args));
-    }
-    else {
-        for ( auto expr = myExpressions.front().get(); ; ) {
-            if ( auto s = expr->as<SymbolExpression>() ) {
-                hit = ctx.matchCovariant(SymbolReference(s->identifier().lexeme(), args));
-            }
-            else if ( auto d = expr->as<DotExpression>() ) {
-                // todo: change resolution scope
-                expr = &d->top();
-                continue;
-            }
-            else if ( auto p = expr->as<PrimaryExpression>() ) {
-                hit = ctx.matchCovariant(SymbolReference(p->token().lexeme(), args));
-            }
-            else {
-                ctx.error(*this) << "invalid apply-expression";
+        else {
+            ctx.resolveExpression(myExpressions.front());
+            if ( !myExpressions.front()->declaration() ) {
+                auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
+                // todo: references to potential overloads
+                // todo: chained symbol sets
+                // todo: lookup failures are not returning symbol sets
+                if ( hit.symSpace() ) {
+                    for ( auto const& p : hit.symSpace()->prototypes() )
+                        err.see(*p.proto.decl);
+                }
                 return;
             }
-
-            break;
         }
     }
 
-    auto procDecl = hit.as<ProcedureDeclaration>();
-    if ( !procDecl ) {
+    // Treat subject as callable
+    LookupHit hit;
+    for ( auto callable = myExpressions.front()->declaration(); ; ) {
+        if ( auto d = callable->as<DataSumDeclaration             >() ) hit = const_cast<DataSumDeclaration*    >(d)->definition()->findCovariant(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+        if ( auto d = callable->as<DataProductDeclaration         >() ) hit = const_cast<DataProductDeclaration*>(d)->definition()->findCovariant(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+        if ( auto d = callable->as<TemplateDeclaration            >() ) hit = const_cast<TemplateDeclaration*   >(d)->definition()->findCovariant(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+
+        if ( auto d = callable->as<DataSumDeclaration::Constructor>() ) { ctx.error(*myExpressions.front()) << "ds ctor not implemented"; return; }
+        if ( auto d = callable->as<DataProductDeclaration::Field  >() ) { callable = d->constraint().declaration(); continue; }
+        if ( auto d = callable->as<SymbolDeclaration              >() ) { callable = d->expression()->declaration(); continue; }
+        if ( auto d = callable->as<ProcedureDeclaration           >() ) { callable = d->returnType()->declaration(); continue; }
+        if ( auto d = callable->as<ProcedureParameter             >() ) { callable = d->dataType(); continue; }
+        if ( auto d = callable->as<VariableDeclaration            >() ) { callable = d->dataType(); continue; }
+        if ( auto d = callable->as<SymbolVariable                 >() ) { callable = d->boundExpression()->declaration(); continue; }
+        
+        if ( auto d = callable->as<ImportDeclaration              >() ) { ctx.error(*myExpressions.front()) << "cannot use import declaration in apply-expression"; return; }
+
+        break;
+    }
+
+    if ( !hit ) {
         auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
         // todo: references to potential overloads
         // todo: chained symbol sets
@@ -569,7 +568,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
         return;
     }
 
-    myDeclaration = procDecl;
+    myDeclaration = hit.decl();
 }
 
 /**

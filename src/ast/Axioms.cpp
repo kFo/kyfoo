@@ -128,7 +128,7 @@ bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 bool AxiomsModule::isIntrinsic(ProcedureDeclaration const& decl) const
 {
     for ( std::size_t i = 0; i < InstructionIntrinsicsCount; ++i )
-        if ( myInstructionDecls[i] == &decl )
+        if ( descendsFromTemplate(myInstructionDecls[i]->symbol(), decl.symbol()) )
             return true;
 
     return false;
@@ -226,7 +226,7 @@ bool AxiomsModule::init(Diagnostics& dgn)
         // fall through
     }
     catch (std::exception const&) {
-        // fall through
+        throw;
     }
 
     return false;

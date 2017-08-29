@@ -82,11 +82,13 @@ void PatternsPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
 {
     Context ctx(dgn, resolver);
 
-    for ( auto const& param : myPattern ) {
-        auto fv = gatherFreeVariables(*param);
-        for ( auto& p : fv ) {
-            myVariables.push_back(std::make_unique<SymbolVariable>(*this, *p));
-            p->setFreeVariable(myVariables.back().get());
+    if ( myVariables.empty() ) {
+        for ( auto const& param : myPattern ) {
+            auto fv = gatherFreeVariables(*param);
+            for ( auto& p : fv ) {
+                myVariables.push_back(std::make_unique<SymbolVariable>(*this, *p));
+                p->setFreeVariable(myVariables.back().get());
+            }
         }
     }
 
@@ -104,7 +106,7 @@ Slice<SymbolVariable*> PatternsPrototype::symbolVariables() const
 }
 
 void PatternsPrototype::bindVariables(Context& ctx,
-                                        binding_set_t const& bindings)
+                                      binding_set_t const& bindings)
 {
     if ( bindings.size() != myVariables.size() )
         throw std::runtime_error("template parameter binding mismatch");
@@ -386,15 +388,19 @@ Declaration* SymbolSpace::findEquivalent(Diagnostics& dgn,
 
 SymbolSpace::DeclInstance
 SymbolSpace::findCovariant(Diagnostics& dgn,
-                       pattern_t const& paramlist)
+                           pattern_t const& paramlist)
 {
     ScopeResolver resolver(*myScope);
     Context ctx(dgn, resolver);
     for ( auto& e : myPrototypes ) {
         binding_set_t bindings;
         if ( variance(ctx, bindings, e.proto.params->pattern(), paramlist) ) {
-            if ( e.proto.decl->symbol().prototype().isConcrete() )
+            if ( e.proto.params->isConcrete() )
                 return { e.proto.decl, nullptr };
+
+            for ( auto p : paramlist )
+                if ( hasIndirection(resolveIndirections(p)->declaration()->kind()) )
+                    return { e.proto.decl, nullptr };
 
             return instantiate(ctx, e, std::move(bindings));
         }
@@ -408,6 +414,12 @@ SymbolSpace::instantiate(Context& ctx,
                          Prototype& proto,
                          binding_set_t&& bindingSet)
 {
+    for ( auto const& e : bindingSet.values() ) {
+        auto decl = resolveIndirections(e)->declaration();
+        if ( hasIndirection(decl->kind()) )
+            throw std::runtime_error("cannot instantiate template with unbound symbol variable");
+    }
+
     // use existing instantiation if it exists
     for ( std::size_t i = 0; i < proto.instances.size(); ++i ) {
         auto const& inst = proto.instances[i];
@@ -434,16 +446,17 @@ SymbolSpace::instantiate(Context& ctx,
     }
 
     // create new instantiation
-    auto instance = ast::clone(proto.proto.decl);
-
-    instance->symbol().myPrototype->bindVariables(ctx, bindingSet);
+    clone_map_t cloneMap;
+    auto instance = ast::clone(proto.proto.decl, cloneMap);
+    auto instProto = reinterpret_cast<PatternsPrototype*>(cloneMap[proto.proto.params]);
+    instProto->bindVariables(ctx, bindingSet);
 
     if ( auto proc = instance->as<ProcedureDeclaration>() )
         proc->resolvePrototypeSymbols(ctx.diagnostics());
 
     instance->resolveSymbols(ctx.diagnostics());
 
-    proto.instances.emplace_back(PatternsDecl{instance->symbol().myPrototype.get(), instance.get()});
+    proto.instances.emplace_back(PatternsDecl{instProto, instance.get()});
     myScope->append(std::move(instance));
     return { proto.proto.decl, proto.instances.back().decl };
 }

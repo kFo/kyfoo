@@ -98,6 +98,7 @@ public:
     Error& error(ast::Module const& module);
     Error& error(ast::Module const& module, lexer::Token const& token);
     Error& error(ast::Module const& module, ast::Expression const& expr);
+    Error& error(ast::Module const& module, ast::Declaration const& decl);
     Error& undeclared(ast::Module const& module, lexer::Token const& token);
 
     void dumpErrors(std::ostream& stream);

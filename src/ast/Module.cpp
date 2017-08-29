@@ -27,6 +27,7 @@ namespace kyfoo {
 ModuleSet::ModuleSet()
     : myAxioms(new AxiomsModule(this, "axioms"))
 {
+    myModules.emplace_back(myAxioms);
 }
 
 ModuleSet::~ModuleSet() = default;
@@ -34,7 +35,7 @@ ModuleSet::~ModuleSet() = default;
 bool ModuleSet::init(Diagnostics& dgn)
 {
     if ( myAxioms->init(dgn) ) {
-        myImpliedImports.push_back(myAxioms.get());
+        myImpliedImports.push_back(myAxioms);
         return true;
     }
 
@@ -109,6 +110,26 @@ AxiomsModule& ModuleSet::axioms()
 AxiomsModule const& ModuleSet::axioms() const
 {
     return *myAxioms;
+}
+
+Slice<Module*> ModuleSet::modules()
+{
+    return myModules;
+}
+
+Slice<Module*> ModuleSet::modules() const
+{
+    return myModules;
+}
+
+Slice<Module*> ModuleSet::impliedImports()
+{
+    return myImpliedImports;
+}
+
+Slice<Module*> ModuleSet::impliedImports() const
+{
+    return myImpliedImports;
 }
 
 //
@@ -315,6 +336,16 @@ bool Module::parsed() const
 Slice<Declaration const*> Module::templateInstantiations() const
 {
     return myTemplateInstantiations;
+}
+
+codegen::CustomData* Module::codegenData() const
+{
+    return myCodegenData.get();
+}
+
+void Module::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+{
+    myCodegenData = std::move(data);
 }
 
     } // namespace ast

@@ -8,6 +8,7 @@ namespace kyfoo {
     class Diagnostics;
 
     namespace ast {
+        class ModuleSet;
         class Module;
     }
 
@@ -16,12 +17,13 @@ namespace kyfoo {
 class LLVMGenerator
 {
 public:
-    LLVMGenerator(Diagnostics& dgn, ast::Module& sourceModule);
+    LLVMGenerator(Diagnostics& dgn, ast::ModuleSet& moduleSet);
     ~LLVMGenerator();
 
 public:
-    void generate();
-    void write(std::experimental::filesystem::path const& path);
+    void generate(ast::Module const& module);
+    void write(ast::Module const& module,
+               std::experimental::filesystem::path const& path);
 
 private:
     struct LLVMState;

@@ -127,8 +127,15 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
         if ( isMacroDeclaration(e->kind()) )
             continue;
 
-        if ( !e->symbol().prototype().hasFreeVariables() )
-            e->resolveSymbols(dgn);
+        if ( e->symbol().prototype().isConcrete() ) {
+            if ( auto proc = e->as<ProcedureDeclaration>() ) {
+                if ( proc->prototype().isConcrete() )
+                    proc->resolveSymbols(dgn);
+            }
+            else {
+                e->resolveSymbols(dgn);
+            }
+        }
     }
 }
 
@@ -185,9 +192,6 @@ LookupHit DeclarationScope::findCovariant(Diagnostics& dgn, SymbolReference cons
     auto symSpace = findSymbolSpace(dgn, sym.name());
     if ( symSpace ) {
         auto t = symSpace->findCovariant(dgn, sym.pattern());
-        if ( t.instance )
-            myModule->appendTemplateInstance(t.instance);
-
         hit.lookup(symSpace, t.instance ? t.instance : t.parent);
     }
 
@@ -283,7 +287,7 @@ bool DeclarationScope::addProcedure(Diagnostics& dgn,
     auto& symSpace = mySymbols.front();
     if ( auto decl = symSpace.findEquivalent(dgn, proto.pattern()) ) {
         // todo: error context for procedures
-        auto& err = dgn.error(module(), myParent->declaration()->symbol().identifier()) << "procedure signature already defined";
+        auto& err = dgn.error(module(), proc.symbol().identifier()) << "procedure signature already defined";
         err.see(*decl);
         return false;
     }
