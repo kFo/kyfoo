@@ -175,6 +175,7 @@ public:
     void setDeclaration(Declaration* declaration);
     void append(std::unique_ptr<Declaration> declaration);
     void import(Module& module);
+    void merge(DeclarationScope& rhs);
 
     LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
     LookupHit findCovariant(Diagnostics& dgn, SymbolReference const& sym);
@@ -183,9 +184,7 @@ public:
     bool addSymbol(Diagnostics& dgn,
                    Symbol const& sym,
                    Declaration& decl);
-    bool addProcedure(Diagnostics& dgn,
-                      PatternsPrototype const& proto,
-                      ProcedureDeclaration& proc);
+
     SymbolSpace* findSymbolSpace(Diagnostics& dgn, std::string const& name);
     SymbolSpace const* findSymbolSpace(Diagnostics& dgn, std::string const& name) const;
 

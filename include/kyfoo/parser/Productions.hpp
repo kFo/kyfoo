@@ -225,7 +225,6 @@ struct Symbol : public
 
 struct ProcedureDeclaration : public
     g::And<
-        Symbol,
         openParen,
         g::Repeat2<Expression, comma>,
         closeParen,
@@ -235,12 +234,12 @@ struct ProcedureDeclaration : public
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
         ast::Pattern pattern;
-        for ( auto& e : factor<2>().captures() )
+        for ( auto& e : factor<1>().captures() )
             pattern.emplace_back(e.make());
 
         std::unique_ptr<ast::Expression> returnTypeExpression;
         bool returnByReference = false;
-        if ( auto r = factor<4>().capture() ) {
+        if ( auto r = factor<3>().capture() ) {
             if ( r->index() == 0 ) {
                 returnTypeExpression = r->term<0>().factor<1>().make();
             }
@@ -250,10 +249,18 @@ struct ProcedureDeclaration : public
             }
         }
 
-        return std::make_unique<ast::ProcedureDeclaration>(factor<0>().make(),
-                                                           std::move(pattern),
+        return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""), std::move(pattern)),
                                                            std::move(returnTypeExpression),
                                                            returnByReference);
+    }
+};
+
+struct ImplicitProcedureTemplateDeclaration : public
+    g::And<Symbol, ProcedureDeclaration>
+{
+    std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>> make() const
+    {
+        return std::make_tuple(factor<0>().make(), factor<1>().make());
     }
 };
 

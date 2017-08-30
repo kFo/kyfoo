@@ -109,10 +109,10 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
     // Resolve top-level declarations
     for ( auto const& symGroup : tracker.groups ) {
         for ( auto const& d : symGroup->declarations ) {
-            d->symbol().resolveSymbols(dgn, resolver);
-
             if ( auto proc = d->as<ProcedureDeclaration>() )
                 proc->resolvePrototypeSymbols(dgn);
+            else
+                d->symbol().resolveSymbols(dgn, resolver);
 
             if ( !addSymbol(dgn, d->symbol(), *d) )
                 continue;
@@ -129,7 +129,7 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 
         if ( e->symbol().prototype().isConcrete() ) {
             if ( auto proc = e->as<ProcedureDeclaration>() ) {
-                if ( proc->prototype().isConcrete() )
+                if ( proc->symbol().prototype().isConcrete() )
                     proc->resolveSymbols(dgn);
             }
             else {
@@ -214,6 +214,17 @@ void DeclarationScope::import(Module& module)
     append(std::make_unique<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
 }
 
+void DeclarationScope::merge(DeclarationScope& rhs)
+{
+    myDeclarations.reserve(myDeclarations.size() + rhs.myDeclarations.size());
+    for ( auto& e : rhs.myDeclarations ) {
+        myDeclarations.emplace_back(std::move(e));
+        myDeclarations.back()->setScope(*this);
+    }
+
+    rhs.myDeclarations.clear();
+}
+
 SymbolSpace* DeclarationScope::createSymbolSpace(Diagnostics&, std::string const& name)
 {
     auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
@@ -233,68 +244,27 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
 
     ScopeResolver resolver(*this);
     Context ctx(dgn, resolver);
-    if ( auto proc = decl.as<ProcedureDeclaration>() ) {
-        if ( sym.prototype().pattern().empty() ) {
-            if ( auto other = symSpace->findEquivalent(dgn, proc->prototype().pattern()) ) {
-                auto& err = dgn.error(module(), sym.identifier()) << "symbol clashes with procedure signature";
-                err.see(*other);
-                return false;
-            }
-
-            symSpace->append(ctx, proc->prototype(), decl);
-            return true;
-        }
-        else {
-            TemplateDeclaration* templ = nullptr;
-            if ( auto existingDecl = symSpace->findEquivalent(dgn, sym.prototype().pattern()) ) {
-                templ = existingDecl->as<TemplateDeclaration>();
-                if ( !templ ) {
-                    auto& err = ctx.error(sym.identifier()) << "procedures may only be appended to openly-defined templates";
-                    err.see(*templ);
-                    return false;
-                }
-            }
-            else {
-                clone_map_t cloneMap;
-                std::unique_ptr<Symbol> templSym(sym.clone(cloneMap));
-                templSym->remapReferences(cloneMap);
-                auto templDecl = std::make_unique<TemplateDeclaration>(std::move(*templSym));
-                templDecl->define(std::make_unique<TemplateScope>(*this, *templDecl));
-                templ = templDecl.get();
-                append(std::move(templDecl));
-                symSpace->append(ctx, templ->symbol().prototype(), *templ);
-            }
-
-            templ->definition()->addProcedure(dgn, proc->prototype(), *proc);
-            return true;
-        }
-    }
 
     if ( auto other = symSpace->findEquivalent(dgn, sym.prototype().pattern()) ) {
-        auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
-        err.see(*other);
-        return false;
+        auto templDecl = decl.as<TemplateDeclaration>();
+        if ( !templDecl ) {
+            auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
+            err.see(*other);
+            return false;
+        }
+
+        auto otherTemplDecl = other->as<TemplateDeclaration>();
+        if ( !otherTemplDecl ) {
+            auto& err = dgn.error(module(), sym.identifier()) << "symbol was not first defined as a template";
+            err.see(*other);
+            return false;
+        }
+
+        otherTemplDecl->merge(*templDecl);
+        return true;
     }
 
     symSpace->append(ctx, sym.prototype(), decl);
-    return true;
-}
-
-bool DeclarationScope::addProcedure(Diagnostics& dgn,
-                                    PatternsPrototype const& proto,
-                                    ProcedureDeclaration& proc)
-{
-    auto& symSpace = mySymbols.front();
-    if ( auto decl = symSpace.findEquivalent(dgn, proto.pattern()) ) {
-        // todo: error context for procedures
-        auto& err = dgn.error(module(), proc.symbol().identifier()) << "procedure signature already defined";
-        err.see(*decl);
-        return false;
-    }
-
-    ScopeResolver resolver(*this);
-    Context ctx(dgn, resolver);
-    symSpace.append(ctx, proto, proc);
     return true;
 }
 

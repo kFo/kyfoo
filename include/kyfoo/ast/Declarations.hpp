@@ -369,7 +369,6 @@ class ProcedureDeclaration : public Declaration
 {
 public:
     ProcedureDeclaration(Symbol&& symbol,
-                         Pattern&& pattern,
                          std::unique_ptr<ast::Expression> returnExpression,
                          bool returnByReference);
 
@@ -400,9 +399,6 @@ public:
     ProcedureScope const* definition() const;
     void define(std::unique_ptr<ProcedureScope> definition);
 
-    PatternsPrototype const& prototype() const;
-    Slice<Expression*> pattern();
-    Slice<Expression*> const pattern() const;
     Expression* returnType();
     Expression const* returnType() const;
 
@@ -412,7 +408,6 @@ public:
     ProcedureParameter const* result() const;
 
 private:
-    std::unique_ptr<PatternsPrototype> myPrototype;
     std::unique_ptr<Expression> myReturnExpression;
 
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
@@ -523,6 +518,8 @@ public:
     TemplateScope* definition();
     TemplateScope const* definition() const;
     void define(std::unique_ptr<TemplateScope> definition);
+
+    void merge(TemplateDeclaration& rhs);
 
 private:
     std::unique_ptr<TemplateScope> myDefinition;

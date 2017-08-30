@@ -100,8 +100,10 @@ DeclarationScope const& Declaration::scope() const
 
 void Declaration::setScope(DeclarationScope& scope)
 {
-    if ( myScope && myScope != &scope )
-        throw std::runtime_error("declaration parent set twice");
+    if ( myScope && myScope != &scope ) {
+        if ( myScope->declaration()->kind() != DeclKind::Template )
+            throw std::runtime_error("declaration parent set twice");
+    }
 
     myScope = &scope;
 }
@@ -668,11 +670,9 @@ void ProcedureParameter::addConstraint(Expression const& expr)
 // ProcedureDeclaration
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
-                                           Pattern&& pattern,
                                            std::unique_ptr<Expression> returnExpression,
                                            bool returnByReference)
     : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
-    , myPrototype(std::make_unique<PatternsPrototype>(std::move(pattern)))
     , myReturnExpression(std::move(returnExpression))
     , myReturnByReference(returnByReference)
 {
@@ -695,7 +695,6 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
 {
     Declaration::swap(rhs);
     using std::swap;
-    swap(myPrototype, rhs.myPrototype);
     swap(myReturnExpression, rhs.myReturnExpression);
     swap(myParameters, rhs.myParameters);
     swap(myResult, rhs.myResult);
@@ -705,7 +704,6 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
 void ProcedureDeclaration::io(IStream& stream) const
 {
     Declaration::io(stream);
-    stream.next("pattern", myPrototype);
     stream.next("params", myParameters);
     stream.next("return", myResult);
 
@@ -714,14 +712,12 @@ void ProcedureDeclaration::io(IStream& stream) const
 }
 
 IMPL_CLONE_BEGIN(ProcedureDeclaration, Declaration, Declaration)
-IMPL_CLONE_CHILD(myPrototype)
 IMPL_CLONE_CHILD(myReturnExpression)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
 IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
-IMPL_CLONE_REMAP(myPrototype)
 IMPL_CLONE_REMAP(myReturnExpression)
 IMPL_CLONE_REMAP(myParameters)
 IMPL_CLONE_REMAP(myResult)
@@ -746,7 +742,7 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     // Resolve prototype
     std::vector<PrimaryExpression*> primaryParams;
     if ( myParameters.empty() ) {
-        for ( auto& pattern : myPrototype->pattern() ) {
+        for ( auto& pattern : mySymbol->prototype().pattern() ) {
             auto p = pattern->as<PrimaryExpression>();
             if ( !p )
                 p = pattern->as<ReferenceExpression>();
@@ -768,8 +764,8 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
         }
     }
 
-    myPrototype->resolveSymbols(dgn, resolver);
-    resolver.addSupplementaryPrototype(*myPrototype);
+    mySymbol->resolveSymbols(dgn, resolver);
+    resolver.addSupplementaryPrototype(mySymbol->prototype());
 
     // Gather constraints on parameters
     for ( auto p : primaryParams ) {
@@ -815,21 +811,6 @@ void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
 
     myDefinition = std::move(definition);
     myDefinition->setDeclaration(this);
-}
-
-PatternsPrototype const& ProcedureDeclaration::prototype() const
-{
-    return *myPrototype;
-}
-
-Slice<Expression*> ProcedureDeclaration::pattern()
-{
-    return myPrototype->pattern();
-}
-
-Slice<Expression*> const ProcedureDeclaration::pattern() const
-{
-    return myPrototype->pattern();
 }
 
 Expression* ProcedureDeclaration::returnType()
@@ -1063,6 +1044,12 @@ void TemplateDeclaration::define(std::unique_ptr<TemplateScope> definition)
     myDefinition->setDeclaration(this);
 }
 
+void TemplateDeclaration::merge(TemplateDeclaration& rhs)
+{
+    myDefinition->merge(*rhs.myDefinition);
+    rhs.myDefinition.reset();
+}
+
 //
 // Utilities
 
@@ -1135,8 +1122,8 @@ struct DeclarationPrinter
     {
         ast::print(stream, proc.symbol());
         stream << "(";
-        auto first = begin(proc.pattern());
-        auto last = end(proc.pattern());
+        auto first = begin(proc.symbol().prototype().pattern());
+        auto last = end(proc.symbol().prototype().pattern());
         if ( first != last )
             print(stream, **first);
 

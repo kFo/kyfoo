@@ -172,6 +172,16 @@ parseProcedureDeclaration(lexer::Scanner& scanner)
     return nullptr;
 }
 
+std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>>
+parseImplicitTemplateProcedureDeclaration(lexer::Scanner& scanner)
+{
+    ImplicitProcedureTemplateDeclaration grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return std::make_tuple(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "")), nullptr);
+}
+
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
 {
@@ -210,6 +220,18 @@ DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *procDecl);
         myScope->append(std::move(procDecl));
 
+        return std::make_tuple(true, std::move(newScopeParser));
+    }
+
+    auto templProcDecl = parseImplicitTemplateProcedureDeclaration(scanner);
+    if ( std::get<1>(templProcDecl) ) {
+        auto templDecl = std::make_unique<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
+        templDecl->define(std::make_unique<ast::TemplateScope>(*myScope, *templDecl));
+
+        auto newScopeParser = parseProcedureDefinition(dgn, scanner, *std::get<1>(templProcDecl));
+        templDecl->definition()->append(std::move(std::get<1>(templProcDecl)));
+
+        myScope->append(std::move(templDecl));
         return std::make_tuple(true, std::move(newScopeParser));
     }
 
