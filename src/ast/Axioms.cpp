@@ -212,9 +212,30 @@ bool AxiomsModule::init(Diagnostics& dgn)
                 for ( int i = PointerTemplate; i <= ArrayDynamicTemplate; ++decl, ++i )
                     myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
             }
-            else if ( sym.identifier().lexeme() == "add" ) {
-                for ( int i = Addu1; i < InstructionIntrinsicsCount; ++decl, ++i )
-                    myInstructionDecls[i] = (*decl)->as<ProcedureDeclaration>();
+
+            int i = Addu1;
+            while ( (*decl)->symbol().identifier().lexeme() == "add" ) {
+                auto defn = (*decl)->as<TemplateDeclaration>()->definition();
+                for ( auto& d : defn->childDeclarations() ) {
+                    myInstructionDecls[i] = d->as<ProcedureDeclaration>();
+                    ++i;
+                    ++decl;
+                }
+            }
+
+            i = Truncu1u8;
+            while ( (*decl)->symbol().identifier().lexeme() == "trunc" ) {
+                auto defn = (*decl)->as<TemplateDeclaration>()->definition();
+                for ( auto& d : defn->childDeclarations() ) {
+                    myInstructionDecls[i] = d->as<ProcedureDeclaration>();
+                    ++i;
+                    ++decl;
+                }
+            }
+
+            if ( (*decl)->symbol().identifier().lexeme() == "addr" ) {
+                auto defn = (*decl)->as<TemplateDeclaration>()->definition();
+                myInstructionDecls[Addr] = defn->childDeclarations()[0]->as<ProcedureDeclaration>();
             }
         }
 

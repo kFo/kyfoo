@@ -293,9 +293,13 @@ struct CodeGenPass
         // nop
     }
 
-    result_t declDataProduct(ast::DataProductDeclaration const&)
+    result_t declDataProduct(ast::DataProductDeclaration const& decl)
     {
         // todo
+        if ( auto defn = decl.definition() ) {
+            for ( auto c : defn->childDeclarations() )
+                dispatch(*c);
+        }
     }
 
     result_t declField(ast::DataProductDeclaration::Field const&)
@@ -311,9 +315,6 @@ struct CodeGenPass
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
         if ( !decl.symbol().prototype().isConcrete() )
-            return;
-
-        if ( !decl.prototype().isConcrete() )
             return;
 
         if ( sourceModule.axioms().isIntrinsic(decl) )
@@ -350,7 +351,7 @@ struct CodeGenPass
 
         fun->body = llvm::Function::Create(fun->proto,
                                            llvm::Function::ExternalLinkage, // todo
-                                           decl.symbol().identifier().lexeme(),
+                                           decl.scope().declaration()->symbol().identifier().lexeme(),
                                            module);
 
         if ( !decl.definition() )
@@ -404,9 +405,12 @@ struct CodeGenPass
         // nop
     }
 
-    result_t declTemplate(ast::TemplateDeclaration const&)
+    result_t declTemplate(ast::TemplateDeclaration const& decl)
     {
-        // todo
+        if ( auto defn = decl.definition() ) {
+            for ( auto c : defn->childDeclarations() )
+                dispatch(*c);
+        }
     }
 
 private:

@@ -246,7 +246,6 @@ struct SymbolDependencyBuilder
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
         traceSymbol();
-        tracePrototype(proc.prototype());
         if ( proc.returnType() )
             dispatch(*proc.returnType());
     }
