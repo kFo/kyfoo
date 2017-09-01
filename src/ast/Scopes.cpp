@@ -123,17 +123,19 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
     }
 
     // Resolve definitions
-    for ( auto& e : myDeclarations ) {
-        if ( isMacroDeclaration(e->kind()) )
-            continue;
+    for ( auto const& symGroup : tracker.groups ) {
+        for ( auto const& d : symGroup->declarations ) {
+            if ( isMacroDeclaration(d->kind()) )
+                continue;
 
-        if ( e->symbol().prototype().isConcrete() ) {
-            if ( auto proc = e->as<ProcedureDeclaration>() ) {
-                if ( proc->symbol().prototype().isConcrete() )
-                    proc->resolveSymbols(dgn);
-            }
-            else {
-                e->resolveSymbols(dgn);
+            if ( d->symbol().prototype().isConcrete() ) {
+                if ( auto proc = d->as<ProcedureDeclaration>() ) {
+                    if ( proc->symbol().prototype().isConcrete() )
+                        proc->resolveSymbols(dgn);
+                }
+                else {
+                    d->resolveSymbols(dgn);
+                }
             }
         }
     }
