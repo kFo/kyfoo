@@ -177,10 +177,8 @@ struct SymbolDependencyBuilder
 
     result_t exprSymbol(SymbolExpression const& s)
     {
-        if ( s.identifier().kind() == lexer::TokenKind::Identifier ) {
+        if ( s.identifier().kind() == lexer::TokenKind::Identifier )
             tracker.addDependency(decl, s.identifier().lexeme(), s.expressions().size());
-            return;
-        }
 
         for ( auto const& e : s.expressions() )
             dispatch(*e);
