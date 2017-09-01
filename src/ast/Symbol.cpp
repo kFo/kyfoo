@@ -360,7 +360,14 @@ void SymbolSpace::append(Context& ctx,
             return;
         }
         else if ( v.covariant() ) {
-            break;
+            i->instances.emplace_back(PatternsDecl{&prototype, &declaration});
+            return;
+        }
+        else if ( v.contravariant() ) {
+            auto proto = i->proto;
+            i->proto = {&prototype, &declaration};
+            i->instances.insert(begin(i->instances), proto);
+            return;
         }
     }
 
