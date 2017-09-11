@@ -5,11 +5,11 @@ Kyfoo is compiled, statically typed, and far from complete. Did I mention that k
 
 # Building
 ## Requirements
-- [LLVM 4.0](http://releases.llvm.org/download.html#4.0.0)
+- [LLVM 5.0](http://releases.llvm.org/download.html#5.0.0)
 - [Visual Studio 2017](https://www.visualstudio.com/downloads)
 
 ## Instructions
-1. [Build LLVM 4.0](http://llvm.org/docs/CMake.html).
+1. [Build LLVM 5.0](http://llvm.org/docs/CMake.html).
 2. Change vc15/local.props properties *LLVM_LIB_PATH* and *LLVM_INCLUDE_PATH* to point to your local LLVM lib and include directories.
 3. Build with vc15/kyfoo.sln solution from Visual Studio 2017.
 
