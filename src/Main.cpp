@@ -122,12 +122,23 @@ int analyzeModule(kyfoo::ast::Module& m, bool treeDump)
     return EXIT_SUCCESS;
 }
 
-int codegenModule(kyfoo::Diagnostics& dgn, kyfoo::codegen::LLVMGenerator& gen, kyfoo::ast::Module const& m)
+int codegenModule(kyfoo::Diagnostics& dgn,
+                  kyfoo::codegen::LLVMGenerator& gen,
+                  kyfoo::ast::Module const& m,
+                  bool writeIR)
 {
     kyfoo::StopWatch sw;
+
+    auto IRFilepath = [](std::experimental::filesystem::path p) {
+        return p.replace_extension(".ll");
+    };
+
     try {
         gen.generate(m);
-        gen.write(m, kyfoo::codegen::toObjectFilepath(m.path()));
+        if ( writeIR )
+            gen.writeIR(m, IRFilepath(m.path()));
+        else
+            gen.write(m, kyfoo::codegen::toObjectFilepath(m.path()));
     }
     catch (kyfoo::Diagnostics*) {
         // Handled below
@@ -152,6 +163,7 @@ enum Options
     None          = 0,
     TreeDump      = 1 << 0,
     SemanticsOnly = 1 << 1,
+    IR            = 1 << 2,
 };
 
 int compile(std::vector<fs::path> const& files, std::uint32_t options)
@@ -271,9 +283,12 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
         if ( options & SemanticsOnly )
             continue;
 
-        if ( (ret = codegenModule(dgn, gen, *m)) != EXIT_SUCCESS )
+        if ( (ret = codegenModule(dgn, gen, *m, options & IR)) != EXIT_SUCCESS )
             return ret;
     }
+
+    // link
+    
 
     return ret;
 }
@@ -332,12 +347,12 @@ int main(int argc, char* argv[])
 
             return compile(files, options);
         }
-        else if ( command == "compile" || command == "c" ) {
+        else if ( command == "compile" || command == "c" || command == "ir" ) {
             std::vector<fs::path> files;
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 
-            return compile(files, None);
+            return compile(files, command == "ir" ? IR : None);
         }
 
         std::cout << "Unknown option: " << command << std::endl;

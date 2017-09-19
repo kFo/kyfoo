@@ -837,6 +837,25 @@ struct LLVMGenerator::LLVMState
         outFile.flush();
     }
 
+    void writeIR(ast::Module const& module, std::experimental::filesystem::path const& path)
+    {
+        auto sourcePath = module.path();
+        if ( sourcePath.empty() ) {
+            dgn.error(module) << "cannot determine output name for module";
+            return;
+        }
+
+        std::error_code ec;
+        llvm::raw_fd_ostream outFile(path.string(), ec, llvm::sys::fs::F_None);
+
+        if ( ec ) {
+            dgn.error(module) << "failed to write IR file: " << ec.message();
+            return;
+        }
+
+        customData(module)->module->print(outFile, nullptr);
+    }
+
     llvm::Type* intrinsicType(ast::Declaration const& decl)
     {
         if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
@@ -980,6 +999,11 @@ void LLVMGenerator::generate(ast::Module const& module)
 void LLVMGenerator::write(ast::Module const& module, std::experimental::filesystem::path const& path)
 {
     myImpl->write(module, path);
+}
+
+void LLVMGenerator::writeIR(ast::Module const& module, std::experimental::filesystem::path const& path)
+{
+    myImpl->writeIR(module, path);
 }
 
     } // namespace codegen
