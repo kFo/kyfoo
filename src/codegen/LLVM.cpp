@@ -650,7 +650,7 @@ private:
                 builder.CreateStore(toValue(builder, *exprs[1]), builder.CreateStructGEP(nullptr, v, 0));
 
                 // card
-                auto const len = exprs[1]->as<ast::PrimaryExpression>()->token().lexeme().size() + 1;
+                auto const len = sourceModule.interpretString(dgn, exprs[1]->as<ast::PrimaryExpression>()->token()).size() + 1;
                 auto lenVal = llvm::ConstantInt::get(toType(*axioms.intrinsic(ast::Sliceu8))->getContainedType(1), len);
                 builder.CreateStore(lenVal, builder.CreateStructGEP(nullptr, v, 1));
 
