@@ -45,6 +45,7 @@ public:
                                                                    ast::ProcedureDeclaration& declaration);
 
     std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner);
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseProcedural(Diagnostics& dgn, lexer::Scanner& scanner);
 
 protected:
     virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner);

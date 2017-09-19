@@ -9,6 +9,7 @@ namespace kyfoo {
     namespace ast {
 
 class DataSumDeclaration;
+class DataProductDeclaration;
 class ProcedureDeclaration;
 class ModuleSet;
 
@@ -22,6 +23,7 @@ enum DataSumIntrinsics
 
     UnsignedTemplate,
     SignedTemplate,
+    PointerTemplate,
 
     u1,
     u8,
@@ -36,15 +38,23 @@ enum DataSumIntrinsics
     i64,
     i128,
 
-    PointerTemplate,
+    DataSumInstrinsicsCount
+};
+
+enum DataProductIntrinsics
+{
     ArrayStaticTemplate,
     ArrayDynamicTemplate,
+    SliceTemplate,
+    Sliceu8,
 
-    DataSumInstrinsicsCount
+    DataProductIntrinsicsCount
 };
 
 enum InstructionIntrinsics
 {
+    Sliceu8_ctor,
+
     Addu1,
     Addu8,
     Addu16,
@@ -112,6 +122,7 @@ public:
      */
     /** { */
     DataSumDeclaration const* intrinsic(DataSumIntrinsics i) const;
+    DataProductDeclaration const* intrinsic(DataProductIntrinsics i) const;
     ProcedureDeclaration const* intrinsic(InstructionIntrinsics i) const;
     /** } */
 
@@ -120,6 +131,7 @@ public:
      */
     /** { */
     bool isIntrinsic(DataSumDeclaration const& decl) const;
+    bool isIntrinsic(DataProductDeclaration const& decl) const;
     bool isIntrinsic(ProcedureDeclaration const& decl) const;
     bool isIntrinsic(Declaration const& decl) const;
     /** } */
@@ -129,6 +141,7 @@ public:
      */
     /** { */
     bool isLiteral(DataSumDeclaration const& decl) const;
+    bool isLiteral(DataProductDeclaration const& decl) const;
     bool isLiteral(Declaration const& decl) const;
     /** } */
 
@@ -136,6 +149,7 @@ public:
 
 private:
     DataSumDeclaration const* myDataSumDecls[DataSumInstrinsicsCount];
+    DataProductDeclaration const* myDataProductDecls[DataProductIntrinsicsCount];
     ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
 
 private:

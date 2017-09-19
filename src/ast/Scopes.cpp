@@ -188,12 +188,12 @@ LookupHit DeclarationScope::findEquivalent(Diagnostics& dgn, SymbolReference con
  * mytype<"str">
  * \endcode
  */
-LookupHit DeclarationScope::findCovariant(Diagnostics& dgn, SymbolReference const& sym)
+LookupHit DeclarationScope::findOverload(Diagnostics& dgn, SymbolReference const& sym) const
 {
     LookupHit hit;
     auto symSpace = findSymbolSpace(dgn, sym.name());
     if ( symSpace ) {
-        auto t = symSpace->findCovariant(dgn, sym.pattern());
+        auto t = symSpace->findOverload(dgn, sym.pattern());
         hit.lookup(symSpace, t.instance ? t.instance : t.parent);
     }
 
@@ -270,7 +270,7 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
     return true;
 }
 
-SymbolSpace const* DeclarationScope::findSymbolSpace(Diagnostics&, std::string const& name) const
+SymbolSpace* DeclarationScope::findSymbolSpace(Diagnostics&, std::string const& name) const
 {
     auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
     auto symSet = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
@@ -278,11 +278,6 @@ SymbolSpace const* DeclarationScope::findSymbolSpace(Diagnostics&, std::string c
         return &*symSet;
 
     return nullptr;
-}
-
-SymbolSpace* DeclarationScope::findSymbolSpace(Diagnostics& dgn, std::string const& name)
-{
-    return const_cast<SymbolSpace*>(const_cast<DeclarationScope const*>(this)->findSymbolSpace(dgn, name));
 }
 
 Module& DeclarationScope::module()

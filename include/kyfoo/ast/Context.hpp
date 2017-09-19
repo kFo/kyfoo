@@ -31,7 +31,7 @@ public:
     virtual Module const& module() const = 0;
 
     virtual LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchCovariant(Diagnostics& dgn, SymbolReference const& symbol) = 0;
+    virtual LookupHit matchOverload(Diagnostics& dgn, SymbolReference const& symbol) = 0;
 };
 
 class ScopeResolver : public IResolver
@@ -52,7 +52,7 @@ public:
     Module const& module() const;
 
     LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const override;
-    LookupHit matchCovariant(Diagnostics& dgn, SymbolReference const& symbol) override;
+    LookupHit matchOverload(Diagnostics& dgn, SymbolReference const& symbol) override;
 
 public:
     void addSupplementaryPrototype(PatternsPrototype const& proto);
@@ -85,7 +85,7 @@ public:
     Error& error(Declaration const& decl);
     std::size_t errorCount() const;
 
-    LookupHit matchCovariant(SymbolReference const& sym) const;
+    LookupHit matchOverload(SymbolReference const& sym) const;
 
     IResolver* changeResolver(IResolver& resolver);
     void rewrite(std::unique_ptr<Expression> expr);

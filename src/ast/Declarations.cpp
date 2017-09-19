@@ -740,26 +740,45 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     Context ctx(dgn, resolver);
 
     // Resolve prototype
+    auto const& id = symbol().identifier();
+
+    auto thisType = outerDataDeclaration(*this);
+
     std::vector<PrimaryExpression*> primaryParams;
     if ( myParameters.empty() ) {
-        for ( auto& pattern : mySymbol->prototype().pattern() ) {
-            auto p = pattern->as<PrimaryExpression>();
-            if ( !p )
-                p = pattern->as<ReferenceExpression>();
+        if ( thisType ) {
+            myThisExpr = std::make_unique<PrimaryExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this"));
+            myThisExpr->addConstraint(std::make_unique<PrimaryExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this_t")));
+            myThisExpr->constraints()[0]->setDeclaration(*thisType);
 
-            if ( p ) {
-                if ( p->token().kind() != lexer::TokenKind::Identifier )
+            myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(myThisExpr->token()), *this));
+            myThisExpr->setDeclaration(*myParameters.back());
+
+            primaryParams.push_back(myThisExpr.get());
+        }
+
+        for ( auto& pattern : mySymbol->prototype().pattern() ) {
+            auto expr = pattern;
+            if ( auto a = pattern->as<ApplyExpression>() ) {
+                if ( a->expressions().size() != 1 )
                     continue;
 
-                auto hit = ctx.matchCovariant(SymbolReference(p->token().lexeme()));
-                if ( !hit )
-                    hit = ctx.matchCovariant(p->token().lexeme());
+                expr = a->expressions()[0];
+            }
 
-                if ( !hit ) {
-                    primaryParams.push_back(p);
-                    myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this));
-                    p->setDeclaration(*myParameters.back());
-                }
+            auto p = expr->as<PrimaryExpression>();
+            if ( !p ) p = expr->as<ReferenceExpression>();
+            if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
+                continue;
+
+            auto hit = ctx.matchOverload(SymbolReference(p->token().lexeme()));
+            if ( !hit )
+                hit = ctx.matchOverload(p->token().lexeme());
+
+            if ( !hit ) {
+                primaryParams.push_back(p);
+                myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this));
+                p->setDeclaration(*myParameters.back());
             }
         }
     }
@@ -782,13 +801,22 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
             p->resolveSymbols(dgn);
 
     // Resolve return
+    if ( isCtor(*this) || isDtor(*this) ) {
+        if ( myReturnExpression ) {
+            ctx.error(*myReturnExpression) << "ctor/dtor cannot have a return type";
+            return;
+        }
+
+        myReturnExpression = std::make_unique<TupleExpression>(TupleKind::Open, std::vector<std::unique_ptr<Expression>>());
+    }
+
     if ( !myReturnExpression ) {
         ctx.error(symbol().identifier()) << "inferred return type not implemented";
         return;
     }
 
     ctx.resolveExpression(myReturnExpression);
-    myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token(lexer::TokenKind::Identifier, symbol().identifier().line(), symbol().identifier().column(), "result")), *this);
+    myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")), *this);
     myResult->addConstraint(*myReturnExpression);
 
     myResult->resolveSymbols(dgn);
@@ -1065,6 +1093,19 @@ bool isDataDeclaration(DeclKind kind)
     return false;
 }
 
+bool isCallableDeclaration(DeclKind kind)
+{
+    switch ( kind ) {
+    case DeclKind::DataProduct:
+    case DeclKind::DataSum:
+    case DeclKind::DataSumCtor:
+    case DeclKind::Procedure:
+        return true;
+    }
+
+    return false;
+}
+
 bool isMacroDeclaration(DeclKind kind)
 {
     switch (kind) {
@@ -1078,6 +1119,29 @@ bool isMacroDeclaration(DeclKind kind)
 bool hasIndirection(DeclKind kind)
 {
     return isMacroDeclaration(kind) || kind == DeclKind::SymbolVariable;
+}
+
+TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc)
+{
+    return proc.scope().declaration()->as<TemplateDeclaration>();
+}
+
+bool isCtor(ProcedureDeclaration const& proc)
+{
+    auto templ = parentTemplate(proc);
+    if ( !templ )
+        return false;
+
+    return templ->symbol().identifier().lexeme() == "ctor";
+}
+
+bool isDtor(ProcedureDeclaration const& proc)
+{
+    auto templ = parentTemplate(proc);
+    if ( !templ )
+        return false;
+
+    return templ->symbol().identifier().lexeme() == "dtor";
 }
 
 template <typename Dispatch>
@@ -1120,7 +1184,9 @@ struct DeclarationPrinter
 
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
-        ast::print(stream, proc.symbol());
+        if ( auto templ = parentTemplate(proc) )
+            print(stream, templ->symbol());
+
         stream << "(";
         auto first = begin(proc.symbol().prototype().pattern());
         auto last = end(proc.symbol().prototype().pattern());

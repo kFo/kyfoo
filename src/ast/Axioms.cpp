@@ -1,6 +1,7 @@
 auto source = R"axioms(
 :| unsigned<\n : integer>
 :| signed<unsigned<\n : integer>>
+:| pointer<\T>
 
 u1   = unsigned<1  >
 u8   = unsigned<8  >
@@ -15,13 +16,23 @@ i32  = signed<u32 >
 i64  = signed<u64 >
 i128 = signed<u128>
 
-:| pointer<\T>
+ascii = slice<u8>
 
 :& array<\T, \card : integer>
 
 :& array<\T>
     base : pointer T
     card : size_t
+
+:& slice<\T>
+    base : pointer T
+    card : size_t
+
+:& slice<u8>
+    base : pointer u8
+    card : size_t
+
+    ctor(s : string)
 
 wordSize = 64
 size_t = unsigned<wordSize>
@@ -111,6 +122,11 @@ DataSumDeclaration const* AxiomsModule::intrinsic(DataSumIntrinsics i) const
     return myDataSumDecls[i];
 }
 
+DataProductDeclaration const* AxiomsModule::intrinsic(DataProductIntrinsics i) const
+{
+    return myDataProductDecls[i];
+}
+
 ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) const
 {
     return myInstructionDecls[i];
@@ -120,6 +136,15 @@ bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 {
     for ( std::size_t i = 0; i < DataSumInstrinsicsCount; ++i )
         if ( myDataSumDecls[i] == &decl )
+            return true;
+
+    return false;
+}
+
+bool AxiomsModule::isIntrinsic(DataProductDeclaration const& decl) const
+{
+    for ( std::size_t i = 0; i < DataProductIntrinsicsCount; ++i )
+        if ( myDataProductDecls[i] == &decl )
             return true;
 
     return false;
@@ -147,8 +172,17 @@ bool AxiomsModule::isIntrinsic(Declaration const& decl) const
 
 bool AxiomsModule::isLiteral(DataSumDeclaration const& decl) const
 {
-    for ( std::size_t i = EmptyLiteralType; i <= PointerNullLiteralType; ++i )
+    for ( std::size_t i = 0; i < DataSumInstrinsicsCount; ++i )
         if ( myDataSumDecls[i] == &decl )
+            return true;
+
+    return false;
+}
+
+bool AxiomsModule::isLiteral(DataProductDeclaration const& decl) const
+{
+    for ( std::size_t i = 0; i < DataProductIntrinsicsCount; ++i )
+        if ( myDataProductDecls[i] == &decl )
             return true;
 
     return false;
@@ -158,6 +192,8 @@ bool AxiomsModule::isLiteral(Declaration const& decl) const
 {
     if ( auto ds = decl.as<DataSumDeclaration>() )
         return isLiteral(*ds);
+    else if ( auto dp = decl.as<DataProductDeclaration>() )
+        return isLiteral(*dp);
 
     return false;
 }
@@ -200,44 +236,54 @@ bool AxiomsModule::init(Diagnostics& dgn)
         myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent(dgn, "i64" ).decl())->as<DataSumDeclaration>();
         myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent(dgn, "i128").decl())->as<DataSumDeclaration>();
 
+        myDataProductDecls[Sliceu8] = resolveIndirections(scope()->findEquivalent(dgn, "ascii").decl())->as<DataProductDeclaration>();
+
         auto childDecls = scope()->childDeclarations();
-        for ( auto decl = begin(childDecls); decl != end(childDecls); ++decl )
-        {
-            auto const& sym = (*decl)->symbol();
-            if ( sym.identifier().lexeme() == "unsigned" ) {
-                for ( int i = UnsignedTemplate; i <= SignedTemplate; ++decl, ++i )
-                    myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
-            }
-            else if ( sym.identifier().lexeme() == "pointer" ) {
-                for ( int i = PointerTemplate; i <= ArrayDynamicTemplate; ++decl, ++i )
-                    myDataSumDecls[i] = (*decl)->as<DataSumDeclaration>();
-            }
+        auto decl = begin(childDecls) + (UnsignedTemplate - EmptyLiteralType);
+        for ( int i = UnsignedTemplate; i <= PointerTemplate; ++i )
+            myDataSumDecls[i] = (*decl++)->as<DataSumDeclaration>();
 
-            int i = Addu1;
-            while ( (*decl)->symbol().identifier().lexeme() == "add" ) {
-                auto defn = (*decl)->as<TemplateDeclaration>()->definition();
-                for ( auto& d : defn->childDeclarations() ) {
-                    myInstructionDecls[i] = d->as<ProcedureDeclaration>();
-                    ++i;
-                    ++decl;
-                }
-            }
+        while ( (*decl)->symbol().identifier().lexeme() != "array" )
+            ++decl;
 
-            i = Truncu1u8;
-            while ( (*decl)->symbol().identifier().lexeme() == "trunc" ) {
-                auto defn = (*decl)->as<TemplateDeclaration>()->definition();
-                for ( auto& d : defn->childDeclarations() ) {
-                    myInstructionDecls[i] = d->as<ProcedureDeclaration>();
-                    ++i;
-                    ++decl;
-                }
-            }
+        for ( int i = ArrayStaticTemplate; i < DataProductIntrinsicsCount; ++i )
+            myDataProductDecls[i] = (*decl++)->as<DataProductDeclaration>();
 
-            if ( (*decl)->symbol().identifier().lexeme() == "addr" ) {
-                auto defn = (*decl)->as<TemplateDeclaration>()->definition();
-                myInstructionDecls[Addr] = defn->childDeclarations()[0]->as<ProcedureDeclaration>();
+        while ( (*decl)->symbol().identifier().lexeme() != "add" )
+            ++decl;
+
+        int i = Addu1;
+        while ( (*decl)->symbol().identifier().lexeme() == "add" ) {
+            auto defn = (*decl)->as<TemplateDeclaration>()->definition();
+            for ( auto& d : defn->childDeclarations() ) {
+                myInstructionDecls[i] = d->as<ProcedureDeclaration>();
+                ++i;
+                ++decl;
             }
         }
+
+        i = Truncu1u8;
+        while ( (*decl)->symbol().identifier().lexeme() == "trunc" ) {
+            auto defn = (*decl)->as<TemplateDeclaration>()->definition();
+            for ( auto& d : defn->childDeclarations() ) {
+                myInstructionDecls[i] = d->as<ProcedureDeclaration>();
+                ++i;
+                ++decl;
+            }
+        }
+
+        if ( (*decl)->symbol().identifier().lexeme() == "addr" ) {
+            auto defn = (*decl)->as<TemplateDeclaration>()->definition();
+            myInstructionDecls[Addr] = defn->childDeclarations()[0]->as<ProcedureDeclaration>();
+        }
+
+        myInstructionDecls[Sliceu8_ctor] = myDataProductDecls[Sliceu8]
+                                               ->definition()
+                                               ->childDeclarations()[2]
+                                               ->as<TemplateDeclaration>()
+                                               ->definition()
+                                               ->childDeclarations()[0]
+                                               ->as<ProcedureDeclaration>();
 
         buildMetaData();
 

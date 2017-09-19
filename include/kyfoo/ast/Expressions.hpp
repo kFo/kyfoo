@@ -9,6 +9,10 @@ namespace kyfoo {
     class Diagnostics;
     class Error;
 
+    namespace codegen {
+        struct CustomData;
+    }
+
     namespace ast {
 
 class Context;
@@ -70,7 +74,7 @@ public:
 public:
     Kind kind() const;
     Declaration const* declaration() const;
-    void setDeclaration(Declaration& decl);
+    void setDeclaration(Declaration const& decl);
 
     Slice<Expression*> constraints();
     const Slice<Expression*> constraints() const;
@@ -78,12 +82,19 @@ public:
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
 
+    codegen::CustomData* codegenData();
+    codegen::CustomData* codegenData() const;
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data);
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
+
 private:
     Kind myKind;
 
 protected:
     std::vector<std::unique_ptr<Expression>> myConstraints;
     Declaration const* myDeclaration = nullptr;
+
+    mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
 
 class PrimaryExpression : public Expression

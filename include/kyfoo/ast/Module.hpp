@@ -97,6 +97,7 @@ public:
     bool imports(Module* module) const;
     bool parsed() const;
 
+    std::string const& interpretString(Diagnostics& dgn, lexer::Token const& token) const;
     Slice<Declaration const*> templateInstantiations() const;
 
     codegen::CustomData* codegenData() const;
@@ -109,7 +110,8 @@ protected:
     std::unique_ptr<DeclarationScope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;
 
-    std::vector<Module*> myImports;
+    mutable std::vector<Module*> myImports;
+    mutable std::map<std::string const*, std::string> myStrings;
 
     mutable std::unique_ptr<codegen::CustomData> myCodegenData;
 };

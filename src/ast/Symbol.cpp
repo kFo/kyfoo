@@ -1,5 +1,8 @@
 #include <kyfoo/ast/Symbol.hpp>
 
+#include <algorithm>
+#include <tuple>
+
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
@@ -300,6 +303,54 @@ SymbolReference::pattern_t const& SymbolReference::pattern() const
 }
 
 //
+// CandidateSet
+
+bool CandidateSet::empty() const
+{
+    return myCandidates.empty();
+}
+
+std::vector<Candidate>::const_iterator CandidateSet::begin() const
+{
+    return myCandidates.begin();
+}
+
+std::vector<Candidate>::const_iterator CandidateSet::end() const
+{
+    return myCandidates.end();
+}
+
+Candidate const& CandidateSet::operator[](std::size_t index) const
+{
+    return myCandidates[index];
+}
+
+Candidate& CandidateSet::operator[](std::size_t index)
+{
+    return myCandidates[index];
+}
+
+void CandidateSet::append(VarianceResult const& v, Prototype& proto, binding_set_t&& bindings)
+{
+    decltype(Candidate::rank) r;
+    if ( v.exact() )
+        r = bindings.empty() ? Candidate::Exact : Candidate::Parametric;
+    else if ( v.covariant() )
+        r = Candidate::Covariant;
+    else
+        throw std::runtime_error("invalid candidate match");
+
+    auto lt = [](Candidate const& lhs, Candidate const& rhs) {
+        auto const& lid = lhs.proto->proto.decl->symbol().identifier();
+        auto const& rid = rhs.proto->proto.decl->symbol().identifier();
+        return std::make_tuple(lhs.rank, lid.line(), lid.column())
+             < std::make_tuple(rhs.rank, rid.line(), rid.column());
+    };
+    Candidate c{ r, &proto, std::move(bindings) };
+    myCandidates.emplace(upper_bound(begin(), end(), c, lt), std::move(c));
+}
+
+//
 // SymbolSpace
 
 SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string const& name)
@@ -339,7 +390,7 @@ std::string const& SymbolSpace::name() const
     return myName;
 }
 
-Slice<SymbolSpace::Prototype> SymbolSpace::prototypes() const
+Slice<Prototype> SymbolSpace::prototypes() const
 {
     return myPrototypes;
 }
@@ -348,30 +399,13 @@ void SymbolSpace::append(Context& ctx,
                          PatternsPrototype const& prototype,
                          Declaration& declaration)
 {
-    auto i = begin(myPrototypes);
-    for ( ; i != end(myPrototypes); ++i ) {
-        if ( prototype.pattern().size() < i->proto.params->pattern().size() )
-            break;
-
-        auto v = variance(ctx, i->proto.params->pattern(), prototype.pattern());
-        if ( v.equivalent() ) {
-            auto& err = ctx.error(declaration) << "matches existing declaration";
-            err.see(*i->proto.decl);
-            return;
-        }
-        else if ( v.covariant() ) {
-            i->instances.emplace_back(PatternsDecl{&prototype, &declaration});
-            return;
-        }
-        else if ( v.contravariant() ) {
-            auto proto = i->proto;
-            i->proto = {&prototype, &declaration};
-            i->instances.insert(begin(i->instances), proto);
-            return;
-        }
+    if ( auto decl = findEquivalent(ctx.diagnostics(), prototype.pattern()) ) {
+        auto& err = ctx.error(declaration) << "matches existing declaration";
+        err.see(*decl);
+        return;
     }
 
-    myPrototypes.insert(i, Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
+    myPrototypes.push_back(Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
 }
 
 Declaration const* SymbolSpace::findEquivalent(Diagnostics& dgn,
@@ -393,27 +427,40 @@ Declaration* SymbolSpace::findEquivalent(Diagnostics& dgn,
     return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(dgn, paramlist));
 }
 
-SymbolSpace::DeclInstance
-SymbolSpace::findCovariant(Diagnostics& dgn,
-                           pattern_t const& paramlist)
+CandidateSet SymbolSpace::findCandidates(Diagnostics& dgn, pattern_t const& paramlist)
 {
+    CandidateSet ret;
     ScopeResolver resolver(*myScope);
     Context ctx(dgn, resolver);
     for ( auto& e : myPrototypes ) {
         binding_set_t bindings;
-        if ( variance(ctx, bindings, e.proto.params->pattern(), paramlist) ) {
-            if ( e.proto.params->isConcrete() )
-                return { e.proto.decl, nullptr };
-
-            for ( auto p : paramlist )
-                if ( hasIndirection(resolveIndirections(p)->declaration()->kind()) )
-                    return { e.proto.decl, nullptr };
-
-            return instantiate(ctx, e, std::move(bindings));
-        }
+        if ( auto v = variance(ctx, bindings, e.proto.params->pattern(), paramlist) )
+            ret.append(v, e, std::move(bindings));
     }
 
-    return { nullptr, nullptr };
+    return ret;
+}
+
+SymbolSpace::DeclInstance
+SymbolSpace::findOverload(Diagnostics& dgn,
+                          pattern_t const& paramlist)
+{
+    ScopeResolver resolver(*myScope);
+    Context ctx(dgn, resolver);
+    
+    auto cset = findCandidates(dgn, paramlist);
+    if ( cset.empty() )
+        return { nullptr, nullptr };
+
+    auto& c = cset[0];
+    if ( c.proto->proto.params->isConcrete() )
+        return { c.proto->proto.decl, nullptr };
+
+    for ( auto param : paramlist )
+        if ( hasIndirection(resolveIndirections(param)->declaration()->kind()) )
+            return { c.proto->proto.decl, nullptr };
+
+    return instantiate(ctx, *c.proto, std::move(c.bindings));
 }
 
 SymbolSpace::DeclInstance

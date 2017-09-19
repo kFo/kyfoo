@@ -369,7 +369,7 @@ class ProcedureDeclaration : public Declaration
 {
 public:
     ProcedureDeclaration(Symbol&& symbol,
-                         std::unique_ptr<ast::Expression> returnExpression,
+                         std::unique_ptr<Expression> returnExpression,
                          bool returnByReference);
 
 protected:
@@ -415,6 +415,8 @@ private:
     bool myReturnByReference = false;
 
     std::unique_ptr<ProcedureScope> myDefinition;
+
+    std::unique_ptr<PrimaryExpression> myThisExpr;
 };
 
 class ImportDeclaration : public Declaration
@@ -534,8 +536,12 @@ private:
 #undef X
 
 bool isDataDeclaration(DeclKind kind);
+bool isCallableDeclaration(DeclKind kind);
 bool isMacroDeclaration(DeclKind kind);
 bool hasIndirection(DeclKind kind);
+TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc);
+bool isCtor(ProcedureDeclaration const& proc);
+bool isDtor(ProcedureDeclaration const& proc);
 
 std::ostream& print(std::ostream& stream, Declaration const& decl);
 

@@ -178,15 +178,14 @@ public:
     void merge(DeclarationScope& rhs);
 
     LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
-    LookupHit findCovariant(Diagnostics& dgn, SymbolReference const& sym);
+    LookupHit findOverload(Diagnostics& dgn, SymbolReference const& sym) const;
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string const& name);
     bool addSymbol(Diagnostics& dgn,
                    Symbol const& sym,
                    Declaration& decl);
 
-    SymbolSpace* findSymbolSpace(Diagnostics& dgn, std::string const& name);
-    SymbolSpace const* findSymbolSpace(Diagnostics& dgn, std::string const& name) const;
+    SymbolSpace* findSymbolSpace(Diagnostics& dgn, std::string const& name) const;
 
     Module& module();
     Module const& module() const;
@@ -205,8 +204,8 @@ protected:
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
 
-    std::vector<SymbolSpace> mySymbols;
-    std::map<std::string, ImportDeclaration*> myImports;
+    mutable std::vector<SymbolSpace> mySymbols;
+    mutable std::map<std::string, ImportDeclaration*> myImports;
 };
 
 class DataSumScope : public DeclarationScope

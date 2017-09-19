@@ -219,7 +219,7 @@ void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
 enum Variance
 {
     Covariant,
-    Equivalent,
+    Exact,
     Contravariant,
     Invariant,
 };
@@ -234,8 +234,8 @@ public:
     {
     }
 
-    bool covariant() const { return myVariance <= Equivalent; }
-    bool equivalent() const { return myVariance == Equivalent; }
+    bool covariant() const { return myVariance <= Exact; }
+    bool exact() const { return myVariance == Exact; }
     bool contravariant() const { return myVariance == Contravariant; }
     bool invariant() const { return myVariance == Invariant; }
 
@@ -258,6 +258,10 @@ Expression const* resolveIndirections(Expression const* expr);
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 DeclarationScope const* memberScope(Declaration const& decl);
+Declaration const* outerDataDeclaration(Declaration const& decl);
+Declaration* outerDataDeclaration(Declaration& decl);
+Declaration const* callingContextDeclaration(Declaration const& decl);
+Declaration* callingContextDeclaration(Declaration& decl);
 
 // todo: functor like ValueMatcher
 bool matchEquivalent(Context& ctx, Expression const& lhs, Expression const& rhs);

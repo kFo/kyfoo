@@ -27,6 +27,7 @@ class PrimaryExpression;
 class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
+class VarianceResult;
 
 using binding_set_t = FlatMap<SymbolVariable const*, Expression const*>;
 using Pattern = std::vector<std::unique_ptr<Expression>>;
@@ -140,20 +141,48 @@ private:
     pattern_t myPattern;
 };
 
+struct PatternsDecl {
+    PatternsPrototype const* params;
+    Declaration const* decl;
+};
+
+struct Prototype {
+    PatternsDecl proto;
+    std::vector<PatternsDecl> instances;
+};
+
+struct Candidate
+{
+    enum {
+        Exact,
+        Parametric,
+        Covariant,
+    } rank;
+    Prototype* proto;
+    binding_set_t bindings;
+};
+
+class CandidateSet
+{
+public:
+    bool empty() const;
+    std::vector<Candidate>::const_iterator begin() const;
+    std::vector<Candidate>::const_iterator end() const;
+    Candidate const& operator[](std::size_t index) const;
+    Candidate& operator[](std::size_t index);
+
+    void append(VarianceResult const& v,
+                Prototype& proto,
+                binding_set_t&& bindings);
+
+private:
+    std::vector<Candidate> myCandidates;
+};
+
 class SymbolSpace
 {
 public:
     using pattern_t = SymbolReference::pattern_t;
-
-    struct PatternsDecl {
-        PatternsPrototype const* params;
-        Declaration const* decl;
-    };
-
-    struct Prototype {
-        PatternsDecl proto;
-        std::vector<PatternsDecl> instances;
-    };
 
     struct DeclInstance {
         Declaration const* parent;
@@ -183,7 +212,9 @@ public:
 
     Declaration const* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist) const;
     Declaration* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist);
-    DeclInstance findCovariant(Diagnostics& dgn, pattern_t const& paramlist);
+    
+    CandidateSet findCandidates(Diagnostics& dgn, pattern_t const& paramlist);
+    DeclInstance findOverload(Diagnostics& dgn, pattern_t const& paramlist);
 
 private:
     DeclInstance instantiate(Context& ctx,

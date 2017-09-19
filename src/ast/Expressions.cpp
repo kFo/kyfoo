@@ -11,6 +11,8 @@
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
+#include <kyfoo/codegen/Codegen.hpp>
+
 namespace kyfoo {
     namespace ast {
 
@@ -70,7 +72,7 @@ Declaration const* Expression::declaration() const
     return myDeclaration;
 }
 
-void Expression::setDeclaration(Declaration& decl)
+void Expression::setDeclaration(Declaration const& decl)
 {
     myDeclaration = &decl;
 }
@@ -83,6 +85,26 @@ Slice<Expression*> Expression::constraints()
 const Slice<Expression*> Expression::constraints() const
 {
     return myConstraints;
+}
+
+codegen::CustomData* Expression::codegenData()
+{
+    return myCodeGenData.get();
+}
+
+codegen::CustomData* Expression::codegenData() const
+{
+    return myCodeGenData.get();
+}
+
+void Expression::setCodegenData(std::unique_ptr<codegen::CustomData> data)
+{
+    myCodeGenData = std::move(data);
+}
+
+void Expression::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+{
+    myCodeGenData = std::move(data);
 }
 
 //
@@ -151,6 +173,7 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
 
     case lexer::TokenKind::String:
     {
+        ctx.module().interpretString(ctx.diagnostics(), myToken);
         myDeclaration = ctx.axioms().intrinsic(StringLiteralType);
         return;
     }
@@ -173,10 +196,9 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
             return;
         }
 
-        auto hit = ctx.matchCovariant(SymbolReference(myToken.lexeme()));
+        auto hit = ctx.matchOverload(SymbolReference(myToken.lexeme()));
         if ( !hit ) {
-            if ( !hit.symSpace() )
-                ctx.error(myToken) << "undeclared identifier";
+            ctx.error(myToken) << "undeclared identifier";
             return;
         }
 
@@ -243,7 +265,7 @@ void ReferenceExpression::resolveSymbols(Context& ctx)
     if ( myDeclaration )
         return;
 
-    auto hit = ctx.matchCovariant(SymbolReference(token().lexeme()));
+    auto hit = ctx.matchOverload(SymbolReference(token().lexeme()));
     if ( !hit ) {
         if ( !hit.symSpace() )
             ctx.error(token()) << "undeclared identifier";
@@ -481,94 +503,111 @@ IMPL_CLONE_REMAP_END
 
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
+    ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
+    flatten(next(begin(myExpressions)));
+
+    if ( !allResolved(slice(myExpressions, 1)) ) {
+        ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
+        return;
+    }
+
     auto subject = myExpressions.front()->as<PrimaryExpression>();
-    if ( !subject ) {
-        // explicit procedure lookup
-        ctx.resolveExpressions(myExpressions);
-        flatten();
+    if ( subject ) {
+        if ( subject->token().kind() != lexer::TokenKind::Identifier )
+            return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
 
-        if ( !allResolved(myExpressions) ) {
-            ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
-            return;
-        }
-    }
-    else {
-        // implicit procedure lookup
-        if ( !isIdentifier(subject->token().kind()) ) {
-            ctx.error(*this) << "procedure application must begin with an identifier";
-            return;
-        }
+        auto hit = ctx.matchOverload(SymbolReference(subject->token().lexeme()));
+        if ( !hit )
+            return ctx.rewrite(std::make_unique<SymbolExpression>(std::move(myExpressions)));
 
-        if ( subject->token().kind() == lexer::TokenKind::FreeVariable ) {
-            // defer symbol lookup until concrete expression is instantiated
-            return;
-        }
-
-        ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
-        flatten(next(begin(myExpressions)));
-
-        if ( !allResolved(slice(myExpressions, 1)) ) {
-            ctx.error(*this) << "compilation stopped due to prior unresolved symbols";
-            return;
-        }
-
-        SymbolReference sym(subject->token().lexeme(), slice(myExpressions, 1));
-
-        // Look for hit on symbol
-        auto hit = ctx.matchCovariant(sym);
-        if ( hit ) {
-            myDeclaration = hit.decl();
-            return;
-        }
-        else {
-            ctx.resolveExpression(myExpressions.front());
-            if ( !myExpressions.front()->declaration() ) {
-                auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
-                // todo: references to potential overloads
-                // todo: chained symbol sets
-                // todo: lookup failures are not returning symbol sets
-                if ( hit.symSpace() ) {
-                    for ( auto const& p : hit.symSpace()->prototypes() )
-                        err.see(*p.proto.decl);
-                }
-                return;
-            }
-        }
+        subject->setDeclaration(*hit.decl());
     }
 
-    // Treat subject as callable
+    ctx.resolveExpression(myExpressions.front());
+    if ( !myExpressions.front()->declaration() ) {
+        ctx.error(*myExpressions.front()) << "unresolved expressions";
+        return;
+    }
+
+    if ( !subject && myExpressions.size() == 1)
+        return ctx.rewrite(std::move(myExpressions.front()));
+
     LookupHit hit;
     for ( auto callable = myExpressions.front()->declaration(); ; ) {
-        if ( auto d = callable->as<DataSumDeclaration             >() ) hit = const_cast<DataSumDeclaration*    >(d)->definition()->findCovariant(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
-        if ( auto d = callable->as<DataProductDeclaration         >() ) hit = const_cast<DataProductDeclaration*>(d)->definition()->findCovariant(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
-        if ( auto d = callable->as<TemplateDeclaration            >() ) hit = const_cast<TemplateDeclaration*   >(d)->definition()->findCovariant(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+        if ( auto d = callable->as<DataSumDeclaration>() ) {
+            if ( myExpressions.size() == 1 )
+                return ctx.rewrite(std::move(myExpressions.front()));
 
-        if ( auto d = callable->as<DataSumDeclaration::Constructor>() ) { ctx.error(*myExpressions.front()) << "ds ctor not implemented"; return; }
+            auto& err = ctx.error(*myExpressions.front()) << "cannot be the subject of an apply-expression";
+            err.see(*d);
+            return;
+        }
+
+        if ( auto d = callable->as<DataProductDeclaration>() ) {
+            if ( auto defn = d->definition() ) {
+                hit = defn->findOverload(ctx.diagnostics(), SymbolReference("ctor"));
+                if ( hit ) {
+                    if ( auto decl = hit.as<TemplateDeclaration>() )
+                        hit = decl->definition()->findOverload(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+                }
+            }
+        }
+
+        if ( auto d = callable->as<TemplateDeclaration>() ) {
+            if ( auto defn = d->definition() )
+                hit = defn->findOverload(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+        }
+
+        if ( auto d = callable->as<DataSumDeclaration::Constructor>() ) {
+            ctx.error(*myExpressions.front()) << "ds ctor not implemented";
+            return;
+        }
+
         if ( auto d = callable->as<DataProductDeclaration::Field  >() ) { callable = d->constraint().declaration(); continue; }
         if ( auto d = callable->as<SymbolDeclaration              >() ) { callable = d->expression()->declaration(); continue; }
         if ( auto d = callable->as<ProcedureDeclaration           >() ) { callable = d->returnType()->declaration(); continue; }
         if ( auto d = callable->as<ProcedureParameter             >() ) { callable = d->dataType(); continue; }
         if ( auto d = callable->as<VariableDeclaration            >() ) { callable = d->dataType(); continue; }
         if ( auto d = callable->as<SymbolVariable                 >() ) { callable = d->boundExpression()->declaration(); continue; }
-        
-        if ( auto d = callable->as<ImportDeclaration              >() ) { ctx.error(*myExpressions.front()) << "cannot use import declaration in apply-expression"; return; }
+
+        if ( auto d = callable->as<ImportDeclaration              >() ) {
+            ctx.error(*myExpressions.front()) << "cannot use import declaration in apply-expression";
+            return;
+        }
 
         break;
     }
 
+    auto tryLowerSingle = [this, &ctx](Declaration const* decl) {
+        myDeclaration = decl;
+        if ( myExpressions.size() == 1 ) {
+            myExpressions.front()->setDeclaration(*myDeclaration);
+            ctx.rewrite(std::move(myExpressions.front()));
+        }
+    };
+
     if ( !hit ) {
-        auto& err = ctx.error(*this) << "does not match any symbol declarations or procedure overloads";
-        // todo: references to potential overloads
-        // todo: chained symbol sets
-        // todo: lookup failures are not returning symbol sets
+        // Look for hit on symbol
+        LookupHit symHit;
+        if ( subject ) {
+            SymbolReference sym(subject->token().lexeme(), slice(myExpressions, 1));
+            if ( symHit = ctx.matchOverload(sym) )
+                return tryLowerSingle(symHit.decl());
+        }
+
+        // Doesn't match either proc or sym
+        auto& err = ctx.error(*this) << "does not match any procedure overload or symbol declaration";
         if ( hit.symSpace() ) {
             for ( auto const& p : hit.symSpace()->prototypes() )
+                err.see(*p.proto.decl);
+
+            for ( auto const& p : symHit.symSpace()->prototypes() )
                 err.see(*p.proto.decl);
         }
         return;
     }
 
-    myDeclaration = hit.decl();
+    return tryLowerSingle(hit.decl());
 }
 
 /**
@@ -639,6 +678,9 @@ SymbolExpression::SymbolExpression(lexer::Token const& open,
 
 SymbolExpression::SymbolExpression(SymbolExpression const& rhs)
     : Expression(rhs)
+    , myIdentifier(rhs.myIdentifier)
+    , myOpenToken(rhs.myOpenToken)
+    , myCloseToken(rhs.myCloseToken)
 {
 }
 
@@ -655,7 +697,10 @@ void SymbolExpression::swap(SymbolExpression& rhs)
     Expression::swap(rhs);
 
     using std::swap;
+    swap(myIdentifier, rhs.myIdentifier);
     swap(myExpressions, rhs.myExpressions);
+    swap(myOpenToken, rhs.myOpenToken);
+    swap(myCloseToken, rhs.myCloseToken);
 }
 
 void SymbolExpression::io(IStream& stream) const
@@ -697,8 +742,8 @@ void SymbolExpression::resolveSymbols(Context& ctx)
     if ( !allResolved(myExpressions) )
         return;
 
-    SymbolReference sym(myIdentifier.lexeme().c_str(), myExpressions);
-    auto hit = ctx.matchCovariant(sym);
+    SymbolReference sym(myIdentifier.lexeme(), myExpressions);
+    auto hit = ctx.matchOverload(sym);
     if ( !hit ) {
         ctx.error(*this) << "undeclared symbol identifier";
         return;

@@ -249,7 +249,8 @@ struct ProcedureDeclaration : public
             }
         }
 
-        return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""), std::move(pattern)),
+        auto tok = factor<0>().token();
+        return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, tok.line(), tok.column(), ""), std::move(pattern)),
                                                            std::move(returnTypeExpression),
                                                            returnByReference);
     }

@@ -64,6 +64,7 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
     llvm::FunctionType* proto = nullptr;
     llvm::Function* body = nullptr;
+    std::vector<ast::ApplyExpression const*> tmpAggs;
 };
 
 template<>
@@ -90,8 +91,15 @@ struct LLVMCustomData<ast::DataProductDeclaration::Field> : public CustomData
     std::uint32_t index = 0;
 };
 
+template<>
+struct LLVMCustomData<ast::ApplyExpression> : public CustomData
+{
+    llvm::Value* tmpAggValue;
+};
+
 LLVMCustomData<ast::Module>* customData(ast::Module const& mod)
 {
+    // todo
     return static_cast<LLVMCustomData<ast::Module>*>(mod.codegenData());
 }
 
@@ -153,9 +161,15 @@ struct InitCodeGenPass
 {
     using result_t = void;
     Dispatcher& dispatch;
+    Diagnostics& dgn;
+    ast::Module const& mod;
 
-    InitCodeGenPass(Dispatcher& dispatch)
+    ast::ProcedureDeclaration const* procContext = nullptr;
+
+    InitCodeGenPass(Dispatcher& dispatch, Diagnostics& dgn, ast::Module const& mod)
         : dispatch(dispatch)
+        , dgn(dgn)
+        , mod(mod)
     {
     }
 
@@ -216,13 +230,22 @@ struct InitCodeGenPass
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureDeclaration>>());
 
+        auto last = procContext;
+        procContext = &decl;
+
         declProcedureParameter(*decl.result());
         for ( auto const& p : decl.parameters() )
             declProcedureParameter(*p);
 
-        if ( auto defn = decl.definition() )
+        if ( auto defn = decl.definition() ) {
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
+
+            for ( auto& e : defn->expressions() )
+                dispatch(*e);
+        }
+
+        procContext = last;
     }
 
     result_t declProcedureParameter(ast::ProcedureParameter const& decl)
@@ -256,6 +279,53 @@ struct InitCodeGenPass
         if ( auto defn = decl.definition() )
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
+    }
+
+    result_t exprPrimary(ast::PrimaryExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprReference(ast::ReferenceExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprTuple(ast::TupleExpression const& t)
+    {
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprApply(ast::ApplyExpression const& a)
+    {
+        if ( a.codegenData() )
+            return;
+
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+
+        auto proc = a.declaration()->as<ast::ProcedureDeclaration>();
+        if ( isCtor(*proc) ) {
+            if ( !procContext ) {
+                dgn.error(mod, a) << "does not occur in the context of a procedure";
+                dgn.die();
+            }
+
+            a.setCodegenData(std::make_unique<LLVMCustomData<ast::ApplyExpression>>());
+            customData(*procContext)->tmpAggs.push_back(&a);
+        }
+    }
+
+    result_t exprSymbol(ast::SymbolExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprDot(ast::DotExpression const& d)
+    {
+        for ( auto const& e : d.expressions() )
+            dispatch(*e);
     }
 };
 
@@ -317,7 +387,7 @@ struct CodeGenPass
         if ( !decl.symbol().prototype().isConcrete() )
             return;
 
-        if ( sourceModule.axioms().isIntrinsic(decl) )
+        if ( isIntrinsic(decl) )
             return;
 
         auto fun = customData(decl);
@@ -354,7 +424,8 @@ struct CodeGenPass
                                            decl.scope().declaration()->symbol().identifier().lexeme(),
                                            module);
 
-        if ( !decl.definition() )
+        auto defn = decl.definition();
+        if ( !defn )
             return;
 
         {
@@ -370,6 +441,22 @@ struct CodeGenPass
             if ( auto var = d->as<ast::VariableDeclaration>() ) {
                 customData(*var)->value = builder.CreateAlloca(toType(*var->dataType()));
             }
+        }
+
+        for ( auto& applyExpr : fun->tmpAggs ) {
+            auto proc = applyExpr->declaration()->as<ast::ProcedureDeclaration>();
+            llvm::Type* type = nullptr;
+            if ( isCtor(*proc) )
+                type = toType(*proc->parameters()[0]->dataType());
+            else
+                type = toType(*proc->result()->dataType());
+
+            if ( !type ) {
+                error(*applyExpr) << "has unknown type";
+                die();
+            }
+
+            customData(*applyExpr)->tmpAggValue = builder.CreateAlloca(type);
         }
 
         llvm::Value* lastInst = nullptr;
@@ -462,8 +549,7 @@ private:
                                                  p->token().lexeme());
                 }
                 else if ( ds == axioms.intrinsic(ast::StringLiteralType) ) {
-                    return llvm::ConstantDataArray::get(builder.getContext(),
-                                                        llvm::ArrayRef<std::uint8_t>(reinterpret_cast<std::uint8_t const*>(p->token().lexeme().c_str()), p->token().lexeme().size() + 1));
+                    return builder.CreateGlobalStringPtr(sourceModule.interpretString(dgn, p->token()));
                 }
             }
 
@@ -504,8 +590,18 @@ private:
                 }
             }
 
-            auto fun = customData(*a->declaration()->as<ast::ProcedureDeclaration>());
-            return builder.CreateCall(fun->body, params);
+            auto proc = a->declaration()->as<ast::ProcedureDeclaration>();
+            if ( !proc ) {
+                error(*a) << "expected apply-expression to refer to procedure-declaration";
+                die();
+            }
+
+            auto fun = customData(*proc);
+            auto callInst = builder.CreateCall(fun->body, params);
+            if ( isCtor(*proc) )
+                return customData(*a)->tmpAggValue;
+            
+            return callInst;
         }
         else if ( auto dot = expr.as<ast::DotExpression>() ) {
             llvm::Value* ret = nullptr;
@@ -527,6 +623,17 @@ private:
         return nullptr;
     }
 
+    bool isIntrinsic(ast::ProcedureDeclaration const& proc)
+    {
+        if ( sourceModule.axioms().isIntrinsic(proc) )
+            return true;
+
+        if ( auto pdecl = proc.scope().declaration() )
+            return pdecl == sourceModule.axioms().intrinsic(ast::Sliceu8);
+
+        return false;
+    }
+
     llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
                                       ast::Expression const& expr)
     {
@@ -535,7 +642,21 @@ private:
         if ( auto a = expr.as<ast::ApplyExpression>() ) {
             auto const& exprs = a->expressions();
             auto const decl = a->declaration();
-            if ( decl == axioms.intrinsic(ast::Addu1)
+
+            if ( decl == axioms.intrinsic(ast::Sliceu8_ctor) ) {
+                auto v = customData(*a)->tmpAggValue;
+
+                // base
+                builder.CreateStore(toValue(builder, *exprs[1]), builder.CreateStructGEP(nullptr, v, 0));
+
+                // card
+                auto const len = exprs[1]->as<ast::PrimaryExpression>()->token().lexeme().size() + 1;
+                auto lenVal = llvm::ConstantInt::get(toType(*axioms.intrinsic(ast::Sliceu8))->getContainedType(1), len);
+                builder.CreateStore(lenVal, builder.CreateStructGEP(nullptr, v, 1));
+
+                return builder.CreateLoad(v);
+            }
+            else if ( decl == axioms.intrinsic(ast::Addu1)
               || decl == axioms.intrinsic(ast::Addu8)
               || decl == axioms.intrinsic(ast::Addu16)
               || decl == axioms.intrinsic(ast::Addu32)
@@ -634,7 +755,7 @@ struct LLVMGenerator::LLVMState
         auto mdata = customData(module);
         mdata->module = std::make_unique<llvm::Module>(module.name(), *context);
 
-        ast::ShallowApply<InitCodeGenPass> init;
+        ast::ShallowApply<InitCodeGenPass> init(dgn, module);
         for ( auto d : module.scope()->childDeclarations() )
             init(*d);
 

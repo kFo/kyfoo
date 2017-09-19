@@ -393,7 +393,7 @@ struct MatchEquivalent
             return false;
         }
 
-        return variance(ctx, l.token(), r.token()).equivalent();
+        return variance(ctx, l.token(), r.token()).exact();
     }
 
     // Tuple match
@@ -453,7 +453,7 @@ bool matchEquivalent(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rh
 
 VarianceResult variance(Context&, lexer::Token const& target, lexer::Token const& query)
 {
-    return target.lexeme() == query.lexeme() ? Equivalent : Invariant;
+    return target.lexeme() == query.lexeme() ? Exact : Invariant;
 }
 
 VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query)
@@ -473,13 +473,18 @@ VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token co
         return Covariant;
     }
 
+    if ( query.kind() == lexer::TokenKind::String ) {
+        if ( &target == axioms.intrinsic(StringLiteralType) )
+            return Covariant;
+    }
+
     return Invariant;
 }
 
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
 {
     if ( &target == &query )
-        return Equivalent;
+        return Exact;
 
     if ( auto dsCtor = query.as<DataSumDeclaration::Constructor>() )
         return variance(ctx, target, *dsCtor->parent());
@@ -492,6 +497,9 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
 
     if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
         if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
+            if ( targetInteger->bits == queryInteger->bits )
+                return Exact;
+
             auto const targetBounds = bitsToBounds(targetInteger->bits);
             auto const queryBounds = bitsToBounds(queryInteger->bits);
 
@@ -524,8 +532,12 @@ VarianceResult variance(Context& ctx,
         if ( !decl )
             return nullptr;
 
-        if ( auto proc = decl->as<ProcedureDeclaration>() )
+        if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+            if ( isCtor(*proc) )
+                return outerDataDeclaration(*proc);
+
             return proc->result()->dataType();
+        }
 
         if ( auto param = decl->as<ProcedureParameter>() )
             return param->dataType();
@@ -580,7 +592,7 @@ VarianceResult variance(Context& ctx,
     else {
         // lhs is an identifier
         if ( auto symVar = targetDecl->as<SymbolVariable>() )
-            return bindSymbol(ctx, leftBindings, *symVar, rhs) ? Covariant : Invariant;
+            return bindSymbol(ctx, leftBindings, *symVar, rhs) ? Exact : Invariant;
 
         if ( rhsPrimary ) {
             if ( isLiteral(rhsPrimary->token().kind()) ) {
@@ -609,13 +621,17 @@ VarianceResult variance(Context& ctx,
     if ( size != rhs.size() )
         return Invariant;
 
+    auto ret = Exact;
     for ( std::size_t i = 0; i < size; ++i ) {
         auto v = variance(ctx, leftBindings, *lhs[i], *rhs[i]);
-        if ( !v.covariant() )
+        if ( !v )
             return v;
+
+        if ( !v.exact() )
+            ret = Covariant;
     }
 
-    return Covariant;
+    return ret;
 }
 
 VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs)
@@ -722,6 +738,42 @@ DeclarationScope const* memberScope(Declaration const& decl)
 
     // todo: imports
     return nullptr;
+}
+
+Declaration const* outerDataDeclaration(Declaration const& decl)
+{
+    for ( auto scope = &decl.scope(); scope; scope = scope->parent() ) {
+        if ( !scope->declaration() )
+            return nullptr;
+
+        if ( isDataDeclaration(scope->declaration()->kind()) )
+            return scope->declaration();
+    }
+
+    return nullptr;
+}
+
+Declaration* outerDataDeclaration(Declaration& decl)
+{
+    return const_cast<Declaration*>(outerDataDeclaration(const_cast<Declaration const&>(decl)));
+}
+
+Declaration const* callingContextDeclaration(Declaration const& decl)
+{
+    for ( auto scope = &decl.scope(); scope; scope = scope->parent() ) {
+        if ( !scope->declaration() )
+            return nullptr;
+
+        if ( isCallableDeclaration(scope->declaration()->kind()) )
+            return scope->declaration();
+    }
+
+    return nullptr;
+}
+
+Declaration* callingContextDeclaration(Declaration& decl)
+{
+    return const_cast<Declaration*>(callingContextDeclaration(const_cast<Declaration const&>(decl)));
 }
 
 template <typename Dispatcher>

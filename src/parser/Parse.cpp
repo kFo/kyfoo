@@ -210,12 +210,8 @@ DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& sca
 }
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
 {
-    auto nonProc = parseNonProcedural(dgn, scanner);
-    if ( std::get<0>(nonProc) )
-        return nonProc;
-
     if ( auto procDecl = parseProcedureDeclaration(scanner) ) {
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *procDecl);
         myScope->append(std::move(procDecl));
@@ -236,6 +232,16 @@ DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
     }
 
     return std::make_tuple(false, nullptr);
+}
+
+std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+{
+    auto ret = parseNonProcedural(dgn, scanner);
+    if ( std::get<0>(ret) )
+        return ret;
+
+    return parseProcedural(dgn, scanner);
 }
 
 std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics& dgn, lexer::Scanner& scanner)
@@ -314,7 +320,7 @@ DataProductScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         return std::make_tuple(true, std::move(newScopeParser));
     }
 
-    return std::make_tuple(false, nullptr);
+    return DeclarationScopeParser::parseNext(dgn, scanner);
 }
 
 ast::DataProductScope* DataProductScopeParser::scope()

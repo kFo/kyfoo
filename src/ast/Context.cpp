@@ -70,7 +70,7 @@ LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const
     return hit;
 }
 
-LookupHit ScopeResolver::matchCovariant(Diagnostics& dgn, SymbolReference const& symbol)
+LookupHit ScopeResolver::matchOverload(Diagnostics& dgn, SymbolReference const& symbol)
 {
     LookupHit hit = matchSupplementary(symbol);
 
@@ -85,7 +85,7 @@ LookupHit ScopeResolver::matchCovariant(Diagnostics& dgn, SymbolReference const&
     }
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findCovariant(dgn, symbol)) ) {
+        if ( hit.append(scope->findOverload(dgn, symbol)) ) {
             appendTemplate();
             return hit;
         }
@@ -101,7 +101,7 @@ LookupHit ScopeResolver::matchCovariant(Diagnostics& dgn, SymbolReference const&
     }
 
     for ( auto m : myScope->module().imports() ) {
-        if ( hit.append(m->scope()->findCovariant(dgn, symbol)) ) {
+        if ( hit.append(m->scope()->findOverload(dgn, symbol)) ) {
             appendTemplate();
             return hit;
         }
@@ -187,9 +187,9 @@ std::size_t Context::errorCount() const
     return myDiagnostics->errorCount();
 }
 
-LookupHit Context::matchCovariant(SymbolReference const& sym) const
+LookupHit Context::matchOverload(SymbolReference const& sym) const
 {
-    return myResolver->matchCovariant(*myDiagnostics, sym);
+    return myResolver->matchOverload(*myDiagnostics, sym);
 }
 
 IResolver* Context::changeResolver(IResolver& resolver)

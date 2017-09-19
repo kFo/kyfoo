@@ -15,12 +15,7 @@ struct Expression::impl : public
         for ( auto const& e : factor<0>().captures() )
             exprs.emplace_back(e.make());
 
-        std::unique_ptr<ast::Expression> expr;
-        if ( exprs.size() == 1 )
-            expr = std::move(exprs.front());
-        else
-            expr = std::make_unique<ast::ApplyExpression>(std::move(exprs));
-
+        auto expr = std::make_unique<ast::ApplyExpression>(std::move(exprs));
         if ( auto c = factor<1>().capture() )
             expr->addConstraint(c->factor<1>().make());
 
