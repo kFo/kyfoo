@@ -56,7 +56,7 @@ struct LLVMCustomData<ast::Module> : public CustomData
 template<>
 struct LLVMCustomData<ast::VariableDeclaration> : public CustomData
 {
-    llvm::Value* value = nullptr;
+    llvm::AllocaInst* inst = nullptr;
 };
 
 template<>
@@ -64,13 +64,12 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
     llvm::FunctionType* proto = nullptr;
     llvm::Function* body = nullptr;
-    std::vector<ast::ApplyExpression const*> tmpAggs;
 };
 
 template<>
 struct LLVMCustomData<ast::ProcedureParameter> : public CustomData
 {
-    llvm::Value* value = nullptr;
+    llvm::Argument* arg = nullptr;
 };
 
 template<>
@@ -92,9 +91,9 @@ struct LLVMCustomData<ast::DataProductDeclaration::Field> : public CustomData
 };
 
 template<>
-struct LLVMCustomData<ast::ApplyExpression> : public CustomData
+struct LLVMCustomData<ast::Expression> : public CustomData
 {
-    llvm::Value* tmpAggValue;
+    llvm::AllocaInst* inst = nullptr;
 };
 
 LLVMCustomData<ast::Module>* customData(ast::Module const& mod)
@@ -103,10 +102,20 @@ LLVMCustomData<ast::Module>* customData(ast::Module const& mod)
     return static_cast<LLVMCustomData<ast::Module>*>(mod.codegenData());
 }
 
+LLVMCustomData<ast::Expression>* customData(ast::Expression const& expr)
+{
+    return static_cast<LLVMCustomData<ast::Expression>*>(expr.codegenData());
+}
+
 template <typename T>
 LLVMCustomData<T>* customData(T const& decl)
 {
     return static_cast<LLVMCustomData<T>*>(decl.codegenData());
+}
+
+LLVMCustomData<ast::Expression>* customExprData(ast::Expression const& expr)
+{
+    return static_cast<LLVMCustomData<ast::Expression>*>(expr.codegenData());
 }
 
 int log2(std::uint32_t n)
@@ -240,9 +249,6 @@ struct InitCodeGenPass
         if ( auto defn = decl.definition() ) {
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
-
-            for ( auto& e : defn->expressions() )
-                dispatch(*e);
         }
 
         procContext = last;
@@ -279,53 +285,6 @@ struct InitCodeGenPass
         if ( auto defn = decl.definition() )
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
-    }
-
-    result_t exprPrimary(ast::PrimaryExpression const&)
-    {
-        // nop
-    }
-
-    result_t exprReference(ast::ReferenceExpression const&)
-    {
-        // nop
-    }
-
-    result_t exprTuple(ast::TupleExpression const& t)
-    {
-        for ( auto const& e : t.expressions() )
-            dispatch(*e);
-    }
-
-    result_t exprApply(ast::ApplyExpression const& a)
-    {
-        if ( a.codegenData() )
-            return;
-
-        for ( auto const& e : a.expressions() )
-            dispatch(*e);
-
-        auto proc = a.declaration()->as<ast::ProcedureDeclaration>();
-        if ( isCtor(*proc) ) {
-            if ( !procContext ) {
-                dgn.error(mod, a) << "does not occur in the context of a procedure";
-                dgn.die();
-            }
-
-            a.setCodegenData(std::make_unique<LLVMCustomData<ast::ApplyExpression>>());
-            customData(*procContext)->tmpAggs.push_back(&a);
-        }
-    }
-
-    result_t exprSymbol(ast::SymbolExpression const&)
-    {
-        // nop
-    }
-
-    result_t exprDot(ast::DotExpression const& d)
-    {
-        for ( auto const& e : d.expressions() )
-            dispatch(*e);
     }
 };
 
@@ -431,39 +390,32 @@ struct CodeGenPass
         {
             auto arg = fun->body->arg_begin();
             for ( auto const& p : decl.parameters() )
-                customData(*p)->value = &*(arg++);
+                customData(*p)->arg = &*(arg++);
         }
 
         auto bb = llvm::BasicBlock::Create(module->getContext(), "entry", fun->body);
         llvm::IRBuilder<> builder(bb);
 
-        for ( auto const& d : decl.definition()->childDeclarations() ) {
+        for ( auto const& d : defn->childDeclarations() ) {
             if ( auto var = d->as<ast::VariableDeclaration>() ) {
-                customData(*var)->value = builder.CreateAlloca(toType(*var->dataType()));
+                customData(*var)->inst = builder.CreateAlloca(toType(*var->dataType()));
             }
         }
 
-        for ( auto& applyExpr : fun->tmpAggs ) {
-            auto proc = applyExpr->declaration()->as<ast::ProcedureDeclaration>();
-            llvm::Type* type = nullptr;
-            if ( isCtor(*proc) )
-                type = toType(*proc->parameters()[0]->dataType());
-            else
-                type = toType(*proc->result()->dataType());
+        for ( auto const& stmt : defn->statements() ) {
+            for ( auto const& v : stmt.unnamedVariables() ) {
+                if ( !v.constraint().codegenData() )
+                    v.constraint().setCodegenData(std::make_unique<LLVMCustomData<ast::Expression>>());
 
-            if ( !type ) {
-                error(*applyExpr) << "has unknown type";
-                die();
+                customExprData(v.constraint())->inst = builder.CreateAlloca(toType(v.dataType()));
             }
-
-            customData(*applyExpr)->tmpAggValue = builder.CreateAlloca(type);
         }
 
         llvm::Value* lastInst = nullptr;
-        for ( auto const& e : decl.definition()->expressions() ) {
-            lastInst = toValue(builder, *e);
+        for ( auto const& stmt : defn->statements() ) {
+            lastInst = toValue(builder, stmt.expression());
             if ( !lastInst ) {
-                error(*e) << "invalid instruction";
+                error(stmt.expression()) << "invalid instruction";
                 die();
             }
         }
@@ -504,6 +456,11 @@ private:
     Error& error()
     {
         return dgn.error(sourceModule) << "codegen: ";
+    }
+
+    Error& error(ast::Declaration const& decl)
+    {
+        return dgn.error(sourceModule, decl) << "codegen: ";
     }
 
     Error& error(ast::Expression const& expr)
@@ -563,12 +520,12 @@ private:
 
             if ( auto param = decl->as<ast::ProcedureParameter>() ) {
                 auto pdata = customData(*param);
-                return pdata->value;
+                return pdata->arg;
             }
 
             if ( auto var = decl->as<ast::VariableDeclaration>() ) {
                 auto vdata = customData(*var);
-                return vdata->value;
+                return vdata->inst;
             }
 
             die("unhandled identifier");
@@ -599,7 +556,7 @@ private:
             auto fun = customData(*proc);
             auto callInst = builder.CreateCall(fun->body, params);
             if ( isCtor(*proc) )
-                return customData(*a)->tmpAggValue;
+                return customExprData(*a)->inst;
             
             return callInst;
         }
@@ -644,7 +601,7 @@ private:
             auto const decl = a->declaration();
 
             if ( decl == axioms.intrinsic(ast::Sliceu8_ctor) ) {
-                auto v = customData(*a)->tmpAggValue;
+                auto v = customExprData(*a)->inst;
 
                 // base
                 builder.CreateStore(toValue(builder, *exprs[1]), builder.CreateStructGEP(nullptr, v, 0));

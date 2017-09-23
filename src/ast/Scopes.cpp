@@ -4,6 +4,7 @@
 
 #include <kyfoo/Diagnostics.hpp>
 
+#include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
@@ -464,21 +465,32 @@ void ProcedureScope::swap(ProcedureScope& rhs)
 {
     DeclarationScope::swap(rhs);
     using std::swap;
-    swap(myExpressions, rhs.myExpressions);
+    swap(myStatements, rhs.myStatements);
 }
 
 void ProcedureScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
-    stream.next("expressions", myExpressions);
+    stream.openArray("statements");
+    for ( auto const& e : myStatements )
+        stream.next("", e.expression());
+    stream.closeArray();
 }
 
-IMPL_CLONE_BEGIN(ProcedureScope, DeclarationScope, DeclarationScope)
-IMPL_CLONE_CHILD(myExpressions)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ProcedureScope, DeclarationScope)
-IMPL_CLONE_REMAP(myExpressions)
-IMPL_CLONE_REMAP_END
+IMPL_CLONE(ProcedureScope)
+
+void ProcedureScope::cloneChildren(DeclarationScope& c, clone_map_t& map) const
+{
+    ProcedureScope& ps = static_cast<ProcedureScope&>(c);
+    for ( auto const& e : myStatements )
+        ps.myStatements.emplace_back(e.clone(map));
+}
+
+void ProcedureScope::remapReferences(clone_map_t const& map)
+{
+    for ( auto& e : myStatements )
+        e.remapReferences(map);
+}
 
 void ProcedureScope::resolveSymbols(Diagnostics& dgn)
 {
@@ -488,7 +500,8 @@ void ProcedureScope::resolveSymbols(Diagnostics& dgn)
     // Resolve expressions
     ScopeResolver resolver(*this);
     Context ctx(dgn, resolver);
-    ctx.resolveExpressions(myExpressions);
+    for ( auto& e : myStatements )
+        e.resolveSymbols(ctx);
 }
 
 ProcedureDeclaration* ProcedureScope::declaration()
@@ -498,17 +511,199 @@ ProcedureDeclaration* ProcedureScope::declaration()
 
 void ProcedureScope::append(std::unique_ptr<Expression> expression)
 {
-    myExpressions.emplace_back(std::move(expression));
+    myStatements.emplace_back(std::move(expression));
 }
 
-Slice<Expression*> ProcedureScope::expressions()
+Slice<ProcedureScope::Statement> const ProcedureScope::statements() const
 {
-    return myExpressions;
+    return myStatements;
 }
 
-const Slice<Expression*> ProcedureScope::expressions() const
+//
+// ProcedureScope::UnnamedVariable
+
+ProcedureScope::UnnamedVariable::UnnamedVariable(Expression const& expr,
+                                                 Declaration const& dataType)
+    : myExpression(&expr)
+    , myDataType(&dataType)
 {
-    return myExpressions;
+}
+
+ProcedureScope::UnnamedVariable::~UnnamedVariable() = default;
+
+void ProcedureScope::UnnamedVariable::remapReferences(clone_map_t const& map)
+{
+    const_cast<Expression*>(myExpression)->remapReferences(map);
+    const_cast<Declaration*>(myDataType)->remapReferences(map);
+}
+
+Expression const& ProcedureScope::UnnamedVariable::constraint() const
+{
+    return *myExpression;
+}
+
+Declaration const& ProcedureScope::UnnamedVariable::dataType() const
+{
+    return *myDataType;
+}
+
+//
+// ProcedureScope::Statement
+
+ProcedureScope::Statement::Statement(std::unique_ptr<Expression> expr)
+    : myExpression(std::move(expr))
+{
+}
+
+ProcedureScope::Statement::Statement(Statement const& rhs)
+    : myUnnamedVariables(rhs.myUnnamedVariables)
+{
+}
+
+ProcedureScope::Statement& ProcedureScope::Statement::operator = (Statement const& rhs)
+{
+    Statement(rhs).swap(*this);
+    return *this;
+}
+
+ProcedureScope::Statement::Statement(Statement&& rhs)
+    : myExpression(std::move(rhs.myExpression))
+    , myUnnamedVariables(std::move(rhs.myUnnamedVariables))
+{
+}
+
+ProcedureScope::Statement& ProcedureScope::Statement::operator = (Statement&& rhs)
+{
+    this->~Statement();
+    new (this) Statement(std::move(rhs));
+    return *this;
+}
+
+ProcedureScope::Statement::~Statement() = default;
+
+void ProcedureScope::Statement::swap(Statement& rhs)
+{
+    using std::swap;
+    swap(myExpression, rhs.myExpression);
+    swap(myUnnamedVariables, rhs.myUnnamedVariables);
+}
+
+ProcedureScope::Statement ProcedureScope::Statement::clone(clone_map_t& map) const
+{
+    Statement ret(std::unique_ptr<Expression>(myExpression->clone(map)));
+    ret.myUnnamedVariables = myUnnamedVariables;
+    return std::move(ret);
+}
+
+void ProcedureScope::Statement::remapReferences(clone_map_t const& map)
+{
+    myExpression->remapReferences(map);
+    for ( auto& e : myUnnamedVariables )
+        e.remapReferences(map);
+}
+
+Expression const& ProcedureScope::Statement::expression() const
+{
+    return *myExpression;
+}
+
+Slice<ProcedureScope::UnnamedVariable> const ProcedureScope::Statement::unnamedVariables() const
+{
+    return myUnnamedVariables;
+}
+
+void ProcedureScope::Statement::resolveSymbols(Context& ctx)
+{
+    ctx.resolveExpression(myExpression);
+    scanUnnamed(ctx.module());
+}
+
+void ProcedureScope::Statement::appendUnnamed(Expression const& expr)
+{
+    auto decl = resolveIndirections(expr.declaration());
+    if ( !decl )
+        throw std::runtime_error("unnamed instance must have a type");
+
+    Declaration const* dt = decl;
+    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+        if ( isCtor(*proc) )
+            dt = proc->parameters()[0]->dataType();
+        else
+            dt = proc->returnType()->declaration();
+    }
+
+    myUnnamedVariables.emplace_back(expr, *dt);
+}
+
+template <typename Dispatcher>
+struct UnnamedScan
+{
+    using result_t = void;
+    Dispatcher& dispatch;
+    Module const& module;
+    ProcedureScope::Statement* stmt;
+
+    UnnamedScan(Dispatcher& dispatch, Module const& mod, ProcedureScope::Statement& stmt)
+        : dispatch(dispatch)
+        , module(mod)
+        , stmt(&stmt)
+    {
+    }
+
+    void scan(Expression const& expr)
+    {
+        auto proc = expr.declaration()->as<ProcedureDeclaration>();
+        if ( !proc )
+            return;
+
+        auto const hasReturn = proc->returnType()->declaration() != module.axioms().intrinsic(EmptyLiteralType);
+        if ( isCtor(*proc) || hasReturn )
+            stmt->appendUnnamed(expr);
+    }
+
+    result_t exprPrimary(PrimaryExpression const& p)
+    {
+        scan(p);
+    }
+
+    result_t exprReference(ReferenceExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+
+        scan(a);
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        for ( auto const& e : s.expressions() )
+            dispatch(*e);
+
+        scan(s);
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        for ( auto const& e : d.expressions() )
+            dispatch(*e);
+    }
+};
+
+void ProcedureScope::Statement::scanUnnamed(Module const& module)
+{
+    ShallowApply<UnnamedScan> op(module, *this);
+    op(*myExpression);
 }
 
 //

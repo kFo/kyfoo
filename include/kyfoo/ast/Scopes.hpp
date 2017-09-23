@@ -276,6 +276,59 @@ private:
 class ProcedureScope : public DeclarationScope
 {
 public:
+    class UnnamedVariable
+    {
+    public:
+        UnnamedVariable(Expression const& expr,
+                        Declaration const& dataType);
+        ~UnnamedVariable();
+
+    public:
+        void remapReferences(clone_map_t const& map);
+
+    public:
+        Expression const& constraint() const;
+        Declaration const& dataType() const;
+
+    protected:
+        Expression const* myExpression = nullptr;
+        Declaration const* myDataType = nullptr;
+    };
+
+    class Statement
+    {
+    public:
+        explicit Statement(std::unique_ptr<Expression> expr);
+
+    protected:
+        Statement(Statement const& rhs);
+        Statement& operator = (Statement const& rhs);
+
+    public:
+        Statement(Statement&& rhs);
+        Statement& operator = (Statement&& rhs);
+
+        ~Statement();
+        void swap(Statement& rhs);
+
+    public:
+        Statement clone(clone_map_t& map) const;
+        void remapReferences(clone_map_t const& map);
+
+    public:
+        Expression const& expression() const;
+        Slice<UnnamedVariable> const unnamedVariables() const;
+
+        void resolveSymbols(Context& ctx);
+        void appendUnnamed(Expression const& expr);
+        void scanUnnamed(Module const& module);
+
+    private:
+        std::unique_ptr<Expression> myExpression;
+        std::vector<UnnamedVariable> myUnnamedVariables;
+    };
+
+public:
     ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration);
 
@@ -304,11 +357,10 @@ public:
     void append(std::unique_ptr<Expression> expression);
 
 public:
-    Slice<Expression*> expressions();
-    const Slice<Expression*> expressions() const;
+    Slice<Statement> const statements() const;
 
 private:
-    std::vector<std::unique_ptr<Expression>> myExpressions;
+    std::vector<Statement> myStatements;
 };
 
 class TemplateScope : public DeclarationScope
