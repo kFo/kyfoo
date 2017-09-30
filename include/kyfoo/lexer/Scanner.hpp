@@ -38,6 +38,8 @@ protected:
 
     char nextChar();
     char peekChar();
+    void unget();
+    void putback(char c);
 
     Token indent(line_index_t line, column_index_t column, indent_width_t indent);
     void bumpLine();

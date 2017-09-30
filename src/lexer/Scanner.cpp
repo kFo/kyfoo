@@ -22,9 +22,19 @@ namespace
         return false;
     }
 
-    bool isLineComment(char c)
+    bool isLineComment(char a, char b)
     {
-        return c == ';';
+        return a == '/' && b == '/';
+    }
+
+    bool isMultiLineCommentStart(char a, char b)
+    {
+        return a == '/' && b == '*';
+    }
+
+    bool isMultiLineCommentEnd(char a, char b)
+    {
+        return isMultiLineCommentStart(b, a);
     }
 
     bool isLineBreak(char c)
@@ -192,6 +202,18 @@ char Scanner::peekChar()
     return static_cast<char>(myStream.peek());
 }
 
+void Scanner::unget()
+{
+    --myColumn;
+    myStream.unget();
+}
+
+void Scanner::putback(char c)
+{
+    --myColumn;
+    myStream.putback(c);
+}
+
 Token Scanner::indent(line_index_t line, column_index_t column, indent_width_t indent)
 {
     indent_width_t current = 0;
@@ -238,30 +260,12 @@ Token Scanner::readNext()
 #define TOK(t) Token(TokenKind::##t, myLine, column, lexeme)
 #define TOK2(t, l) Token(TokenKind::##t, myLine, column, l)
 
-    char c = peekChar();
+    char c = nextChar();
     std::string lexeme;
     column_index_t column = myColumn;
 
     if ( myStream.eof() )
         return TOK(EndOfFile);
-
-    auto takeSpaces = [this, &c] {
-        indent_width_t spaces = 0;
-        while ( isSpace(c) ) {
-            ++spaces;
-            nextChar();
-            c = peekChar();
-        }
-
-        if ( isLineComment(c) ) {
-            do {
-                nextChar();
-                c = peekChar();
-            } while ( !isLineBreak(c) );
-        }
-
-        return spaces;
-    };
 
     auto takeLineBreaks = [this, &c] {
         int ret = 0;
@@ -269,13 +273,53 @@ Token Scanner::readNext()
             if ( c == '\r' && peekChar() == '\n' )
                 nextChar();
 
-            nextChar();
+            c = nextChar();
             bumpLine();
             ++ret;
-            c = peekChar();
         }
 
         return ret;
+    };
+
+    auto takeSpaces = [this, &c, &takeLineBreaks] {
+        indent_width_t spaces = 0;
+        while ( isSpace(c) ) {
+            ++spaces;
+            c = nextChar();
+        }
+
+        if ( isLineComment(c, peekChar()) ) {
+            nextChar();
+            do {
+                c = nextChar();
+            } while ( !isLineBreak(c) );
+        }
+        
+        if ( isMultiLineCommentStart(c, peekChar()) ) {
+            int open = 1;
+            nextChar();
+            c = nextChar();
+            while ( open ) {
+                if ( myStream.eof() )
+                    break;
+
+                if ( isLineBreak(c) )
+                    takeLineBreaks();
+
+                if ( isMultiLineCommentStart(c, peekChar()) ) {
+                    ++open;
+                    nextChar();
+                }
+                else if ( isMultiLineCommentEnd(c, peekChar()) ) {
+                    --open;
+                    nextChar();
+                }
+
+                c = nextChar();
+            }
+        }
+
+        return spaces;
     };
 
     auto spaces = takeSpaces();
@@ -293,9 +337,11 @@ Token Scanner::readNext()
         if ( myStream.eof() )
             return TOK(EndOfFile);
 
+        unget();
         return indent(myLine, myColumn, spaces);
     }
     else if ( spaces && column == 1 ) {
+        unget();
         return indent(myLine, myColumn, spaces);
     }
 
@@ -303,13 +349,13 @@ Token Scanner::readNext()
     column = myColumn;
 
     if ( isIdentifierStart(c) ) {
-        do lexeme += nextChar();
-        while ( isIdentifierMid(peekChar()) );
+        lexeme += c;
+        while ( isIdentifierMid(peekChar()) )
+            lexeme += nextChar();
 
         return Token(identifierKind(lexeme), myLine, column, lexeme);
     }
     else if ( isFreeVariable(c) ) {
-        nextChar();
         if ( !isIdentifierStart(peekChar()) )
             return TOK2(Undefined, "\\");
 
@@ -319,124 +365,108 @@ Token Scanner::readNext()
         return TOK(FreeVariable);
     }
     else if ( isNumber(c) ) {
-        do lexeme += nextChar();
-        while ( isNumber(peekChar()) );
+        lexeme += c;
+        while ( isNumber(peekChar()) )
+            lexeme += nextChar();
 
-        if ( peekChar() == '.' ) {
-            c = nextChar();
-            if ( !isNumber(peekChar()) ) {
-                myStream.unget();
+        if ( peekChar() != '.' )
+            return TOK(Integer);
 
-                return TOK(Integer);
+        nextChar();
+        if ( !isNumber(peekChar()) ) {
+            unget();
+            return TOK(Integer);
+        }
+
+        lexeme += '.';
+        while ( isNumber(peekChar()) )
+            lexeme += nextChar();
+
+        char e = peekChar();
+        if ( e == 'e' || e == 'E' ) {
+            nextChar();
+            c = peekChar();
+            if ( !isNumber(c) ) {
+                if ( c != '-' && c != '+' ) {
+                    unget(); // e
+                    return TOK(Rational);
+                }
+
+                c = nextChar();
+                if ( !isNumber(peekChar()) ) {
+                    putback(e);
+                    putback(c);
+                    return TOK(Rational);
+                }
+
+                lexeme += e;
+                lexeme += c;
+            }
+            else {
+                lexeme += e;
             }
 
-            lexeme += '.';
             do lexeme += nextChar();
             while ( isNumber(peekChar()) );
-
-            c = peekChar();
-            if ( c == 'e' || c == 'E' ) {
-                char e = nextChar();
-                c = peekChar();
-                if ( !isNumber(c) ) {
-                    if ( c != '-' && c != '+' ) {
-                        myStream.unget(); // e
-
-                        return TOK(Rational);
-                    }
-
-                    c = nextChar();
-                    if ( !isNumber(peekChar()) ) {
-                        myStream.unget(); // e
-                        myStream.unget(); // c
-
-                        return TOK(Rational);
-                    }
-
-                    lexeme += e;
-                    lexeme += c;
-                }
-                else {
-                    lexeme += e;
-                }
-
-                do lexeme += nextChar();
-                while ( isNumber(peekChar()) );
-
-                return TOK(Rational);
-            }
 
             return TOK(Rational);
         }
 
-        return TOK(Integer);
+        return TOK(Rational);
     }
     else if ( c == '\'' ) {
-        do lexeme += nextChar();
-        while ( peekChar() != '\'' );
+        lexeme += c;
+        while ( peekChar() != '\'' )
+            lexeme += nextChar();
 
         lexeme += nextChar();
 
         return TOK(String);
     }
     else if ( c == '"' ) {
-        do lexeme += nextChar();
-        while ( peekChar() != '"' );
+        lexeme += c;
+        while ( peekChar() != '"' )
+            lexeme += nextChar();
 
         lexeme += nextChar();
 
         return TOK(String);
     }
     else if ( c == '.' ) {
-        c = nextChar();
         if ( peekChar() == '.' ) {
-            c = nextChar();
-
+            nextChar();
             return TOK2(Range, "..");
         }
 
         return TOK2(Dot, ".");
     }
     else if ( c == '=' ) {
-        c = nextChar();
-
         if ( peekChar() == '>' ) {
             nextChar();
-
             return TOK2(Yield, "=>");
         }
 
         return TOK2(Equal, "=");
     }
     else if ( c == '-' ) {
-        c = nextChar();
-
         if ( peekChar() == '>' ) {
             nextChar();
-
             return TOK2(Map, "->");
         }
 
         return TOK2(Minus, "-");
     }
     else if ( c == ':' ) {
-        c = nextChar();
-
         if ( peekChar() == '|' ) {
             nextChar();
-
             return TOK2(ColonPipe, ":|");
         }
-
-        if ( peekChar() == '&' ) {
+        else if ( peekChar() == '&' ) {
             nextChar();
-
             return TOK2(ColonAmpersand, ":&");
         }
-
-        if ( peekChar() == '=' ) {
+        else if ( peekChar() == '=' ) {
             nextChar();
-
             return TOK2(ColonEqual, ":=");
         }
 
@@ -445,7 +475,6 @@ Token Scanner::readNext()
 
     // Single characters
 
-    c = nextChar();
     switch ( c ) {
     case '(': return TOK2(OpenParen   , "(");
     case ')': return TOK2(CloseParen  , ")");

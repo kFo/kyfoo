@@ -5,9 +5,9 @@ WriteFile(hFile : u32, lpBuffer : pointer u8, nNumberOfBytesToWrite : u32, lpNum
 HANDLE = u32
 BOOL = u32
 
-STD_INPUT_HANDLE  = 4294967286 ; -10
-STD_OUTPUT_HANDLE = 4294967285 ; -11
-STD_ERROR_HANDLE  = 4294967284 ; -12
+STD_INPUT_HANDLE  = 4294967286 // -10
+STD_OUTPUT_HANDLE = 4294967285 // -11
+STD_ERROR_HANDLE  = 4294967284 // -12
 
 WriteWrapper(str : ascii) : () =>
     := written : u32 = 0
