@@ -1,10 +1,22 @@
-WriteFile(handle : u32, buffer : pointer u8, len : u32, written : pointer u32, overlapped : pointer<()>) : u32
+ExitProcess(uExitCode : u32) : ()
+GetStdHandle(nStdHandle : HANDLE) : HANDLE
+WriteFile(hFile : u32, lpBuffer : pointer u8, nNumberOfBytesToWrite : u32, lpNumberOfBytesWritten : pointer u32, lpOverlapped : pointer<()>) : BOOL
 
-stdout = 1
+HANDLE = u32
+BOOL = u32
 
-WriteWrapper(str : array<u8>) : () =>
-    written : u32 = 0
-    WriteFile(stdout, str.base, str.card, addr written, null)
+STD_INPUT_HANDLE  = 4294967286 ; -10
+STD_OUTPUT_HANDLE = 4294967285 ; -11
+STD_ERROR_HANDLE  = 4294967284 ; -12
+
+WriteWrapper(str : ascii) : () =>
+    := written : u32 = 0
+    WriteFile(GetStdHandle STD_OUTPUT_HANDLE, str.base, trunc<u32> str.card, addr written, null)
 
 ftest(x : i32, y : i32) : i32 =>
+    WriteWrapper(ascii "hello world!\n")
     add (add x y) y
+
+start() : () =>
+    ftest(1, 2)
+    ExitProcess 42
