@@ -152,6 +152,7 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Fabrication.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp" />

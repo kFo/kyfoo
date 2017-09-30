@@ -153,7 +153,7 @@ struct SymbolDependencyBuilder
 
     result_t exprReference(ReferenceExpression const& r)
     {
-        return exprPrimary(r);
+        return dispatch(r.expression());
     }
 
     result_t exprTuple(TupleExpression const& t)

@@ -548,6 +548,7 @@ private:
 #undef X
 
 bool isDataDeclaration(DeclKind kind);
+bool isMemoryDeclaration(DeclKind kind);
 bool isCallableDeclaration(DeclKind kind);
 bool isMacroDeclaration(DeclKind kind);
 bool hasIndirection(DeclKind kind);

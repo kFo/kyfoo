@@ -215,13 +215,14 @@ void PrimaryExpression::setFreeVariable(Declaration const* decl)
 //
 // ReferenceExpression
 
-ReferenceExpression::ReferenceExpression(lexer::Token const& token)
-    : PrimaryExpression(Expression::Kind::Reference, token)
+ReferenceExpression::ReferenceExpression(std::unique_ptr<Expression> expression)
+    : Expression(Expression::Kind::Reference)
+    , myExpression(std::move(expression))
 {
 }
 
 ReferenceExpression::ReferenceExpression(ReferenceExpression const& rhs)
-    : PrimaryExpression(rhs)
+    : Expression(rhs)
 {
 }
 
@@ -235,17 +236,21 @@ ReferenceExpression::~ReferenceExpression() = default;
 
 void ReferenceExpression::swap(ReferenceExpression& rhs)
 {
-    PrimaryExpression::swap(rhs);
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myExpression, rhs.myExpression);
 }
 
 void ReferenceExpression::io(IStream& stream) const
 {
-    PrimaryExpression::io(stream);
+    stream.next("expr", myExpression);
 }
 
-IMPL_CLONE_BEGIN(ReferenceExpression, PrimaryExpression, Expression)
+IMPL_CLONE_BEGIN(ReferenceExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ReferenceExpression, Expression)
+IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP_END
 
 void ReferenceExpression::resolveSymbols(Context& ctx)
@@ -253,13 +258,26 @@ void ReferenceExpression::resolveSymbols(Context& ctx)
     if ( myDeclaration )
         return;
 
-    auto hit = ctx.matchOverload(SymbolReference(token().lexeme()));
-    if ( !hit ) {
-        ctx.error(token()) << "undeclared identifier";
+    ctx.resolveExpression(myExpression);
+    if ( ctx.errorCount() )
+        return;
+
+    if ( !isMemoryDeclaration(myExpression->declaration()->kind()) ) {
+        ctx.error(*this) << "reference-expressions can only apply to expressions with storage";
         return;
     }
 
-    myDeclaration = hit.decl();
+    myDeclaration = myExpression->declaration();
+}
+
+Expression const& ReferenceExpression::expression() const
+{
+    return *myExpression;
+}
+
+Expression& ReferenceExpression::expression()
+{
+    return *myExpression;
 }
 
 //
@@ -1032,7 +1050,7 @@ struct FrontExpression
 
     result_t exprReference(ReferenceExpression const& r)
     {
-        return exprPrimary(r);
+        return dispatch(r.expression());
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -1109,7 +1127,7 @@ struct PrintOperator
     result_t exprReference(ReferenceExpression const& r)
     {
         stream << "=";
-        return exprPrimary(r);
+        return dispatch(r.expression());
     }
 
     result_t exprTuple(TupleExpression const& t)

@@ -54,10 +54,10 @@ struct Primary : public
 struct Reference : public
     g::Or<g::And<equal, id>, Primary>
 {
-    std::unique_ptr<ast::PrimaryExpression> make() const
+    std::unique_ptr<ast::Expression> make() const
     {
         if ( index() == 0 )
-            return std::make_unique<ast::ReferenceExpression>(term<0>().factor<1>().token());
+            return std::make_unique<ast::ReferenceExpression>(std::make_unique<ast::PrimaryExpression>(term<0>().factor<1>().token()));
         else
             return term<1>().make();
     }

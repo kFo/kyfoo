@@ -126,10 +126,10 @@ private:
     lexer::Token myToken;
 };
 
-class ReferenceExpression : public PrimaryExpression
+class ReferenceExpression : public Expression
 {
 public:
-    explicit ReferenceExpression(lexer::Token const& token);
+    explicit ReferenceExpression(std::unique_ptr<Expression> expression);
 
 protected:
     ReferenceExpression(ReferenceExpression const& rhs);
@@ -148,6 +148,13 @@ public:
     DECL_CLONE_ALL(Expression)
 protected:
     void resolveSymbols(Context& ctx) override;
+
+public:
+    Expression const& expression() const;
+    Expression& expression();
+
+private:
+    std::unique_ptr<Expression> myExpression;
 };
 
 class TupleExpression : public Expression

@@ -656,6 +656,7 @@ ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
 
 ProcedureDeclaration::ProcedureDeclaration(ProcedureDeclaration const& rhs)
     : Declaration(rhs)
+    , myOrdinals(rhs.myOrdinals)
 {
 }
 
@@ -672,7 +673,9 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
     Declaration::swap(rhs);
     using std::swap;
     swap(myReturnExpression, rhs.myReturnExpression);
+    swap(myThisExpr, rhs.myThisExpr);
     swap(myParameters, rhs.myParameters);
+    swap(myOrdinals, rhs.myOrdinals);
     swap(myResult, rhs.myResult);
     swap(myDefinition, rhs.myDefinition);
 }
@@ -689,12 +692,14 @@ void ProcedureDeclaration::io(IStream& stream) const
 
 IMPL_CLONE_BEGIN(ProcedureDeclaration, Declaration, Declaration)
 IMPL_CLONE_CHILD(myReturnExpression)
+IMPL_CLONE_CHILD(myThisExpr)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
 IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
 IMPL_CLONE_REMAP(myReturnExpression)
+IMPL_CLONE_REMAP(myThisExpr)
 IMPL_CLONE_REMAP(myParameters)
 IMPL_CLONE_REMAP(myResult)
 IMPL_CLONE_REMAP(myDefinition)
@@ -715,22 +720,21 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
     ScopeResolver resolver(scope());
     Context ctx(dgn, resolver);
 
-    // Resolve prototype
+    // Parameter deduction (step #1/2)
     auto const& id = symbol().identifier();
-
-    auto thisType = outerDataDeclaration(*this);
-
-    std::vector<PrimaryExpression*> primaryParams;
-    if ( myParameters.empty() ) {
+    auto const deduceParameters = myParameters.empty();
+    if ( deduceParameters ) {
+        auto thisType = outerDataDeclaration(*this);
         if ( thisType ) {
-            myThisExpr = std::make_unique<ReferenceExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this"));
+            auto thisToken = lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this");
+            myThisExpr = std::make_unique<ReferenceExpression>(std::make_unique<PrimaryExpression>(thisToken));
             myThisExpr->addConstraint(std::make_unique<PrimaryExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this_t")));
             myThisExpr->constraints()[0]->setDeclaration(*thisType);
 
-            myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(myThisExpr->token()), *this, ProcedureParameter::ByReference));
+            myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(thisToken), *this, ProcedureParameter::ByReference));
             myThisExpr->setDeclaration(*myParameters.back());
-
-            primaryParams.push_back(myThisExpr.get());
+            for ( auto const& c : myThisExpr->constraints() )
+                myParameters.back()->addConstraint(*c);
         }
 
         for ( int i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
@@ -746,8 +750,10 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
             auto passSemantics = ProcedureParameter::ByValue;
             auto p = expr->as<PrimaryExpression>();
             if ( !p ) {
-                p = expr->as<ReferenceExpression>();
-                passSemantics = ProcedureParameter::ByReference;
+                if ( auto r = expr->as<ReferenceExpression>() ) {
+                    p = r->expression().as<PrimaryExpression>();
+                    passSemantics = ProcedureParameter::ByReference;
+                }
             }
 
             if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
@@ -759,7 +765,6 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
 
             if ( !hit ) {
                 myOrdinals.push_back(static_cast<int>(myParameters.size()));
-                primaryParams.push_back(p);
                 myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this, passSemantics));
                 p->setDeclaration(*myParameters.back());
             }
@@ -769,24 +774,33 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Diagnostics& dgn)
         }
     }
 
+    // Pattern resolution
+    // This comes in the middle of parameter deduction because pattern resolution depends
+    // on knowing what front expressions are to be interpreted as procedure parameters, 
+    // otherwise causing an undeclared identifier error. Parameters eventually need to hold
+    // references to their constraints, but pattern resolution must first resolve those constraints
     mySymbol->resolveSymbols(dgn, resolver);
     resolver.addSupplementaryPrototype(mySymbol->prototype());
 
-    // Gather constraints on parameters
-    for ( auto p : primaryParams ) {
-        for ( auto& param : myParameters ) {
-            if ( param->symbol().identifier().lexeme() == p->token().lexeme() ) {
-                for ( auto c : p->constraints() )
-                    param->addConstraint(*c);
-            }
-        }
-    }
+    // Parameter deduction (step #2/2)
+    if ( deduceParameters ) {
+        // constraints must be added after the symbol is resolved due to rewrites
+        for ( std::size_t i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
+            auto const ordinal = myOrdinals[i];
+            if ( ordinal < 0 )
+                continue;
 
-    if ( !primaryParams.empty() )
+            auto const paramConstraints = mySymbol->prototype().pattern()[i]->constraints();
+            for ( auto const& c : paramConstraints )
+                myParameters[ordinal]->addConstraint(*c);
+        }
+
         for ( auto& p : myParameters )
             p->resolveSymbols(dgn);
+    }
 
     // Resolve return
+    // todo: return type deduction
     if ( isCtor(*this) || isDtor(*this) ) {
         if ( myReturnExpression ) {
             ctx.error(*myReturnExpression) << "ctor/dtor cannot have a return type";
@@ -1090,6 +1104,17 @@ bool isDataDeclaration(DeclKind kind)
     case DeclKind::DataProduct:
     case DeclKind::DataSum:
     case DeclKind::DataSumCtor:
+        return true;
+    }
+
+    return false;
+}
+
+bool isMemoryDeclaration(DeclKind kind)
+{
+    switch ( kind ) {
+    case DeclKind::Variable:
+    case DeclKind::ProcedureParameter:
         return true;
     }
 
