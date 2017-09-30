@@ -289,8 +289,10 @@ class VariableDeclaration : public Declaration
 {
 public:
     VariableDeclaration(Symbol&& symbol,
-                        std::unique_ptr<Expression> constraint,
-                        std::unique_ptr<Expression> init);
+                        ProcedureScope& scope,
+                        std::unique_ptr<Expression> constraint);
+    VariableDeclaration(ProcedureScope& scope,
+                        Declaration const& dataType);
 
 protected:
     VariableDeclaration(VariableDeclaration const& rhs);
@@ -313,14 +315,14 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    Expression* constraint();
-    Expression const* constraint() const;
+    void addConstraint(Expression const& expr);
 
+    Slice<Expression const*> constraints() const;
     Declaration const* dataType() const;
 
 protected:
     std::unique_ptr<Expression> myConstraint;
-    std::unique_ptr<Expression> myInitialization;
+    std::vector<Expression const*> myConstraints;
     Declaration const* myDataType = nullptr;
 };
 
@@ -328,8 +330,16 @@ class ProcedureDeclaration;
 class ProcedureParameter : public Declaration
 {
 public:
+    enum PassSemantics
+    {
+        ByValue,
+        ByReference,
+    };
+
+public:
     ProcedureParameter(Symbol&& symbol,
-                       ProcedureDeclaration& proc);
+                       ProcedureDeclaration& proc,
+                       PassSemantics passSemantics);
 
 protected:
     ProcedureParameter(ProcedureParameter const& rhs);
@@ -352,25 +362,24 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
-    ProcedureDeclaration* parent();
-
     Declaration const* dataType() const;
 
     Slice<Expression*> const constraints() const;
     void addConstraint(Expression const& expr);
 
+    PassSemantics passSemantics() const;
+
 private:
-    ProcedureDeclaration* myParent = nullptr;
     std::vector<Expression const*> myConstraints;
     Declaration const* myDataType = nullptr;
+    PassSemantics myPassSemantics = ByValue;
 };
 
 class ProcedureDeclaration : public Declaration
 {
 public:
     ProcedureDeclaration(Symbol&& symbol,
-                         std::unique_ptr<Expression> returnExpression,
-                         bool returnByReference);
+                         std::unique_ptr<Expression> returnExpression);
 
 protected:
     ProcedureDeclaration(ProcedureDeclaration const& rhs);
@@ -402,21 +411,24 @@ public:
     Expression* returnType();
     Expression const* returnType() const;
 
+    Declaration const* thisType() const;
     Slice<ProcedureParameter*> parameters();
     Slice<ProcedureParameter*> const parameters() const;
     ProcedureParameter* result();
     ProcedureParameter const* result() const;
 
+    int ordinal(std::size_t index) const;
+
 private:
     std::unique_ptr<Expression> myReturnExpression;
 
+    std::unique_ptr<ReferenceExpression> myThisExpr;
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
+    std::vector<int> myOrdinals;
+
     std::unique_ptr<ProcedureParameter> myResult;
-    bool myReturnByReference = false;
 
     std::unique_ptr<ProcedureScope> myDefinition;
-
-    std::unique_ptr<PrimaryExpression> myThisExpr;
 };
 
 class ImportDeclaration : public Declaration

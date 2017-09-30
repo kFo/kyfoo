@@ -190,6 +190,12 @@ struct SymbolDependencyBuilder
             dispatch(*e);
     }
 
+    result_t exprVar(VarExpression const& v)
+    {
+        exprPrimary(v.identity());
+        dispatch(v.expression());
+    }
+
     // declarations
 
     void traceSymbol(Symbol& sym)
@@ -256,8 +262,8 @@ struct SymbolDependencyBuilder
     result_t declVariable(VariableDeclaration const& var)
     {
         traceSymbol();
-        if ( var.constraint() )
-            dispatch(*var.constraint());
+        for ( auto const& c : var.constraints() )
+            dispatch(*c);
     }
 
     result_t declImport(ImportDeclaration const&)
@@ -493,7 +499,7 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
         return variance(ctx, target, *f->returnType()->declaration());
 
     if ( auto v = query.as<VariableDeclaration>() )
-        return variance(ctx, target, *v->constraint()->declaration());
+        return variance(ctx, target, *v->dataType());
 
     if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
         if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
@@ -776,6 +782,30 @@ Declaration* callingContextDeclaration(Declaration& decl)
     return const_cast<Declaration*>(callingContextDeclaration(const_cast<Declaration const&>(decl)));
 }
 
+Declaration const* dataType(Context& ctx, Slice<Expression*> constraints)
+{
+    Declaration const* ret = nullptr;
+    for ( auto c : constraints ) {
+        auto decl = resolveIndirections(c->declaration());
+        if ( !decl ) {
+            ctx.error(*c) << "compilation stopped due to unresolved symbols";
+            return nullptr;
+        }
+
+        if ( isDataDeclaration(decl->kind()) || decl->kind() == DeclKind::SymbolVariable ) {
+            if ( ret ) {
+                auto& err = ctx.error(*c) << "expression already has a data type";
+                err.see(*ret);
+                return nullptr;
+            }
+
+            ret = decl;
+        }
+    }
+
+    return ret;
+}
+
 template <typename Dispatcher>
 struct FreeVariableVisitor
 {
@@ -824,6 +854,12 @@ struct FreeVariableVisitor
     {
         for ( auto const& e : d.expressions() )
             dispatch(*e);
+    }
+
+    result_t exprVar(VarExpression& v)
+    {
+        exprPrimary(v.identity());
+        dispatch(v.expression());
     }
 };
 
@@ -899,6 +935,11 @@ struct HasFreeVariable
                 return true;
 
         return false;
+    }
+
+    result_t exprVar(VarExpression const& v)
+    {
+        return exprPrimary(v.identity()) || dispatch(v.expression());
     }
 };
 

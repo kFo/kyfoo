@@ -31,6 +31,7 @@ using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
 using colonEqual = g::Terminal<TokenKind::ColonEqual>;
 
 using yield = g::Terminal<TokenKind::Yield>;
+using map = g::Terminal<TokenKind::Map>;
 
 using openParen = g::Terminal<TokenKind::OpenParen>;
 using closeParen = g::Terminal<TokenKind::CloseParen>;
@@ -228,8 +229,7 @@ struct ProcedureDeclaration : public
         openParen,
         g::Repeat2<Expression, comma>,
         closeParen,
-        g::Opt<g::Or<g::And<colon, Expression>,
-                     g::And<colonEqual, Expression>>>>
+        g::Opt<g::And<g::Or<map, colon>, Expression>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
@@ -238,21 +238,12 @@ struct ProcedureDeclaration : public
             pattern.emplace_back(e.make());
 
         std::unique_ptr<ast::Expression> returnTypeExpression;
-        bool returnByReference = false;
-        if ( auto r = factor<3>().capture() ) {
-            if ( r->index() == 0 ) {
-                returnTypeExpression = r->term<0>().factor<1>().make();
-            }
-            else {
-                returnTypeExpression = r->term<1>().factor<1>().make();
-                returnByReference = true;
-            }
-        }
+        if ( auto r = factor<3>().capture() )
+            returnTypeExpression = r->factor<1>().make();
 
         auto tok = factor<0>().token();
         return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, tok.line(), tok.column(), ""), std::move(pattern)),
-                                                           std::move(returnTypeExpression),
-                                                           returnByReference);
+                                                           std::move(returnTypeExpression));
     }
 };
 
@@ -265,13 +256,20 @@ struct ImplicitProcedureTemplateDeclaration : public
     }
 };
 
+struct VarDecl
+{
+    lexer::Token token;
+    std::unique_ptr<ast::Expression> constraint;
+    std::unique_ptr<ast::Expression> expression;
+};
+
 struct ExplicitVariableDeclaration : public
     g::And<colonEqual
          , id
          , g::Opt<g::And<colon, Expression>>
          , g::Opt<g::And<equal, Expression>>>
 {
-    std::unique_ptr<ast::VariableDeclaration> make() const
+    VarDecl make() const
     {
         std::unique_ptr<ast::Expression> constraint;
         if ( auto c = factor<2>().capture() )
@@ -281,9 +279,7 @@ struct ExplicitVariableDeclaration : public
         if ( auto i = factor<3>().capture() )
             init = i->factor<1>().make();
 
-        return std::make_unique<ast::VariableDeclaration>(ast::Symbol(factor<1>().token()),
-                                                          std::move(constraint),
-                                                          std::move(init));
+        return { factor<1>().token(), std::move(constraint), std::move(init) };
     }
 };
 
@@ -294,7 +290,7 @@ struct ImplicitVariableDeclaration : public
          , equal
          , g::Opt<Expression>>
 {
-    std::unique_ptr<ast::VariableDeclaration> make() const
+    VarDecl make() const
     {
         std::unique_ptr<ast::Expression> constraint;
         if ( auto c = factor<2>().capture() )
@@ -304,18 +300,19 @@ struct ImplicitVariableDeclaration : public
         if ( auto i = factor<4>().capture() )
             init = i->make();
 
-        return std::make_unique<ast::VariableDeclaration>(ast::Symbol(factor<0>().token()),
-                                                          std::move(constraint),
-                                                          std::move(init));
+        return { factor<0>().token(), std::move(constraint), std::move(init) };
     }
 };
 
 struct VariableDeclaration : public
     g::Or<ExplicitVariableDeclaration, ImplicitVariableDeclaration>
 {
-    std::unique_ptr<ast::VariableDeclaration> make() const
+    VarDecl make() const
     {
-        return monoMake<ast::VariableDeclaration>();
+        if ( index() == 0 )
+            return term<0>().make();
+        else
+            return term<1>().make();
     }
 };
 
@@ -355,17 +352,7 @@ struct DataSumConstructor : public
 {
     std::unique_ptr<ast::DataSumDeclaration::Constructor> make() const
     {
-        std::vector<std::unique_ptr<ast::VariableDeclaration>> pattern;
-        if ( auto c = factor<1>().capture() ) {
-            for ( auto& e : c->factor<1>().captures() )
-                pattern.emplace_back(
-                    std::make_unique<ast::VariableDeclaration>(
-                        ast::Symbol(e.factor<0>().token()),
-                        e.factor<2>().make(),
-                        nullptr));
-        }
-
-        return std::make_unique<ast::DataSumDeclaration::Constructor>(factor<0>().make(), std::move(pattern));
+        throw std::runtime_error("not implemented");
     }
 };
 

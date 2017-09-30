@@ -22,6 +22,7 @@ class Declaration;
 class ProcedureDeclaration;
 class SymbolReference;
 class LookupHit;
+class VariableDeclaration;
 
 #define EXPRESSION_KINDS(X)           \
     X(Primary  , PrimaryExpression)   \
@@ -29,7 +30,8 @@ class LookupHit;
     X(Tuple    , TupleExpression)     \
     X(Apply    , ApplyExpression)     \
     X(Symbol   , SymbolExpression)    \
-    X(Dot      , DotExpression)
+    X(Dot      , DotExpression)       \
+    X(Var      , VarExpression)
 
 class Expression : public INode
 {
@@ -82,27 +84,16 @@ public:
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
 
-    codegen::CustomData* codegenData();
-    codegen::CustomData* codegenData() const;
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data);
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
-
 private:
     Kind myKind;
 
 protected:
     std::vector<std::unique_ptr<Expression>> myConstraints;
     Declaration const* myDeclaration = nullptr;
-
-    mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
 
 class PrimaryExpression : public Expression
 {
-public:
-    // Empty open-tuple lowers to PrimaryExpression
-    friend class TupleExpression;
-
 public:
     explicit PrimaryExpression(lexer::Token const& token);
 
@@ -329,6 +320,43 @@ public:
 private:
     std::vector<std::unique_ptr<Expression>> myExpressions;
     bool myGlobal = false;
+};
+
+class VarExpression : public Expression
+{
+public:
+    VarExpression(std::unique_ptr<PrimaryExpression> id,
+                  std::unique_ptr<Expression> expression);
+    VarExpression(VariableDeclaration const& var,
+                  std::unique_ptr<Expression> expression);
+
+protected:
+    VarExpression(VarExpression const& rhs);
+    VarExpression& operator = (VarExpression const& rhs);
+
+public:
+    ~VarExpression();
+
+    void swap(VarExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    void resolveSymbols(Context& ctx) override;
+
+public:
+    PrimaryExpression const& identity() const;
+    PrimaryExpression& identity();
+    Expression const& expression() const;
+    Expression& expression();
+
+private:
+    std::unique_ptr<PrimaryExpression> myIdentity;
+    std::unique_ptr<Expression> myExpression;
 };
 
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }

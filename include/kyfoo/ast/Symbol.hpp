@@ -110,7 +110,11 @@ public:
 
 public:
     lexer::Token const& identifier() const;
+    lexer::Token& identifier();
+
     PatternsPrototype const& prototype() const;
+    PatternsPrototype& prototype();
+
     Symbol const* prototypeParent() const;
 
 private:
@@ -143,7 +147,7 @@ private:
 
 struct PatternsDecl {
     PatternsPrototype const* params;
-    Declaration const* decl;
+    Declaration* decl;
 };
 
 struct Prototype {
@@ -185,8 +189,8 @@ public:
     using pattern_t = SymbolReference::pattern_t;
 
     struct DeclInstance {
-        Declaration const* parent;
-        Declaration const* instance;
+        Declaration* parent;
+        Declaration* instance;
     };
 
 public:

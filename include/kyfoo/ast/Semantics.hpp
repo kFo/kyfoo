@@ -262,6 +262,7 @@ Declaration const* outerDataDeclaration(Declaration const& decl);
 Declaration* outerDataDeclaration(Declaration& decl);
 Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
+Declaration const* dataType(Context& ctx, Slice<Expression*> constraints);
 
 // todo: functor like ValueMatcher
 bool matchEquivalent(Context& ctx, Expression const& lhs, Expression const& rhs);

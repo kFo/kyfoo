@@ -87,26 +87,6 @@ const Slice<Expression*> Expression::constraints() const
     return myConstraints;
 }
 
-codegen::CustomData* Expression::codegenData()
-{
-    return myCodeGenData.get();
-}
-
-codegen::CustomData* Expression::codegenData() const
-{
-    return myCodeGenData.get();
-}
-
-void Expression::setCodegenData(std::unique_ptr<codegen::CustomData> data)
-{
-    myCodeGenData = std::move(data);
-}
-
-void Expression::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
-{
-    myCodeGenData = std::move(data);
-}
-
 //
 // PrimaryExpression
 
@@ -202,6 +182,14 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
             return;
         }
 
+        if ( auto templ = hit.as<TemplateDeclaration>() ) {
+            ctx.error(myToken) << "does not refer to any template invocation";
+            return;
+        }
+        else if ( auto proc = hit.as<ProcedureDeclaration>() ) {
+            throw std::runtime_error("primary-expression cannot refer to a procedure");
+        }
+
         myDeclaration = hit.decl();
         return;
     }
@@ -267,8 +255,7 @@ void ReferenceExpression::resolveSymbols(Context& ctx)
 
     auto hit = ctx.matchOverload(SymbolReference(token().lexeme()));
     if ( !hit ) {
-        if ( !hit.symSpace() )
-            ctx.error(token()) << "undeclared identifier";
+        ctx.error(token()) << "undeclared identifier";
         return;
     }
 
@@ -547,8 +534,23 @@ void ApplyExpression::resolveSymbols(Context& ctx)
             if ( auto defn = d->definition() ) {
                 hit = defn->findOverload(ctx.diagnostics(), SymbolReference("ctor"));
                 if ( hit ) {
-                    if ( auto decl = hit.as<TemplateDeclaration>() )
+                    if ( auto decl = hit.as<TemplateDeclaration>() ) {
                         hit = decl->definition()->findOverload(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+                        if ( auto proc = hit.as<ProcedureDeclaration>() ) {
+                            if ( !myExpressions.front()->as<DotExpression>() ) {
+                                auto procScope = ctx.resolver().scope().as<ProcedureScope>();
+                                auto var = ctx.statement().createUnnamed(const_cast<ProcedureScope&>(*procScope), *proc->thisType());
+
+                                std::vector<std::unique_ptr<Expression>> exprs;
+                                exprs.emplace_back(std::make_unique<PrimaryExpression>(lexer::Token()));
+                                exprs.back()->setDeclaration(*var);
+                                exprs.emplace_back(std::move(myExpressions.front()));
+
+                                myExpressions.front() = std::make_unique<DotExpression>(false, std::move(exprs));
+                                myExpressions.front()->setDeclaration(*proc);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -580,6 +582,22 @@ void ApplyExpression::resolveSymbols(Context& ctx)
 
     auto tryLowerSingle = [this, &ctx](Declaration const* decl) {
         myDeclaration = decl;
+
+        Declaration const* dt = decl;
+        if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+            if ( isCtor(*proc) )
+                dt = proc->parameters()[0]->dataType();
+            else
+                dt = proc->returnType()->declaration();
+
+            return ctx.rewrite([&ctx, dt](std::unique_ptr<Expression>& expr) {
+                auto procScope = ctx.resolver().scope().as<ProcedureScope>();
+                // todo: remove const_cast
+                auto var = ctx.statement().createUnnamed(const_cast<ProcedureScope&>(*procScope), *dt);
+                return std::make_unique<VarExpression>(*var, std::move(expr));
+            });
+        }
+
         if ( myExpressions.size() == 1 ) {
             myExpressions.front()->setDeclaration(*myDeclaration);
             ctx.rewrite(std::move(myExpressions.front()));
@@ -898,6 +916,101 @@ bool DotExpression::isModuleScope() const
 }
 
 //
+// VarExpression
+
+VarExpression::VarExpression(std::unique_ptr<PrimaryExpression> id,
+                             std::unique_ptr<Expression> expression)
+    : Expression(Kind::Var)
+    , myIdentity(std::move(id))
+    , myExpression(std::move(expression))
+{
+}
+
+VarExpression::VarExpression(VariableDeclaration const& var,
+                             std::unique_ptr<Expression> expression)
+    : Expression(Kind::Var)
+    , myIdentity(std::make_unique<PrimaryExpression>(lexer::Token()))
+    , myExpression(std::move(expression))
+{
+    myIdentity->setDeclaration(var);
+}
+
+VarExpression::VarExpression(VarExpression const& rhs)
+    : Expression(rhs)
+{
+}
+
+VarExpression& VarExpression::operator = (VarExpression const& rhs)
+{
+    VarExpression(rhs).swap(*this);
+    return *this;
+}
+
+VarExpression::~VarExpression() = default;
+
+void VarExpression::swap(VarExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myIdentity, rhs.myIdentity);
+    swap(myExpression, rhs.myExpression);
+}
+
+void VarExpression::io(IStream& stream) const
+{
+    stream.next("identity", myIdentity);
+    stream.next("expression", myExpression);
+}
+
+IMPL_CLONE_BEGIN(VarExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myIdentity)
+IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(VarExpression, Expression)
+IMPL_CLONE_REMAP(myIdentity)
+IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP_END
+
+void VarExpression::resolveSymbols(Context& ctx)
+{
+    auto procScope = ctx.resolver().scope().as<ProcedureScope>();
+    if ( !procScope ) {
+        ctx.error(*this) << "var-expressions must occur in a procedure-scope";
+        return;
+    }
+
+    auto var = procScope->findEquivalent(ctx.diagnostics(), SymbolReference(myIdentity->token().lexeme())).decl();
+    if ( !var ) {
+        ctx.error(*this) << "variable is not declared";
+        return;
+    }
+
+    myIdentity->setDeclaration(*var);
+    ctx.resolveExpression(reinterpret_cast<std::unique_ptr<Expression>&>(myIdentity));
+    ctx.resolveExpression(myExpression);
+}
+
+PrimaryExpression const& VarExpression::identity() const
+{
+    return *myIdentity;
+}
+
+PrimaryExpression& VarExpression::identity()
+{
+    return *myIdentity;
+}
+
+Expression const& VarExpression::expression() const
+{
+    return *myExpression;
+}
+
+Expression& VarExpression::expression()
+{
+    return *myExpression;
+}
+
+//
 // Utilities
 
 template <typename Dispatcher>
@@ -949,6 +1062,11 @@ struct FrontExpression
     result_t exprDot(DotExpression const& d)
     {
         return dispatch(*d.expressions()[0]);
+    }
+
+    result_t exprVar(VarExpression const& v)
+    {
+        return exprPrimary(v.identity());
     }
 };
 
@@ -1074,6 +1192,13 @@ struct PrintOperator
         }
 
         return printConstraints(d);
+    }
+
+    result_t exprVar(VarExpression const& v)
+    {
+        exprPrimary(v.identity());
+        stream << " = ";
+        return dispatch(v.expression());
     }
 };
 

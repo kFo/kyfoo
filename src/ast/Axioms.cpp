@@ -33,6 +33,7 @@ ascii = slice<u8>
     card : size_t
 
     ctor(s : string)
+    dtor()
 
 wordSize = 64
 size_t = unsigned<wordSize>
@@ -280,6 +281,13 @@ bool AxiomsModule::init(Diagnostics& dgn)
         myInstructionDecls[Sliceu8_ctor] = myDataProductDecls[Sliceu8]
                                                ->definition()
                                                ->childDeclarations()[2]
+                                               ->as<TemplateDeclaration>()
+                                               ->definition()
+                                               ->childDeclarations()[0]
+                                               ->as<ProcedureDeclaration>();
+        myInstructionDecls[Sliceu8_dtor] = myDataProductDecls[Sliceu8]
+                                               ->definition()
+                                               ->childDeclarations()[3]
                                                ->as<TemplateDeclaration>()
                                                ->definition()
                                                ->childDeclarations()[0]

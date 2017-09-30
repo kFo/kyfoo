@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -18,6 +19,7 @@ namespace kyfoo {
 
 class AxiomsModule;
 class DeclarationScope;
+class Statement;
 class Declaration;
 class Expression;
 class LookupHit;
@@ -28,7 +30,7 @@ class IResolver
 public:
     virtual ~IResolver() = default;
 
-    virtual Module const& module() const = 0;
+    virtual DeclarationScope const& scope() const = 0;
 
     virtual LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
     virtual LookupHit matchOverload(Diagnostics& dgn, SymbolReference const& symbol) = 0;
@@ -49,18 +51,18 @@ public:
 
     // IResolver
 public:
-    Module const& module() const;
+    DeclarationScope const& scope() const;
 
     LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const override;
     LookupHit matchOverload(Diagnostics& dgn, SymbolReference const& symbol) override;
 
 public:
-    void addSupplementaryPrototype(PatternsPrototype const& proto);
+    void addSupplementaryPrototype(PatternsPrototype& proto);
     LookupHit matchSupplementary(SymbolReference const& symbol) const;
 
 private:
     DeclarationScope* myScope = nullptr;
-    std::vector<PatternsPrototype const*> mySupplementaryPrototypes;
+    std::vector<PatternsPrototype*> mySupplementaryPrototypes;
 };
 
 class Context
@@ -79,6 +81,9 @@ public:
     IResolver& resolver();
     IResolver const& resolver() const;
 
+    Statement& statement();
+    Statement const& statement() const;
+
 public:
     Error& error(lexer::Token const& token);
     Error& error(Expression const& expr);
@@ -88,7 +93,10 @@ public:
     LookupHit matchOverload(SymbolReference const& sym) const;
 
     IResolver* changeResolver(IResolver& resolver);
+    Statement* changeStatement(Statement* statement);
+
     void rewrite(std::unique_ptr<Expression> expr);
+    void rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func);
 
     void resolveExpression(std::unique_ptr<Expression>& expression);
     void resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
@@ -96,9 +104,11 @@ public:
     void resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
 
 private:
-    Diagnostics* myDiagnostics;
-    IResolver* myResolver;
+    Diagnostics* myDiagnostics = nullptr;
+    IResolver* myResolver = nullptr;
+    Statement* myStatement = nullptr;
     std::unique_ptr<Expression> myRewrite;
+    std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> myLazyRewrite;
 };
 
     } // namespace ast

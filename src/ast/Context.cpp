@@ -42,9 +42,9 @@ void ScopeResolver::swap(ScopeResolver& rhs)
     swap(mySupplementaryPrototypes, rhs.mySupplementaryPrototypes);
 }
 
-Module const& ScopeResolver::module() const
+DeclarationScope const& ScopeResolver::scope() const
 {
-    return myScope->module();
+    return *myScope;
 }
 
 LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const
@@ -110,7 +110,7 @@ LookupHit ScopeResolver::matchOverload(Diagnostics& dgn, SymbolReference const& 
     return hit;
 }
 
-void ScopeResolver::addSupplementaryPrototype(PatternsPrototype const& proto)
+void ScopeResolver::addSupplementaryPrototype(PatternsPrototype& proto)
 {
     mySupplementaryPrototypes.push_back(&proto);
 }
@@ -144,7 +144,7 @@ AxiomsModule const& Context::axioms() const
 
 Module const& Context::module() const
 {
-    return myResolver->module();
+    return myResolver->scope().module();
 }
 
 Diagnostics& Context::diagnostics()
@@ -165,6 +165,19 @@ IResolver& Context::resolver()
 IResolver const& Context::resolver() const
 {
     return *myResolver;
+}
+
+Statement& Context::statement()
+{
+    if ( !myStatement )
+        throw std::runtime_error("no active statement in this context");
+
+    return *myStatement;
+}
+
+Statement const& Context::statement() const
+{
+    return const_cast<Statement const&>(const_cast<Context*>(this)->statement());
 }
 
 Error& Context::error(lexer::Token const& token)
@@ -199,9 +212,21 @@ IResolver* Context::changeResolver(IResolver& resolver)
     return ret;
 }
 
+Statement* Context::changeStatement(Statement* statement)
+{
+    auto ret = myStatement;
+    myStatement = statement;
+    return ret;
+}
+
 void Context::rewrite(std::unique_ptr<Expression> expr)
 {
     myRewrite = std::move(expr);
+}
+
+void Context::rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func)
+{
+    myLazyRewrite = func;
 }
 
 void Context::resolveExpression(std::unique_ptr<Expression>& expression)
@@ -213,6 +238,14 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
         expression = std::move(myRewrite);
         expression->myConstraints = std::move(c);
         expression->resolveSymbols(*this);
+
+        if ( myLazyRewrite ) {
+            if ( myRewrite )
+                throw std::runtime_error("cannot have both a rewrite and lazy rewrite");
+
+            myRewrite = myLazyRewrite(expression);
+            myLazyRewrite = nullptr;
+        }
     }
 
     resolveExpressions(expression->myConstraints);

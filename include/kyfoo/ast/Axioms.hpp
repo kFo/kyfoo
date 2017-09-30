@@ -54,6 +54,7 @@ enum DataProductIntrinsics
 enum InstructionIntrinsics
 {
     Sliceu8_ctor,
+    Sliceu8_dtor,
 
     Addu1,
     Addu8,

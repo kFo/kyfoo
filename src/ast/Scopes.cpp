@@ -7,20 +7,23 @@
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
-    namespace ast {
+namespace ast {
 
 //
 // DeclarationScope
 
-DeclarationScope::DeclarationScope(Module* module,
+DeclarationScope::DeclarationScope(Kind kind,
+                                   Module* module,
                                    DeclarationScope* parent,
                                    Declaration* decl)
-    : myModule(module)
+    : myKind(kind)
+    , myModule(module)
     , myParent(parent)
     , myDeclaration(decl)
 {
@@ -28,22 +31,23 @@ DeclarationScope::DeclarationScope(Module* module,
 }
 
 DeclarationScope::DeclarationScope(Module& module)
-    : DeclarationScope(&module, nullptr, nullptr)
+    : DeclarationScope(Kind::Declaration, &module, nullptr, nullptr)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope* parent)
-    : DeclarationScope(&parent->module(), parent, nullptr)
+    : DeclarationScope(Kind::Declaration, &parent->module(), parent, nullptr)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope& parent, Declaration& decl)
-    : DeclarationScope(&parent.module(), &parent, &decl)
+    : DeclarationScope(Kind::Declaration, &parent.module(), &parent, &decl)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope const& rhs)
-    : myModule(rhs.myModule)
+    : myKind(rhs.myKind)
+    , myModule(rhs.myModule)
     , myDeclaration(rhs.myDeclaration)
     , myParent(rhs.myParent)
 {
@@ -62,6 +66,7 @@ DeclarationScope::~DeclarationScope() = default;
 void DeclarationScope::swap(DeclarationScope& rhs)
 {
     using std::swap;
+    swap(myKind, rhs.myKind);
     swap(myModule, rhs.myModule);
     swap(myDeclaration, rhs.myDeclaration);
     swap(myParent, rhs.myParent);
@@ -144,13 +149,13 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
 
 /**
  * Locates a symbol with parameter list that has exact semantic match
- * 
+ *
  * Equivalent symbols:
  * \code
  * mytype<n : integer>
  * mytype<m : integer>
  * \endcode
- * 
+ *
  * Non-equivalent symbols:
  * \code
  * mytype<n : integer>
@@ -321,7 +326,7 @@ Slice<Declaration*> DeclarationScope::childDeclarations() const
 
 DataSumScope::DataSumScope(DeclarationScope& parent,
                            DataSumDeclaration& declaration)
-    : DeclarationScope(parent, declaration)
+    : DeclarationScope(Kind::DataSum, &parent.module(), &parent, &declaration)
 {
 }
 
@@ -379,7 +384,7 @@ DataSumDeclaration* DataSumScope::declaration()
 
 DataProductScope::DataProductScope(DeclarationScope& parent,
                                    DataProductDeclaration& declaration)
-    : DeclarationScope(parent, declaration)
+    : DeclarationScope(Kind::DataProduct, &parent.module(), &parent, &declaration)
 {
 }
 
@@ -422,6 +427,95 @@ void DataProductScope::resolveSymbols(Diagnostics& dgn)
             myFields.push_back(v);
 
     DeclarationScope::resolveSymbols(dgn);
+
+    resolveConstructors(dgn);
+    resolveDestructor(dgn);
+}
+
+void DataProductScope::resolveConstructors(Diagnostics&)
+{
+    // todo: only make default ctor when no other ctor/dtor defined
+}
+
+std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultConstructor()
+{
+    return nullptr;
+}
+
+void DataProductScope::resolveDestructor(Diagnostics& dgn)
+{
+    auto makeTempl = [this, &dgn] {
+        auto templ = std::make_unique<TemplateDeclaration>(
+            Symbol(lexer::Token(lexer::TokenKind::Identifier,
+                                declaration()->symbol().identifier().line(),
+                                declaration()->symbol().identifier().column(),
+                                "dtor")));
+        templ->define(std::make_unique<TemplateScope>(*this, *templ));
+        append(std::move(templ));
+        addSymbol(dgn, myDeclarations.back()->symbol(), *myDeclarations.back());
+    };
+
+    auto symSpace = findSymbolSpace(dgn, "dtor");
+    if ( !symSpace ) {
+        makeTempl();
+        symSpace = findSymbolSpace(dgn, "dtor");
+    }
+
+    auto decl = symSpace->findEquivalent(dgn, {});
+    if ( !decl ) {
+        makeTempl();
+        decl = symSpace->findEquivalent(dgn, {});
+    }
+
+    auto templ = decl->as<TemplateDeclaration>();
+    if ( !templ ) {
+        dgn.error(module(), *decl) << "dtor must be declared as a procedure";
+        return;
+    }
+
+    decl = templ->definition()->findOverload(dgn, SymbolReference("")).decl();
+    if ( !decl ) {
+        auto proc = createDefaultDestructor();
+        auto p = proc.get();
+        templ->definition()->append(std::move(proc));
+        p->resolvePrototypeSymbols(dgn);
+        templ->definition()->addSymbol(dgn, p->symbol(), *p);
+        p->resolveSymbols(dgn);
+        myDestructor = p;
+        return;
+    }
+
+    auto proc = decl->as<ProcedureDeclaration>();
+    if ( !proc ) {
+        dgn.error(module(), *decl) << "dtor must be declared as a procedure";
+        return;
+    }
+
+    myDestructor = proc;
+}
+
+std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
+{
+    auto proc = std::make_unique<ProcedureDeclaration>(
+        Symbol(lexer::Token(lexer::TokenKind::Identifier,
+                            declaration()->symbol().identifier().line(),
+                            declaration()->symbol().identifier().column(),
+                            "")),
+        nullptr);
+
+    auto ps = std::make_unique<ProcedureScope>(*this, *proc);
+
+    for ( auto f = myFields.rbegin(); f != myFields.rend(); ++f ) {
+        auto dp = (*f)->constraint().declaration()->as<DataProductDeclaration>();
+        if ( !dp )
+            continue;
+
+        if ( auto dtor = dp->definition()->destructor() )
+            ps->append(createMemberCallExpression(*dtor, **f));
+    }
+
+    proc->define(std::move(ps));
+    return proc;
 }
 
 DataProductDeclaration* DataProductScope::declaration()
@@ -439,12 +533,17 @@ const Slice<DataProductDeclaration::Field*> DataProductScope::fields() const
     return myFields;
 }
 
+ProcedureDeclaration const* DataProductScope::destructor() const
+{
+    return myDestructor;
+}
+
 //
 // ProcedureScope
 
 ProcedureScope::ProcedureScope(DeclarationScope& parent,
                                ProcedureDeclaration& declaration)
-    : DeclarationScope(parent, declaration)
+    : DeclarationScope(Kind::Procedure, &parent.module(), &parent, &declaration)
 {
 }
 
@@ -500,8 +599,11 @@ void ProcedureScope::resolveSymbols(Diagnostics& dgn)
     // Resolve expressions
     ScopeResolver resolver(*this);
     Context ctx(dgn, resolver);
-    for ( auto& e : myStatements )
+    for ( auto& e : myStatements ) {
+        ctx.changeStatement(&e);
         e.resolveSymbols(ctx);
+    }
+    ctx.changeStatement(nullptr);
 }
 
 ProcedureDeclaration* ProcedureScope::declaration()
@@ -514,111 +616,87 @@ void ProcedureScope::append(std::unique_ptr<Expression> expression)
     myStatements.emplace_back(std::move(expression));
 }
 
-Slice<ProcedureScope::Statement> const ProcedureScope::statements() const
+Slice<Statement> const ProcedureScope::statements() const
 {
     return myStatements;
 }
 
 //
-// ProcedureScope::UnnamedVariable
+// Statement
 
-ProcedureScope::UnnamedVariable::UnnamedVariable(Expression const& expr,
-                                                 Declaration const& dataType)
-    : myExpression(&expr)
-    , myDataType(&dataType)
-{
-}
-
-ProcedureScope::UnnamedVariable::~UnnamedVariable() = default;
-
-void ProcedureScope::UnnamedVariable::remapReferences(clone_map_t const& map)
-{
-    const_cast<Expression*>(myExpression)->remapReferences(map);
-    const_cast<Declaration*>(myDataType)->remapReferences(map);
-}
-
-Expression const& ProcedureScope::UnnamedVariable::constraint() const
-{
-    return *myExpression;
-}
-
-Declaration const& ProcedureScope::UnnamedVariable::dataType() const
-{
-    return *myDataType;
-}
-
-//
-// ProcedureScope::Statement
-
-ProcedureScope::Statement::Statement(std::unique_ptr<Expression> expr)
+Statement::Statement(std::unique_ptr<Expression> expr)
     : myExpression(std::move(expr))
 {
 }
 
-ProcedureScope::Statement::Statement(Statement const& rhs)
-    : myUnnamedVariables(rhs.myUnnamedVariables)
+Statement::Statement(Statement const&)
 {
 }
 
-ProcedureScope::Statement& ProcedureScope::Statement::operator = (Statement const& rhs)
+Statement& Statement::operator = (Statement const& rhs)
 {
     Statement(rhs).swap(*this);
     return *this;
 }
 
-ProcedureScope::Statement::Statement(Statement&& rhs)
+Statement::Statement(Statement&& rhs)
     : myExpression(std::move(rhs.myExpression))
     , myUnnamedVariables(std::move(rhs.myUnnamedVariables))
 {
 }
 
-ProcedureScope::Statement& ProcedureScope::Statement::operator = (Statement&& rhs)
+Statement& Statement::operator = (Statement&& rhs)
 {
     this->~Statement();
     new (this) Statement(std::move(rhs));
     return *this;
 }
 
-ProcedureScope::Statement::~Statement() = default;
+Statement::~Statement() = default;
 
-void ProcedureScope::Statement::swap(Statement& rhs)
+void Statement::swap(Statement& rhs)
 {
     using std::swap;
     swap(myExpression, rhs.myExpression);
     swap(myUnnamedVariables, rhs.myUnnamedVariables);
 }
 
-ProcedureScope::Statement ProcedureScope::Statement::clone(clone_map_t& map) const
+Statement Statement::clone(clone_map_t& map) const
 {
     Statement ret(std::unique_ptr<Expression>(myExpression->clone(map)));
-    ret.myUnnamedVariables = myUnnamedVariables;
+    ret.myUnnamedVariables = ast::clone(myUnnamedVariables, map);
     return std::move(ret);
 }
 
-void ProcedureScope::Statement::remapReferences(clone_map_t const& map)
+void Statement::remapReferences(clone_map_t const& map)
 {
     myExpression->remapReferences(map);
     for ( auto& e : myUnnamedVariables )
-        e.remapReferences(map);
+        e->remapReferences(map);
 }
 
-Expression const& ProcedureScope::Statement::expression() const
+Expression const& Statement::expression() const
 {
     return *myExpression;
 }
 
-Slice<ProcedureScope::UnnamedVariable> const ProcedureScope::Statement::unnamedVariables() const
+Slice<VariableDeclaration*> const Statement::unnamedVariables() const
 {
     return myUnnamedVariables;
 }
 
-void ProcedureScope::Statement::resolveSymbols(Context& ctx)
+void Statement::resolveSymbols(Context& ctx)
 {
     ctx.resolveExpression(myExpression);
-    scanUnnamed(ctx.module());
 }
 
-void ProcedureScope::Statement::appendUnnamed(Expression const& expr)
+VariableDeclaration const* Statement::createUnnamed(ProcedureScope& scope, Declaration const& constraint)
+{
+    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(scope, constraint));
+    return myUnnamedVariables.back().get();
+}
+
+void Statement::appendUnnamed(ProcedureScope& scope, Expression const& expr)
 {
     auto decl = resolveIndirections(expr.declaration());
     if ( !decl )
@@ -632,78 +710,7 @@ void ProcedureScope::Statement::appendUnnamed(Expression const& expr)
             dt = proc->returnType()->declaration();
     }
 
-    myUnnamedVariables.emplace_back(expr, *dt);
-}
-
-template <typename Dispatcher>
-struct UnnamedScan
-{
-    using result_t = void;
-    Dispatcher& dispatch;
-    Module const& module;
-    ProcedureScope::Statement* stmt;
-
-    UnnamedScan(Dispatcher& dispatch, Module const& mod, ProcedureScope::Statement& stmt)
-        : dispatch(dispatch)
-        , module(mod)
-        , stmt(&stmt)
-    {
-    }
-
-    void scan(Expression const& expr)
-    {
-        auto proc = expr.declaration()->as<ProcedureDeclaration>();
-        if ( !proc )
-            return;
-
-        auto const hasReturn = proc->returnType()->declaration() != module.axioms().intrinsic(EmptyLiteralType);
-        if ( isCtor(*proc) || hasReturn )
-            stmt->appendUnnamed(expr);
-    }
-
-    result_t exprPrimary(PrimaryExpression const& p)
-    {
-        scan(p);
-    }
-
-    result_t exprReference(ReferenceExpression const&)
-    {
-        // nop
-    }
-
-    result_t exprTuple(TupleExpression const& t)
-    {
-        for ( auto const& e : t.expressions() )
-            dispatch(*e);
-    }
-
-    result_t exprApply(ApplyExpression const& a)
-    {
-        for ( auto const& e : a.expressions() )
-            dispatch(*e);
-
-        scan(a);
-    }
-
-    result_t exprSymbol(SymbolExpression const& s)
-    {
-        for ( auto const& e : s.expressions() )
-            dispatch(*e);
-
-        scan(s);
-    }
-
-    result_t exprDot(DotExpression const& d)
-    {
-        for ( auto const& e : d.expressions() )
-            dispatch(*e);
-    }
-};
-
-void ProcedureScope::Statement::scanUnnamed(Module const& module)
-{
-    ShallowApply<UnnamedScan> op(module, *this);
-    op(*myExpression);
+    createUnnamed(scope, *dt);
 }
 
 //
@@ -711,7 +718,7 @@ void ProcedureScope::Statement::scanUnnamed(Module const& module)
 
 TemplateScope::TemplateScope(DeclarationScope& parent,
                              TemplateDeclaration& declaration)
-    : DeclarationScope(parent, declaration)
+    : DeclarationScope(Kind::Template, &parent.module(), &parent, &declaration)
 {
 }
 

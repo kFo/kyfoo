@@ -250,7 +250,17 @@ lexer::Token const& Symbol::identifier() const
     return myIdentifier;
 }
 
+lexer::Token& Symbol::identifier()
+{
+    return myIdentifier;
+}
+
 PatternsPrototype const& Symbol::prototype() const
+{
+    return *myPrototype;
+}
+
+PatternsPrototype& Symbol::prototype()
 {
     return *myPrototype;
 }

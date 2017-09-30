@@ -30,14 +30,14 @@ class LookupHit
 public:
     LookupHit() = default;
 
-    LookupHit(SymbolSpace const* symSpace, Declaration const* decl)
+    LookupHit(SymbolSpace const* symSpace, Declaration* decl)
         : myDecl(decl)
     {
         if ( symSpace )
             mySpaces.push_back(symSpace);
     }
 
-    explicit LookupHit(SymbolVariable const* symVar)
+    explicit LookupHit(SymbolVariable* symVar)
         : myDecl(symVar)
     {
     }
@@ -71,7 +71,7 @@ public:
         return myDecl;
     }
 
-    LookupHit& lookup(SymbolSpace const* space, Declaration const* decl)
+    LookupHit& lookup(SymbolSpace const* space, Declaration* decl)
     {
         if ( space )
             mySpaces.push_back(space);
@@ -83,7 +83,7 @@ public:
         return *this;
     }
 
-    LookupHit& lookup(Declaration const* decl)
+    LookupHit& lookup(Declaration* decl)
     {
         if ( myDecl )
             throw std::runtime_error("declaration reference stomped");
@@ -95,7 +95,7 @@ public:
     LookupHit& append(LookupHit&& rhs)
     {
         mySpaces.insert(end(mySpaces),
-                         begin(rhs.mySpaces), end(rhs.mySpaces));
+                        begin(rhs.mySpaces), end(rhs.mySpaces));
         myDecl = rhs.myDecl;
 
         rhs.mySpaces.clear();
@@ -106,6 +106,15 @@ public:
 
     template <typename T>
     T const* as() const
+    {
+        if ( decl() )
+            return decl()->as<T>();
+
+        return nullptr;
+    }
+
+    template <typename T>
+    T* as()
     {
         if ( decl() )
             return decl()->as<T>();
@@ -126,6 +135,11 @@ public:
         return myDecl;
     }
 
+    Declaration* decl()
+    {
+        return myDecl;
+    }
+
     Slice<SymbolSpace const*> trace() const
     {
         return mySpaces;
@@ -133,13 +147,29 @@ public:
 
 private:
     std::vector<SymbolSpace const*> mySpaces;
-    Declaration const* myDecl = nullptr;
+    Declaration* myDecl = nullptr;
 };
+
+#define SCOPE_KINDS(X)               \
+    X(Declaration, DeclarationScope) \
+    X(Procedure  , ProcedureScope)   \
+    X(DataSum    , DataSumScope)     \
+    X(DataProduct, DataProductScope) \
+    X(Template   , TemplateScope)
 
 class DeclarationScope : public INode
 {
-private:
-    DeclarationScope(Module* module,
+public:
+    enum class Kind
+    {
+#define X(a,b) a,
+        SCOPE_KINDS(X)
+#undef X
+    };
+
+protected:
+    DeclarationScope(Kind kind,
+                     Module* module,
                      DeclarationScope* parent,
                      Declaration* decl);
 public:
@@ -198,7 +228,11 @@ public:
 
     Slice<Declaration*> childDeclarations() const;
 
+    template <typename T> T* as();
+    template <typename T> T const* as() const;
+
 protected:
+    Kind myKind = Kind::Declaration;
     Module* myModule = nullptr;
     Declaration* myDeclaration = nullptr;
     DeclarationScope* myParent = nullptr;
@@ -265,69 +299,57 @@ public:
     void resolveSymbols(Diagnostics& dgn) override;
 
 public:
+    void resolveConstructors(Diagnostics& dgn);
+    std::unique_ptr<ProcedureDeclaration> createDefaultConstructor();
+
+    void resolveDestructor(Diagnostics& dgn);
+    std::unique_ptr<ProcedureDeclaration> createDefaultDestructor();
+
     DataProductDeclaration* declaration();
     Slice<DataProductDeclaration::Field*> fields();
     const Slice<DataProductDeclaration::Field*> fields() const;
+    ProcedureDeclaration const* destructor() const;
 
 private:
     std::vector<DataProductDeclaration::Field*> myFields;
+    ProcedureDeclaration const* myDestructor = nullptr;
+};
+
+class Statement
+{
+public:
+    explicit Statement(std::unique_ptr<Expression> expr);
+
+protected:
+    Statement(Statement const& rhs);
+    Statement& operator = (Statement const& rhs);
+
+public:
+    Statement(Statement&& rhs);
+    Statement& operator = (Statement&& rhs);
+
+    ~Statement();
+    void swap(Statement& rhs);
+
+public:
+    Statement clone(clone_map_t& map) const;
+    void remapReferences(clone_map_t const& map);
+
+public:
+    Expression const& expression() const;
+    Slice<VariableDeclaration*> const unnamedVariables() const;
+
+    void resolveSymbols(Context& ctx);
+    VariableDeclaration const* createUnnamed(ProcedureScope& scope, Declaration const& constraint);
+    void appendUnnamed(ProcedureScope& scope, Expression const& expr);
+
+private:
+    std::unique_ptr<Expression> myExpression;
+    std::vector<std::unique_ptr<VariableDeclaration>> myUnnamedVariables;
 };
 
 class ProcedureScope : public DeclarationScope
 {
-public:
-    class UnnamedVariable
-    {
-    public:
-        UnnamedVariable(Expression const& expr,
-                        Declaration const& dataType);
-        ~UnnamedVariable();
-
-    public:
-        void remapReferences(clone_map_t const& map);
-
-    public:
-        Expression const& constraint() const;
-        Declaration const& dataType() const;
-
-    protected:
-        Expression const* myExpression = nullptr;
-        Declaration const* myDataType = nullptr;
-    };
-
-    class Statement
-    {
-    public:
-        explicit Statement(std::unique_ptr<Expression> expr);
-
-    protected:
-        Statement(Statement const& rhs);
-        Statement& operator = (Statement const& rhs);
-
-    public:
-        Statement(Statement&& rhs);
-        Statement& operator = (Statement&& rhs);
-
-        ~Statement();
-        void swap(Statement& rhs);
-
-    public:
-        Statement clone(clone_map_t& map) const;
-        void remapReferences(clone_map_t const& map);
-
-    public:
-        Expression const& expression() const;
-        Slice<UnnamedVariable> const unnamedVariables() const;
-
-        void resolveSymbols(Context& ctx);
-        void appendUnnamed(Expression const& expr);
-        void scanUnnamed(Module const& module);
-
-    private:
-        std::unique_ptr<Expression> myExpression;
-        std::vector<UnnamedVariable> myUnnamedVariables;
-    };
-
 public:
     ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration);
@@ -392,6 +414,14 @@ public:
 public:
     TemplateDeclaration* declaration();
 };
+
+#define X(a, b) template <> inline b* DeclarationScope::as<b>() { return myKind == DeclarationScope::Kind::a ? static_cast<b*>(this) : nullptr; }
+SCOPE_KINDS(X)
+#undef X
+
+#define X(a, b) template <> inline b const* DeclarationScope::as<b>() const { return myKind == DeclarationScope::Kind::a ? static_cast<b const*>(this) : nullptr; }
+SCOPE_KINDS(X)
+#undef X
 
     } // namespace ast
 } // namespace kyfoo
