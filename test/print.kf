@@ -1,6 +1,12 @@
 ExitProcess(uExitCode : u32) : ()
 GetStdHandle(nStdHandle : HANDLE) : HANDLE
-WriteFile(hFile : u32, lpBuffer : pointer u8, nNumberOfBytesToWrite : u32, lpNumberOfBytesWritten : pointer u32, lpOverlapped : pointer<()>) : BOOL
+WriteFile(
+ hFile                  : u32,
+ lpBuffer               : pointer u8,
+ nNumberOfBytesToWrite  : u32,
+ lpNumberOfBytesWritten : pointer u32,
+ lpOverlapped           : pointer<()>
+ ) -> BOOL
 
 HANDLE = u32
 BOOL = u32

@@ -255,6 +255,21 @@ void Scanner::bumpLine()
     myColumn = 1;
 }
 
+void Scanner::addNest()
+{
+    ++myNestings;
+}
+
+void Scanner::removeNest()
+{
+    --myNestings;
+}
+
+int Scanner::nestings() const
+{
+    return myNestings;
+}
+
 Token Scanner::readNext()
 {
 #define TOK(t) Token(TokenKind::##t, myLine, column, lexeme)
@@ -337,10 +352,12 @@ Token Scanner::readNext()
         if ( myStream.eof() )
             return TOK(EndOfFile);
 
-        unget();
-        return indent(myLine, myColumn, spaces);
+        if ( !nestings() ) {
+            unget();
+            return indent(myLine, myColumn, spaces);
+        }
     }
-    else if ( spaces && column == 1 ) {
+    else if ( !nestings() && spaces && column == 1 ) {
         unget();
         return indent(myLine, myColumn, spaces);
     }
@@ -476,12 +493,12 @@ Token Scanner::readNext()
     // Single characters
 
     switch ( c ) {
-    case '(': return TOK2(OpenParen   , "(");
-    case ')': return TOK2(CloseParen  , ")");
-    case '[': return TOK2(OpenBracket , "[");
-    case ']': return TOK2(CloseBracket, "]");
-    case '<': return TOK2(OpenAngle   , "<");
-    case '>': return TOK2(CloseAngle  , ">");
+    case '(': addNest(); return TOK2(OpenParen   , "(");
+    case '[': addNest(); return TOK2(OpenBracket , "[");
+    case '<': addNest(); return TOK2(OpenAngle, "<");
+    case ')': removeNest(); return TOK2(CloseParen  , ")");
+    case ']': removeNest(); return TOK2(CloseBracket, "]");
+    case '>': removeNest();  return TOK2(CloseAngle, ">");
     case '{': return TOK2(OpenBrace   , "{");
     case '}': return TOK2(CloseBrace  , "}");
     case '|': return TOK2(Pipe        , "|");

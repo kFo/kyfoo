@@ -44,6 +44,10 @@ protected:
     Token indent(line_index_t line, column_index_t column, indent_width_t indent);
     void bumpLine();
 
+    void addNest();
+    void removeNest();
+    int nestings() const;
+
 private:
     std::istream& myStream;
 
@@ -59,6 +63,7 @@ private:
 
     line_index_t myLine = 1;
     column_index_t myColumn = 1;
+    int myNestings = 0;
     bool myError = false;
 };
 
