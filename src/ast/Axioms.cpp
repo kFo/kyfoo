@@ -279,19 +279,19 @@ bool AxiomsModule::init(Diagnostics& dgn)
         }
 
         myInstructionDecls[Sliceu8_ctor] = myDataProductDecls[Sliceu8]
-                                               ->definition()
-                                               ->childDeclarations()[2]
-                                               ->as<TemplateDeclaration>()
-                                               ->definition()
-                                               ->childDeclarations()[0]
-                                               ->as<ProcedureDeclaration>();
+            ->definition()
+            ->childDeclarations()[2]
+            ->as<TemplateDeclaration>()
+            ->definition()
+            ->childDeclarations()[0]
+            ->as<ProcedureDeclaration>();
         myInstructionDecls[Sliceu8_dtor] = myDataProductDecls[Sliceu8]
-                                               ->definition()
-                                               ->childDeclarations()[3]
-                                               ->as<TemplateDeclaration>()
-                                               ->definition()
-                                               ->childDeclarations()[0]
-                                               ->as<ProcedureDeclaration>();
+            ->definition()
+            ->childDeclarations()[3]
+            ->as<TemplateDeclaration>()
+            ->definition()
+            ->childDeclarations()[0]
+            ->as<ProcedureDeclaration>();
 
         buildMetaData();
 

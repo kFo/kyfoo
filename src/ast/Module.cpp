@@ -248,6 +248,7 @@ void Module::resolveImports(Diagnostics& dgn)
 void Module::semantics(Diagnostics& dgn)
 {
     myScope->resolveSymbols(dgn);
+    myScope->resolveAttributes(dgn);
 }
 
 Module const* Module::import(Module* module)
@@ -335,7 +336,7 @@ bool Module::parsed() const
 
 std::string const& Module::interpretString(Diagnostics& dgn, lexer::Token const& token) const
 {
-    auto e = myStrings.find(&token.lexeme());
+    auto e = myStrings.find(token.lexeme());
     if ( e != end(myStrings) )
         return e->second;
 
@@ -411,7 +412,7 @@ std::string const& Module::interpretString(Diagnostics& dgn, lexer::Token const&
         throw std::runtime_error("unhandled string kind");
     }
 
-    return myStrings[&s] = ret;
+    return myStrings[s] = ret;
 }
 
 Slice<Declaration const*> Module::templateInstantiations() const

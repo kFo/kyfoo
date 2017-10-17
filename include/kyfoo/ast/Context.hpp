@@ -103,6 +103,11 @@ public:
                             std::vector<std::unique_ptr<Expression>>::iterator right);
     void resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
 
+    void resolveStatement(Statement& stmt);
+    void resolveStatements(std::vector<Statement>::iterator left,
+                           std::vector<Statement>::iterator right);
+    void resolveStatements(std::vector<Statement>& stmts);
+
 private:
     Diagnostics* myDiagnostics = nullptr;
     IResolver* myResolver = nullptr;

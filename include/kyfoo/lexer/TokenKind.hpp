@@ -5,52 +5,47 @@ namespace kyfoo {
 
 #define TOKEN_DEFINITIONS(X) \
     X(Undefined, "undefined") \
-    X(EndOfFile, "EOF")       \
+    X(EndOfFile, "EOF"      ) \
     \
-    X(IndentLT, "indent(<)")      \
-    X(IndentEQ, "indent(=)")      \
-    X(IndentGT, "indent(>)")      \
+    X(IndentLT   , "indent(<)"  ) \
+    X(IndentEQ   , "indent(=)"  ) \
+    X(IndentGT   , "indent(>)"  ) \
     X(IndentError, "indent(err)") \
     \
-    X(Comment, "comment") \
-    \
-    X(Identifier, "identifier")     \
+    X(Identifier  , "identifier"  ) \
     X(FreeVariable, "freeVariable") \
-    X(Integer, "integer")           \
-    X(Rational, "rational")         \
-    X(String, "string")             \
+    X(Integer     , "integer"     ) \
+    X(Rational    , "rational"    ) \
+    X(String      , "string"      ) \
     \
-    X(Equal, "equal")               \
-    X(OpenParen, "openParen")       \
-    X(CloseParen, "closeParen")     \
-    X(OpenBracket, "openBracket")   \
+    X(OpenParen   , "openParen"   ) \
+    X(CloseParen  , "closeParen"  ) \
+    X(OpenBracket , "openBracket" ) \
     X(CloseBracket, "closeBracket") \
-    X(OpenAngle, "openAngle")       \
-    X(CloseAngle, "closeAngle")     \
-    X(OpenBrace, "openBrace")       \
-    X(CloseBrace, "closeBrace")     \
+    X(OpenAngle   , "openAngle"   ) \
+    X(CloseAngle  , "closeAngle"  ) \
+    X(OpenBrace   , "openBrace"   ) \
+    X(CloseBrace  , "closeBrace"  ) \
     \
-    X(Range, "range")                   \
-    X(Dot, "dot")                       \
-    X(Colon, "colon")                   \
-    X(Pipe, "pipe")                     \
-    X(Comma, "comma")                   \
-    X(ColonPipe, "colonPipe")           \
+    X(Equal         , "equal"         ) \
+    X(Range         , "range"         ) \
+    X(Dot           , "dot"           ) \
+    X(Colon         , "colon"         ) \
+    X(Pipe          , "pipe"          ) \
+    X(Comma         , "comma"         ) \
+    X(ColonPipe     , "colonPipe"     ) \
     X(ColonAmpersand, "colonAmpersand") \
-    X(ColonEqual, "colonEqual")         \
-    \
-    X(Plus, "plus")           \
-    X(Minus, "minus")         \
-    X(Star, "star")           \
-    X(Slash, "slash")         \
-    X(Ampersand, "ampersand") \
+    X(ColonEqual    , "colonEqual"    ) \
     \
     X(Yield, "yield") \
-    X(Map, "map")     \
+    X(Map  , "map"  ) \
+    \
+    X(At        , "at"         ) \
+    X(MinusMinus, "minus minus") \
     \
     X(_keywordStart, "keyword start") \
-    X(_import, "import")              \
-    X(_keywordEnd, "keyword end")
+    X(_import      , "import"       ) \
+    X(_keywordEnd  , "keyword end"  )
 
 #define X(A,B) A,
 enum class TokenKind

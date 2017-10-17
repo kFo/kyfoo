@@ -272,5 +272,27 @@ void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expre
     return resolveExpressions(begin(expressions), end(expressions));
 }
 
+void Context::resolveStatement(Statement& stmt)
+{
+    changeStatement(&stmt);
+    stmt.resolveSymbols(*this);
+    changeStatement(nullptr);
+}
+
+void Context::resolveStatements(std::vector<Statement>::iterator left,
+                                std::vector<Statement>::iterator right)
+{
+    for ( ; left != right; ++left ) {
+        changeStatement(&*left);
+        left->resolveSymbols(*this);
+    }
+    changeStatement(nullptr);
+}
+
+void Context::resolveStatements(std::vector<Statement>& stmts)
+{
+    resolveStatements(begin(stmts), end(stmts));
+}
+
     } // namespace ast
 } // namespace kyfoo

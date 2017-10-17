@@ -48,10 +48,13 @@ public:
     std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseProcedural(Diagnostics& dgn, lexer::Scanner& scanner);
 
 protected:
+    void append(std::unique_ptr<ast::Declaration> decl);
+    void parseAttributes(Diagnostics& dgn, lexer::Scanner& scanner);
     virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner);
 
 protected:
     ast::DeclarationScope* myScope = nullptr;
+    std::vector<std::unique_ptr<ast::Expression>> myAttributes;
 };
 
 class DataSumScopeParser : public DeclarationScopeParser

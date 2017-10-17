@@ -69,6 +69,13 @@ IMPL_CLONE_REMAP(myScope)
 IMPL_CLONE_REMAP(mySymbol)
 IMPL_CLONE_REMAP_END
 
+void Declaration::resolveAttributes(Diagnostics& dgn)
+{
+    ScopeResolver resolver(*myScope);
+    Context ctx(dgn, resolver);
+    ctx.resolveStatements(myAttributes);
+}
+
 DeclKind Declaration::kind() const
 {
     return myKind;
@@ -107,6 +114,24 @@ void Declaration::setScope(DeclarationScope& scope)
     }
 
     myScope = &scope;
+}
+
+void Declaration::setAttributes(std::vector<std::unique_ptr<Expression>>&& exprs)
+{
+    for ( auto& e : exprs )
+        myAttributes.emplace_back(std::move(e));
+
+    exprs.clear();
+}
+
+Slice<Statement> const Declaration::attributes() const
+{
+    return myAttributes;
+}
+
+Slice<Statement> Declaration::attributes()
+{
+    return myAttributes;
 }
 
 codegen::CustomData* Declaration::codegenData()

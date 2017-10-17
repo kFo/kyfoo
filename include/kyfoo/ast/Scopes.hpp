@@ -200,6 +200,7 @@ public:
 
     virtual void resolveImports(Diagnostics& dgn);
     virtual void resolveSymbols(Diagnostics& dgn);
+    virtual void resolveAttributes(Diagnostics& dgn);
 
 public:
     void setDeclaration(Declaration* declaration);

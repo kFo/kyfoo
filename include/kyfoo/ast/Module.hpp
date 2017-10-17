@@ -111,7 +111,7 @@ protected:
     std::vector<Declaration const*> myTemplateInstantiations;
 
     mutable std::vector<Module*> myImports;
-    mutable std::map<std::string const*, std::string> myStrings;
+    mutable std::map<std::string, std::string> myStrings; // todo: shared
 
     mutable std::unique_ptr<codegen::CustomData> myCodegenData;
 };

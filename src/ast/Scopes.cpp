@@ -147,6 +147,12 @@ void DeclarationScope::resolveSymbols(Diagnostics& dgn)
     }
 }
 
+void DeclarationScope::resolveAttributes(Diagnostics& dgn)
+{
+    for ( auto& d : myDeclarations )
+        d->resolveAttributes(dgn);
+}
+
 /**
  * Locates a symbol with parameter list that has exact semantic match
  *
@@ -599,11 +605,7 @@ void ProcedureScope::resolveSymbols(Diagnostics& dgn)
     // Resolve expressions
     ScopeResolver resolver(*this);
     Context ctx(dgn, resolver);
-    for ( auto& e : myStatements ) {
-        ctx.changeStatement(&e);
-        e.resolveSymbols(ctx);
-    }
-    ctx.changeStatement(nullptr);
+    ctx.resolveStatements(myStatements);
 }
 
 ProcedureDeclaration* ProcedureScope::declaration()

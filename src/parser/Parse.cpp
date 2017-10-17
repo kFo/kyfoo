@@ -50,6 +50,15 @@ std::unique_ptr<ast::Expression> parseExpression(lexer::Scanner& scanner)
     return nullptr;
 }
 
+std::unique_ptr<ast::Expression> parseAttribute(lexer::Scanner& scanner)
+{
+    Attribute grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
 std::unique_ptr<DataSumScopeParser>
 DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
                                                lexer::Scanner& scanner,
@@ -177,22 +186,22 @@ std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
 {
     if ( auto importDecl = parseImportDeclaration(scanner) ) {
-        myScope->append(std::move(importDecl));
+        append(std::move(importDecl));
         return std::make_tuple(true, nullptr);
     }
     else if ( auto symDecl = parseSymbolDeclaration(scanner) ) {
-        myScope->append(std::move(symDecl));
+        append(std::move(symDecl));
         return std::make_tuple(true, nullptr);
     }
     else if ( auto dsDecl = parseDataSumDeclaration(scanner) ) {
         auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
-        myScope->append(std::move(dsDecl));
+        append(std::move(dsDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
     else if ( auto dpDecl = parseDataProductDeclaration(scanner) ) {
         auto newScopeParser = parseDataProductDefinition(dgn, scanner, *dpDecl);
-        myScope->append(std::move(dpDecl));
+        append(std::move(dpDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
@@ -205,7 +214,7 @@ DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanne
 {
     if ( auto procDecl = parseProcedureDeclaration(scanner) ) {
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *procDecl);
-        myScope->append(std::move(procDecl));
+        append(std::move(procDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
@@ -218,16 +227,38 @@ DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanne
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *std::get<1>(templProcDecl));
         templDecl->definition()->append(std::move(std::get<1>(templProcDecl)));
 
-        myScope->append(std::move(templDecl));
+        append(std::move(templDecl));
         return std::make_tuple(true, std::move(newScopeParser));
     }
 
     return std::make_tuple(false, nullptr);
 }
 
+void DeclarationScopeParser::append(std::unique_ptr<ast::Declaration> decl)
+{
+    decl->setAttributes(std::move(myAttributes));
+    myScope->append(std::move(decl));
+}
+
+void DeclarationScopeParser::parseAttributes(Diagnostics& dgn, lexer::Scanner& scanner)
+{
+    while ( auto attr = parseAttribute(scanner) ) {
+        myAttributes.emplace_back(std::move(attr));
+        if ( scanner.peek().kind() != lexer::TokenKind::IndentEQ ) {
+            dgn.error(myScope->module(), scanner.peek()) << "expected declaration to follow attribute";
+            return;
+        }
+        scanner.next();
+    }
+}
+
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 {
+    parseAttributes(dgn, scanner);
+    if ( dgn.errorCount() )
+        return std::make_tuple(false, nullptr);
+
     auto ret = parseNonProcedural(dgn, scanner);
     if ( std::get<0>(ret) )
         return ret;

@@ -70,20 +70,22 @@ namespace
 
     bool isIdentifierStart(char c)
     {
-        return isLetter(c);
+        switch ( c ) {
+        case '-':
+        case '_':
+        case '+':
+        case '*':
+        case '/':
+        case '\\':
+            return true;
+        default:
+            return isLetter(c);
+        }
     }
 
     bool isIdentifierMid(char c)
     {
-        if ( isLetter(c) || isNumber(c) )
-            return true;
-
-        switch (c) {
-        case '_': return true;
-        case '-': return true;
-        }
-
-        return false;
+        return isIdentifierStart(c) || isNumber(c);
     }
 
     bool isFreeVariable(char c)
@@ -365,12 +367,65 @@ Token Scanner::readNext()
     // Resync column with start of lexeme
     column = myColumn;
 
-    if ( isIdentifierStart(c) ) {
+    if ( c == '\'' ) {
         lexeme += c;
-        while ( isIdentifierMid(peekChar()) )
+        while ( peekChar() != '\'' )
             lexeme += nextChar();
 
-        return Token(identifierKind(lexeme), myLine, column, lexeme);
+        lexeme += nextChar();
+
+        return TOK(String);
+    }
+    else if ( c == '"' ) {
+        lexeme += c;
+        while ( peekChar() != '"' )
+            lexeme += nextChar();
+
+        lexeme += nextChar();
+
+        return TOK(String);
+    }
+    else if ( c == '.' ) {
+        if ( peekChar() == '.' ) {
+            nextChar();
+            return TOK2(Range, "..");
+        }
+
+        return TOK2(Dot, ".");
+    }
+    else if ( c == '=' ) {
+        if ( peekChar() == '>' ) {
+            nextChar();
+            return TOK2(Yield, "=>");
+        }
+
+        return TOK2(Equal, "=");
+    }
+    else if ( c == '-' ) {
+        if ( peekChar() == '>' ) {
+            nextChar();
+            return TOK2(Map, "->");
+        }
+        else if ( peekChar() == '-' ) {
+            nextChar();
+            return TOK2(MinusMinus, "--");
+        }
+    }
+    else if ( c == ':' ) {
+        if ( peekChar() == '|' ) {
+            nextChar();
+            return TOK2(ColonPipe, ":|");
+        }
+        else if ( peekChar() == '&' ) {
+            nextChar();
+            return TOK2(ColonAmpersand, ":&");
+        }
+        else if ( peekChar() == '=' ) {
+            nextChar();
+            return TOK2(ColonEqual, ":=");
+        }
+
+        return TOK2(Colon, ":");
     }
     else if ( isFreeVariable(c) ) {
         if ( !isIdentifierStart(peekChar()) )
@@ -380,6 +435,13 @@ Token Scanner::readNext()
         while ( isIdentifierMid(peekChar()) );
 
         return TOK(FreeVariable);
+    }
+    else if ( isIdentifierStart(c) ) {
+        lexeme += c;
+        while ( isIdentifierMid(peekChar()) )
+            lexeme += nextChar();
+
+        return Token(identifierKind(lexeme), myLine, column, lexeme);
     }
     else if ( isNumber(c) ) {
         lexeme += c;
@@ -431,64 +493,6 @@ Token Scanner::readNext()
 
         return TOK(Rational);
     }
-    else if ( c == '\'' ) {
-        lexeme += c;
-        while ( peekChar() != '\'' )
-            lexeme += nextChar();
-
-        lexeme += nextChar();
-
-        return TOK(String);
-    }
-    else if ( c == '"' ) {
-        lexeme += c;
-        while ( peekChar() != '"' )
-            lexeme += nextChar();
-
-        lexeme += nextChar();
-
-        return TOK(String);
-    }
-    else if ( c == '.' ) {
-        if ( peekChar() == '.' ) {
-            nextChar();
-            return TOK2(Range, "..");
-        }
-
-        return TOK2(Dot, ".");
-    }
-    else if ( c == '=' ) {
-        if ( peekChar() == '>' ) {
-            nextChar();
-            return TOK2(Yield, "=>");
-        }
-
-        return TOK2(Equal, "=");
-    }
-    else if ( c == '-' ) {
-        if ( peekChar() == '>' ) {
-            nextChar();
-            return TOK2(Map, "->");
-        }
-
-        return TOK2(Minus, "-");
-    }
-    else if ( c == ':' ) {
-        if ( peekChar() == '|' ) {
-            nextChar();
-            return TOK2(ColonPipe, ":|");
-        }
-        else if ( peekChar() == '&' ) {
-            nextChar();
-            return TOK2(ColonAmpersand, ":&");
-        }
-        else if ( peekChar() == '=' ) {
-            nextChar();
-            return TOK2(ColonEqual, ":=");
-        }
-
-        return TOK2(Colon, ":");
-    }
 
     // Single characters
 
@@ -503,9 +507,7 @@ Token Scanner::readNext()
     case '}': return TOK2(CloseBrace  , "}");
     case '|': return TOK2(Pipe        , "|");
     case ',': return TOK2(Comma       , ",");
-    case '+': return TOK2(Plus        , "+");
-    case '*': return TOK2(Star        , "*");
-    case '/': return TOK2(Slash       , "/");
+    case '@': return TOK2(At          , "@");
     }
 
     myError = true;

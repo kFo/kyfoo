@@ -14,31 +14,33 @@ namespace kyfoo {
 using lexer::TokenKind;
 using lexer::Token;
 
-using id = g::Terminal<TokenKind::Identifier>;
-using free = g::Terminal<TokenKind::FreeVariable>;
-using integer = g::Terminal<TokenKind::Integer>;
+using id       = g::Terminal<TokenKind::Identifier>;
+using free     = g::Terminal<TokenKind::FreeVariable>;
+using integer  = g::Terminal<TokenKind::Integer>;
 using rational = g::Terminal<TokenKind::Rational>;
-using string = g::Terminal<TokenKind::String>;
+using string   = g::Terminal<TokenKind::String>;
 
 using comma = g::Terminal<TokenKind::Comma>;
-using dot = g::Terminal<TokenKind::Dot>;
+using dot   = g::Terminal<TokenKind::Dot>;
 using equal = g::Terminal<TokenKind::Equal>;
-using ampersand = g::Terminal<TokenKind::Ampersand>;
 
-using colon = g::Terminal<TokenKind::Colon>;
-using colonPipe = g::Terminal<TokenKind::ColonPipe>;
+using colon          = g::Terminal<TokenKind::Colon>;
+using colonPipe      = g::Terminal<TokenKind::ColonPipe>;
 using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
-using colonEqual = g::Terminal<TokenKind::ColonEqual>;
+using colonEqual     = g::Terminal<TokenKind::ColonEqual>;
 
 using yield = g::Terminal<TokenKind::Yield>;
-using map = g::Terminal<TokenKind::Map>;
+using map   = g::Terminal<TokenKind::Map>;
 
-using openParen = g::Terminal<TokenKind::OpenParen>;
-using closeParen = g::Terminal<TokenKind::CloseParen>;
-using openBracket = g::Terminal<TokenKind::OpenBracket>;
+using at         = g::Terminal<TokenKind::At>;
+using minusMinus = g::Terminal<TokenKind::MinusMinus>;
+
+using openParen    = g::Terminal<TokenKind::OpenParen>;
+using closeParen   = g::Terminal<TokenKind::CloseParen>;
+using openBracket  = g::Terminal<TokenKind::OpenBracket>;
 using closeBracket = g::Terminal<TokenKind::CloseBracket>;
-using openAngle = g::Terminal<TokenKind::OpenAngle>;
-using closeAngle = g::Terminal<TokenKind::CloseAngle>;
+using openAngle    = g::Terminal<TokenKind::OpenAngle>;
+using closeAngle   = g::Terminal<TokenKind::CloseAngle>;
 
 using _import = g::Terminal<TokenKind::_import>;
 
@@ -375,6 +377,15 @@ struct DataProductDeclarationField : public
             init = c->factor<1>().make();
 
         return std::make_unique<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), factor<2>().make(), std::move(init));
+    }
+};
+
+struct Attribute : public
+    g::And<at, Expression>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        return factor<1>().make();
     }
 };
 

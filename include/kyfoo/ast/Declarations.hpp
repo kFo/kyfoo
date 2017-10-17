@@ -43,6 +43,7 @@ const char* to_string(DeclKind kind);
 class DeclarationScope;
 class DataSumScope;
 class DataProductScope;
+class Statement;
 class ProcedureScope;
 class TemplateScope;
 class ValueExpression;
@@ -75,6 +76,9 @@ public:
     virtual void resolveSymbols(Diagnostics& dgn) = 0;
 
 public:
+    void resolveAttributes(Diagnostics& dgn);
+
+public:
     DeclKind kind() const;
     Symbol& symbol();
     Symbol const& symbol() const;
@@ -88,6 +92,10 @@ public:
     DeclarationScope const& scope() const;
     void setScope(DeclarationScope& parent);
 
+    void setAttributes(std::vector<std::unique_ptr<Expression>>&& exprs);
+    Slice<Statement> const attributes() const;
+    Slice<Statement> attributes();
+
     codegen::CustomData* codegenData();
     codegen::CustomData* codegenData() const;
     void setCodegenData(std::unique_ptr<codegen::CustomData> data);
@@ -97,6 +105,7 @@ protected:
     DeclKind myKind;
     std::unique_ptr<Symbol> mySymbol;
     DeclarationScope* myScope = nullptr;
+    std::vector<Statement> myAttributes;
     mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
 
