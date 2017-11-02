@@ -132,7 +132,7 @@ std::uint32_t nextPower2(std::uint32_t n)
 
 llvm::Type* toType(ast::Declaration const& decl)
 {
-    auto d = resolveIndirections(&decl);
+    auto d = dataType(resolveIndirections(&decl));
     if ( !d )
         return nullptr;
 
@@ -390,29 +390,84 @@ struct CodeGenPass
                 customData(*p)->arg = &*(arg++);
         }
 
-        auto bb = llvm::BasicBlock::Create(module->getContext(), "entry", fun->body);
+        auto bb = llvm::BasicBlock::Create(module->getContext(), "", fun->body);
         llvm::IRBuilder<> builder(bb);
 
-        for ( auto const& d : defn->childDeclarations() ) {
-            if ( auto var = d->as<ast::VariableDeclaration>() ) {
-                customData(*var)->inst = builder.CreateAlloca(toType(*var->dataType()));
+        std::function<void(ast::ProcedureScope const&)> gatherAllocas =
+        [&](ast::ProcedureScope const& scope) {
+            for ( auto const& d : scope.childDeclarations() ) {
+                if ( auto var = d->as<ast::VariableDeclaration>() ) {
+                    customData(*var)->inst = builder.CreateAlloca(toType(*var->dataType()));
+                }
             }
-        }
 
-        for ( auto const& stmt : defn->statements() ) {
-            for ( auto const& v : stmt.unnamedVariables() ) {
-                auto vdata = std::make_unique<LLVMCustomData<ast::VariableDeclaration>>();
-                vdata->inst = builder.CreateAlloca(toType(*v->dataType()));
-                v->setCodegenData(std::move(vdata));
+            for ( auto const& stmt : scope.statements() ) {
+                for ( auto const& v : stmt.unnamedVariables() ) {
+                    auto vdata = std::make_unique<LLVMCustomData<ast::VariableDeclaration>>();
+                    vdata->inst = builder.CreateAlloca(toType(*v->dataType()));
+                    v->setCodegenData(std::move(vdata));
+                }
             }
-        }
 
+            for ( auto const& stmt : scope.statements() ) {
+                if ( auto b = stmt.expression().as<ast::BranchExpression>() ) {
+                    for ( ; b; b = b->next() )
+                        gatherAllocas(*b->scope());
+                }
+            }
+        };
+        gatherAllocas(*defn);
+
+        // todo
+        auto lastExpr = toBlock(builder, *defn);
+        if ( decl.returnType()->declaration() == sourceModule.axioms().intrinsic(ast::EmptyLiteralType) )
+            builder.CreateRetVoid();
+        else
+            builder.CreateRet(lastExpr);
+
+        if ( llvm::verifyFunction(*fun->body, &llvm::errs()) ) {
+            bb->dump();
+        }
+    }
+
+    llvm::Value* toBlock(llvm::IRBuilder<>& builder, ast::ProcedureScope const& scope)
+    {
         llvm::Value* lastInst = nullptr;
-        for ( auto const& stmt : defn->statements() ) {
-            lastInst = toValue(builder, stmt.expression());
-            if ( !lastInst ) {
-                error(stmt.expression()) << "invalid instruction";
-                die();
+        auto func = builder.GetInsertBlock()->getParent();
+        for ( auto const& stmt : scope.statements() ) {
+            if ( auto branchExpr = stmt.expression().as<ast::BranchExpression>() ) {
+                auto mergeBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+
+                for ( auto bexpr = branchExpr; bexpr; bexpr = bexpr->next() ) {
+                    auto falseBlock = mergeBlock;
+                    if ( bexpr->next() )
+                        falseBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+
+                    if ( bexpr->condition() ) {
+                        auto trueBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+                        auto cond = toValue(builder, *bexpr->condition());
+                        // todo: implicit conversion to bool
+                        auto cmp = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+                        builder.CreateCondBr(cmp, trueBlock, falseBlock);
+                        builder.SetInsertPoint(trueBlock);
+                    }
+
+                    toBlock(builder, *bexpr->scope());
+                    builder.CreateBr(mergeBlock);
+
+                    falseBlock->moveAfter(&func->back());
+
+                    builder.SetInsertPoint(falseBlock);
+                }
+
+                mergeBlock->moveAfter(&func->back());
+            }
+            else {
+                lastInst = toValue(builder, stmt.expression());
+                if ( !lastInst ) {
+                    error(stmt.expression()) << "invalid instruction";
+                    die();
+                }
             }
 
             auto u = stmt.unnamedVariables();
@@ -427,8 +482,7 @@ struct CodeGenPass
             }
         }
 
-        // todo
-        builder.CreateRet(lastInst);
+        return lastInst;
     }
 
     result_t declProcedureParameter(ast::ProcedureParameter const&)
@@ -627,7 +681,8 @@ private:
         else if ( auto varExpr = expr.as<ast::VarExpression>() ) {
             auto var = varExpr->identity().declaration()->as<ast::VariableDeclaration>();
             auto vdata = customData(*var);
-            return builder.CreateStore(toValue(builder, varExpr->expression()), vdata->inst);
+            builder.CreateStore(toValue(builder, varExpr->expression()), vdata->inst);
+            return builder.CreateLoad(vdata->inst);
         }
 
         return nullptr;

@@ -247,8 +247,8 @@ void Module::resolveImports(Diagnostics& dgn)
 
 void Module::semantics(Diagnostics& dgn)
 {
-    myScope->resolveSymbols(dgn);
-    myScope->resolveAttributes(dgn);
+    myScope->resolveSymbols(*this, dgn);
+    myScope->resolveAttributes(*this, dgn);
 }
 
 Module const* Module::import(Module* module)

@@ -32,8 +32,8 @@ public:
 
     virtual DeclarationScope const& scope() const = 0;
 
-    virtual LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchOverload(Diagnostics& dgn, SymbolReference const& symbol) = 0;
+    virtual LookupHit matchEquivalent(SymbolReference const& symbol) const = 0;
+    virtual LookupHit matchOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& symbol) = 0;
 };
 
 class ScopeResolver : public IResolver
@@ -53,8 +53,8 @@ public:
 public:
     DeclarationScope const& scope() const;
 
-    LookupHit matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const override;
-    LookupHit matchOverload(Diagnostics& dgn, SymbolReference const& symbol) override;
+    LookupHit matchEquivalent(SymbolReference const& symbol) const override;
+    LookupHit matchOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& symbol) override;
 
 public:
     void addSupplementaryPrototype(PatternsPrototype& proto);
@@ -68,11 +68,12 @@ private:
 class Context
 {
 public:
-    Context(Diagnostics& dgn, IResolver& resolver);
+    Context(Module& module, Diagnostics& dgn, IResolver& resolver);
     ~Context();
 
 public:
     AxiomsModule const& axioms() const;
+    Module& module();
     Module const& module() const;
 
     Diagnostics& diagnostics();
@@ -109,6 +110,7 @@ public:
     void resolveStatements(std::vector<Statement>& stmts);
 
 private:
+    Module* myModule = nullptr;
     Diagnostics* myDiagnostics = nullptr;
     IResolver* myResolver = nullptr;
     Statement* myStatement = nullptr;

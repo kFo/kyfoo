@@ -31,11 +31,14 @@ namespace kyfoo {
     X(Range         , "range"         ) \
     X(Dot           , "dot"           ) \
     X(Colon         , "colon"         ) \
+    X(Semicolon     , "semicolon"     ) \
     X(Pipe          , "pipe"          ) \
     X(Comma         , "comma"         ) \
     X(ColonPipe     , "colonPipe"     ) \
     X(ColonAmpersand, "colonAmpersand") \
     X(ColonEqual    , "colonEqual"    ) \
+    X(ColonQuestion , "colonQuestion" ) \
+    X(ColonSlash    , "colonSlash"    ) \
     \
     X(Yield, "yield") \
     X(Map  , "map"  ) \

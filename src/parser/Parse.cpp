@@ -172,6 +172,26 @@ parseProcedureDeclaration(lexer::Scanner& scanner)
     return nullptr;
 }
 
+std::unique_ptr<ast::BranchExpression>
+parseBranchExpression(lexer::Scanner& scanner)
+{
+    BranchExpression grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
+std::unique_ptr<ast::BranchExpression>
+parseBranchElseExpression(lexer::Scanner& scanner)
+{
+    BranchElseExpression grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
 std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>>
 parseImplicitTemplateProcedureDeclaration(lexer::Scanner& scanner)
 {
@@ -368,6 +388,39 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         auto declParse = DeclarationScopeParser::parseNonProcedural(dgn, scanner);
         if ( std::get<0>(declParse) )
             return declParse;
+    }
+
+    if ( auto branchExpr = parseBranchExpression(scanner) ) {
+        branchExpr->setScope(std::make_unique<ast::ProcedureScope>(*scope(), *static_cast<ast::ProcedureDeclaration*>(scope()->declaration())));
+
+        if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner.next();
+            auto s = branchExpr->scope();
+            scope()->append(std::move(branchExpr));
+            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s));
+        }
+
+        return std::make_tuple(false, nullptr);
+    }
+    else if ( auto elseExpr = parseBranchElseExpression(scanner) ) {
+        auto branch = scope()->statements().back().expression().as<ast::BranchExpression>();
+        if ( !branch ) {
+            dgn.error(scope()->module(), *elseExpr) << "is missing a preceding branch-expression";
+            return std::make_tuple(false, nullptr);
+        }
+
+        while ( branch->next() )
+            branch = branch->next();
+
+        elseExpr->setScope(std::make_unique<ast::ProcedureScope>(*scope(), *static_cast<ast::ProcedureDeclaration*>(scope()->declaration())));
+        if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner.next();
+            auto s = elseExpr->scope();
+            branch->setNext(std::move(elseExpr));
+            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s));
+        }
+
+        return std::make_tuple(false, nullptr);
     }
 
     VariableDeclaration varGrammar;

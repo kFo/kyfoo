@@ -77,6 +77,11 @@ void Expression::setDeclaration(Declaration const& decl)
     myDeclaration = &decl;
 }
 
+void Expression::clearDeclaration()
+{
+    myDeclaration = nullptr;
+}
+
 Slice<Expression*> Expression::constraints()
 {
     return myConstraints;
@@ -399,6 +404,9 @@ IMPL_CLONE_REMAP_END
 
 void TupleExpression::resolveSymbols(Context& ctx)
 {
+    if ( myDeclaration )
+        return;
+
     ctx.resolveExpressions(myExpressions);
 
     if ( myKind == TupleKind::Open ) {
@@ -508,6 +516,9 @@ IMPL_CLONE_REMAP_END
 
 void ApplyExpression::resolveSymbols(Context& ctx)
 {
+    if ( myDeclaration )
+        return;
+
     ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
     flatten(next(begin(myExpressions)));
 
@@ -550,10 +561,10 @@ void ApplyExpression::resolveSymbols(Context& ctx)
 
         if ( auto d = callable->as<DataProductDeclaration>() ) {
             if ( auto defn = d->definition() ) {
-                hit = defn->findOverload(ctx.diagnostics(), SymbolReference("ctor"));
+                hit = defn->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("ctor"));
                 if ( hit ) {
                     if ( auto decl = hit.as<TemplateDeclaration>() ) {
-                        hit = decl->definition()->findOverload(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+                        hit = decl->definition()->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
                         if ( auto proc = hit.as<ProcedureDeclaration>() ) {
                             if ( !myExpressions.front()->as<DotExpression>() ) {
                                 auto procScope = ctx.resolver().scope().as<ProcedureScope>();
@@ -575,7 +586,7 @@ void ApplyExpression::resolveSymbols(Context& ctx)
 
         if ( auto d = callable->as<TemplateDeclaration>() ) {
             if ( auto defn = d->definition() )
-                hit = defn->findOverload(ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
+                hit = defn->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
         }
 
         if ( auto d = callable->as<DataSumDeclaration::Constructor>() ) {
@@ -601,12 +612,15 @@ void ApplyExpression::resolveSymbols(Context& ctx)
     auto tryLowerSingle = [this, &ctx](Declaration const* decl) {
         myDeclaration = decl;
 
-        Declaration const* dt = decl;
         if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+            Declaration const* dt = decl;
             if ( isCtor(*proc) )
                 dt = proc->parameters()[0]->dataType();
             else
                 dt = proc->returnType()->declaration();
+
+            if ( dt == ctx.axioms().intrinsic(EmptyLiteralType) )
+                return;
 
             return ctx.rewrite([&ctx, dt](std::unique_ptr<Expression>& expr) {
                 auto procScope = ctx.resolver().scope().as<ProcedureScope>();
@@ -754,6 +768,9 @@ IMPL_CLONE_REMAP_END
 
 void SymbolExpression::resolveSymbols(Context& ctx)
 {
+    if ( myDeclaration )
+        return;
+
     if ( myIdentifier.kind() == lexer::TokenKind::Undefined ) {
         if ( myExpressions.empty() )
             return;
@@ -991,21 +1008,13 @@ IMPL_CLONE_REMAP_END
 
 void VarExpression::resolveSymbols(Context& ctx)
 {
-    auto procScope = ctx.resolver().scope().as<ProcedureScope>();
-    if ( !procScope ) {
-        ctx.error(*this) << "var-expressions must occur in a procedure-scope";
+    if ( myDeclaration )
         return;
-    }
 
-    auto var = procScope->findEquivalent(ctx.diagnostics(), SymbolReference(myIdentity->token().lexeme())).decl();
-    if ( !var ) {
-        ctx.error(*this) << "variable is not declared";
-        return;
-    }
-
-    myIdentity->setDeclaration(*var);
     ctx.resolveExpression(reinterpret_cast<std::unique_ptr<Expression>&>(myIdentity));
     ctx.resolveExpression(myExpression);
+
+    myDeclaration = myIdentity->declaration();
 }
 
 PrimaryExpression const& VarExpression::identity() const
@@ -1026,6 +1035,212 @@ Expression const& VarExpression::expression() const
 Expression& VarExpression::expression()
 {
     return *myExpression;
+}
+
+//
+// LambdaExpression
+
+LambdaExpression::LambdaExpression(std::unique_ptr<Expression> params,
+                                   std::unique_ptr<Expression> returnType,
+                                   std::unique_ptr<Expression> body)
+    : Expression(Kind::Lambda)
+    , myParams(std::move(params))
+    , myReturnType(std::move(returnType))
+    , myBody(std::move(body))
+{
+}
+
+LambdaExpression::LambdaExpression(LambdaExpression const& rhs)
+    : Expression(rhs)
+{
+}
+
+LambdaExpression& LambdaExpression::operator = (LambdaExpression const& rhs)
+{
+    LambdaExpression(rhs).swap(*this);
+    return *this;
+}
+
+LambdaExpression::~LambdaExpression() = default;
+
+void LambdaExpression::swap(LambdaExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myParams, rhs.myParams);
+    swap(myReturnType, rhs.myReturnType);
+    swap(myBody, rhs.myBody);
+}
+
+void LambdaExpression::io(IStream& stream) const
+{
+    stream.next("param", myParams);
+    stream.next("returnType", myReturnType);
+    stream.next("body", myBody);
+}
+
+IMPL_CLONE_BEGIN(LambdaExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myParams)
+IMPL_CLONE_CHILD(myReturnType)
+IMPL_CLONE_CHILD(myBody)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(LambdaExpression, Expression)
+IMPL_CLONE_REMAP(myParams)
+IMPL_CLONE_REMAP(myReturnType)
+IMPL_CLONE_REMAP(myBody)
+IMPL_CLONE_REMAP_END
+
+void LambdaExpression::resolveSymbols(Context& ctx)
+{
+    if ( myDeclaration )
+        return;
+
+    ctx.resolveExpression(myParams);
+    ctx.resolveExpression(myBody);
+
+    if ( !myReturnType ) {
+        ctx.error(*myReturnType) << "return type deduction not implemented";
+        return;
+    }
+    ctx.resolveExpression(myReturnType);
+
+    // todo: create and resolve to ProcedureDeclaration
+}
+
+Expression const& LambdaExpression::parameters() const
+{
+    return *myParams;
+}
+
+Expression const& LambdaExpression::returnType() const
+{
+    return *myReturnType;
+}
+
+Expression const& LambdaExpression::body() const
+{
+    return *myBody;
+}
+
+Expression& LambdaExpression::parameters()
+{
+    return *myParams;
+}
+
+Expression& LambdaExpression::returnType()
+{
+    return *myReturnType;
+}
+
+Expression& LambdaExpression::body()
+{
+    return *myBody;
+}
+
+//
+// BranchExpression
+
+BranchExpression::BranchExpression(std::unique_ptr<Expression> condition)
+    : Expression(Kind::Branch)
+    , myCondition(std::move(condition))
+{
+}
+
+BranchExpression::BranchExpression(BranchExpression const& rhs)
+    : Expression(rhs)
+{
+}
+
+BranchExpression& BranchExpression::operator = (BranchExpression const& rhs)
+{
+    BranchExpression(rhs).swap(*this);
+    return *this;
+}
+
+BranchExpression::~BranchExpression() = default;
+
+void BranchExpression::swap(BranchExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myCondition, rhs.myCondition);
+}
+
+void BranchExpression::io(IStream& stream) const
+{
+    stream.next("condition", myCondition);
+}
+
+IMPL_CLONE_BEGIN(BranchExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myCondition)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(BranchExpression, Expression)
+IMPL_CLONE_REMAP(myCondition)
+IMPL_CLONE_REMAP_END
+
+void BranchExpression::resolveSymbols(Context& ctx)
+{
+    if ( !condition() ) {
+        ctx.error(*this) << "is missing a condition";
+        return;
+    }
+
+    for ( auto b = this; b; b = b->next() ) {
+        if ( b->condition() ) {
+            ctx.resolveExpression(b->myCondition);
+        }
+        else if ( b->next() ) {
+            ctx.error(*b) << "alternative branch must occur at the end of a branch sequence";
+            return;
+        }
+
+        if ( !scope() ) {
+            ctx.error(*b) << "is missing a branch body";
+            return;
+        }
+
+        b->scope()->resolveSymbols(ctx.module(), ctx.diagnostics());
+    }
+}
+
+Expression const* BranchExpression::condition() const
+{
+    return myCondition.get();
+}
+
+Expression* BranchExpression::condition()
+{
+    return myCondition.get();
+}
+
+ProcedureScope const* BranchExpression::scope() const
+{
+    return myScope.get();
+}
+
+ProcedureScope* BranchExpression::scope()
+{
+    return myScope.get();
+}
+
+void BranchExpression::setScope(std::unique_ptr<ProcedureScope> scope)
+{
+    myScope = std::move(scope);
+}
+
+BranchExpression const* BranchExpression::next() const
+{
+    return myNext.get();
+}
+
+BranchExpression* BranchExpression::next()
+{
+    return myNext.get();
+}
+
+void BranchExpression::setNext(std::unique_ptr<BranchExpression> branchExpr)
+{
+    myNext = std::move(branchExpr);
 }
 
 //
@@ -1086,6 +1301,16 @@ struct FrontExpression
     {
         return exprPrimary(v.identity());
     }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        return dispatch(l.parameters());
+    }
+
+    result_t exprBranch(BranchExpression const& b)
+    {
+        return dispatch(*b.condition());
+    }
 };
 
 lexer::Token const& front(Expression const& expr)
@@ -1101,6 +1326,7 @@ struct PrintOperator
 
     Dispatcher& dispatch;
     result_t stream;
+    int nest = 0;
 
     PrintOperator(Dispatcher& dispatch, result_t stream)
         : dispatch(dispatch)
@@ -1149,6 +1375,10 @@ struct PrintOperator
 
     result_t exprApply(ApplyExpression const& a)
     {
+        if ( nest )
+            stream << "(";
+
+        ++nest;
         auto first = true;
         for ( auto const& e : a.expressions() ) {
             if ( !first )
@@ -1156,15 +1386,11 @@ struct PrintOperator
             else
                 first = false;
 
-            auto const group = e->kind() == Expression::Kind::Apply;
-            if ( group )
-                stream << "(";
-
             dispatch(*e);
-
-            if ( group )
-                stream << ")";
         }
+        --nest;
+        if ( nest )
+            stream << ")";
 
         return printConstraints(a);
     }
@@ -1214,9 +1440,25 @@ struct PrintOperator
 
     result_t exprVar(VarExpression const& v)
     {
-        exprPrimary(v.identity());
-        stream << " = ";
+        if ( v.identity().token().kind() != lexer::TokenKind::Undefined ) {
+            exprPrimary(v.identity());
+            stream << " = ";
+        }
+
         return dispatch(v.expression());
+    }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        dispatch(l.parameters());
+        stream << " => ";
+        return dispatch(l.body());
+    }
+
+    result_t exprBranch(BranchExpression const& b)
+    {
+        stream << ":? ";
+        return dispatch(*b.condition());
     }
 };
 
@@ -1233,6 +1475,112 @@ bool allResolved(Slice<Expression*> const& exprs)
             return false;
 
     return true;
+}
+
+template <typename Dispatcher>
+struct ClearDeclaration
+{
+    using result_t = void;
+
+    Dispatcher& dispatch;
+
+    ClearDeclaration(Dispatcher& dispatch)
+        : dispatch(dispatch)
+    {
+    }
+
+    result_t dispatchConstraints(Expression& expr)
+    {
+        for ( auto c : expr.constraints() )
+            dispatch(*c);
+    }
+
+    result_t exprPrimary(PrimaryExpression& p)
+    {
+        if ( p.token().kind() == lexer::TokenKind::Identifier )
+            p.clearDeclaration();
+
+        dispatchConstraints(p);
+    }
+
+    result_t exprReference(ReferenceExpression& r)
+    {
+        r.clearDeclaration();
+        dispatch(r.expression());
+        dispatchConstraints(r);
+    }
+
+    result_t exprTuple(TupleExpression& t)
+    {
+        t.clearDeclaration();
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(t);
+    }
+
+    result_t exprApply(ApplyExpression& a)
+    {
+        a.clearDeclaration();
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(a);
+    }
+
+    result_t exprSymbol(SymbolExpression& s)
+    {
+        s.clearDeclaration();
+        for ( auto const& e : s.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(s);
+    }
+
+    result_t exprDot(DotExpression& d)
+    {
+        d.clearDeclaration();
+        for ( auto& e : d.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(d);
+    }
+
+    result_t exprVar(VarExpression& v)
+    {
+        v.clearDeclaration();
+        if ( v.identity().token().kind() != lexer::TokenKind::Undefined )
+            exprPrimary(v.identity());
+
+        dispatch(v.expression());
+        dispatchConstraints(v);
+    }
+
+    result_t exprLambda(LambdaExpression& l)
+    {
+        l.clearDeclaration();
+        dispatch(l.parameters());
+        dispatch(l.body());
+        dispatchConstraints(l);
+    }
+
+    result_t exprBranch(BranchExpression& b)
+    {
+        b.clearDeclaration();
+        for ( auto p = &b; p; p = p->next() ) {
+            if ( p->condition() )
+                dispatch(*p->condition());
+
+            for ( auto& stmt : p->scope()->statements() )
+                dispatch(stmt.expression());
+        }
+    }
+};
+
+void clearDeclarations(Expression& expr)
+{
+    ShallowApply<ClearDeclaration> op;
+    op(expr);
 }
 
     } // namespace ast

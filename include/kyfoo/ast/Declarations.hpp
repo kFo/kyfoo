@@ -40,6 +40,7 @@ enum class DeclKind
 
 const char* to_string(DeclKind kind);
 
+class Module;
 class DeclarationScope;
 class DataSumScope;
 class DataProductScope;
@@ -73,10 +74,10 @@ public:
     virtual Declaration* clone(clone_map_t& map) const = 0;
     virtual void cloneChildren(Declaration& c, clone_map_t& map) const;
     virtual void remapReferences(clone_map_t const& map);
-    virtual void resolveSymbols(Diagnostics& dgn) = 0;
+    virtual void resolveSymbols(Module& endModule, Diagnostics& dgn) = 0;
 
 public:
-    void resolveAttributes(Diagnostics& dgn);
+    void resolveAttributes(Module& endModule, Diagnostics& dgn);
 
 public:
     DeclKind kind() const;
@@ -138,7 +139,7 @@ public:
         // Declaration
     public:
         DECL_CLONE_ALL(Declaration)
-        void resolveSymbols(Diagnostics& dgn) override;
+        void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
     public:
         void setParent(DataSumDeclaration* parent);
@@ -173,7 +174,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     void define(std::unique_ptr<DataSumScope> scope);
@@ -212,7 +213,7 @@ public:
         // Declaration
     public:
         DECL_CLONE_ALL(Declaration)
-        void resolveSymbols(Diagnostics& dgn) override;
+        void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
     public:
         void setParent(DataProductDeclaration* dpDecl);
@@ -249,7 +250,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     void define(std::unique_ptr<DataProductScope> scope);
@@ -284,7 +285,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     Expression* expression();
@@ -321,7 +322,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     void addConstraint(Expression const& expr);
@@ -368,7 +369,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     Declaration const* dataType() const;
@@ -408,10 +409,11 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
-    void resolvePrototypeSymbols(Diagnostics& dgn);
+    void resolvePrototypeSymbols(Module& endModule, Diagnostics& dgn);
+    void unresolvePrototypeSymbols();
 
     ProcedureScope* definition();
     ProcedureScope const* definition() const;
@@ -464,7 +466,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 private:
     std::vector<lexer::Token> myModulePath;
@@ -497,7 +499,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn);
+    void resolveSymbols(Module& endModule, Diagnostics& dgn);
 
 public:
     PatternsPrototype const& prototype() const;
@@ -535,7 +537,7 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     TemplateScope* definition();

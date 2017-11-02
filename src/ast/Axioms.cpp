@@ -38,48 +38,48 @@ ascii = slice<u8>
 wordSize = 64
 size_t = unsigned<wordSize>
 
-staticSize(p : pointer \T) : size_t => wordSize
+staticSize(p : pointer \T) -> size_t => wordSize
 
-add(x : unsigned<1  >, y : unsigned<1  >) : unsigned<1  >
-add(x : unsigned<8  >, y : unsigned<8  >) : unsigned<8  >
-add(x : unsigned<16 >, y : unsigned<16 >) : unsigned<16 >
-add(x : unsigned<32 >, y : unsigned<32 >) : unsigned<32 >
-add(x : unsigned<64 >, y : unsigned<64 >) : unsigned<64 >
-add(x : unsigned<128>, y : unsigned<128>) : unsigned<128>
+add(x : unsigned<1  >, y : unsigned<1  >) -> unsigned<1  >
+add(x : unsigned<8  >, y : unsigned<8  >) -> unsigned<8  >
+add(x : unsigned<16 >, y : unsigned<16 >) -> unsigned<16 >
+add(x : unsigned<32 >, y : unsigned<32 >) -> unsigned<32 >
+add(x : unsigned<64 >, y : unsigned<64 >) -> unsigned<64 >
+add(x : unsigned<128>, y : unsigned<128>) -> unsigned<128>
 
-add(x : signed<unsigned<8  >>, y : signed<unsigned<8  >>) : signed<unsigned<8  >>
-add(x : signed<unsigned<16 >>, y : signed<unsigned<16 >>) : signed<unsigned<16 >>
-add(x : signed<unsigned<32 >>, y : signed<unsigned<32 >>) : signed<unsigned<32 >>
-add(x : signed<unsigned<64 >>, y : signed<unsigned<64 >>) : signed<unsigned<64 >>
-add(x : signed<unsigned<128>>, y : signed<unsigned<128>>) : signed<unsigned<128>>
+add(x : signed<unsigned<8  >>, y : signed<unsigned<8  >>) -> signed<unsigned<8  >>
+add(x : signed<unsigned<16 >>, y : signed<unsigned<16 >>) -> signed<unsigned<16 >>
+add(x : signed<unsigned<32 >>, y : signed<unsigned<32 >>) -> signed<unsigned<32 >>
+add(x : signed<unsigned<64 >>, y : signed<unsigned<64 >>) -> signed<unsigned<64 >>
+add(x : signed<unsigned<128>>, y : signed<unsigned<128>>) -> signed<unsigned<128>>
 
-trunc<unsigned<1 >>(x : unsigned<8  >) : unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<16 >) : unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<32 >) : unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<64 >) : unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<128>) : unsigned<1 >
-trunc<unsigned<8 >>(x : unsigned<16 >) : unsigned<8 >
-trunc<unsigned<8 >>(x : unsigned<32 >) : unsigned<8 >
-trunc<unsigned<8 >>(x : unsigned<64 >) : unsigned<8 >
-trunc<unsigned<8 >>(x : unsigned<128>) : unsigned<8 >
-trunc<unsigned<16>>(x : unsigned<32 >) : unsigned<16>
-trunc<unsigned<16>>(x : unsigned<64 >) : unsigned<16>
-trunc<unsigned<16>>(x : unsigned<128>) : unsigned<16>
-trunc<unsigned<32>>(x : unsigned<64 >) : unsigned<32>
-trunc<unsigned<32>>(x : unsigned<128>) : unsigned<32>
-trunc<unsigned<64>>(x : unsigned<128>) : unsigned<64>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<16 >>) : signed<unsigned<8 >>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<32 >>) : signed<unsigned<8 >>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<64 >>) : signed<unsigned<8 >>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<128>>) : signed<unsigned<8 >>
-trunc<signed<unsigned<16>>>(x : signed<unsigned<32 >>) : signed<unsigned<16>>
-trunc<signed<unsigned<16>>>(x : signed<unsigned<64 >>) : signed<unsigned<16>>
-trunc<signed<unsigned<16>>>(x : signed<unsigned<128>>) : signed<unsigned<16>>
-trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) : signed<unsigned<32>>
-trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) : signed<unsigned<32>>
-trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) : signed<unsigned<64>>
+trunc<unsigned<1 >>(x : unsigned<8  >) -> unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<16 >) -> unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<32 >) -> unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<64 >) -> unsigned<1 >
+trunc<unsigned<1 >>(x : unsigned<128>) -> unsigned<1 >
+trunc<unsigned<8 >>(x : unsigned<16 >) -> unsigned<8 >
+trunc<unsigned<8 >>(x : unsigned<32 >) -> unsigned<8 >
+trunc<unsigned<8 >>(x : unsigned<64 >) -> unsigned<8 >
+trunc<unsigned<8 >>(x : unsigned<128>) -> unsigned<8 >
+trunc<unsigned<16>>(x : unsigned<32 >) -> unsigned<16>
+trunc<unsigned<16>>(x : unsigned<64 >) -> unsigned<16>
+trunc<unsigned<16>>(x : unsigned<128>) -> unsigned<16>
+trunc<unsigned<32>>(x : unsigned<64 >) -> unsigned<32>
+trunc<unsigned<32>>(x : unsigned<128>) -> unsigned<32>
+trunc<unsigned<64>>(x : unsigned<128>) -> unsigned<64>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<16 >>) -> signed<unsigned<8 >>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<32 >>) -> signed<unsigned<8 >>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<64 >>) -> signed<unsigned<8 >>
+trunc<signed<unsigned<8 >>>(x : signed<unsigned<128>>) -> signed<unsigned<8 >>
+trunc<signed<unsigned<16>>>(x : signed<unsigned<32 >>) -> signed<unsigned<16>>
+trunc<signed<unsigned<16>>>(x : signed<unsigned<64 >>) -> signed<unsigned<16>>
+trunc<signed<unsigned<16>>>(x : signed<unsigned<128>>) -> signed<unsigned<16>>
+trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) -> signed<unsigned<32>>
+trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) -> signed<unsigned<32>>
+trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) -> signed<unsigned<64>>
 
-addr(=p : \T) : pointer T
+addr(=p : \T) -> pointer T
 
 )axioms";
 
@@ -224,20 +224,20 @@ bool AxiomsModule::init(Diagnostics& dgn)
         if ( dgn.errorCount() )
             return false;
 
-        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent(dgn, "u1"  ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent(dgn, "u8"  ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent(dgn, "u16" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent(dgn, "u32" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent(dgn, "u64" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent(dgn, "u128").decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").decl())->as<DataSumDeclaration>();
 
-        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent(dgn, "i8"  ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent(dgn, "i16" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent(dgn, "i32" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent(dgn, "i64" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent(dgn, "i128").decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent("i8"  ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent("i16" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent("i32" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").decl())->as<DataSumDeclaration>();
 
-        myDataProductDecls[Sliceu8] = resolveIndirections(scope()->findEquivalent(dgn, "ascii").decl())->as<DataProductDeclaration>();
+        myDataProductDecls[Sliceu8] = resolveIndirections(scope()->findEquivalent("ascii").decl())->as<DataProductDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
         auto decl = begin(childDecls) + (UnsignedTemplate - EmptyLiteralType);

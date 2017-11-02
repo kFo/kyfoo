@@ -47,14 +47,14 @@ DeclarationScope const& ScopeResolver::scope() const
     return *myScope;
 }
 
-LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const
+LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
 {
     LookupHit hit = matchSupplementary(symbol);
     if ( hit )
         return hit;
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findEquivalent(dgn, symbol)) )
+        if ( hit.append(scope->findEquivalent(symbol)) )
             return hit;
 
         if ( symbol.pattern().empty() )
@@ -64,48 +64,32 @@ LookupHit ScopeResolver::matchEquivalent(Diagnostics& dgn, SymbolReference const
     }
 
     for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findEquivalent(dgn, symbol)) )
+        if ( hit.append(m->scope()->findEquivalent(symbol)) )
             return hit;
 
     return hit;
 }
 
-LookupHit ScopeResolver::matchOverload(Diagnostics& dgn, SymbolReference const& symbol)
+LookupHit ScopeResolver::matchOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& symbol)
 {
     LookupHit hit = matchSupplementary(symbol);
 
-    auto appendTemplate = [&hit, &module=myScope->module()] {
-        if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
-            module.appendTemplateInstance(hit.decl());
-    };
-
-    if ( hit ) {
-        appendTemplate();
+    if ( hit )
         return hit;
-    }
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findOverload(dgn, symbol)) ) {
-            appendTemplate();
+        if ( hit.append(scope->findOverload(endModule, dgn, symbol)) )
             return hit;
-        }
 
-        if ( symbol.pattern().empty() ) {
-            if ( auto decl = scope->declaration() ) {
-                if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) ) {
-                    appendTemplate();
+        if ( symbol.pattern().empty() )
+            if ( auto decl = scope->declaration() )
+                if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.lookup(s));
-                }
-            }
-        }
     }
 
-    for ( auto m : myScope->module().imports() ) {
-        if ( hit.append(m->scope()->findOverload(dgn, symbol)) ) {
-            appendTemplate();
+    for ( auto m : myScope->module().imports() )
+        if ( hit.append(m->scope()->findOverload(endModule, dgn, symbol)) )
             return hit;
-        }
-    }
 
     return hit;
 }
@@ -129,8 +113,9 @@ LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
 //
 // Context
 
-Context::Context(Diagnostics& dgn, IResolver& resolver)
-    : myDiagnostics(&dgn)
+Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver)
+    : myModule(&module)
+    , myDiagnostics(&dgn)
     , myResolver(&resolver)
 {
 }
@@ -142,9 +127,14 @@ AxiomsModule const& Context::axioms() const
     return module().axioms();
 }
 
+Module& Context::module()
+{
+    return *myModule;
+}
+
 Module const& Context::module() const
 {
-    return myResolver->scope().module();
+    return *myModule;
 }
 
 Diagnostics& Context::diagnostics()
@@ -182,17 +172,17 @@ Statement const& Context::statement() const
 
 Error& Context::error(lexer::Token const& token)
 {
-    return myDiagnostics->error(module(), token);
+    return myDiagnostics->error(resolver().scope().module(), token);
 }
 
 Error& Context::error(Expression const& expr)
 {
-    return myDiagnostics->error(module(), expr);
+    return myDiagnostics->error(resolver().scope().module(), expr);
 }
 
 Error& Context::error(Declaration const& decl)
 {
-    return myDiagnostics->error(module(), decl.symbol().identifier());
+    return myDiagnostics->error(resolver().scope().module(), decl.symbol().identifier());
 }
 
 std::size_t Context::errorCount() const
@@ -202,7 +192,11 @@ std::size_t Context::errorCount() const
 
 LookupHit Context::matchOverload(SymbolReference const& sym) const
 {
-    return myResolver->matchOverload(*myDiagnostics, sym);
+    auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, sym);
+    if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
+        myModule->appendTemplateInstance(hit.decl());
+
+    return hit;
 }
 
 IResolver* Context::changeResolver(IResolver& resolver)
@@ -233,11 +227,8 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
 {
     myRewrite.reset();
     expression->resolveSymbols(*this);
-    while ( myRewrite ) {
+    while ( myRewrite || myLazyRewrite ) {
         auto c = std::move(expression->myConstraints);
-        expression = std::move(myRewrite);
-        expression->myConstraints = std::move(c);
-        expression->resolveSymbols(*this);
 
         if ( myLazyRewrite ) {
             if ( myRewrite )
@@ -246,6 +237,10 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
             myRewrite = myLazyRewrite(expression);
             myLazyRewrite = nullptr;
         }
+
+        expression = std::move(myRewrite);
+        expression->myConstraints = std::move(c);
+        expression->resolveSymbols(*this);
     }
 
     resolveExpressions(expression->myConstraints);
@@ -255,16 +250,8 @@ void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::itera
                                  std::vector<std::unique_ptr<Expression>>::iterator right)
 {
     myRewrite.reset();
-    for ( auto i = left; i != right; ++i ) {
-        (*i)->resolveSymbols(*this);
-        while ( myRewrite ) {
-            auto c = std::move((*i)->myConstraints);
-            *i = std::move(std::move(myRewrite));
-            (*i)->myConstraints = std::move(c);
-            (*i)->resolveSymbols(*this);
-        }
-        resolveExpressions((*i)->myConstraints);
-    }
+    for ( ; left != right; ++left )
+        resolveExpression(*left);
 }
 
 void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)

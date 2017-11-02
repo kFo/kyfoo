@@ -28,6 +28,8 @@ using colon          = g::Terminal<TokenKind::Colon>;
 using colonPipe      = g::Terminal<TokenKind::ColonPipe>;
 using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
 using colonEqual     = g::Terminal<TokenKind::ColonEqual>;
+using colonQuestion  = g::Terminal<TokenKind::ColonQuestion>;
+using colonSlash     = g::Terminal<TokenKind::ColonSlash>;
 
 using yield = g::Terminal<TokenKind::Yield>;
 using map   = g::Terminal<TokenKind::Map>;
@@ -226,12 +228,47 @@ struct Symbol : public
     }
 };
 
+struct LambdaDeclarationPart : public
+    g::And<Expression, g::Opt<g::And<map, Expression>>>
+{
+    std::unique_ptr<ast::ProcedureDeclaration> make() const
+    {
+        ast::Pattern pattern;
+        pattern.emplace_back(factor<0>().make());
+
+        std::unique_ptr<ast::Expression> returnTypeExpression;
+        if ( auto r = factor<1>().capture() )
+            returnTypeExpression = r->factor<1>().make();
+
+        auto tok = front(*pattern.front());
+        return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, tok.line(), tok.column(), ""), std::move(pattern)),
+                                                           std::move(returnTypeExpression));
+    }
+};
+
+struct LambdaExpression : public
+    g::And<LambdaDeclarationPart, yield, Expression>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        auto params = factor<0>().factor<0>().make();
+        
+        std::unique_ptr<ast::Expression> returnType;
+        if ( auto r = factor<0>().factor<1>().capture() )
+            returnType = r->factor<1>().make();
+        
+        auto body = factor<2>().make();
+
+        return std::make_unique<ast::LambdaExpression>(std::move(params), std::move(returnType), std::move(body));
+    }
+};
+
 struct ProcedureDeclaration : public
     g::And<
         openParen,
         g::Repeat2<Expression, comma>,
         closeParen,
-        g::Opt<g::And<g::Or<map, colon>, Expression>>>
+        g::Opt<g::And<map, Expression>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
@@ -315,6 +352,28 @@ struct VariableDeclaration : public
             return term<0>().make();
         else
             return term<1>().make();
+    }
+};
+
+struct BranchExpression : public
+    g::And<colonQuestion, Expression>
+{
+    std::unique_ptr<ast::BranchExpression> make() const
+    {
+        return std::make_unique<ast::BranchExpression>(factor<1>().make());
+    }
+};
+
+struct BranchElseExpression : public
+    g::And<colonSlash, g::Opt<Expression>>
+{
+    std::unique_ptr<ast::BranchExpression> make() const
+    {
+        std::unique_ptr<ast::Expression> cond;
+        if ( auto e = factor<1>().capture() )
+            cond = e->make();
+
+        return std::make_unique<ast::BranchExpression>(std::move(cond));
     }
 };
 

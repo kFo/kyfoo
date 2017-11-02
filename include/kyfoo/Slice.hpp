@@ -107,6 +107,11 @@ public:
     std::size_t length() const { return myLength; }
     std::size_t size() const { return myLength; }
 
+    reference front() { return *myData; }
+    const_reference front() const { return *myData; }
+    reference back() { return myData[myLength - 1]; }
+    const_reference back() const { return myData[myLength - 1]; }
+
 private:
     Slice(pointer data, size_type len)
         : myData(data)

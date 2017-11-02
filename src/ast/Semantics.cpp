@@ -28,7 +28,7 @@ namespace {
     template <typename T>
     bool compare(Slice<Expression*> lhs,
                  Slice<Expression*> rhs,
-                 T& op)
+                 T&& op)
     {
         if ( lhs.size() != rhs.size() )
             return false;
@@ -44,7 +44,7 @@ namespace {
         return true;
     }
 
-    bool bindSymbol(Context& ctx, binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
+    bool bindSymbol(binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
     {
         auto i = bindings.findKeyIndex(&symVar);
         if ( i == bindings.size() ) {
@@ -55,7 +55,7 @@ namespace {
 
         // existing binding must be consistent
         // todo: print diagnostics on mismatch
-        return matchEquivalent(ctx, *bindings.values()[i], expr);
+        return matchEquivalent(*bindings.values()[i], expr);
     }
 
     bounds_t bitsToBounds(int bits)
@@ -194,6 +194,25 @@ struct SymbolDependencyBuilder
     {
         exprPrimary(v.identity());
         dispatch(v.expression());
+    }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        dispatch(l.parameters());
+        dispatch(l.returnType());
+        dispatch(l.body());
+    }
+
+    result_t exprBranch(BranchExpression const& b)
+    {
+        if ( b.condition() )
+            dispatch(*b.condition());
+
+        for ( auto const& stmt : b.scope()->statements() )
+            dispatch(stmt.expression());
+
+        if ( b.next() )
+            exprBranch(*b.next());
     }
 
     // declarations
@@ -359,9 +378,7 @@ L_error:
 
 struct MatchEquivalent
 {
-    Context& ctx;
-    explicit MatchEquivalent(Context& ctx)
-        : ctx(ctx)
+    explicit MatchEquivalent()
     {
     }
 
@@ -399,28 +416,28 @@ struct MatchEquivalent
             return false;
         }
 
-        return variance(ctx, l.token(), r.token()).exact();
+        return variance(l.token(), r.token()).exact();
     }
 
     // Tuple match
 
     bool operator()(TupleExpression const& l, TupleExpression const& r)
     {
-        return matchEquivalent(ctx, l.expressions(), r.expressions());
+        return matchEquivalent(l.expressions(), r.expressions());
     }
 
     // Apply match
 
     bool operator()(ApplyExpression const& l, ApplyExpression const& r)
     {
-        return matchEquivalent(ctx, l.expressions(), r.expressions());
+        return matchEquivalent(l.expressions(), r.expressions());
     }
 
     // Symbol match
 
     bool operator()(SymbolExpression const& l, SymbolExpression const& r)
     {
-        return matchEquivalent(ctx, l.expressions(), r.expressions());
+        return matchEquivalent(l.expressions(), r.expressions());
     }
 
     // else
@@ -445,19 +462,18 @@ struct MatchEquivalent
  *
  * \todo Match should return degree in presence of specialization
  */
-bool matchEquivalent(Context& ctx, Expression const& lhs, Expression const& rhs)
+bool matchEquivalent(Expression const& lhs, Expression const& rhs)
 {
-    MatchEquivalent op(ctx);
+    MatchEquivalent op;
     return noncommute(op, lhs, rhs);
 }
 
-bool matchEquivalent(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs)
+bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
-    auto op = [&ctx](auto const& l, auto const& r) { return matchEquivalent(ctx, l, r); };
-    return compare(lhs, rhs, op);
+    return compare(lhs, rhs, [](auto& l, auto& r) { return matchEquivalent(l, r); });
 }
 
-VarianceResult variance(Context&, lexer::Token const& target, lexer::Token const& query)
+VarianceResult variance(lexer::Token const& target, lexer::Token const& query)
 {
     return target.lexeme() == query.lexeme() ? Exact : Invariant;
 }
@@ -531,34 +547,8 @@ VarianceResult variance(Context& ctx,
                         Expression const& lhs,
                         Expression const& rhs)
 {
-    auto targetDecl = lhs.declaration();
-    auto queryDecl = rhs.declaration();
-
-    auto getDataType = [](Declaration const* decl) -> Declaration const* {
-        if ( !decl )
-            return nullptr;
-
-        if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-            if ( isCtor(*proc) )
-                return outerDataDeclaration(*proc);
-
-            return proc->result()->dataType();
-        }
-
-        if ( auto param = decl->as<ProcedureParameter>() )
-            return param->dataType();
-
-        if ( auto v = decl->as<VariableDeclaration>() )
-            return v->dataType();
-
-        if ( auto f = decl->as<DataProductDeclaration::Field>() )
-            return f->constraint().declaration();
-
-        return decl;
-    };
-
-    targetDecl = getDataType(targetDecl);
-    queryDecl = getDataType(queryDecl);
+    auto targetDecl = dataType(lhs.declaration());
+    auto queryDecl = dataType(rhs.declaration());
 
     if ( !targetDecl ) {
         ctx.error(lhs) << "compilation stopped due to unresolved expression";
@@ -588,7 +578,7 @@ VarianceResult variance(Context& ctx,
     if ( lhsPrimary && isLiteral(lhsPrimary->token().kind()) ) {
         // lhs is a literal
         if ( rhsPrimary && isLiteral(rhsPrimary->token().kind()) ) {
-            return variance(ctx, lhsPrimary->token(), rhsPrimary->token());
+            return variance(lhsPrimary->token(), rhsPrimary->token());
         }
         else {
             // todo: compile time execute
@@ -598,7 +588,7 @@ VarianceResult variance(Context& ctx,
     else {
         // lhs is an identifier
         if ( auto symVar = targetDecl->as<SymbolVariable>() )
-            return bindSymbol(ctx, leftBindings, *symVar, rhs) ? Exact : Invariant;
+            return bindSymbol(leftBindings, *symVar, rhs) ? Exact : Invariant;
 
         if ( rhsPrimary ) {
             if ( isLiteral(rhsPrimary->token().kind()) ) {
@@ -782,11 +772,35 @@ Declaration* callingContextDeclaration(Declaration& decl)
     return const_cast<Declaration*>(callingContextDeclaration(const_cast<Declaration const&>(decl)));
 }
 
+Declaration const* dataType(Declaration const* decl)
+{
+    if ( !decl )
+        return nullptr;
+
+    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+        if ( isCtor(*proc) )
+            return outerDataDeclaration(*proc);
+
+        return proc->result()->dataType();
+    }
+
+    if ( auto param = decl->as<ProcedureParameter>() )
+        return param->dataType();
+
+    if ( auto v = decl->as<VariableDeclaration>() )
+        return v->dataType();
+
+    if ( auto f = decl->as<DataProductDeclaration::Field>() )
+        return f->constraint().declaration();
+
+    return decl;
+}
+
 Declaration const* dataType(Context& ctx, Slice<Expression*> constraints)
 {
     Declaration const* ret = nullptr;
     for ( auto c : constraints ) {
-        auto decl = resolveIndirections(c->declaration());
+        auto decl = dataType(resolveIndirections(c->declaration()));
         if ( !decl ) {
             ctx.error(*c) << "compilation stopped due to unresolved symbols";
             return nullptr;
@@ -860,6 +874,25 @@ struct FreeVariableVisitor
     {
         exprPrimary(v.identity());
         dispatch(v.expression());
+    }
+
+    result_t exprLambda(LambdaExpression& l)
+    {
+        dispatch(l.parameters());
+        dispatch(l.returnType());
+        dispatch(l.body());
+    }
+
+    result_t exprBranch(BranchExpression& b)
+    {
+        if ( b.condition() )
+            dispatch(*b.condition());
+
+        for ( auto& stmt : b.scope()->statements() )
+            dispatch(stmt.expression());
+
+        if ( b.next() )
+            exprBranch(*b.next());
     }
 };
 
@@ -940,6 +973,28 @@ struct HasFreeVariable
     result_t exprVar(VarExpression const& v)
     {
         return exprPrimary(v.identity()) || dispatch(v.expression());
+    }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        return dispatch(l.parameters())
+            || dispatch(l.returnType())
+            || dispatch(l.body());
+    }
+
+    result_t exprBranch(BranchExpression const& b)
+    {
+        if ( b.condition() && dispatch(*b.condition()) )
+            return true;
+
+        for ( auto const& stmt : b.scope()->statements() )
+            if ( dispatch(stmt.expression()) )
+                return true;
+
+        if ( b.next() )
+            return exprBranch(*b.next());
+
+        return false;
     }
 };
 

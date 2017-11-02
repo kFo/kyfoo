@@ -23,6 +23,7 @@ class Declaration;
 class DeclarationScope;
 class IResolver;
 class Expression;
+class Module;
 class PrimaryExpression;
 class SymbolExpression;
 class SymbolDeclaration;
@@ -58,14 +59,15 @@ public:
     DECL_CLONE_ALL_NOBASE(PatternsPrototype)
 
 public:
-    void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
+    void resolveSymbols(Context& ctx);
+    void resetPattern();
 
 public:
     Slice<Expression*> pattern() const;
     Slice<SymbolVariable*> symbolVariables() const;
 
 public:
-    void bindVariables(Context& ctx, binding_set_t const& bindings);
+    void bindVariables(binding_set_t const& bindings);
     SymbolVariable* findVariable(std::string const& identifier);
     SymbolVariable const* findVariable(std::string const& identifier) const;
     SymbolVariable* createVariable(PrimaryExpression const& primary);
@@ -106,7 +108,7 @@ public:
     DECL_CLONE_ALL_NOBASE(Symbol);
 
 public:
-    void resolveSymbols(Diagnostics& dgn, IResolver& resolver);
+    void resolveSymbols(Context& ctx);
 
 public:
     lexer::Token const& identifier() const;
@@ -210,15 +212,14 @@ public:
     std::string const& name() const;
     Slice<Prototype> prototypes() const;
 
-    void append(Context& ctx,
-                PatternsPrototype const& prototype,
+    void append(PatternsPrototype const& prototype,
                 Declaration& declaration);
 
-    Declaration const* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist) const;
-    Declaration* findEquivalent(Diagnostics& dgn, pattern_t const& paramlist);
+    Declaration const* findEquivalent(pattern_t const& paramlist) const;
+    Declaration* findEquivalent(pattern_t const& paramlist);
     
-    CandidateSet findCandidates(Diagnostics& dgn, pattern_t const& paramlist);
-    DeclInstance findOverload(Diagnostics& dgn, pattern_t const& paramlist);
+    CandidateSet findCandidates(Module& endModule, Diagnostics& dgn, pattern_t const& paramlist);
+    DeclInstance findOverload(Module& endModule, Diagnostics& dgn, pattern_t const& paramlist);
 
 private:
     DeclInstance instantiate(Context& ctx,

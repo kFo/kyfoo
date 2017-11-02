@@ -244,7 +244,7 @@ public:
     explicit operator bool() const { return covariant(); }
 };
 
-VarianceResult variance(Context& ctx, lexer::Token const& target, lexer::Token const& query);
+VarianceResult variance(lexer::Token const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
 VarianceResult variance(Context& ctx, binding_set_t& leftBindings, Expression const& lhs, Expression const& rhs);
@@ -262,11 +262,12 @@ Declaration const* outerDataDeclaration(Declaration const& decl);
 Declaration* outerDataDeclaration(Declaration& decl);
 Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
+Declaration const* dataType(Declaration const* decl);
 Declaration const* dataType(Context& ctx, Slice<Expression*> constraints);
 
 // todo: functor like ValueMatcher
-bool matchEquivalent(Context& ctx, Expression const& lhs, Expression const& rhs);
-bool matchEquivalent(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
+bool matchEquivalent(Expression const& lhs, Expression const& rhs);
+bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
 bool hasFreeVariable(Expression const& expr);

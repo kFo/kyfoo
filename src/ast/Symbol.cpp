@@ -81,10 +81,8 @@ IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-void PatternsPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
+void PatternsPrototype::resolveSymbols(Context& ctx)
 {
-    Context ctx(dgn, resolver);
-
     if ( myVariables.empty() ) {
         for ( auto const& param : myPattern ) {
             auto fv = gatherFreeVariables(*param);
@@ -98,6 +96,12 @@ void PatternsPrototype::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
     ctx.resolveExpressions(myPattern);
 }
 
+void PatternsPrototype::resetPattern()
+{
+    for ( auto& e : myPattern )
+        clearDeclarations(*e);
+}
+
 Slice<Expression*> PatternsPrototype::pattern() const
 {
     return myPattern;
@@ -108,8 +112,7 @@ Slice<SymbolVariable*> PatternsPrototype::symbolVariables() const
     return myVariables;
 }
 
-void PatternsPrototype::bindVariables(Context& ctx,
-                                      binding_set_t const& bindings)
+void PatternsPrototype::bindVariables(binding_set_t const& bindings)
 {
     if ( bindings.size() != myVariables.size() )
         throw std::runtime_error("template parameter binding mismatch");
@@ -123,8 +126,6 @@ void PatternsPrototype::bindVariables(Context& ctx,
 
         var->bindExpression(value);
     }
-
-    ctx.resolveExpressions(myPattern);
 }
 
 SymbolVariable* PatternsPrototype::findVariable(std::string const& identifier)
@@ -240,9 +241,9 @@ IMPL_CLONE_REMAP_NOBASE_BEGIN(Symbol)
 IMPL_CLONE_REMAP(myPrototype)
 IMPL_CLONE_REMAP_END
 
-void Symbol::resolveSymbols(Diagnostics& dgn, IResolver& resolver)
+void Symbol::resolveSymbols(Context& ctx)
 {
-    myPrototype->resolveSymbols(dgn, resolver);
+    myPrototype->resolveSymbols(ctx);
 }
 
 lexer::Token const& Symbol::identifier() const
@@ -405,43 +406,31 @@ Slice<Prototype> SymbolSpace::prototypes() const
     return myPrototypes;
 }
 
-void SymbolSpace::append(Context& ctx,
-                         PatternsPrototype const& prototype,
+void SymbolSpace::append(PatternsPrototype const& prototype,
                          Declaration& declaration)
 {
-    if ( auto decl = findEquivalent(ctx.diagnostics(), prototype.pattern()) ) {
-        auto& err = ctx.error(declaration) << "matches existing declaration";
-        err.see(*decl);
-        return;
-    }
-
     myPrototypes.push_back(Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
 }
 
-Declaration const* SymbolSpace::findEquivalent(Diagnostics& dgn,
-                                               pattern_t const& paramlist) const
+Declaration const* SymbolSpace::findEquivalent(pattern_t const& paramlist) const
 {
-    ScopeResolver resolver(*myScope);
-    Context ctx(dgn, resolver);
-    for ( auto const& e : myPrototypes ) {
-        if ( matchEquivalent(ctx, e.proto.params->pattern(), paramlist) )
+    for ( auto const& e : myPrototypes )
+        if ( matchEquivalent(e.proto.params->pattern(), paramlist) )
             return e.proto.decl;
-    }
 
     return nullptr;
 }
 
-Declaration* SymbolSpace::findEquivalent(Diagnostics& dgn,
-                                         pattern_t const& paramlist)
+Declaration* SymbolSpace::findEquivalent(pattern_t const& paramlist)
 {
-    return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(dgn, paramlist));
+    return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(paramlist));
 }
 
-CandidateSet SymbolSpace::findCandidates(Diagnostics& dgn, pattern_t const& paramlist)
+CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, pattern_t const& paramlist)
 {
     CandidateSet ret;
     ScopeResolver resolver(*myScope);
-    Context ctx(dgn, resolver);
+    Context ctx(endModule, dgn, resolver);
     for ( auto& e : myPrototypes ) {
         binding_set_t bindings;
         if ( auto v = variance(ctx, bindings, e.proto.params->pattern(), paramlist) )
@@ -452,13 +441,14 @@ CandidateSet SymbolSpace::findCandidates(Diagnostics& dgn, pattern_t const& para
 }
 
 SymbolSpace::DeclInstance
-SymbolSpace::findOverload(Diagnostics& dgn,
+SymbolSpace::findOverload(Module& endModule,
+                          Diagnostics& dgn,
                           pattern_t const& paramlist)
 {
     ScopeResolver resolver(*myScope);
-    Context ctx(dgn, resolver);
+    Context ctx(endModule, dgn, resolver);
     
-    auto cset = findCandidates(dgn, paramlist);
+    auto cset = findCandidates(endModule, dgn, paramlist);
     if ( cset.empty() )
         return { nullptr, nullptr };
 
@@ -498,7 +488,7 @@ SymbolSpace::instantiate(Context& ctx,
             if ( !lhs )
                 break;
 
-            if ( !matchEquivalent(ctx, *lhs, **r) )
+            if ( !matchEquivalent(*lhs, **r) )
                 break;
 
             ++l;
@@ -513,12 +503,18 @@ SymbolSpace::instantiate(Context& ctx,
     clone_map_t cloneMap;
     auto instance = ast::clone(proto.proto.decl, cloneMap);
     auto instProto = reinterpret_cast<PatternsPrototype*>(cloneMap[proto.proto.params]);
-    instProto->bindVariables(ctx, bindingSet);
+    instProto->bindVariables(bindingSet);
 
-    if ( auto proc = instance->as<ProcedureDeclaration>() )
-        proc->resolvePrototypeSymbols(ctx.diagnostics());
+    if ( auto proc = instance->as<ProcedureDeclaration>() ) {
+        proc->unresolvePrototypeSymbols();
+        proc->resolvePrototypeSymbols(ctx.module(), ctx.diagnostics());
+    }
+    else {
+        instProto->resetPattern();
+        instProto->resolveSymbols(ctx);
+    }
 
-    instance->resolveSymbols(ctx.diagnostics());
+    instance->resolveSymbols(ctx.module(), ctx.diagnostics());
 
     proto.instances.emplace_back(PatternsDecl{instProto, instance.get()});
     myScope->append(std::move(instance));

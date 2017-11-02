@@ -20,6 +20,7 @@ class IResolver;
 class Expression;
 class Declaration;
 class ProcedureDeclaration;
+class ProcedureScope;
 class SymbolReference;
 class LookupHit;
 class VariableDeclaration;
@@ -31,7 +32,9 @@ class VariableDeclaration;
     X(Apply    , ApplyExpression)     \
     X(Symbol   , SymbolExpression)    \
     X(Dot      , DotExpression)       \
-    X(Var      , VarExpression)
+    X(Var      , VarExpression)       \
+    X(Lambda   , LambdaExpression)    \
+    X(Branch   , BranchExpression)
 
 class Expression : public INode
 {
@@ -77,6 +80,7 @@ public:
     Kind kind() const;
     Declaration const* declaration() const;
     void setDeclaration(Declaration const& decl);
+    void clearDeclaration();
 
     Slice<Expression*> constraints();
     const Slice<Expression*> constraints() const;
@@ -366,6 +370,87 @@ private:
     std::unique_ptr<Expression> myExpression;
 };
 
+class LambdaExpression : public Expression
+{
+public:
+    LambdaExpression(std::unique_ptr<Expression> params,
+                     std::unique_ptr<Expression> returnType,
+                     std::unique_ptr<Expression> body);
+
+protected:
+    LambdaExpression(LambdaExpression const& rhs);
+    LambdaExpression& operator = (LambdaExpression const& rhs);
+
+public:
+    ~LambdaExpression();
+
+    void swap(LambdaExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    void resolveSymbols(Context& ctx) override;
+
+public:
+    Expression const& parameters() const;
+    Expression const& returnType() const;
+    Expression const& body() const;
+
+    Expression& parameters();
+    Expression& returnType();
+    Expression& body();
+
+private:
+    std::unique_ptr<Expression> myParams;
+    std::unique_ptr<Expression> myReturnType;
+    std::unique_ptr<Expression> myBody;
+};
+
+class BranchExpression : public Expression
+{
+public:
+    BranchExpression(std::unique_ptr<Expression> condition);
+
+protected:
+    BranchExpression(BranchExpression const& rhs);
+    BranchExpression& operator = (BranchExpression const& rhs);
+
+public:
+    ~BranchExpression();
+
+    void swap(BranchExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    void resolveSymbols(Context& ctx) override;
+
+public:
+    Expression const* condition() const;
+    Expression* condition();
+
+    ProcedureScope const* scope() const;
+    ProcedureScope* scope();
+    void setScope(std::unique_ptr<ProcedureScope> scope);
+
+    BranchExpression const* next() const;
+    BranchExpression* next();
+    void setNext(std::unique_ptr<BranchExpression> branchExpr);
+
+private:
+    std::unique_ptr<Expression> myCondition;
+    std::unique_ptr<ProcedureScope> myScope;
+    std::unique_ptr<BranchExpression> myNext;
+};
+
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }
 EXPRESSION_KINDS(X)
 #undef X
@@ -377,6 +462,7 @@ EXPRESSION_KINDS(X)
 lexer::Token const& front(Expression const& expr);
 std::ostream& print(std::ostream& stream, Expression const& expr);
 bool allResolved(Slice<Expression*> const& exprs);
+void clearDeclarations(Expression& expr);
 
     } // namespace ast
 } // namespace kyfoo

@@ -199,8 +199,8 @@ public:
     virtual void remapReferences(clone_map_t const& map);
 
     virtual void resolveImports(Diagnostics& dgn);
-    virtual void resolveSymbols(Diagnostics& dgn);
-    virtual void resolveAttributes(Diagnostics& dgn);
+    virtual void resolveSymbols(Module& endModule, Diagnostics& dgn);
+    virtual void resolveAttributes(Module& endModule, Diagnostics& dgn);
 
 public:
     void setDeclaration(Declaration* declaration);
@@ -208,15 +208,15 @@ public:
     void import(Module& module);
     void merge(DeclarationScope& rhs);
 
-    LookupHit findEquivalent(Diagnostics& dgn, SymbolReference const& symbol) const;
-    LookupHit findOverload(Diagnostics& dgn, SymbolReference const& sym) const;
+    LookupHit findEquivalent(SymbolReference const& symbol) const;
+    LookupHit findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string const& name);
     bool addSymbol(Diagnostics& dgn,
                    Symbol const& sym,
                    Declaration& decl);
 
-    SymbolSpace* findSymbolSpace(Diagnostics& dgn, std::string const& name) const;
+    SymbolSpace* findSymbolSpace(std::string const& name) const;
 
     Module& module();
     Module const& module() const;
@@ -267,7 +267,7 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     DataSumDeclaration* declaration();
@@ -297,13 +297,13 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     void resolveConstructors(Diagnostics& dgn);
     std::unique_ptr<ProcedureDeclaration> createDefaultConstructor();
 
-    void resolveDestructor(Diagnostics& dgn);
+    void resolveDestructor(Module& endModule, Diagnostics& dgn);
     std::unique_ptr<ProcedureDeclaration> createDefaultDestructor();
 
     DataProductDeclaration* declaration();
@@ -338,6 +338,8 @@ public:
 
 public:
     Expression const& expression() const;
+    Expression& expression();
+
     Slice<VariableDeclaration*> const unnamedVariables() const;
 
     void resolveSymbols(Context& ctx);
@@ -373,14 +375,16 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     ProcedureDeclaration* declaration();
+    ProcedureDeclaration const* declaration() const;
     void append(std::unique_ptr<Expression> expression);
 
 public:
     Slice<Statement> const statements() const;
+    Slice<Statement> statements();
 
 private:
     std::vector<Statement> myStatements;
@@ -410,7 +414,7 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Diagnostics& dgn) override;
+    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     TemplateDeclaration* declaration();

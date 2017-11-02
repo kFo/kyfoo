@@ -424,6 +424,14 @@ Token Scanner::readNext()
             nextChar();
             return TOK2(ColonEqual, ":=");
         }
+        else if ( peekChar() == '?' ) {
+            nextChar();
+            return TOK2(ColonQuestion, ":?");
+        }
+        else if ( peekChar() == '/' ) {
+            nextChar();
+            return TOK2(ColonSlash, ":/");
+        }
 
         return TOK2(Colon, ":");
     }
@@ -497,17 +505,18 @@ Token Scanner::readNext()
     // Single characters
 
     switch ( c ) {
-    case '(': addNest(); return TOK2(OpenParen   , "(");
-    case '[': addNest(); return TOK2(OpenBracket , "[");
-    case '<': addNest(); return TOK2(OpenAngle, "<");
-    case ')': removeNest(); return TOK2(CloseParen  , ")");
-    case ']': removeNest(); return TOK2(CloseBracket, "]");
-    case '>': removeNest();  return TOK2(CloseAngle, ">");
+    case '(': addNest(); return TOK2(OpenParen  , "(");
+    case '[': addNest(); return TOK2(OpenBracket, "[");
+    case '<': addNest(); return TOK2(OpenAngle  , "<");
+    case ')': removeNest();  return TOK2(CloseParen  , ")");
+    case ']': removeNest();  return TOK2(CloseBracket, "]");
+    case '>': removeNest();  return TOK2(CloseAngle  , ">");
     case '{': return TOK2(OpenBrace   , "{");
     case '}': return TOK2(CloseBrace  , "}");
     case '|': return TOK2(Pipe        , "|");
     case ',': return TOK2(Comma       , ",");
     case '@': return TOK2(At          , "@");
+    case ';': return TOK2(Semicolon   , ";");
     }
 
     myError = true;
