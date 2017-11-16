@@ -34,7 +34,8 @@ class VariableDeclaration;
     X(Dot      , DotExpression)       \
     X(Var      , VarExpression)       \
     X(Lambda   , LambdaExpression)    \
-    X(Branch   , BranchExpression)
+    X(Branch   , BranchExpression)    \
+    X(Return   , ReturnExpression)
 
 class Expression : public INode
 {
@@ -413,7 +414,8 @@ private:
 class BranchExpression : public Expression
 {
 public:
-    BranchExpression(std::unique_ptr<Expression> condition);
+    BranchExpression(lexer::Token const& token,
+                     std::unique_ptr<Expression> condition);
 
 protected:
     BranchExpression(BranchExpression const& rhs);
@@ -434,6 +436,8 @@ protected:
     void resolveSymbols(Context& ctx) override;
 
 public:
+    lexer::Token const& token() const;
+
     Expression const* condition() const;
     Expression* condition();
 
@@ -446,9 +450,44 @@ public:
     void setNext(std::unique_ptr<BranchExpression> branchExpr);
 
 private:
+    lexer::Token myToken;
     std::unique_ptr<Expression> myCondition;
     std::unique_ptr<ProcedureScope> myScope;
     std::unique_ptr<BranchExpression> myNext;
+};
+
+class ReturnExpression : public Expression
+{
+public:
+    ReturnExpression(lexer::Token const& token,
+                     std::unique_ptr<Expression> expression);
+
+protected:
+    ReturnExpression(ReturnExpression const& rhs);
+    ReturnExpression& operator = (ReturnExpression const& rhs);
+
+public:
+    ~ReturnExpression();
+
+    void swap(ReturnExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    void resolveSymbols(Context& ctx) override;
+
+public:
+    lexer::Token const& token() const;
+    Expression const* expression() const;
+    Expression* expression();
+
+private:
+    lexer::Token myToken;
+    std::unique_ptr<Expression> myExpression;
 };
 
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }

@@ -65,6 +65,7 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
     llvm::FunctionType* proto = nullptr;
     llvm::Function* body = nullptr;
+    llvm::AllocaInst* returnInst = nullptr;
 };
 
 template<>
@@ -393,6 +394,9 @@ struct CodeGenPass
         auto bb = llvm::BasicBlock::Create(module->getContext(), "", fun->body);
         llvm::IRBuilder<> builder(bb);
 
+        if ( !returnType->isVoidTy() )
+            fun->returnInst = builder.CreateAlloca(returnType);
+
         std::function<void(ast::ProcedureScope const&)> gatherAllocas =
         [&](ast::ProcedureScope const& scope) {
             for ( auto const& d : scope.childDeclarations() ) {
@@ -418,25 +422,65 @@ struct CodeGenPass
         };
         gatherAllocas(*defn);
 
-        // todo
-        auto lastExpr = toBlock(builder, *defn);
-        if ( decl.returnType()->declaration() == sourceModule.axioms().intrinsic(ast::EmptyLiteralType) )
-            builder.CreateRetVoid();
-        else
-            builder.CreateRet(lastExpr);
+        if ( toBlock(builder, *defn, nullptr, nullptr) )
+            die("top-level procedure block must diverge");
 
-        if ( llvm::verifyFunction(*fun->body, &llvm::errs()) ) {
-            bb->dump();
-        }
+        if ( llvm::verifyFunction(*fun->body, &llvm::errs()) )
+            fun->body->dump();
     }
 
-    llvm::Value* toBlock(llvm::IRBuilder<>& builder, ast::ProcedureScope const& scope)
+    bool toBlock(llvm::IRBuilder<>& builder,
+                 ast::ProcedureScope const& scope,
+                 llvm::BasicBlock* parentCleanup,
+                 llvm::BasicBlock* merge)
     {
-        llvm::Value* lastInst = nullptr;
         auto func = builder.GetInsertBlock()->getParent();
+        auto fdata = customData(*scope.declaration());
+
+        std::size_t cleanupDeclLast = 0;
+        std::vector<llvm::BasicBlock*> cleanupBlocks;
+
+        auto createCleanupBlock = [&](lexer::Token const& token, bool exit) {
+            auto const decls = scope.childDeclarations();
+            std::vector<ast::VariableDeclaration*> priorVars;
+            for ( ; cleanupDeclLast < decls.size(); ++cleanupDeclLast ) {
+                if ( token.kind() != lexer::TokenKind::Undefined && !isBefore(decls[cleanupDeclLast]->symbol().identifier(), token) )
+                    break;
+
+                if ( auto var = decls[cleanupDeclLast]->as<ast::VariableDeclaration>() )
+                    priorVars.push_back(var);
+            }
+
+            cleanupBlocks.push_back(llvm::BasicBlock::Create(module->getContext(), "", func));
+            llvm::IRBuilder<> cleanupBuilder(cleanupBlocks.back());
+            for ( auto v = priorVars.rbegin(); v != priorVars.rend(); ++v ) {
+                if ( auto dp = (*v)->dataType()->as<ast::DataProductDeclaration>() ) {
+                    auto expr = createMemberCallExpression(*dp->definition()->destructor(), **v);
+                    toValue(cleanupBuilder, *expr);
+                }
+            }
+
+            if ( cleanupBlocks.size() == 1 ) {
+                if ( exit && parentCleanup )
+                    cleanupBuilder.CreateBr(parentCleanup);
+                else if ( !exit && merge )
+                    cleanupBuilder.CreateBr(merge);
+                else if ( fdata->returnInst )
+                    cleanupBuilder.CreateRet(cleanupBuilder.CreateLoad(fdata->returnInst));
+                else
+                    cleanupBuilder.CreateRetVoid();
+            }
+            else {
+                cleanupBuilder.CreateBr(cleanupBlocks[cleanupBlocks.size() - 2]);
+            }
+        };
+
         for ( auto const& stmt : scope.statements() ) {
+            ast::ReturnExpression const* retExpr = nullptr;
+
             if ( auto branchExpr = stmt.expression().as<ast::BranchExpression>() ) {
                 auto mergeBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+                createCleanupBlock(branchExpr->token(), false);
 
                 for ( auto bexpr = branchExpr; bexpr; bexpr = bexpr->next() ) {
                     auto falseBlock = mergeBlock;
@@ -452,8 +496,7 @@ struct CodeGenPass
                         builder.SetInsertPoint(trueBlock);
                     }
 
-                    toBlock(builder, *bexpr->scope());
-                    builder.CreateBr(mergeBlock);
+                    toBlock(builder, *bexpr->scope(), cleanupBlocks.back(), mergeBlock);
 
                     falseBlock->moveAfter(&func->back());
 
@@ -463,26 +506,39 @@ struct CodeGenPass
                 mergeBlock->moveAfter(&func->back());
             }
             else {
-                lastInst = toValue(builder, stmt.expression());
-                if ( !lastInst ) {
+                retExpr = stmt.expression().as<ast::ReturnExpression>();
+                if ( retExpr ) {
+                    if ( retExpr->expression() )
+                        builder.CreateStore(toValue(builder, *retExpr->expression()), fdata->returnInst);
+                }
+                else if ( !toValue(builder, stmt.expression()) ) {
                     error(stmt.expression()) << "invalid instruction";
                     die();
                 }
             }
 
             auto u = stmt.unnamedVariables();
-            if ( !u.length() )
-                continue;
-
-            for ( std::size_t i = u.length() - 1; ~i; --i ) {
-                if ( auto dp = u[i]->dataType()->as<ast::DataProductDeclaration>() ) {
-                    auto expr = createMemberCallExpression(*dp->definition()->destructor(), *u[i]);
-                    toValue(builder, *expr);
+            if ( u.length() ) {
+                for ( std::size_t i = u.length() - 1; ~i; --i ) {
+                    if ( auto dp = u[i]->dataType()->as<ast::DataProductDeclaration>() ) {
+                        auto expr = createMemberCallExpression(*dp->definition()->destructor(), *u[i]);
+                        toValue(builder, *expr);
+                    }
                 }
+            }
+
+            if ( retExpr ) {
+                createCleanupBlock(retExpr->token(), true);
+                builder.CreateBr(cleanupBlocks.back());
+
+                return false;
             }
         }
 
-        return lastInst;
+        createCleanupBlock(lexer::Token(), false);
+        builder.CreateBr(cleanupBlocks.back());
+
+        return true;
     }
 
     result_t declProcedureParameter(ast::ProcedureParameter const&)

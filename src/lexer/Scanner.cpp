@@ -433,6 +433,9 @@ Token Scanner::readNext()
             return TOK2(ColonSlash, ":/");
         }
 
+        if ( !isSpace(peekChar()) )
+            return TOK2(Undefined, "");
+
         return TOK2(Colon, ":");
     }
     else if ( isFreeVariable(c) ) {

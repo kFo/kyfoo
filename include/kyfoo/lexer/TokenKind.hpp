@@ -48,6 +48,7 @@ namespace kyfoo {
     \
     X(_keywordStart, "keyword start") \
     X(_import      , "import"       ) \
+    X(_return      , "return"       ) \
     X(_keywordEnd  , "keyword end"  )
 
 #define X(A,B) A,

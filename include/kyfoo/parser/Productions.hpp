@@ -45,6 +45,7 @@ using openAngle    = g::Terminal<TokenKind::OpenAngle>;
 using closeAngle   = g::Terminal<TokenKind::CloseAngle>;
 
 using _import = g::Terminal<TokenKind::_import>;
+using _return = g::Terminal<TokenKind::_return>;
 
 struct Primary : public
     g::Or<id, free, integer, rational, string>
@@ -360,7 +361,7 @@ struct BranchExpression : public
 {
     std::unique_ptr<ast::BranchExpression> make() const
     {
-        return std::make_unique<ast::BranchExpression>(factor<1>().make());
+        return std::make_unique<ast::BranchExpression>(factor<0>().token(), factor<1>().make());
     }
 };
 
@@ -373,7 +374,20 @@ struct BranchElseExpression : public
         if ( auto e = factor<1>().capture() )
             cond = e->make();
 
-        return std::make_unique<ast::BranchExpression>(std::move(cond));
+        return std::make_unique<ast::BranchExpression>(factor<0>().token(), std::move(cond));
+    }
+};
+
+struct ReturnExpression : public
+    g::And<_return, g::Opt<Expression>>
+{
+    std::unique_ptr<ast::ReturnExpression> make() const
+    {
+        std::unique_ptr<ast::Expression> expr;
+        if ( auto c = factor<1>().capture() )
+            expr = c->make();
+
+        return std::make_unique<ast::ReturnExpression>(factor<0>().token(), std::move(expr));
     }
 };
 

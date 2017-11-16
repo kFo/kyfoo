@@ -1140,14 +1140,17 @@ Expression& LambdaExpression::body()
 //
 // BranchExpression
 
-BranchExpression::BranchExpression(std::unique_ptr<Expression> condition)
+BranchExpression::BranchExpression(lexer::Token const& token,
+                                   std::unique_ptr<Expression> condition)
     : Expression(Kind::Branch)
+    , myToken(token)
     , myCondition(std::move(condition))
 {
 }
 
 BranchExpression::BranchExpression(BranchExpression const& rhs)
     : Expression(rhs)
+    , myToken(rhs.myToken)
 {
 }
 
@@ -1163,6 +1166,7 @@ void BranchExpression::swap(BranchExpression& rhs)
 {
     Expression::swap(rhs);
     using std::swap;
+    swap(myToken, rhs.myToken);
     swap(myCondition, rhs.myCondition);
 }
 
@@ -1203,6 +1207,11 @@ void BranchExpression::resolveSymbols(Context& ctx)
     }
 }
 
+lexer::Token const& BranchExpression::token() const
+{
+    return myToken;
+}
+
 Expression const* BranchExpression::condition() const
 {
     return myCondition.get();
@@ -1241,6 +1250,70 @@ BranchExpression* BranchExpression::next()
 void BranchExpression::setNext(std::unique_ptr<BranchExpression> branchExpr)
 {
     myNext = std::move(branchExpr);
+}
+
+//
+// ReturnExpression
+
+ReturnExpression::ReturnExpression(lexer::Token const& token,
+                                   std::unique_ptr<Expression> expression)
+    : Expression(Kind::Return)
+    , myToken(token)
+    , myExpression(std::move(expression))
+{
+}
+
+ReturnExpression::ReturnExpression(ReturnExpression const& rhs)
+    : Expression(rhs)
+{
+}
+
+ReturnExpression& ReturnExpression::operator = (ReturnExpression const& rhs)
+{
+    ReturnExpression(rhs).swap(*this);
+    return *this;
+}
+
+ReturnExpression::~ReturnExpression() = default;
+
+void ReturnExpression::swap(ReturnExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myExpression, rhs.myExpression);
+}
+
+void ReturnExpression::io(IStream& stream) const
+{
+    stream.next("expr", myExpression);
+}
+
+IMPL_CLONE_BEGIN(ReturnExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ReturnExpression, Expression)
+IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP_END
+
+void ReturnExpression::resolveSymbols(Context& ctx)
+{
+    if ( myExpression )
+        ctx.resolveExpression(myExpression);
+}
+
+lexer::Token const& ReturnExpression::token() const
+{
+    return myToken;
+}
+
+Expression const* ReturnExpression::expression() const
+{
+    return myExpression.get();
+}
+
+Expression* ReturnExpression::expression()
+{
+    return myExpression.get();
 }
 
 //
@@ -1310,6 +1383,14 @@ struct FrontExpression
     result_t exprBranch(BranchExpression const& b)
     {
         return dispatch(*b.condition());
+    }
+
+    result_t exprReturn(ReturnExpression const& r)
+    {
+        if ( r.expression() )
+            return dispatch(*r.expression());
+        
+        return r.token();
     }
 };
 
@@ -1460,6 +1541,15 @@ struct PrintOperator
         stream << ":? ";
         return dispatch(*b.condition());
     }
+
+    result_t exprReturn(ReturnExpression const& r)
+    {
+        stream << "return ";
+        if ( r.expression() )
+            return dispatch(*r.expression());
+
+        return stream;
+    }
 };
 
 std::ostream& print(std::ostream& stream, Expression const& expr)
@@ -1574,6 +1664,13 @@ struct ClearDeclaration
             for ( auto& stmt : p->scope()->statements() )
                 dispatch(stmt.expression());
         }
+    }
+
+    result_t exprReturn(ReturnExpression& r)
+    {
+        r.clearDeclaration();
+        if ( r.expression() )
+            r.expression()->clearDeclaration();
     }
 };
 

@@ -18,6 +18,13 @@
 #include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
+    namespace lexer {
+        bool isBefore(lexer::Token const& lhs, lexer::Token const& rhs)
+        {
+            return std::make_tuple(lhs.line(), lhs.column()) < std::make_tuple(rhs.line(), rhs.column());
+        }
+    }
+
     namespace ast {
 
     using boost::multiprecision::cpp_int;
@@ -213,6 +220,12 @@ struct SymbolDependencyBuilder
 
         if ( b.next() )
             exprBranch(*b.next());
+    }
+
+    result_t exprReturn(ReturnExpression const& r)
+    {
+        if ( r.expression() )
+            dispatch(*r.expression());
     }
 
     // declarations
@@ -894,6 +907,12 @@ struct FreeVariableVisitor
         if ( b.next() )
             exprBranch(*b.next());
     }
+
+    result_t exprReturn(ReturnExpression& r)
+    {
+        if ( r.expression() )
+            dispatch(*r.expression());
+    }
 };
 
 template <typename F>
@@ -993,6 +1012,14 @@ struct HasFreeVariable
 
         if ( b.next() )
             return exprBranch(*b.next());
+
+        return false;
+    }
+
+    result_t exprReturn(ReturnExpression const& r)
+    {
+        if ( r.expression() )
+            dispatch(*r.expression());
 
         return false;
     }

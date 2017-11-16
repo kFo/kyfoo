@@ -11,6 +11,8 @@
 namespace kyfoo {
     namespace lexer {
         class Token;
+
+        bool isBefore(lexer::Token const& lhs, lexer::Token const& rhs);
     }
 
     namespace ast {

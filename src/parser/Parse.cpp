@@ -192,6 +192,16 @@ parseBranchElseExpression(lexer::Scanner& scanner)
     return nullptr;
 }
 
+std::unique_ptr<ast::ReturnExpression>
+parseReturnExpression(lexer::Scanner& scanner)
+{
+    ReturnExpression grammar;
+    if ( parse(scanner, grammar) )
+        return grammar.make();
+
+    return nullptr;
+}
+
 std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>>
 parseImplicitTemplateProcedureDeclaration(lexer::Scanner& scanner)
 {
@@ -421,6 +431,10 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         }
 
         return std::make_tuple(false, nullptr);
+    }
+    else if ( auto retExpr = parseReturnExpression(scanner) ) {
+        scope()->append(std::move(retExpr));
+        return std::make_tuple(true, nullptr);
     }
 
     VariableDeclaration varGrammar;
