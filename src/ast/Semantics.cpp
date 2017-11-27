@@ -210,7 +210,17 @@ struct SymbolDependencyBuilder
         dispatch(l.body());
     }
 
-    result_t exprBranch(BranchExpression const& b)
+    result_t stmtExpression(Statement const& s)
+    {
+        dispatch(s.expression());
+    }
+
+    result_t stmtConstruction(ConstructionStatement const& c)
+    {
+        exprVar(c.varExpression());
+    }
+
+    result_t juncBranch(BranchJunction const& b)
     {
         if ( b.condition() )
             dispatch(*b.condition());
@@ -222,10 +232,15 @@ struct SymbolDependencyBuilder
             exprBranch(*b.next());
     }
 
-    result_t exprReturn(ReturnExpression const& r)
+    result_t juncReturn(ReturnJunction const& r)
     {
         if ( r.expression() )
             dispatch(*r.expression());
+    }
+
+    result_t juncJump(JumpJunction const&)
+    {
+        // nop
     }
 
     // declarations
@@ -896,22 +911,35 @@ struct FreeVariableVisitor
         dispatch(l.body());
     }
 
-    result_t exprBranch(BranchExpression& b)
+    result_t stmtExpression(Statement& e)
+    {
+        return dispatch(e.expression());
+    }
+
+    result_t stmtConstruction(ConstructionStatement& c)
+    {
+        return varExpr(c.varExpression());
+    }
+
+    result_t juncBranch(BranchJunction& b)
     {
         if ( b.condition() )
             dispatch(*b.condition());
 
-        for ( auto& stmt : b.scope()->statements() )
-            dispatch(stmt.expression());
-
-        if ( b.next() )
-            exprBranch(*b.next());
+        for ( std::size_t i = 0; i < 2; ++i )
+            if ( b.branch(i) )
+                dispatch.procScope(*b.branch(i)->scope());
     }
 
-    result_t exprReturn(ReturnExpression& r)
+    result_t juncReturn(ReturnJunction& r)
     {
         if ( r.expression() )
             dispatch(*r.expression());
+    }
+
+    result_t juncJump(JumpJunction&)
+    {
+        // nop
     }
 };
 
@@ -1001,26 +1029,43 @@ struct HasFreeVariable
             || dispatch(l.body());
     }
 
-    result_t exprBranch(BranchExpression const& b)
+    result_t stmtExpression(Statement const& e)
+    {
+        return dispatch(e.expression());
+    }
+
+    result_t stmtConstruction(ConstructionStatement const& c)
+    {
+        return exprVar(c.varExpression());
+    }
+
+    result_t juncBranch(BranchJunction const& b)
     {
         if ( b.condition() && dispatch(*b.condition()) )
             return true;
 
-        for ( auto const& stmt : b.scope()->statements() )
-            if ( dispatch(stmt.expression()) )
-                return true;
+        for ( auto& bb : b.scope()->basicBlocks() ) {
+            for ( auto& s : bb->statements() )
+                if ( dispatch(s) )
+                    return true;
 
-        if ( b.next() )
-            return exprBranch(*b.next());
+            if ( bb->junction() && dispatch(*bb->junction()) )
+                return true;
+        }
 
         return false;
     }
 
-    result_t exprReturn(ReturnExpression const& r)
+    result_t juncReturn(ReturnJunction const& r)
     {
         if ( r.expression() )
-            dispatch(*r.expression());
+            return dispatch(*r.expression());
 
+        return false;
+    }
+
+    result_t juncJump(JumpJunction const&)
+    {
         return false;
     }
 };
@@ -1029,6 +1074,437 @@ bool hasFreeVariable(Expression const& expr)
 {
     ShallowApply<HasFreeVariable> op;
     return op(expr);
+}
+
+template <typename Dispatcher>
+struct FrontToken
+{
+    using result_t = lexer::Token const&;
+
+    Dispatcher& dispatch;
+
+    FrontToken(Dispatcher& dispatch)
+        : dispatch(dispatch)
+    {
+    }
+
+    result_t exprPrimary(PrimaryExpression const& p)
+    {
+        return p.token();
+    }
+
+    result_t exprReference(ReferenceExpression const& r)
+    {
+        return dispatch(r.expression());
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        if ( t.expressions().empty() )
+            return t.openToken();
+
+        return dispatch(*t.expressions()[0]);
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        return dispatch(*a.expressions()[0]);
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        if ( s.identifier().kind() != lexer::TokenKind::Undefined )
+            return s.identifier();
+
+        if ( s.expressions().empty() )
+            return s.openToken();
+
+        return dispatch(*s.expressions()[0]);
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        return dispatch(*d.expressions()[0]);
+    }
+
+    result_t exprVar(VarExpression const& v)
+    {
+        return exprPrimary(v.identity());
+    }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        return dispatch(l.parameters());
+    }
+
+    result_t stmtExpression(Statement const& e)
+    {
+        return dispatch(e.expression());
+    }
+
+    result_t stmtConstruction(ConstructionStatement const& c)
+    {
+        return exprVar(c.varExpression());
+    }
+
+    result_t juncBranch(BranchJunction const& b)
+    {
+        return b.token();
+    }
+
+    result_t juncReturn(ReturnJunction const& r)
+    {
+        return r.token();
+    }
+
+    result_t juncJump(JumpJunction const& j)
+    {
+        return j.token();
+    }
+};
+
+lexer::Token const& front(Expression const& expr)
+{
+    ShallowApply<FrontToken> op;
+    return op(expr);
+}
+
+lexer::Token const& front(Statement const& stmt)
+{
+    ShallowApply<FrontToken> op;
+    return op(stmt);
+}
+
+lexer::Token const& front(Junction const& junc)
+{
+    ShallowApply<FrontToken> op;
+    return op(junc);
+}
+
+template <typename Dispatcher>
+struct PrintOperator
+{
+    using result_t = std::ostream&;
+
+    Dispatcher& dispatch;
+    result_t stream;
+    int nest = 0;
+
+    PrintOperator(Dispatcher& dispatch, result_t stream)
+        : dispatch(dispatch)
+        , stream(stream)
+    {
+    }
+
+    result_t printConstraints(Expression const& expr)
+    {
+        for ( auto c : expr.constraints() ) {
+            stream << ": ";
+            dispatch(*c);
+        }
+
+        return stream;
+    }
+
+    result_t exprPrimary(PrimaryExpression const& p)
+    {
+        stream << p.token().lexeme();
+        return printConstraints(p);
+    }
+
+    result_t exprReference(ReferenceExpression const& r)
+    {
+        stream << "=";
+        return dispatch(r.expression());
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        stream << presentTupleOpen(t.kind());
+
+        if ( !t.expressions().empty() ) {
+            dispatch(*t.expressions()[0]);
+
+            for ( auto const& e : t.expressions()(1, t.expressions().size()) ) {
+                stream << presentTupleWeave(t.kind());
+                dispatch(*e);
+            }
+        }
+
+        stream << presentTupleClose(t.kind());
+        return printConstraints(t);
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        if ( nest )
+            stream << "(";
+
+        ++nest;
+        auto first = true;
+        for ( auto const& e : a.expressions() ) {
+            if ( !first )
+                stream << " ";
+            else
+                first = false;
+
+            dispatch(*e);
+        }
+        --nest;
+        if ( nest )
+            stream << ")";
+
+        return printConstraints(a);
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        auto const& id = s.identifier().lexeme();
+        if ( !id.empty() )
+            stream << id;
+
+        if ( !s.expressions().empty() ) {
+            stream << '<';
+            dispatch(*s.expressions()[0]);
+
+            for ( auto const& e : s.expressions()(1, s.expressions().size()) ) {
+                stream << ", ";
+                dispatch(*e);
+            }
+
+            return stream << '>';
+        }
+
+        if ( id.empty() )
+            stream << "<>";
+
+        return printConstraints(s);
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        if ( d.isModuleScope() )
+            stream << ".";
+
+        auto l = begin(d.expressions());
+        auto r = end(d.expressions());
+        if ( l != r )
+            dispatch(*(*l));
+
+        ++l;
+        for ( ; l != r; ++l ) {
+            stream << ".";
+            dispatch(*(*l));
+        }
+
+        return printConstraints(d);
+    }
+
+    result_t exprVar(VarExpression const& v)
+    {
+        if ( v.identity().token().kind() != lexer::TokenKind::Undefined ) {
+            exprPrimary(v.identity());
+            stream << " = ";
+        }
+
+        return dispatch(v.expression());
+    }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        dispatch(l.parameters());
+        stream << " => ";
+        return dispatch(l.body());
+    }
+
+    result_t stmtExpression(Statement const& s)
+    {
+        return dispatch(s.expression());
+    }
+
+    result_t stmtConstruction(ConstructionStatement const& c)
+    {
+        return exprVar(c.varExpression());
+    }
+
+    result_t juncBranch(BranchJunction const& b)
+    {
+        stream << ":? ";
+        return dispatch(*b.condition());
+    }
+
+    result_t juncReturn(ReturnJunction const& r)
+    {
+        stream << "return ";
+        if ( r.expression() )
+            return dispatch(*r.expression());
+
+        return stream;
+    }
+
+    result_t juncJump(JumpJunction const& j)
+    {
+        stream << j.token().lexeme();
+        if ( j.targetLabel().kind() != lexer::TokenKind::Undefined )
+            stream << j.targetLabel().lexeme();
+
+        return stream;
+    }
+};
+
+std::ostream& print(std::ostream& stream, Expression const& expr)
+{
+    ShallowApply<PrintOperator> op(stream);
+    return op(expr);
+}
+
+std::ostream& print(std::ostream& stream, Statement const& stmt)
+{
+    ShallowApply<PrintOperator> op(stream);
+    return op(stmt);
+}
+
+std::ostream& print(std::ostream& stream, Junction const& junc)
+{
+    ShallowApply<PrintOperator> op(stream);
+    return op(junc);
+}
+
+template <typename Dispatcher>
+struct ClearDeclaration
+{
+    using result_t = void;
+
+    Dispatcher& dispatch;
+
+    ClearDeclaration(Dispatcher& dispatch)
+        : dispatch(dispatch)
+    {
+    }
+
+    result_t dispatchConstraints(Expression& expr)
+    {
+        for ( auto c : expr.constraints() )
+            dispatch(*c);
+    }
+
+    result_t exprPrimary(PrimaryExpression& p)
+    {
+        if ( p.token().kind() == lexer::TokenKind::Identifier )
+            p.clearDeclaration();
+
+        dispatchConstraints(p);
+    }
+
+    result_t exprReference(ReferenceExpression& r)
+    {
+        r.clearDeclaration();
+        dispatch(r.expression());
+        dispatchConstraints(r);
+    }
+
+    result_t exprTuple(TupleExpression& t)
+    {
+        t.clearDeclaration();
+        for ( auto const& e : t.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(t);
+    }
+
+    result_t exprApply(ApplyExpression& a)
+    {
+        a.clearDeclaration();
+        for ( auto const& e : a.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(a);
+    }
+
+    result_t exprSymbol(SymbolExpression& s)
+    {
+        s.clearDeclaration();
+        for ( auto const& e : s.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(s);
+    }
+
+    result_t exprDot(DotExpression& d)
+    {
+        d.clearDeclaration();
+        for ( auto& e : d.expressions() )
+            dispatch(*e);
+
+        dispatchConstraints(d);
+    }
+
+    result_t exprVar(VarExpression& v)
+    {
+        v.clearDeclaration();
+        if ( v.identity().token().kind() != lexer::TokenKind::Undefined )
+            exprPrimary(v.identity());
+
+        dispatch(v.expression());
+        dispatchConstraints(v);
+    }
+
+    result_t exprLambda(LambdaExpression& l)
+    {
+        l.clearDeclaration();
+        dispatch(l.parameters());
+        dispatch(l.body());
+        dispatchConstraints(l);
+    }
+
+    result_t stmtExpression(Statement& e)
+    {
+        dispatch(e.expression());
+    }
+
+    result_t stmtConstruction(ConstructionStatement& c)
+    {
+        exprVar(c.varExpression());
+    }
+
+    result_t juncBranch(BranchJunction& b)
+    {
+        if ( b.condition() )
+            dispatch(*b.condition());
+
+        for ( std::size_t i = 0; i < 2; ++i )
+            if ( b.branch(i) )
+                dispatch.procScope(*b.branch(i)->scope());
+    }
+
+    result_t juncReturn(ReturnJunction& r)
+    {
+        if ( r.expression() )
+            r.expression()->clearDeclaration();
+    }
+
+    result_t juncJump(JumpJunction&)
+    {
+        // nop
+    }
+};
+
+void clearDeclarations(Expression& expr)
+{
+    ShallowApply<ClearDeclaration> op;
+    op(expr);
+}
+
+void clearDeclarations(Statement& stmt)
+{
+    ShallowApply<ClearDeclaration> op;
+    op(stmt);
+}
+
+void clearDeclarations(Junction& junc)
+{
+    ShallowApply<ClearDeclaration> op;
+    op(junc);
 }
 
     } // namespace ast

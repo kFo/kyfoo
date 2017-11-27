@@ -391,8 +391,8 @@ struct CodeGenPass
                 customData(*p)->arg = &*(arg++);
         }
 
-        auto bb = llvm::BasicBlock::Create(module->getContext(), "", fun->body);
-        llvm::IRBuilder<> builder(bb);
+        auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun->body);
+        llvm::IRBuilder<> builder(entryBlock);
 
         if ( !returnType->isVoidTy() )
             fun->returnInst = builder.CreateAlloca(returnType);
@@ -405,119 +405,91 @@ struct CodeGenPass
                 }
             }
 
-            for ( auto const& stmt : scope.statements() ) {
+            auto gatherStatement = [&builder](ast::Statement& stmt) {
                 for ( auto const& v : stmt.unnamedVariables() ) {
                     auto vdata = std::make_unique<LLVMCustomData<ast::VariableDeclaration>>();
                     vdata->inst = builder.CreateAlloca(toType(*v->dataType()));
                     v->setCodegenData(std::move(vdata));
                 }
+            };
+
+            for ( auto const& bb : scope.basicBlocks() ) {
+                for ( auto const& stmt : bb->statements() )
+                    gatherStatement(*stmt);
+
+                if ( auto brJunc = bb->junction()->as<ast::BranchJunction>() )
+                    if ( brJunc->statement() )
+                        gatherStatement(*brJunc->statement());
+                else if ( auto retJunc = bb->junction()->as<ast::ReturnJunction>() )
+                    if ( retJunc->statement() )
+                        gatherStatement(*retJunc->statement());
             }
 
-            for ( auto const& stmt : scope.statements() ) {
-                if ( auto b = stmt.expression().as<ast::BranchExpression>() ) {
-                    for ( ; b; b = b->next() )
-                        gatherAllocas(*b->scope());
-                }
-            }
+            for ( auto const& s : scope.childScopes() )
+                gatherAllocas(*s);
         };
         gatherAllocas(*defn);
 
-        if ( toBlock(builder, *defn, nullptr, nullptr) )
-            die("top-level procedure block must diverge");
-
+        toBlock(*defn, *defn->basicBlocks().front(), fun->body, entryBlock, nullptr);
         if ( llvm::verifyFunction(*fun->body, &llvm::errs()) )
             fun->body->dump();
     }
 
-    bool toBlock(llvm::IRBuilder<>& builder,
-                 ast::ProcedureScope const& scope,
-                 llvm::BasicBlock* parentCleanup,
-                 llvm::BasicBlock* merge)
+    void toBlock(ast::ProcedureScope const& scope,
+                 ast::BasicBlock const& block,
+                 llvm::Function* func,
+                 llvm::BasicBlock* bb,
+                 llvm::BasicBlock* /*parentCleanup*/)
     {
-        auto func = builder.GetInsertBlock()->getParent();
         auto fdata = customData(*scope.declaration());
 
-        std::size_t cleanupDeclLast = 0;
-        std::vector<llvm::BasicBlock*> cleanupBlocks;
+        llvm::IRBuilder<> builder(bb);
 
-        auto createCleanupBlock = [&](lexer::Token const& token, bool exit) {
-            auto const decls = scope.childDeclarations();
-            std::vector<ast::VariableDeclaration*> priorVars;
-            for ( ; cleanupDeclLast < decls.size(); ++cleanupDeclLast ) {
-                if ( token.kind() != lexer::TokenKind::Undefined && !isBefore(decls[cleanupDeclLast]->symbol().identifier(), token) )
-                    break;
+        //std::size_t cleanupDeclLast = 0;
+        //std::vector<llvm::BasicBlock*> cleanupBlocks;
 
-                if ( auto var = decls[cleanupDeclLast]->as<ast::VariableDeclaration>() )
-                    priorVars.push_back(var);
+        //auto createCleanupBlock = [&](lexer::Token const& token, bool exit) {
+        //    auto const decls = scope.childDeclarations();
+        //    std::vector<ast::VariableDeclaration*> priorVars;
+        //    for ( ; cleanupDeclLast < decls.size(); ++cleanupDeclLast ) {
+        //        if ( token.kind() != lexer::TokenKind::Undefined && !isBefore(decls[cleanupDeclLast]->symbol().identifier(), token) )
+        //            break;
+
+        //        if ( auto var = decls[cleanupDeclLast]->as<ast::VariableDeclaration>() )
+        //            priorVars.push_back(var);
+        //    }
+
+        //    cleanupBlocks.push_back(llvm::BasicBlock::Create(module->getContext(), "", func));
+        //    llvm::IRBuilder<> cleanupBuilder(cleanupBlocks.back());
+        //    for ( auto v = priorVars.rbegin(); v != priorVars.rend(); ++v ) {
+        //        if ( auto dp = (*v)->dataType()->as<ast::DataProductDeclaration>() ) {
+        //            auto expr = createMemberCallExpression(*dp->definition()->destructor(), **v);
+        //            toValue(cleanupBuilder, *expr);
+        //        }
+        //    }
+
+        //    if ( cleanupBlocks.size() == 1 ) {
+        //        if ( exit && parentCleanup )
+        //            cleanupBuilder.CreateBr(parentCleanup);
+        //        else if ( !exit && merge )
+        //            cleanupBuilder.CreateBr(merge);
+        //        else if ( fdata->returnInst )
+        //            cleanupBuilder.CreateRet(cleanupBuilder.CreateLoad(fdata->returnInst));
+        //        else
+        //            cleanupBuilder.CreateRetVoid();
+        //    }
+        //    else {
+        //        cleanupBuilder.CreateBr(cleanupBlocks[cleanupBlocks.size() - 2]);
+        //    }
+        //};
+
+        for ( auto const& stmt : block.statements() ) {
+            if ( !toValue(builder, stmt->expression()) ) {
+                error(stmt->expression()) << "invalid instruction";
+                die();
             }
 
-            cleanupBlocks.push_back(llvm::BasicBlock::Create(module->getContext(), "", func));
-            llvm::IRBuilder<> cleanupBuilder(cleanupBlocks.back());
-            for ( auto v = priorVars.rbegin(); v != priorVars.rend(); ++v ) {
-                if ( auto dp = (*v)->dataType()->as<ast::DataProductDeclaration>() ) {
-                    auto expr = createMemberCallExpression(*dp->definition()->destructor(), **v);
-                    toValue(cleanupBuilder, *expr);
-                }
-            }
-
-            if ( cleanupBlocks.size() == 1 ) {
-                if ( exit && parentCleanup )
-                    cleanupBuilder.CreateBr(parentCleanup);
-                else if ( !exit && merge )
-                    cleanupBuilder.CreateBr(merge);
-                else if ( fdata->returnInst )
-                    cleanupBuilder.CreateRet(cleanupBuilder.CreateLoad(fdata->returnInst));
-                else
-                    cleanupBuilder.CreateRetVoid();
-            }
-            else {
-                cleanupBuilder.CreateBr(cleanupBlocks[cleanupBlocks.size() - 2]);
-            }
-        };
-
-        for ( auto const& stmt : scope.statements() ) {
-            ast::ReturnExpression const* retExpr = nullptr;
-
-            if ( auto branchExpr = stmt.expression().as<ast::BranchExpression>() ) {
-                auto mergeBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
-                createCleanupBlock(branchExpr->token(), false);
-
-                for ( auto bexpr = branchExpr; bexpr; bexpr = bexpr->next() ) {
-                    auto falseBlock = mergeBlock;
-                    if ( bexpr->next() )
-                        falseBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
-
-                    if ( bexpr->condition() ) {
-                        auto trueBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
-                        auto cond = toValue(builder, *bexpr->condition());
-                        // todo: implicit conversion to bool
-                        auto cmp = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
-                        builder.CreateCondBr(cmp, trueBlock, falseBlock);
-                        builder.SetInsertPoint(trueBlock);
-                    }
-
-                    toBlock(builder, *bexpr->scope(), cleanupBlocks.back(), mergeBlock);
-
-                    falseBlock->moveAfter(&func->back());
-
-                    builder.SetInsertPoint(falseBlock);
-                }
-
-                mergeBlock->moveAfter(&func->back());
-            }
-            else {
-                retExpr = stmt.expression().as<ast::ReturnExpression>();
-                if ( retExpr ) {
-                    if ( retExpr->expression() )
-                        builder.CreateStore(toValue(builder, *retExpr->expression()), fdata->returnInst);
-                }
-                else if ( !toValue(builder, stmt.expression()) ) {
-                    error(stmt.expression()) << "invalid instruction";
-                    die();
-                }
-            }
-
-            auto u = stmt.unnamedVariables();
+            auto u = stmt->unnamedVariables();
             if ( u.length() ) {
                 for ( std::size_t i = u.length() - 1; ~i; --i ) {
                     if ( auto dp = u[i]->dataType()->as<ast::DataProductDeclaration>() ) {
@@ -526,19 +498,46 @@ struct CodeGenPass
                     }
                 }
             }
-
-            if ( retExpr ) {
-                createCleanupBlock(retExpr->token(), true);
-                builder.CreateBr(cleanupBlocks.back());
-
-                return false;
-            }
         }
 
-        createCleanupBlock(lexer::Token(), false);
-        builder.CreateBr(cleanupBlocks.back());
+        if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
+            if ( retJunc->expression() )
+                builder.CreateStore(toValue(builder, *retJunc->expression()), fdata->returnInst);
 
-        return true;
+            /*createCleanupBlock(retJunc->token(), true);
+            builder.CreateBr(cleanupBlocks.back());*/
+            if ( fdata->returnInst )
+                builder.CreateRet(builder.CreateLoad(fdata->returnInst));
+            else
+                builder.CreateRetVoid();
+
+            return;
+        }
+
+        if ( auto brJunc = block.junction()->as<ast::BranchJunction>() ) {
+            auto cond = toValue(builder, *brJunc->condition());
+            auto cmp = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+
+            auto trueBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+            auto falseBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+
+            builder.CreateCondBr(cmp, trueBlock, falseBlock);
+
+            toBlock(scope, *brJunc->branch(0), func, trueBlock, nullptr /*cleanupBlocks.back()*/);
+            toBlock(scope, *brJunc->branch(1), func, falseBlock, nullptr /*cleanupBlocks.back()*/);
+
+            return;
+        }
+
+        if ( auto jmpJunc = block.junction()->as<ast::JumpJunction>() ) {
+            auto target = llvm::BasicBlock::Create(module->getContext(), "", func);
+            toBlock(scope, *jmpJunc->targetBlock(), func, target, nullptr /*cleanupBlocks.back()*/);
+            builder.CreateBr(target);
+
+            return;
+        }
+
+        die("missing procedure terminator");
     }
 
     result_t declProcedureParameter(ast::ProcedureParameter const&)

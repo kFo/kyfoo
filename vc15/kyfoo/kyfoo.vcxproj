@@ -150,6 +150,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\ControlFlow.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Fabrication.hpp" />
@@ -176,6 +177,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />
     <ClCompile Include="..\..\src\ast\Context.cpp" />
+    <ClCompile Include="..\..\src\ast\ControlFlow.cpp" />
     <ClCompile Include="..\..\src\ast\Declarations.cpp" />
     <ClCompile Include="..\..\src\ast\Expressions.cpp" />
     <ClCompile Include="..\..\src\ast\Symbol.cpp" />

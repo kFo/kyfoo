@@ -719,5 +719,15 @@ std::size_t parse(lexer::Scanner& scanner, T& production)
     return false;
 }
 
+template <typename P>
+auto parse(lexer::Scanner& scanner)
+{
+    P production;
+    if ( parse(scanner, production) )
+        return production.make();
+
+    return decltype(production.make())();
+}
+
     } // namespace parser
 } // namespace kyfoo

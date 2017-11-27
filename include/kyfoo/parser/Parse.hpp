@@ -29,7 +29,7 @@ class DeclarationScopeParser
 {
 public:
     DeclarationScopeParser(ast::DeclarationScope* scope);
-    ~DeclarationScopeParser();
+    virtual ~DeclarationScopeParser();
 
 public:
     std::unique_ptr<DeclarationScopeParser> next(Diagnostics& dgn, lexer::Scanner& scanner);
@@ -61,7 +61,7 @@ class DataSumScopeParser : public DeclarationScopeParser
 {
 public:
     explicit DataSumScopeParser(ast::DataSumScope* scope);
-    ~DataSumScopeParser();
+    ~DataSumScopeParser() override;
 
 protected:
     std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
@@ -86,14 +86,20 @@ private:
 class ProcedureScopeParser : public DeclarationScopeParser
 {
 public:
-    explicit ProcedureScopeParser(ast::ProcedureScope* scope);
-    ~ProcedureScopeParser();
+    explicit ProcedureScopeParser(ast::ProcedureScope* scope,
+                                  ast::BranchJunction* branch,
+                                  ast::BasicBlock* merge);
+    ~ProcedureScopeParser() override;
 
 protected:
     std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
 
 private:
     ast::ProcedureScope* scope();
+
+private:
+    ast::BranchJunction* myParentBranch = nullptr;
+    ast::BasicBlock* myMergeBlock = nullptr;
 };
 
     } // namespace parser

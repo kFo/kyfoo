@@ -2,6 +2,7 @@
 
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
 
@@ -147,6 +148,16 @@ Error& Diagnostics::error(ast::Module const& module, ast::Expression const& expr
 {
     myErrors.emplace_back(std::make_unique<Error>(module, expr, Error::Code::General));
     return *myErrors.back();
+}
+
+Error& Diagnostics::error(ast::Module const& module, ast::Statement const& stmt)
+{
+    return error(module, front(stmt));
+}
+
+Error& Diagnostics::error(ast::Module const& module, ast::Junction const& junc)
+{
+    return error(module, front(junc));
 }
 
 Error& Diagnostics::error(ast::Module const& module, ast::Declaration const& decl)

@@ -5,6 +5,7 @@
 #include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Fabrication.hpp>
@@ -550,6 +551,7 @@ ProcedureScope::ProcedureScope(DeclarationScope& parent,
                                ProcedureDeclaration& declaration)
     : DeclarationScope(Kind::Procedure, &parent.module(), &parent, &declaration)
 {
+    createBasicBlock();
 }
 
 ProcedureScope::ProcedureScope(ProcedureScope const& rhs)
@@ -569,32 +571,30 @@ void ProcedureScope::swap(ProcedureScope& rhs)
 {
     DeclarationScope::swap(rhs);
     using std::swap;
-    swap(myStatements, rhs.myStatements);
+    swap(myBasicBlocks, rhs.myBasicBlocks);
+    swap(myChildScopes, rhs.myChildScopes);
 }
 
 void ProcedureScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
-    stream.openArray("statements");
-    for ( auto const& e : myStatements )
-        stream.next("", e.expression());
+    stream.openArray("blocks");
+    for ( auto& bb : myBasicBlocks )
+        bb->io(stream);
     stream.closeArray();
+
+    for ( auto& s : myChildScopes )
+        s->io(stream);
 }
 
-IMPL_CLONE(ProcedureScope)
-
-void ProcedureScope::cloneChildren(DeclarationScope& c, clone_map_t& map) const
-{
-    ProcedureScope& ps = static_cast<ProcedureScope&>(c);
-    for ( auto const& e : myStatements )
-        ps.myStatements.emplace_back(e.clone(map));
-}
-
-void ProcedureScope::remapReferences(clone_map_t const& map)
-{
-    for ( auto& e : myStatements )
-        e.remapReferences(map);
-}
+IMPL_CLONE_BEGIN(ProcedureScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_CHILD(myBasicBlocks)
+IMPL_CLONE_CHILD(myChildScopes)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ProcedureScope, DeclarationScope)
+IMPL_CLONE_REMAP(myBasicBlocks)
+IMPL_CLONE_REMAP(myChildScopes)
+IMPL_CLONE_REMAP_END
 
 void ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
@@ -604,7 +604,11 @@ void ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
     // Resolve expressions
     ScopeResolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
-    ctx.resolveStatements(myStatements);
+    for ( auto& bb : myBasicBlocks )
+        bb->resolveSymbols(ctx);
+
+    for ( auto& s : myChildScopes )
+        s->resolveSymbols(endModule, dgn);
 }
 
 ProcedureDeclaration* ProcedureScope::declaration()
@@ -617,116 +621,51 @@ ProcedureDeclaration const* ProcedureScope::declaration() const
     return static_cast<ProcedureDeclaration const*>(myDeclaration);
 }
 
-void ProcedureScope::append(std::unique_ptr<Expression> expression)
+Slice<ProcedureScope*> ProcedureScope::childScopes()
 {
-    myStatements.emplace_back(std::move(expression));
+    return myChildScopes;
 }
 
-Slice<Statement> const ProcedureScope::statements() const
+Slice<ProcedureScope*> const ProcedureScope::childScopes() const
 {
-    return myStatements;
+    return myChildScopes;
 }
 
-Slice<Statement> ProcedureScope::statements()
+Slice<BasicBlock*> ProcedureScope::basicBlocks()
 {
-    return myStatements;
+    return myBasicBlocks;
 }
 
-//
-// Statement
-
-Statement::Statement(std::unique_ptr<Expression> expr)
-    : myExpression(std::move(expr))
+Slice<BasicBlock*> const ProcedureScope::basicBlocks() const
 {
+    return myBasicBlocks;
 }
 
-Statement::Statement(Statement const&)
+void ProcedureScope::append(std::unique_ptr<Expression> expr)
 {
+    myBasicBlocks.back()->append(std::move(expr));
 }
 
-Statement& Statement::operator = (Statement const& rhs)
+void ProcedureScope::appendConstruction(std::unique_ptr<VarExpression> expr)
 {
-    Statement(rhs).swap(*this);
-    return *this;
+    myBasicBlocks.back()->appendConstruction(std::move(expr));
 }
 
-Statement::Statement(Statement&& rhs)
-    : myExpression(std::move(rhs.myExpression))
-    , myUnnamedVariables(std::move(rhs.myUnnamedVariables))
+BasicBlock* ProcedureScope::createBasicBlock()
 {
+    myBasicBlocks.emplace_back(std::make_unique<BasicBlock>(this));
+    return myBasicBlocks.back().get();
 }
 
-Statement& Statement::operator = (Statement&& rhs)
+void ProcedureScope::popBasicBlock()
 {
-    this->~Statement();
-    new (this) Statement(std::move(rhs));
-    return *this;
+    myBasicBlocks.pop_back();
 }
 
-Statement::~Statement() = default;
-
-void Statement::swap(Statement& rhs)
+ProcedureScope* ProcedureScope::createChildScope()
 {
-    using std::swap;
-    swap(myExpression, rhs.myExpression);
-    swap(myUnnamedVariables, rhs.myUnnamedVariables);
-}
-
-Statement Statement::clone(clone_map_t& map) const
-{
-    Statement ret(std::unique_ptr<Expression>(myExpression->clone(map)));
-    ret.myUnnamedVariables = ast::clone(myUnnamedVariables, map);
-    return std::move(ret);
-}
-
-void Statement::remapReferences(clone_map_t const& map)
-{
-    myExpression->remapReferences(map);
-    for ( auto& e : myUnnamedVariables )
-        e->remapReferences(map);
-}
-
-Expression const& Statement::expression() const
-{
-    return *myExpression;
-}
-
-Expression& Statement::expression()
-{
-    return *myExpression;
-}
-
-Slice<VariableDeclaration*> const Statement::unnamedVariables() const
-{
-    return myUnnamedVariables;
-}
-
-void Statement::resolveSymbols(Context& ctx)
-{
-    ctx.resolveExpression(myExpression);
-}
-
-VariableDeclaration const* Statement::createUnnamed(ProcedureScope& scope, Declaration const& constraint)
-{
-    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(scope, constraint));
-    return myUnnamedVariables.back().get();
-}
-
-void Statement::appendUnnamed(ProcedureScope& scope, Expression const& expr)
-{
-    auto decl = resolveIndirections(expr.declaration());
-    if ( !decl )
-        throw std::runtime_error("unnamed instance must have a type");
-
-    Declaration const* dt = decl;
-    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-        if ( isCtor(*proc) )
-            dt = proc->parameters()[0]->dataType();
-        else
-            dt = proc->returnType()->declaration();
-    }
-
-    createUnnamed(scope, *dt);
+    myChildScopes.push_back(std::make_unique<ProcedureScope>(*this, *declaration()));
+    return myChildScopes.back().get();
 }
 
 //

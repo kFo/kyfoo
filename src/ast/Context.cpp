@@ -1,6 +1,7 @@
 #include <kyfoo/ast/Context.hpp>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 

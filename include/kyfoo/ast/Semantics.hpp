@@ -5,8 +5,9 @@
 #include <set>
 
 #include <kyfoo/Slice.hpp>
-#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 
 namespace kyfoo {
     namespace lexer {
@@ -39,6 +40,8 @@ public:
     template <typename U>
     typename operator_t::result_t operator()(U&) = delete;
 
+    // Expressions
+
     template<>
     typename operator_t::result_t operator()(Expression const& expr)
     {
@@ -59,6 +62,52 @@ public:
         throw std::runtime_error("invalid expression kind");
     }
 
+    // Statements
+
+    template<>
+    typename operator_t::result_t operator()(Statement const& stmt)
+    {
+#define X(a,b) if ( auto e = stmt.as<b>() ) return myOperator.stmt##a(*e);
+        STATEMENT_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid statement kind");
+    }
+
+    template<>
+    typename operator_t::result_t operator()(Statement& stmt)
+    {
+#define X(a,b) if ( auto e = stmt.as<b>() ) return myOperator.stmt##a(*e);
+        STATEMENT_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid statement kind");
+    }
+
+    // ControlJunctions
+
+    template<>
+    typename operator_t::result_t operator()(Junction const& junc)
+    {
+#define X(a,b) if ( auto e = junc.as<b>() ) return myOperator.junc##a(*e);
+        JUNCTION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid control-junction kind");
+    }
+
+    template<>
+    typename operator_t::result_t operator()(Junction& junc)
+    {
+#define X(a,b) if ( auto e = junc.as<b>() ) return myOperator.junc##a(*e);
+        JUNCTION_KINDS(X)
+#undef X
+
+        throw std::runtime_error("invalid control-junction kind");
+    }
+
+    // Declarations
+
     template <>
     typename operator_t::result_t operator()(Declaration& decl)
     {
@@ -77,6 +126,17 @@ public:
 #undef X
 
         throw std::runtime_error("invalid declaration kind");
+    }
+
+    void procScope(ProcedureScope& p)
+    {
+        for ( auto& bb : p.basicBlocks() ) {
+            for ( auto& s : bb->statements() )
+                operator()(*s);
+
+            if ( bb->junction() )
+                operator()(*bb->junction());
+        }
     }
 
 private:
@@ -273,6 +333,16 @@ bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
 bool hasFreeVariable(Expression const& expr);
+
+lexer::Token const& front(Expression const& expr);
+lexer::Token const& front(Statement  const& stmt);
+lexer::Token const& front(Junction   const& junc);
+std::ostream& print(std::ostream& stream, Expression const& expr);
+std::ostream& print(std::ostream& stream, Statement  const& stmt);
+std::ostream& print(std::ostream& stream, Junction   const& junc);
+void clearDeclarations(Expression& expr);
+void clearDeclarations(Statement&  stmt);
+void clearDeclarations(Junction&   junc);
 
     } // namespace ast
 } // namespace kyfoo

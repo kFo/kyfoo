@@ -4,8 +4,10 @@
 
 #include <kyfoo/lexer/Token.hpp>
 
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
@@ -356,38 +358,38 @@ struct VariableDeclaration : public
     }
 };
 
-struct BranchExpression : public
+struct BranchJunction : public
     g::And<colonQuestion, Expression>
 {
-    std::unique_ptr<ast::BranchExpression> make() const
+    std::unique_ptr<ast::BranchJunction> make() const
     {
-        return std::make_unique<ast::BranchExpression>(factor<0>().token(), factor<1>().make());
+        return std::make_unique<ast::BranchJunction>(factor<0>().token(), factor<1>().make());
     }
 };
 
-struct BranchElseExpression : public
+struct BranchElseJunction : public
     g::And<colonSlash, g::Opt<Expression>>
 {
-    std::unique_ptr<ast::BranchExpression> make() const
+    std::unique_ptr<ast::BranchJunction> make() const
     {
         std::unique_ptr<ast::Expression> cond;
         if ( auto e = factor<1>().capture() )
             cond = e->make();
 
-        return std::make_unique<ast::BranchExpression>(factor<0>().token(), std::move(cond));
+        return std::make_unique<ast::BranchJunction>(factor<0>().token(), std::move(cond));
     }
 };
 
-struct ReturnExpression : public
+struct ReturnJunction : public
     g::And<_return, g::Opt<Expression>>
 {
-    std::unique_ptr<ast::ReturnExpression> make() const
+    std::unique_ptr<ast::ReturnJunction> make() const
     {
         std::unique_ptr<ast::Expression> expr;
         if ( auto c = factor<1>().capture() )
             expr = c->make();
 
-        return std::make_unique<ast::ReturnExpression>(factor<0>().token(), std::move(expr));
+        return std::make_unique<ast::ReturnJunction>(factor<0>().token(), std::move(expr));
     }
 };
 

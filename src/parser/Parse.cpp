@@ -23,42 +23,6 @@ DeclarationScopeParser::DeclarationScopeParser(ast::DeclarationScope* scope)
 
 DeclarationScopeParser::~DeclarationScopeParser() = default;
 
-std::unique_ptr<ast::ImportDeclaration> parseImportDeclaration(lexer::Scanner& scanner)
-{
-    ImportDeclaration grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::SymbolDeclaration> parseSymbolDeclaration(lexer::Scanner& scanner)
-{
-    SymbolDeclaration grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::Expression> parseExpression(lexer::Scanner& scanner)
-{
-    Expression grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::Expression> parseAttribute(lexer::Scanner& scanner)
-{
-    Attribute grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
 std::unique_ptr<DataSumScopeParser>
 DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
                                                lexer::Scanner& scanner,
@@ -99,7 +63,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
         scanner.next(); // yield
         declaration.define(std::make_unique<ast::ProcedureScope>(*myScope, declaration));
         if ( !isIndent(scanner.peek().kind()) ) {
-            auto expr = parseExpression(scanner);
+            auto expr = parse<Expression>(scanner);
             if ( !expr ) {
                 dgn.error(myScope->module(), scanner.peek()) << "expected expression following procedure declaration";
                 dgn.die();
@@ -115,89 +79,8 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
             dgn.die();
         }
 
-        return std::make_unique<ProcedureScopeParser>(declaration.definition());
+        return std::make_unique<ProcedureScopeParser>(declaration.definition(), nullptr, nullptr);
     }
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::DataSumDeclaration>
-parseDataSumDeclaration(lexer::Scanner& scanner)
-{
-    DataSumDeclaration grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::DataSumDeclaration::Constructor>
-parseDataSumConstructor(lexer::Scanner& scanner)
-{
-    DataSumConstructor grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::DataProductDeclaration>
-parseDataProductDeclaration(lexer::Scanner& scanner)
-{
-    DataProductDeclaration grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::DataProductDeclaration::Field>
-parseDataProductDeclarationField(lexer::Scanner& scanner)
-{
-    DataProductDeclarationField grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::ProcedureDeclaration>
-parseProcedureDeclaration(lexer::Scanner& scanner)
-{
-    ProcedureDeclaration grammar;
-    if ( parse(scanner, grammar) ) {
-        return grammar.make();
-    }
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::BranchExpression>
-parseBranchExpression(lexer::Scanner& scanner)
-{
-    BranchExpression grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::BranchExpression>
-parseBranchElseExpression(lexer::Scanner& scanner)
-{
-    BranchElseExpression grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
-
-    return nullptr;
-}
-
-std::unique_ptr<ast::ReturnExpression>
-parseReturnExpression(lexer::Scanner& scanner)
-{
-    ReturnExpression grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
 
     return nullptr;
 }
@@ -215,21 +98,21 @@ parseImplicitTemplateProcedureDeclaration(lexer::Scanner& scanner)
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
 {
-    if ( auto importDecl = parseImportDeclaration(scanner) ) {
+    if ( auto importDecl = parse<ImportDeclaration>(scanner) ) {
         append(std::move(importDecl));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto symDecl = parseSymbolDeclaration(scanner) ) {
+    else if ( auto symDecl = parse<SymbolDeclaration>(scanner) ) {
         append(std::move(symDecl));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto dsDecl = parseDataSumDeclaration(scanner) ) {
+    else if ( auto dsDecl = parse<DataSumDeclaration>(scanner) ) {
         auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
         append(std::move(dsDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
-    else if ( auto dpDecl = parseDataProductDeclaration(scanner) ) {
+    else if ( auto dpDecl = parse<DataProductDeclaration>(scanner) ) {
         auto newScopeParser = parseDataProductDefinition(dgn, scanner, *dpDecl);
         append(std::move(dpDecl));
 
@@ -242,7 +125,7 @@ DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& sca
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
 {
-    if ( auto procDecl = parseProcedureDeclaration(scanner) ) {
+    if ( auto procDecl = parse<ProcedureDeclaration>(scanner) ) {
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *procDecl);
         append(std::move(procDecl));
 
@@ -272,7 +155,7 @@ void DeclarationScopeParser::append(std::unique_ptr<ast::Declaration> decl)
 
 void DeclarationScopeParser::parseAttributes(Diagnostics& dgn, lexer::Scanner& scanner)
 {
-    while ( auto attr = parseAttribute(scanner) ) {
+    while ( auto attr = parse<Attribute>(scanner) ) {
         myAttributes.emplace_back(std::move(attr));
         if ( scanner.peek().kind() != lexer::TokenKind::IndentEQ ) {
             dgn.error(myScope->module(), scanner.peek()) << "expected declaration to follow attribute";
@@ -333,7 +216,7 @@ DataSumScopeParser::~DataSumScopeParser() = default;
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DataSumScopeParser::parseNext(Diagnostics& /*dgn*/, lexer::Scanner& scanner)
 {
-    if ( auto dsCtor = parseDataSumConstructor(scanner) ) {
+    if ( auto dsCtor = parse<DataSumConstructor>(scanner) ) {
         dsCtor->setParent(scope()->declaration()->as<ast::DataSumDeclaration>());
         myScope->append(std::move(dsCtor));
         return std::make_tuple(true, nullptr);
@@ -360,12 +243,12 @@ DataProductScopeParser::~DataProductScopeParser() = default;
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 DataProductScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 {
-    if ( auto field = parseDataProductDeclarationField(scanner) ) {
+    if ( auto field = parse<DataProductDeclarationField>(scanner) ) {
         field->setParent(scope()->declaration()->as<ast::DataProductDeclaration>());
         myScope->append(std::move(field));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto dsDecl = parseDataSumDeclaration(scanner) ) {
+    else if ( auto dsDecl = parse<DataSumDeclaration>(scanner) ) {
         auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
         myScope->append(std::move(dsDecl));
 
@@ -383,12 +266,21 @@ ast::DataProductScope* DataProductScopeParser::scope()
 //
 // ProcedureScopeParser
 
-ProcedureScopeParser::ProcedureScopeParser(ast::ProcedureScope* scope)
+ProcedureScopeParser::ProcedureScopeParser(ast::ProcedureScope* scope,
+                                           ast::BranchJunction* branch,
+                                           ast::BasicBlock* merge)
     : DeclarationScopeParser(scope)
+    , myParentBranch(branch)
+    , myMergeBlock(merge)
 {
 }
 
-ProcedureScopeParser::~ProcedureScopeParser() = default;
+ProcedureScopeParser::~ProcedureScopeParser()
+{
+    auto bb = scope()->basicBlocks().back();
+    if ( myMergeBlock && !bb->junction() )
+        bb->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, myMergeBlock));
+}
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
 ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
@@ -400,40 +292,94 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
             return declParse;
     }
 
-    if ( auto branchExpr = parseBranchExpression(scanner) ) {
-        branchExpr->setScope(std::make_unique<ast::ProcedureScope>(*scope(), *static_cast<ast::ProcedureDeclaration*>(scope()->declaration())));
-
-        if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
-            scanner.next();
-            auto s = branchExpr->scope();
-            scope()->append(std::move(branchExpr));
-            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s));
+    auto lastBranch = [s = scope(), &dgn](ast::Junction& j) -> ast::BranchJunction* {
+        if ( s->basicBlocks().size() >= 2 ) {
+            auto lastJunc = s->basicBlocks()[s->basicBlocks().size() - 2]->junction();
+            if ( lastJunc ) {
+                auto ret = lastJunc->as<ast::BranchJunction>();
+                if ( ret )
+                    return ret;
+            }
         }
 
-        return std::make_tuple(false, nullptr);
-    }
-    else if ( auto elseExpr = parseBranchElseExpression(scanner) ) {
-        auto branch = scope()->statements().back().expression().as<ast::BranchExpression>();
-        if ( !branch ) {
-            dgn.error(scope()->module(), *elseExpr) << "is missing a preceding branch-expression";
+        dgn.error(s->module(), j) << "expected preceding branch-statement";
+        return nullptr;
+    };
+
+    if ( auto elseJunc = parse<BranchElseJunction>(scanner) ) {
+        auto br = lastBranch(*elseJunc);
+        if ( !br )
+            return std::make_tuple(false, nullptr);
+
+        // todo: lifetime of transient parse objects in diagnostics
+        if ( !br->branch(0) ) {
+            dgn.error(scope()->module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
             return std::make_tuple(false, nullptr);
         }
 
-        while ( branch->next() )
-            branch = branch->next();
+        while ( br->branch(1) ) {
+            if ( !br->branch(1)->junction() ) {
+                dgn.error(scope()->module(), *elseJunc) << "is missing preceding branch-statement";
+                return std::make_tuple(false, nullptr);
+            }
 
-        elseExpr->setScope(std::make_unique<ast::ProcedureScope>(*scope(), *static_cast<ast::ProcedureDeclaration*>(scope()->declaration())));
+            br = br->branch(1)->junction()->as<ast::BranchJunction>();
+            if ( !br || !br->branch(0) ) {
+                dgn.error(scope()->module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
+                return std::make_tuple(false, nullptr);
+            }
+        }
+
+        if ( br->branch(1) ) {
+            dgn.error(scope()->module(), *elseJunc) << "preceding branch-statement already has an else-branch-statement";
+            return std::make_tuple(false, nullptr);
+        }
+
         if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
             scanner.next();
-            auto s = elseExpr->scope();
-            branch->setNext(std::move(elseExpr));
-            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s));
+            auto s = scope()->createChildScope();
+            auto m = scope()->basicBlocks().back();
+            br->setBranch(1, s->basicBlocks().front());
+            if ( elseJunc->condition() ) {
+                auto elseBr = elseJunc.get();
+                s->basicBlocks().front()->setJunction(std::move(elseJunc));
+                auto ss = s->createChildScope();
+                elseBr->setBranch(0, ss->basicBlocks().front());
+                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(ss, elseBr, m));
+            }
+
+            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s, br, m));
         }
 
         return std::make_tuple(false, nullptr);
     }
-    else if ( auto retExpr = parseReturnExpression(scanner) ) {
-        scope()->append(std::move(retExpr));
+
+    if ( auto branchJunc = parse<BranchJunction>(scanner) ) {
+        {
+            auto prevBB = scope()->basicBlocks().back();
+            scope()->createBasicBlock();
+            prevBB->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, scope()->basicBlocks().back()));
+        }
+
+        auto br = branchJunc.get();
+        scope()->basicBlocks().back()->setJunction(std::move(branchJunc));
+
+        if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner.next();
+            auto s = scope()->createChildScope();
+            auto m = scope()->createBasicBlock();
+            br->setBranch(0, s->basicBlocks().front());
+            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s, br, m));
+        }
+
+        return std::make_tuple(false, nullptr);
+    }
+    else if ( auto retJunc = parse<ReturnJunction>(scanner) ) {
+        scope()->basicBlocks().back()->setJunction(std::move(retJunc));
+        return std::make_tuple(true, nullptr);
+    }
+    else if ( auto jmpJunc = parse<JumpJunction>(scanner) ) {
+        scope()->basicBlocks().back()->setJunction(std::move(jmpJunc));
         return std::make_tuple(true, nullptr);
     }
 
@@ -445,10 +391,10 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         p->setDeclaration(*var);
         static_cast<ast::DeclarationScope*>(scope())->append(std::move(var));
         auto expr = std::make_unique<ast::VarExpression>(std::move(p), std::move(v.expression));
-        scope()->append(std::move(expr));
+        scope()->appendConstruction(std::move(expr));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto expr = parseExpression(scanner) ) {
+    else if ( auto expr = parse<Expression>(scanner) ) {
         scope()->append(std::move(expr));
         return std::make_tuple(true, nullptr);
     }

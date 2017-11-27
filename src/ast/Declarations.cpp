@@ -4,6 +4,7 @@
 
 #include <kyfoo/lexer/Scanner.hpp>
 
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Scopes.hpp>

@@ -18,8 +18,7 @@
 namespace kyfoo {
     namespace ast {
 
-using scope_depth_t = int;
-
+class BasicBlock;
 class Declaration;
 class SymbolDeclaration;
 class ProcedureDeclaration;
@@ -316,41 +315,6 @@ private:
     ProcedureDeclaration const* myDestructor = nullptr;
 };
 
-class Statement
-{
-public:
-    explicit Statement(std::unique_ptr<Expression> expr);
-
-protected:
-    Statement(Statement const& rhs);
-    Statement& operator = (Statement const& rhs);
-
-public:
-    Statement(Statement&& rhs);
-    Statement& operator = (Statement&& rhs);
-
-    ~Statement();
-    void swap(Statement& rhs);
-
-public:
-    Statement clone(clone_map_t& map) const;
-    void remapReferences(clone_map_t const& map);
-
-public:
-    Expression const& expression() const;
-    Expression& expression();
-
-    Slice<VariableDeclaration*> const unnamedVariables() const;
-
-    void resolveSymbols(Context& ctx);
-    VariableDeclaration const* createUnnamed(ProcedureScope& scope, Declaration const& constraint);
-    void appendUnnamed(ProcedureScope& scope, Expression const& expr);
-
-private:
-    std::unique_ptr<Expression> myExpression;
-    std::vector<std::unique_ptr<VariableDeclaration>> myUnnamedVariables;
-};
-
 class ProcedureScope : public DeclarationScope
 {
 public:
@@ -380,14 +344,23 @@ public:
 public:
     ProcedureDeclaration* declaration();
     ProcedureDeclaration const* declaration() const;
-    void append(std::unique_ptr<Expression> expression);
+
+    Slice<ProcedureScope*> childScopes();
+    Slice<ProcedureScope*> const childScopes() const;
+
+    Slice<BasicBlock*> basicBlocks();
+    Slice<BasicBlock*> const basicBlocks() const;
 
 public:
-    Slice<Statement> const statements() const;
-    Slice<Statement> statements();
+    void append(std::unique_ptr<Expression> expr);
+    void appendConstruction(std::unique_ptr<VarExpression> expr);
+    BasicBlock* createBasicBlock();
+    void popBasicBlock();
+    ProcedureScope* createChildScope();
 
 private:
-    std::vector<Statement> myStatements;
+    std::vector<std::unique_ptr<ProcedureScope>> myChildScopes;
+    std::vector<std::unique_ptr<BasicBlock>> myBasicBlocks;
 };
 
 class TemplateScope : public DeclarationScope
