@@ -30,6 +30,7 @@ using colon          = g::Terminal<TokenKind::Colon>;
 using colonPipe      = g::Terminal<TokenKind::ColonPipe>;
 using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
 using colonEqual     = g::Terminal<TokenKind::ColonEqual>;
+using colonOpenAngle = g::Terminal<TokenKind::ColonOpenAngle>;
 using colonQuestion  = g::Terminal<TokenKind::ColonQuestion>;
 using colonSlash     = g::Terminal<TokenKind::ColonSlash>;
 
@@ -48,6 +49,8 @@ using closeAngle   = g::Terminal<TokenKind::CloseAngle>;
 
 using _import = g::Terminal<TokenKind::_import>;
 using _return = g::Terminal<TokenKind::_return>;
+using _loop   = g::Terminal<TokenKind::_loop>;
+using _break  = g::Terminal<TokenKind::_break>;
 
 struct Primary : public
     g::Or<id, free, integer, rational, string>
@@ -358,6 +361,33 @@ struct VariableDeclaration : public
     }
 };
 
+struct BlockDecl
+{
+    lexer::Token open;
+    lexer::Token id;
+    std::unique_ptr<ast::Expression> expr;
+};
+
+struct BlockDeclaration : public
+    g::And<colonOpenAngle
+         , g::Opt<id>
+         , closeAngle
+         , g::Opt<Expression>>
+{
+    BlockDecl make() const
+    {
+        lexer::Token id;
+        if ( auto c = factor<1>().capture() )
+            id = c->token();
+
+        std::unique_ptr<ast::Expression> expr;
+        if ( auto c = factor<3>().capture() )
+            expr = c->make();
+
+        return { factor<0>().token(), id, std::move(expr) };
+    }
+};
+
 struct BranchJunction : public
     g::And<colonQuestion, Expression>
 {
@@ -390,6 +420,21 @@ struct ReturnJunction : public
             expr = c->make();
 
         return std::make_unique<ast::ReturnJunction>(factor<0>().token(), std::move(expr));
+    }
+};
+
+struct JumpJunction : public
+    g::And<g::Or<_loop, _break>, g::Opt<id>>
+{
+    std::unique_ptr<ast::JumpJunction> make() const
+    {
+        lexer::Token label;
+        if ( auto c = factor<1>().capture() )
+            label = c->token();
+
+        auto anchor = factor<0>().index() == 0 ? factor<0>().term<0>().token() : factor<0>().term<1>().token();
+        auto kind = factor<0>().index() == 0 ? ast::JumpJunction::JumpKind::Loop : ast::JumpJunction::JumpKind::Break;
+        return std::make_unique<ast::JumpJunction>(anchor, kind, label);
     }
 };
 

@@ -566,6 +566,11 @@ void VariableDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
     ScopeResolver resolver(scope());
     Context ctx(endModule, dgn, resolver);
 
+    if ( !myConstraint ) {
+        ctx.error(*this) << "type inferencing not implemented";
+        return;
+    }
+
     ctx.resolveExpression(myConstraint);
     addConstraint(*myConstraint);
 

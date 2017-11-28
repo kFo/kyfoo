@@ -424,6 +424,11 @@ Token Scanner::readNext()
             nextChar();
             return TOK2(ColonEqual, ":=");
         }
+        else if ( peekChar() == '<' ) {
+            nextChar();
+            addNest();
+            return TOK2(ColonOpenAngle, ":<");
+        }
         else if ( peekChar() == '?' ) {
             nextChar();
             return TOK2(ColonQuestion, ":?");

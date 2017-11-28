@@ -516,35 +516,33 @@ void JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         return;
 
     if ( myTargetLabel.kind() == lexer::TokenKind::Undefined ) {
-        if ( bb.incoming().empty() ) {
-            ctx.error(token()) << "cannot jump outside a procedure-scope";
-            return;
+        for ( auto p = bb.scope(); p; p = p->parent()->as<ProcedureScope>() ) {
+            if ( p->isJumpTarget() ) {
+                if ( jumpKind() == JumpKind::Break )
+                    myTargetBlock = p->mergeBlock();
+                else
+                    myTargetBlock = p->basicBlocks().front();
+
+                return;
+            }
         }
 
-        auto parentBlock = *bb.incoming().front();
-
-        myTargetBlock = myJumpKind == JumpKind::Break ? &parentBlock : next(parentBlock);
-        if ( !myTargetBlock ) {
-            ctx.error(token()) << "missing merge block";
-            return;
-        }
-
+        ctx.error(token()) << "jump does not occur in a block";
         return;
     }
 
-    for ( auto p = &bb; p; ) {
+    for ( auto p = bb.scope(); p; p = p->parent()->as<ProcedureScope>() ) {
         if ( myTargetLabel.lexeme() == p->label().lexeme() ) {
-            myTargetBlock = p;
+            if ( jumpKind() == JumpKind::Break )
+                myTargetBlock = p->mergeBlock();
+            else
+                myTargetBlock = p->basicBlocks().front();
+
             return;
         }
-
-        if ( p->incoming().empty() ) {
-            ctx.error(myTargetLabel) << "does not identify a jump label";
-            return;
-        }
-
-        p = p->incoming().front();
     }
+
+    ctx.error(myTargetLabel) << "block does not exist";
 }
 
 lexer::Token const& JumpJunction::token() const
@@ -575,20 +573,13 @@ BasicBlock* JumpJunction::targetBlock()
 //
 // BasicBlock
 
-BasicBlock::BasicBlock(ProcedureScope* scope, lexer::Token const& label)
-    : myScope(scope)
-    , myLabel(label)
-{
-}
-
 BasicBlock::BasicBlock(ProcedureScope* scope)
-    : BasicBlock(scope, lexer::Token())
+    : myScope(scope)
 {
 }
 
 BasicBlock::BasicBlock(BasicBlock const& rhs)
     : myScope(rhs.myScope)
-    , myLabel(rhs.myLabel)
     , myIncoming(rhs.myIncoming)
 {
 }
@@ -599,7 +590,6 @@ void BasicBlock::swap(BasicBlock& rhs)
 {
     using std::swap;
     swap(myScope, rhs.myScope);
-    swap(myLabel, rhs.myLabel);
     swap(myIncoming, rhs.myIncoming);
     swap(myStatements, rhs.myStatements);
     swap(myJunction, rhs.myJunction);
@@ -649,11 +639,6 @@ ProcedureScope* BasicBlock::scope()
     return myScope;
 }
 
-lexer::Token const& BasicBlock::label() const
-{
-    return myLabel;
-}
-
 Slice<BasicBlock*> BasicBlock::incoming()
 {
     return myIncoming;
@@ -683,8 +668,7 @@ bool BasicBlock::empty() const
 {
     return myIncoming.empty()
         && myStatements.empty()
-        && !myJunction
-        && myLabel.kind() == lexer::TokenKind::Undefined;
+        && !myJunction;
 }
 
 void BasicBlock::appendIncoming(BasicBlock& from)
@@ -705,6 +689,29 @@ void BasicBlock::appendConstruction(std::unique_ptr<VarExpression> expr)
 void BasicBlock::setJunction(std::unique_ptr<Junction> junction)
 {
     myJunction = std::move(junction);
+}
+
+codegen::CustomData* BasicBlock::codegenData()
+{
+    return myCodeGenData.get();
+}
+
+codegen::CustomData* BasicBlock::codegenData() const
+{
+    return myCodeGenData.get();
+}
+
+void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data)
+{
+    if ( codegenData() )
+        throw std::runtime_error("codegen data can only be set once");
+
+    myCodeGenData = std::move(data);
+}
+
+void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+{
+    return const_cast<BasicBlock*>(this)->setCodegenData(std::move(data));
 }
 
     } // namespace ast

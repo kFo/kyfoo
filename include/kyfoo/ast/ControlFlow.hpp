@@ -5,6 +5,8 @@
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/Node.hpp>
 
+#include <kyfoo/codegen/Codegen.hpp>
+
 namespace kyfoo {
     namespace ast {
 
@@ -287,7 +289,6 @@ private:
 class BasicBlock : public IIO
 {
 public:
-    explicit BasicBlock(ProcedureScope* scope, lexer::Token const& label);
     explicit BasicBlock(ProcedureScope* scope);
     BasicBlock(BasicBlock const& rhs);
     ~BasicBlock();
@@ -307,8 +308,6 @@ public:
     ProcedureScope const* scope() const;
     ProcedureScope* scope();
 
-    lexer::Token const& label() const;
-
     Slice<BasicBlock*> incoming();
 
     Slice<Statement*> const statements() const;
@@ -325,13 +324,20 @@ public:
     void appendConstruction(std::unique_ptr<VarExpression> expr);
 
     void setJunction(std::unique_ptr<Junction> junction);
+    
+    codegen::CustomData* codegenData();
+    codegen::CustomData* codegenData() const;
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data);
+    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
 
 private:
     ProcedureScope* myScope = nullptr;
-    lexer::Token myLabel;
+
     std::vector<BasicBlock*> myIncoming;
     std::vector<std::unique_ptr<Statement>> myStatements;
     std::unique_ptr<Junction> myJunction;
+
+    mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
 
 #define X(a, b) template <> inline b* Statement::as<b>() { return myKind == Statement::Kind::a ? static_cast<b*>(this) : nullptr; }

@@ -98,16 +98,17 @@ struct LLVMCustomData<ast::Expression> : public CustomData
     ast::VariableDeclaration* tmp = nullptr;
 };
 
-LLVMCustomData<ast::Module>* customData(ast::Module const& mod)
+template<>
+struct LLVMCustomData<ast::BasicBlock> : public CustomData
 {
-    // todo
-    return static_cast<LLVMCustomData<ast::Module>*>(mod.codegenData());
-}
+    llvm::BasicBlock* bb = nullptr;
+    llvm::BasicBlock* parentCleanup = nullptr;
+};
 
 template <typename T>
-LLVMCustomData<T>* customData(T const& decl)
+LLVMCustomData<T>* customData(T const& ast)
 {
-    return static_cast<LLVMCustomData<T>*>(decl.codegenData());
+    return static_cast<LLVMCustomData<T>*>(ast.codegenData());
 }
 
 int log2(std::uint32_t n)
@@ -224,6 +225,15 @@ struct InitCodeGenPass
             dispatch(*s.expression()->declaration());
     }
 
+    result_t traceProc(ast::ProcedureScope const& scope)
+    {
+        for ( auto& e : scope.childDeclarations() )
+            dispatch(*e);
+
+        for ( auto const& e : scope.childScopes() )
+            traceProc(*e);
+    }
+
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
         if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
@@ -238,10 +248,8 @@ struct InitCodeGenPass
         for ( auto const& p : decl.parameters() )
             declProcedureParameter(*p);
 
-        if ( auto defn = decl.definition() ) {
-            for ( auto& e : defn->childDeclarations() )
-                dispatch(*e);
-        }
+        if ( auto defn = decl.definition() )
+            traceProc(*defn);
 
         procContext = last;
     }
@@ -439,8 +447,16 @@ struct CodeGenPass
                  ast::BasicBlock const& block,
                  llvm::Function* func,
                  llvm::BasicBlock* bb,
-                 llvm::BasicBlock* /*parentCleanup*/)
+                 llvm::BasicBlock* parentCleanup)
     {
+        auto bdata = customData(block);
+        if ( !bdata ) {
+            block.setCodegenData(std::make_unique<LLVMCustomData<ast::BasicBlock>>());
+            bdata = customData(block);
+        }
+        bdata->bb = bb;
+        bdata->parentCleanup = parentCleanup;
+
         auto fdata = customData(*scope.declaration());
 
         llvm::IRBuilder<> builder(bb);
@@ -530,9 +546,14 @@ struct CodeGenPass
         }
 
         if ( auto jmpJunc = block.junction()->as<ast::JumpJunction>() ) {
-            auto target = llvm::BasicBlock::Create(module->getContext(), "", func);
-            toBlock(scope, *jmpJunc->targetBlock(), func, target, nullptr /*cleanupBlocks.back()*/);
-            builder.CreateBr(target);
+            if ( auto tdata = customData(*jmpJunc->targetBlock()) ) {
+                builder.CreateBr(tdata->bb);
+            }
+            else {
+                auto target = llvm::BasicBlock::Create(module->getContext(), "", func);
+                toBlock(scope, *jmpJunc->targetBlock(), func, target, nullptr /*cleanupBlocks.back()*/);
+                builder.CreateBr(target);
+            }
 
             return;
         }

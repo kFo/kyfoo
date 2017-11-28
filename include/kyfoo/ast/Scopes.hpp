@@ -320,6 +320,14 @@ class ProcedureScope : public DeclarationScope
 public:
     ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration);
+    ProcedureScope(DeclarationScope& parent,
+                   ProcedureDeclaration& declaration,
+                   BasicBlock* mergeBlock);
+    ProcedureScope(DeclarationScope& parent,
+                   ProcedureDeclaration& declaration,
+                   BasicBlock* mergeBlock,
+                   lexer::Token const& openToken,
+                   lexer::Token const& label);
 
 protected:
     ProcedureScope(ProcedureScope const& rhs);
@@ -342,6 +350,14 @@ public:
     void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
+    bool isJumpTarget() const;
+
+    BasicBlock const* mergeBlock() const;
+    BasicBlock* mergeBlock();
+
+    lexer::Token const& openToken() const;
+    lexer::Token const& label() const;
+
     ProcedureDeclaration* declaration();
     ProcedureDeclaration const* declaration() const;
 
@@ -356,9 +372,16 @@ public:
     void appendConstruction(std::unique_ptr<VarExpression> expr);
     BasicBlock* createBasicBlock();
     void popBasicBlock();
-    ProcedureScope* createChildScope();
+    ProcedureScope* createChildScope(BasicBlock* mergeBlock,
+                                     lexer::Token const& openToken,
+                                     lexer::Token const& label);
+    ProcedureScope* createChildScope(BasicBlock* mergeBlock);
 
 private:
+    BasicBlock* myMergeBlock = nullptr;
+    lexer::Token myOpenToken;
+    lexer::Token myLabel;
+
     std::vector<std::unique_ptr<ProcedureScope>> myChildScopes;
     std::vector<std::unique_ptr<BasicBlock>> myBasicBlocks;
 };

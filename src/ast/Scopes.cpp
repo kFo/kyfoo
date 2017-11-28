@@ -549,13 +549,35 @@ ProcedureDeclaration const* DataProductScope::destructor() const
 
 ProcedureScope::ProcedureScope(DeclarationScope& parent,
                                ProcedureDeclaration& declaration)
+    : ProcedureScope(parent, declaration, nullptr)
+{
+}
+
+ProcedureScope::ProcedureScope(DeclarationScope& parent,
+                               ProcedureDeclaration& declaration,
+                               BasicBlock* mergeBlock)
+    : ProcedureScope(parent, declaration, mergeBlock, lexer::Token(), lexer::Token())
+{
+}
+
+ProcedureScope::ProcedureScope(DeclarationScope& parent,
+                               ProcedureDeclaration& declaration,
+                               BasicBlock* mergeBlock,
+                               lexer::Token const& openToken,
+                               lexer::Token const& label)
     : DeclarationScope(Kind::Procedure, &parent.module(), &parent, &declaration)
+    , myMergeBlock(mergeBlock)
+    , myOpenToken(openToken)
+    , myLabel(label)
 {
     createBasicBlock();
 }
 
 ProcedureScope::ProcedureScope(ProcedureScope const& rhs)
     : DeclarationScope(rhs)
+    , myMergeBlock(rhs.myMergeBlock)
+    , myOpenToken(rhs.myOpenToken)
+    , myLabel(rhs.myLabel)
 {
 }
 
@@ -571,6 +593,9 @@ void ProcedureScope::swap(ProcedureScope& rhs)
 {
     DeclarationScope::swap(rhs);
     using std::swap;
+    swap(myMergeBlock, rhs.myMergeBlock);
+    swap(myOpenToken, rhs.myOpenToken);
+    swap(myLabel, rhs.myLabel);
     swap(myBasicBlocks, rhs.myBasicBlocks);
     swap(myChildScopes, rhs.myChildScopes);
 }
@@ -578,6 +603,9 @@ void ProcedureScope::swap(ProcedureScope& rhs)
 void ProcedureScope::io(IStream& stream) const
 {
     DeclarationScope::io(stream);
+    if ( myLabel.kind() != lexer::TokenKind::Undefined )
+        stream.next("name", myLabel.lexeme());
+
     stream.openArray("blocks");
     for ( auto& bb : myBasicBlocks )
         bb->io(stream);
@@ -592,6 +620,7 @@ IMPL_CLONE_CHILD(myBasicBlocks)
 IMPL_CLONE_CHILD(myChildScopes)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureScope, DeclarationScope)
+IMPL_CLONE_REMAP(myMergeBlock)
 IMPL_CLONE_REMAP(myBasicBlocks)
 IMPL_CLONE_REMAP(myChildScopes)
 IMPL_CLONE_REMAP_END
@@ -609,6 +638,31 @@ void ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 
     for ( auto& s : myChildScopes )
         s->resolveSymbols(endModule, dgn);
+}
+
+bool ProcedureScope::isJumpTarget() const
+{
+    return myOpenToken.kind() != lexer::TokenKind::Undefined;
+}
+
+BasicBlock const* ProcedureScope::mergeBlock() const
+{
+    return myMergeBlock;
+}
+
+BasicBlock* ProcedureScope::mergeBlock()
+{
+    return myMergeBlock;
+}
+
+lexer::Token const& ProcedureScope::openToken() const
+{
+    return myOpenToken;
+}
+
+lexer::Token const& ProcedureScope::label() const
+{
+    return myLabel;
 }
 
 ProcedureDeclaration* ProcedureScope::declaration()
@@ -643,11 +697,17 @@ Slice<BasicBlock*> const ProcedureScope::basicBlocks() const
 
 void ProcedureScope::append(std::unique_ptr<Expression> expr)
 {
+    if ( myBasicBlocks.back()->junction() )
+        createBasicBlock();
+
     myBasicBlocks.back()->append(std::move(expr));
 }
 
 void ProcedureScope::appendConstruction(std::unique_ptr<VarExpression> expr)
 {
+    if ( myBasicBlocks.back()->junction() )
+        createBasicBlock();
+
     myBasicBlocks.back()->appendConstruction(std::move(expr));
 }
 
@@ -662,10 +722,17 @@ void ProcedureScope::popBasicBlock()
     myBasicBlocks.pop_back();
 }
 
-ProcedureScope* ProcedureScope::createChildScope()
+ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
+                                                 lexer::Token const& openToken,
+                                                 lexer::Token const& label)
 {
-    myChildScopes.push_back(std::make_unique<ProcedureScope>(*this, *declaration()));
+    myChildScopes.push_back(std::make_unique<ProcedureScope>(*this, *declaration(), mergeBlock, openToken, label));
     return myChildScopes.back().get();
+}
+
+ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock)
+{
+    return createChildScope(mergeBlock, lexer::Token(), lexer::Token());
 }
 
 //

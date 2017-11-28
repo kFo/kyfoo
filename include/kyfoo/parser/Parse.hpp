@@ -86,9 +86,8 @@ private:
 class ProcedureScopeParser : public DeclarationScopeParser
 {
 public:
-    explicit ProcedureScopeParser(ast::ProcedureScope* scope,
-                                  ast::BranchJunction* branch,
-                                  ast::BasicBlock* merge);
+    explicit ProcedureScopeParser(ast::ProcedureScope* scope);
+    explicit ProcedureScopeParser(ast::ProcedureScope* scope, bool isLoop);
     ~ProcedureScopeParser() override;
 
 protected:
@@ -98,8 +97,7 @@ private:
     ast::ProcedureScope* scope();
 
 private:
-    ast::BranchJunction* myParentBranch = nullptr;
-    ast::BasicBlock* myMergeBlock = nullptr;
+    bool myIsLoop = false;
 };
 
     } // namespace parser
