@@ -17,7 +17,7 @@ using lexer::TokenKind;
 using lexer::Token;
 
 using id       = g::Terminal<TokenKind::Identifier>;
-using free     = g::Terminal<TokenKind::FreeVariable>;
+using meta     = g::Terminal<TokenKind::MetaVariable>;
 using integer  = g::Terminal<TokenKind::Integer>;
 using rational = g::Terminal<TokenKind::Rational>;
 using string   = g::Terminal<TokenKind::String>;
@@ -53,7 +53,7 @@ using _loop   = g::Terminal<TokenKind::_loop>;
 using _break  = g::Terminal<TokenKind::_break>;
 
 struct Primary : public
-    g::Or<id, free, integer, rational, string>
+    g::Or<id, meta, integer, rational, string>
 {
     std::unique_ptr<ast::PrimaryExpression> make() const
     {

@@ -81,18 +81,21 @@ IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-void PatternsPrototype::resolveSymbols(Context& ctx)
+void PatternsPrototype::resolveVariables()
 {
     if ( myVariables.empty() ) {
         for ( auto const& param : myPattern ) {
-            auto fv = gatherFreeVariables(*param);
+            auto fv = gatherMetaVariables(*param);
             for ( auto& p : fv ) {
                 myVariables.push_back(std::make_unique<SymbolVariable>(*this, *p));
-                p->setFreeVariable(myVariables.back().get());
+                p->setMetaVariable(myVariables.back().get());
             }
         }
     }
+}
 
+void PatternsPrototype::resolveSymbols(Context& ctx)
+{
     ctx.resolveExpressions(myPattern);
 }
 
@@ -166,17 +169,13 @@ bool PatternsPrototype::isConcrete() const
     return true;
 }
 
-bool PatternsPrototype::hasFreeVariables() const
+bool PatternsPrototype::hasMetaVariables() const
 {
-    for ( auto const& e : myVariables )
-        if ( !e->boundExpression() )
-            return true;
-
-    return false;
+    return !myVariables.empty();
 }
 
 //
-// SymbolPrototype
+// Symbol
 
 Symbol::Symbol(lexer::Token const& identifier,
                PatternsPrototype&& params)
@@ -243,6 +242,7 @@ IMPL_CLONE_REMAP_END
 
 void Symbol::resolveSymbols(Context& ctx)
 {
+    myPrototype->resolveVariables();
     myPrototype->resolveSymbols(ctx);
 }
 

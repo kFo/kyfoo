@@ -245,7 +245,7 @@ struct SymbolDependencyBuilder
 
     // declarations
 
-    void traceSymbol(Symbol& sym)
+    void traceSymbol(Symbol const& sym)
     {
         tracePrototype(sym.prototype());
     }
@@ -269,9 +269,7 @@ struct SymbolDependencyBuilder
 
     result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
     {
-        traceSymbol();
-        for ( auto const& field : dsCtor.fields() )
-            dispatch.operator()<Declaration>(*field);
+        traceSymbol(dsCtor.symbol());
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)
@@ -531,21 +529,18 @@ VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token co
     return Invariant;
 }
 
-VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
+VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs)
 {
-    if ( &target == &query )
-        return Exact;
+    if ( lhs.name() != rhs.name() )
+        return Invariant;
 
-    if ( auto dsCtor = query.as<DataSumDeclaration::Constructor>() )
-        return variance(ctx, target, *dsCtor->parent());
+    binding_set_t bindings;
+    return variance(ctx, bindings, lhs.pattern(), rhs.pattern());
+}
 
-    if ( auto f = query.as<ProcedureDeclaration>() )
-        return variance(ctx, target, *f->returnType()->declaration());
-
-    if ( auto v = query.as<VariableDeclaration>() )
-        return variance(ctx, target, *v->dataType());
-
-    if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
+VarianceResult variance(Context& ctx, DataSumDeclaration const& ds, Declaration const& query)
+{
+    if ( auto targetInteger = ctx.axioms().integerMetaData(ds) ) {
         if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
             if ( targetInteger->bits == queryInteger->bits )
                 return Exact;
@@ -559,8 +554,25 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
 
     // todo: removeme
     if ( &query == ctx.axioms().intrinsic(PointerNullLiteralType) )
-        if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol()) )
+        if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), ds.symbol()) )
             return Covariant;
+
+    return Invariant;
+}
+
+VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
+{
+    if ( &target == &query )
+        return Exact;
+
+    if ( auto f = query.as<ProcedureDeclaration>() )
+        return variance(ctx, target, *f->returnType()->declaration());
+
+    if ( auto v = query.as<VariableDeclaration>() )
+        return variance(ctx, target, *v->dataType());
+
+    if ( auto ds = target.as<DataSumDeclaration>() )
+        return variance(ctx, *ds, query);
 
     return Invariant;
 }
@@ -588,7 +600,7 @@ VarianceResult variance(Context& ctx,
     }
 
     {
-        // resolve ast aliases and run again (normalizing)
+        // resolve ast aliases and run again
         auto l = lookThrough(targetDecl);
         auto r = lookThrough(queryDecl);
 
@@ -662,15 +674,6 @@ VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*>
 {
     binding_set_t bindings;
     return variance(ctx, bindings, lhs, rhs);
-}
-
-VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs)
-{
-    if ( lhs.name() != rhs.name() )
-        return Invariant;
-
-    binding_set_t bindings;
-    return variance(ctx, bindings, lhs.pattern(), rhs.pattern());
 }
 
 Expression const* lookThrough(Declaration const* decl)
@@ -849,7 +852,7 @@ Declaration const* dataType(Context& ctx, Slice<Expression*> constraints)
 }
 
 template <typename Dispatcher>
-struct FreeVariableVisitor
+struct MetaVariableVisitor
 {
     using result_t = void;
     Dispatcher& dispatch;
@@ -857,7 +860,7 @@ struct FreeVariableVisitor
     using visitor_t = std::function<void(PrimaryExpression&)>;
     visitor_t visitor;
 
-    FreeVariableVisitor(Dispatcher& dispatch, visitor_t visitor)
+    MetaVariableVisitor(Dispatcher& dispatch, visitor_t visitor)
         : dispatch(dispatch)
         , visitor(visitor)
     {
@@ -865,7 +868,7 @@ struct FreeVariableVisitor
 
     result_t exprPrimary(PrimaryExpression& p)
     {
-        if ( p.token().kind() == lexer::TokenKind::FreeVariable )
+        if ( p.token().kind() == lexer::TokenKind::MetaVariable )
             return visitor(p);
     }
 
@@ -944,16 +947,16 @@ struct FreeVariableVisitor
 };
 
 template <typename F>
-void visitFreeVariables(Expression& expr, F&& f)
+void visitMetaVariables(Expression& expr, F&& f)
 {
-    DeepApply<FreeVariableVisitor> op(f);
+    DeepApply<MetaVariableVisitor> op(f);
     op(expr);
 }
 
-std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr)
+std::vector<PrimaryExpression*> gatherMetaVariables(Expression& expr)
 {
     std::vector<PrimaryExpression*> ret;
-    visitFreeVariables(expr, [&ret](PrimaryExpression& p) {
+    visitMetaVariables(expr, [&ret](PrimaryExpression& p) {
         ret.push_back(&p);
     });
 
@@ -961,19 +964,19 @@ std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr)
 }
 
 template <typename Dispatcher>
-struct HasFreeVariable
+struct HasMetaVariable
 {
     using result_t = bool;
     Dispatcher& dispatch;
 
-    HasFreeVariable(Dispatcher& dispatch)
+    HasMetaVariable(Dispatcher& dispatch)
         : dispatch(dispatch)
     {
     }
 
     result_t exprPrimary(PrimaryExpression const& p)
     {
-        return p.token().kind() == lexer::TokenKind::FreeVariable;
+        return p.token().kind() == lexer::TokenKind::MetaVariable;
     }
 
     result_t exprReference(ReferenceExpression const&)
@@ -1070,9 +1073,9 @@ struct HasFreeVariable
     }
 };
 
-bool hasFreeVariable(Expression const& expr)
+bool hasMetaVariable(Expression const& expr)
 {
-    ShallowApply<HasFreeVariable> op;
+    ShallowApply<HasMetaVariable> op;
     return op(expr);
 }
 

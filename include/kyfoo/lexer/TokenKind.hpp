@@ -13,7 +13,7 @@ namespace kyfoo {
     X(IndentError, "indent(err)") \
     \
     X(Identifier  , "identifier"  ) \
-    X(FreeVariable, "freeVariable") \
+    X(MetaVariable, "metaVariable") \
     X(Integer     , "integer"     ) \
     X(Rational    , "rational"    ) \
     X(String      , "string"      ) \
@@ -108,7 +108,7 @@ inline bool isIdentifier(TokenKind kind)
 {
     switch (kind) {
     case TokenKind::Identifier:
-    case TokenKind::FreeVariable:
+    case TokenKind::MetaVariable:
         return true;
     }
 

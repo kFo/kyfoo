@@ -365,24 +365,30 @@ IMPL_CLONE_REMAP_END
 
 void DataSumScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
-    ScopeResolver resolver(*this);
-    Context ctx(endModule, dgn, resolver);
     for ( auto const& d : myDeclarations ) {
         auto dsCtor = d->as<DataSumDeclaration::Constructor>();
         if ( !dsCtor )
             throw std::runtime_error("data sum must only contain constructors");
 
-        dsCtor->symbol().resolveSymbols(ctx);
-        parent()->addSymbol(dgn, d->symbol(), *d);
+        myCtors.push_back(dsCtor);
     }
 
-    for ( auto& e : myDeclarations )
-        e->resolveSymbols(endModule, dgn);
+    DeclarationScope::resolveSymbols(endModule, dgn);
 }
 
 DataSumDeclaration* DataSumScope::declaration()
 {
     return static_cast<DataSumDeclaration*>(myDeclaration);
+}
+
+Slice<DataSumDeclaration::Constructor*> const DataSumScope::constructors() const
+{
+    return myCtors;
+}
+
+Slice<DataSumDeclaration::Constructor*> DataSumScope::constructors()
+{
+    return myCtors;
 }
 
 //

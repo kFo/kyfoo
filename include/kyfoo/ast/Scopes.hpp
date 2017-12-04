@@ -270,6 +270,12 @@ public:
 
 public:
     DataSumDeclaration* declaration();
+
+    Slice<DataSumDeclaration::Constructor*> const constructors() const;
+    Slice<DataSumDeclaration::Constructor*> constructors();
+
+private:
+    std::vector<DataSumDeclaration::Constructor*> myCtors;
 };
 
 class DataProductScope : public DeclarationScope

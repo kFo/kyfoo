@@ -59,6 +59,7 @@ public:
     DECL_CLONE_ALL_NOBASE(PatternsPrototype)
 
 public:
+    void resolveVariables();
     void resolveSymbols(Context& ctx);
     void resetPattern();
 
@@ -72,7 +73,7 @@ public:
     SymbolVariable const* findVariable(std::string const& identifier) const;
     SymbolVariable* createVariable(PrimaryExpression const& primary);
     bool isConcrete() const;
-    bool hasFreeVariables() const;
+    bool hasMetaVariables() const;
 
 private:
     Pattern myPattern;

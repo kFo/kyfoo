@@ -146,8 +146,6 @@ public:
         DataSumDeclaration* parent();
         DataSumDeclaration const* parent() const;
 
-        Slice<VariableDeclaration*> fields() const;
-
     private:
         DataSumDeclaration* myParent = nullptr;
         std::vector<std::unique_ptr<VariableDeclaration>> myPattern;

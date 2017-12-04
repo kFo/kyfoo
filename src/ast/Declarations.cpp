@@ -291,11 +291,6 @@ DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
     return myParent;
 }
 
-Slice<VariableDeclaration*> DataSumDeclaration::Constructor::fields() const
-{
-    return myPattern;
-}
-
 //
 // DataProductDeclaration
 

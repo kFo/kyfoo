@@ -123,7 +123,7 @@ protected:
 public:
     lexer::Token const& token() const;
 
-    void setFreeVariable(Declaration const* decl);
+    void setMetaVariable(Declaration const* decl);
 
 private:
     lexer::Token myToken;

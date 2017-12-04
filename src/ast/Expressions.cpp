@@ -164,10 +164,10 @@ void PrimaryExpression::resolveSymbols(Context& ctx)
         return;
     }
 
-    case lexer::TokenKind::FreeVariable:
+    case lexer::TokenKind::MetaVariable:
     {
         if ( !myDeclaration ) {
-            ctx.error(myToken) << "free variable not expected in this context";
+            ctx.error(myToken) << "meta variable not expected in this context";
             return;
         }
 
@@ -210,10 +210,10 @@ lexer::Token const& PrimaryExpression::token() const
     return myToken;
 }
 
-void PrimaryExpression::setFreeVariable(Declaration const* decl)
+void PrimaryExpression::setMetaVariable(Declaration const* decl)
 {
     if ( myDeclaration )
-        throw std::runtime_error("free variable can only be bound once");
+        throw std::runtime_error("meta variable can only be bound once");
 
     myDeclaration = decl;
 }

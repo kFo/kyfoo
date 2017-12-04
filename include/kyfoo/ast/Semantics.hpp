@@ -327,12 +327,11 @@ Declaration* callingContextDeclaration(Declaration& decl);
 Declaration const* dataType(Declaration const* decl);
 Declaration const* dataType(Context& ctx, Slice<Expression*> constraints);
 
-// todo: functor like ValueMatcher
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
 
-std::vector<PrimaryExpression*> gatherFreeVariables(Expression& expr);
-bool hasFreeVariable(Expression const& expr);
+std::vector<PrimaryExpression*> gatherMetaVariables(Expression& expr);
+bool hasMetaVariable(Expression const& expr);
 
 lexer::Token const& front(Expression const& expr);
 lexer::Token const& front(Statement  const& stmt);

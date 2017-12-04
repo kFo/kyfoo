@@ -88,7 +88,7 @@ namespace
         return isIdentifierStart(c) || isNumber(c);
     }
 
-    bool isFreeVariable(char c)
+    bool isMetaVariable(char c)
     {
         return c == '\\';
     }
@@ -443,14 +443,14 @@ Token Scanner::readNext()
 
         return TOK2(Colon, ":");
     }
-    else if ( isFreeVariable(c) ) {
+    else if ( isMetaVariable(c) ) {
         if ( !isIdentifierStart(peekChar()) )
             return TOK2(Undefined, "\\");
 
         do lexeme += nextChar();
         while ( isIdentifierMid(peekChar()) );
 
-        return TOK(FreeVariable);
+        return TOK(MetaVariable);
     }
     else if ( isIdentifierStart(c) ) {
         lexeme += c;
