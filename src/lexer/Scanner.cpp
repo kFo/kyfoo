@@ -299,23 +299,25 @@ Token Scanner::readNext()
     };
 
     auto takeSpaces = [this, &c, &takeLineBreaks] {
+        indent_width_t ret = 0;
+
+    L_more:
         indent_width_t spaces = 0;
         while ( isSpace(c) ) {
-            ++spaces;
-            c = nextChar();
+            ++spaces; c = nextChar();
         }
 
         if ( isLineComment(c, peekChar()) ) {
-            nextChar();
+            ++spaces; nextChar();
             do {
-                c = nextChar();
+                ++spaces; c = nextChar();
             } while ( !isLineBreak(c) );
         }
-        
+
         if ( isMultiLineCommentStart(c, peekChar()) ) {
             int open = 1;
-            nextChar();
-            c = nextChar();
+            ++spaces; nextChar();
+            ++spaces; c = nextChar();
             while ( open ) {
                 if ( myStream.eof() )
                     break;
@@ -325,18 +327,21 @@ Token Scanner::readNext()
 
                 if ( isMultiLineCommentStart(c, peekChar()) ) {
                     ++open;
-                    nextChar();
+                    ++spaces; nextChar();
                 }
                 else if ( isMultiLineCommentEnd(c, peekChar()) ) {
                     --open;
-                    nextChar();
+                    ++spaces; nextChar();
                 }
 
-                c = nextChar();
+                ++spaces; c = nextChar();
             }
         }
 
-        return spaces;
+        ret += spaces;
+        if ( spaces ) goto L_more;
+
+        return ret;
     };
 
     auto spaces = takeSpaces();
