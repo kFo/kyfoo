@@ -412,6 +412,14 @@ struct MatchEquivalent
 
     bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
     {
+        {
+            auto leftExpression = lookThrough(l.declaration());
+            auto rightExpression = lookThrough(r.declaration());
+
+            if ( leftExpression || rightExpression )
+                return noncommute(*this, leftExpression ? *leftExpression : l, rightExpression ? *rightExpression : r);
+        }
+
         if ( isIdentifier(l.token().kind()) ) {
             if ( l.declaration()->kind() == DeclKind::SymbolVariable )
                 return r.declaration() && r.declaration()->kind() == DeclKind::SymbolVariable;
@@ -449,6 +457,9 @@ struct MatchEquivalent
 
     bool operator()(TupleExpression const& l, TupleExpression const& r)
     {
+        if ( l.kind() != r.kind() )
+            return false;
+
         return matchEquivalent(l.expressions(), r.expressions());
     }
 
@@ -468,15 +479,8 @@ struct MatchEquivalent
 
     // else
 
-    bool operator()(Expression const& l, Expression const& r)
+    bool operator()(Expression const&, Expression const&)
     {
-        // todo: symvar binding
-        if ( auto p = l.as<PrimaryExpression>() )
-            return p->declaration()->kind() == DeclKind::SymbolVariable;
-
-        if ( auto p = r.as<PrimaryExpression>() )
-            return p->declaration()->kind() == DeclKind::SymbolVariable;
-
         return false;
     }
 };
@@ -497,6 +501,88 @@ bool matchEquivalent(Expression const& lhs, Expression const& rhs)
 bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
     return compare(lhs, rhs, [](auto& l, auto& r) { return matchEquivalent(l, r); });
+}
+
+bool matchStructural(binding_set_t& bindings, Expression const& lhs, Expression const& rhs)
+{
+    auto l = lookThrough(lhs.declaration());
+    if ( !l )
+        l = &lhs;
+
+    auto r = lookThrough(rhs.declaration());
+    if ( !r )
+        r = &rhs;
+
+    // todo: generalized constraint substitution
+
+    if ( l->declaration() ) {
+        if ( auto param = l->declaration()->as<ProcedureParameter>() ) {
+            if ( param->dataType() )
+                return true;
+
+            // todo: first constraint treated specially
+            auto const c = unifiedConstraint(rhs);
+            if ( !c )
+                return false;
+
+            return matchStructural(bindings, *l->constraints()[0], *c);
+        }
+    }
+
+    if ( auto p = l->as<PrimaryExpression>() ) {
+        if ( !p->declaration() )
+            return false;
+
+        if ( auto symVar = p->declaration()->as<SymbolVariable>() )
+            return bindSymbol(bindings, *symVar, *r);
+
+        return l->kind() == r->kind();
+    }
+
+    if ( auto ll = l->as<SymbolExpression>() ) {
+        auto rr = r->as<SymbolExpression>();
+        if ( !rr )
+            return false;
+
+        if ( ll->identifier().lexeme() != rr->identifier().lexeme() )
+            return false;
+
+        return matchStructural(bindings, ll->expressions(), rr->expressions());
+    }
+
+    if ( auto a = l->as<ApplyExpression>() ) {
+        if ( auto s = r->as<SymbolExpression>() ) {
+            auto subject = a->expressions().front()->as<PrimaryExpression>();
+            if ( !subject )
+                return false;
+
+            if ( subject->token().lexeme() != s->identifier().lexeme() )
+                return false;
+
+            return matchStructural(bindings, a->expressions()(1, a->expressions().size()), s->expressions());
+        }
+
+        auto aa = r->as<ApplyExpression>();
+        if ( !aa )
+            return false;
+
+        return matchStructural(bindings, a->expressions(), aa->expressions());
+    }
+
+    return l->kind() == r->kind();
+}
+
+bool matchStructural(binding_set_t& bindings, Slice<Expression*> lhs, Slice<Expression*> rhs)
+{
+    auto const n = lhs.size();
+    if ( n != rhs.size() )
+        return false;
+
+    for ( std::size_t i = 0; i < n; ++i )
+        if ( !matchStructural(bindings, *lhs[i], *rhs[i]) )
+            return false;
+
+    return true;
 }
 
 VarianceResult variance(lexer::Token const& target, lexer::Token const& query)
@@ -849,6 +935,34 @@ Declaration const* dataType(Context& ctx, Slice<Expression*> constraints)
     }
 
     return ret;
+}
+
+Expression const* unifiedConstraint(Expression const& expr)
+{
+    // todo: constraints unifier
+    // todo: consider expr.constraints()
+
+    auto decl = expr.declaration();
+    if ( !decl )
+        return nullptr;
+
+    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+        if ( isCtor(*proc) )
+            return nullptr;
+
+        return proc->returnType();
+    }
+
+    if ( auto param = decl->as<ProcedureParameter>() )
+        return param->constraints()[0];
+
+    if ( auto v = decl->as<VariableDeclaration>() )
+        return v->constraints()[0];
+
+    if ( auto f = decl->as<DataProductDeclaration::Field>() )
+        return &f->constraint();
+
+    return nullptr;
 }
 
 template <typename Dispatcher>

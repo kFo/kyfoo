@@ -425,12 +425,14 @@ struct CodeGenPass
                 for ( auto const& stmt : bb->statements() )
                     gatherStatement(*stmt);
 
-                if ( auto brJunc = bb->junction()->as<ast::BranchJunction>() )
+                if ( auto brJunc = bb->junction()->as<ast::BranchJunction>() ) {
                     if ( brJunc->statement() )
                         gatherStatement(*brJunc->statement());
-                else if ( auto retJunc = bb->junction()->as<ast::ReturnJunction>() )
+                }
+                else if ( auto retJunc = bb->junction()->as<ast::ReturnJunction>() ) {
                     if ( retJunc->statement() )
                         gatherStatement(*retJunc->statement());
+                }
             }
 
             for ( auto const& s : scope.childScopes() )

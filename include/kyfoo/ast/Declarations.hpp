@@ -19,17 +19,17 @@ namespace kyfoo {
     namespace ast {
 
 #define DECLARATION_KINDS(X)                                                      \
-    X(DataSum           , "data sum"           , DataSumDeclaration)              \
+    X(DataSum           , "data sum"           , DataSumDeclaration             ) \
     X(DataSumCtor       , "data sum ctor"      , DataSumDeclaration::Constructor) \
-    X(DataProduct       , "data product"       , DataProductDeclaration)          \
-    X(Field             , "field"              , DataProductDeclaration::Field)   \
-    X(Symbol            , "symbol"             , SymbolDeclaration)               \
-    X(Procedure         , "procedure"          , ProcedureDeclaration)            \
-    X(ProcedureParameter, "procedure parameter", ProcedureParameter)              \
-    X(Variable          , "variable"           , VariableDeclaration)             \
-    X(Import            , "import"             , ImportDeclaration)               \
-    X(SymbolVariable    , "symbol variable"    , SymbolVariable)                  \
-    X(Template          , "template"           , TemplateDeclaration)
+    X(DataProduct       , "data product"       , DataProductDeclaration         ) \
+    X(Field             , "field"              , DataProductDeclaration::Field  ) \
+    X(Symbol            , "symbol"             , SymbolDeclaration              ) \
+    X(Procedure         , "procedure"          , ProcedureDeclaration           ) \
+    X(ProcedureParameter, "procedure parameter", ProcedureParameter             ) \
+    X(Variable          , "variable"           , VariableDeclaration            ) \
+    X(Import            , "import"             , ImportDeclaration              ) \
+    X(SymbolVariable    , "symbol variable"    , SymbolVariable                 ) \
+    X(Template          , "template"           , TemplateDeclaration            )
 
 enum class DeclKind
 {
@@ -40,17 +40,20 @@ enum class DeclKind
 
 const char* to_string(DeclKind kind);
 
-class Module;
 class DeclarationScope;
 class DataSumScope;
 class DataProductScope;
-class Statement;
+class Module;
 class ProcedureScope;
+class Statement;
 class TemplateScope;
 class ValueExpression;
 
 class Declaration : public INode
 {
+public:
+    friend class Context;
+
 protected:
     Declaration(DeclKind kind,
                 Symbol&& symbol,
@@ -74,7 +77,9 @@ public:
     virtual Declaration* clone(clone_map_t& map) const = 0;
     virtual void cloneChildren(Declaration& c, clone_map_t& map) const;
     virtual void remapReferences(clone_map_t const& map);
-    virtual void resolveSymbols(Module& endModule, Diagnostics& dgn) = 0;
+
+protected:
+    virtual SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) = 0;
 
 public:
     void resolveAttributes(Module& endModule, Diagnostics& dgn);
@@ -139,7 +144,9 @@ public:
         // Declaration
     public:
         DECL_CLONE_ALL(Declaration)
-        void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+    protected:
+        SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
     public:
         void setParent(DataSumDeclaration* parent);
@@ -172,15 +179,17 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
-    void define(std::unique_ptr<DataSumScope> scope);
+    void define(DataSumScope* scope);
     DataSumScope* definition();
     DataSumScope const* definition() const;
 
 private:
-    std::unique_ptr<DataSumScope> myDefinition;
+    DataSumScope* myDefinition = nullptr;
 };
 
 class DataProductDeclaration : public Declaration
@@ -211,7 +220,9 @@ public:
         // Declaration
     public:
         DECL_CLONE_ALL(Declaration)
-        void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+    protected:
+        SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
     public:
         void setParent(DataProductDeclaration* dpDecl);
@@ -248,15 +259,17 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
-    void define(std::unique_ptr<DataProductScope> scope);
+    void define(DataProductScope* scope);
     DataProductScope* definition();
     DataProductScope const* definition() const;
 
 private:
-    std::unique_ptr<DataProductScope> myDefinition;
+    DataProductScope* myDefinition = nullptr;
 };
 
 class SymbolDeclaration : public Declaration
@@ -283,7 +296,9 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     Expression* expression();
@@ -320,7 +335,9 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     void addConstraint(Expression const& expr);
@@ -367,7 +384,9 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     Declaration const* dataType() const;
@@ -407,15 +426,16 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
-    void resolvePrototypeSymbols(Module& endModule, Diagnostics& dgn);
     void unresolvePrototypeSymbols();
 
     ProcedureScope* definition();
     ProcedureScope const* definition() const;
-    void define(std::unique_ptr<ProcedureScope> definition);
+    void define(ProcedureScope* definition);
 
     Expression* returnType();
     Expression const* returnType() const;
@@ -427,6 +447,8 @@ public:
     ProcedureParameter const* result() const;
 
     int ordinal(std::size_t index) const;
+    ProcedureParameter* findParameter(std::string const& identifier);
+    ProcedureParameter const* findParameter(std::string const& identifier) const;
 
 private:
     std::unique_ptr<Expression> myReturnExpression;
@@ -437,7 +459,7 @@ private:
 
     std::unique_ptr<ProcedureParameter> myResult;
 
-    std::unique_ptr<ProcedureScope> myDefinition;
+    ProcedureScope* myDefinition = nullptr;
 };
 
 class ImportDeclaration : public Declaration
@@ -464,7 +486,9 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 private:
     std::vector<lexer::Token> myModulePath;
@@ -497,7 +521,9 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn);
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn);
 
 public:
     PatternsPrototype const& prototype() const;
@@ -535,17 +561,19 @@ public:
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     TemplateScope* definition();
     TemplateScope const* definition() const;
-    void define(std::unique_ptr<TemplateScope> definition);
+    void define(TemplateScope* definition);
 
     void merge(TemplateDeclaration& rhs);
 
 private:
-    std::unique_ptr<TemplateScope> myDefinition;
+    TemplateScope* myDefinition = nullptr;
 };
 
 // sugar to avoid switching on DeclKind

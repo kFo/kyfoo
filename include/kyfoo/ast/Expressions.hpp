@@ -26,14 +26,53 @@ class LookupHit;
 class VariableDeclaration;
 
 #define EXPRESSION_KINDS(X)           \
-    X(Primary  , PrimaryExpression)   \
+    X(Primary  , PrimaryExpression  ) \
     X(Reference, ReferenceExpression) \
-    X(Tuple    , TupleExpression)     \
-    X(Apply    , ApplyExpression)     \
-    X(Symbol   , SymbolExpression)    \
-    X(Dot      , DotExpression)       \
-    X(Var      , VarExpression)       \
-    X(Lambda   , LambdaExpression)
+    X(Tuple    , TupleExpression    ) \
+    X(Apply    , ApplyExpression    ) \
+    X(Symbol   , SymbolExpression   ) \
+    X(Dot      , DotExpression      ) \
+    X(Var      , VarExpression      ) \
+    X(Lambda   , LambdaExpression   )
+
+class SymRes
+{
+public:
+    enum Resolution
+    {
+        Success,
+        Fail,
+        NeedsSubstitution,
+        Rewrite,
+    };
+
+private:
+    Resolution myRes;
+
+public:
+    SymRes() : myRes(Success) {}
+    /*implicit*/ SymRes(Resolution rhs) : myRes(rhs) {}
+
+    explicit operator bool() const { return myRes == Success; }
+
+    bool operator ==(SymRes const& rhs) const { return myRes == rhs.myRes; }
+    bool operator !=(SymRes const& rhs) const { return !operator==(rhs); }
+
+    SymRes& operator |=(SymRes const& rhs)
+    {
+        if ( rhs.myRes == Fail )
+            myRes = Fail;
+        else if ( myRes == Success && rhs.myRes == NeedsSubstitution )
+            myRes = NeedsSubstitution;
+
+        return *this;
+    }
+};
+
+inline SymRes operator |(SymRes lhs, SymRes const& rhs)
+{
+    return lhs |= rhs;
+}
 
 class Expression : public INode
 {
@@ -70,7 +109,7 @@ public:
     virtual void remapReferences(clone_map_t const& map);
 
 protected:
-    virtual void resolveSymbols(Context& ctx) = 0;
+    virtual SymRes resolveSymbols(Context& ctx) = 0;
 
 public:
     void addConstraint(std::unique_ptr<Expression> expr);
@@ -118,7 +157,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     lexer::Token const& token() const;
@@ -150,7 +189,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     Expression const& expression() const;
@@ -188,7 +227,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     TupleKind kind() const;
@@ -231,7 +270,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     void flatten();
@@ -273,7 +312,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     lexer::Token const& identifier() const;
@@ -316,7 +355,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     Slice<Expression*> expressions();
@@ -356,7 +395,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     PrimaryExpression const& identity() const;
@@ -392,7 +431,7 @@ public:
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     Expression const& parameters() const;

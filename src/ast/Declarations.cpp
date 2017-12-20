@@ -70,6 +70,13 @@ IMPL_CLONE_REMAP(myScope)
 IMPL_CLONE_REMAP(mySymbol)
 IMPL_CLONE_REMAP_END
 
+SymRes Declaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+{
+    ScopeResolver resolver(scope());
+    Context ctx(endModule, dgn, resolver);
+    return symbol().resolveSymbols(ctx);
+}
+
 void Declaration::resolveAttributes(Module& endModule, Diagnostics& dgn)
 {
     ScopeResolver resolver(*myScope);
@@ -186,35 +193,33 @@ void DataSumDeclaration::io(IStream& stream) const
 }
 
 IMPL_CLONE_BEGIN(DataSumDeclaration, Declaration, Declaration)
-IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, Declaration)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-void DataSumDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataSumDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
-    if ( definition() )
-        definition()->resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(endModule, dgn);
 }
 
-void DataSumDeclaration::define(std::unique_ptr<DataSumScope> scope)
+void DataSumDeclaration::define(DataSumScope* scope)
 {
     if ( myDefinition )
         throw std::runtime_error("type declaration defined more than once");
 
-    myDefinition = std::move(scope);
+    myDefinition = scope;
     myDefinition->setDeclaration(this);
 }
 
 DataSumScope* DataSumDeclaration::definition()
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
 DataSumScope const* DataSumDeclaration::definition() const
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
 //
@@ -264,13 +269,19 @@ IMPL_CLONE_REMAP(myParent)
 IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP_END
 
-void DataSumDeclaration::Constructor::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataSumDeclaration::Constructor::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
+    auto ret = Declaration::resolveSymbols(endModule, dgn);
+
     for ( auto& e : myPattern )
         e->setScope(scope());
 
+    ScopeResolver resolver(scope());
+    Context ctx(endModule, dgn, resolver);
     for ( auto& e : myPattern )
-        e->resolveSymbols(endModule, dgn);
+        ret |= ctx.resolveDeclaration(*e);
+
+    return ret;
 }
 
 void DataSumDeclaration::Constructor::setParent(DataSumDeclaration* dsDecl)
@@ -321,35 +332,33 @@ void DataProductDeclaration::io(IStream& stream) const
 }
 
 IMPL_CLONE_BEGIN(DataProductDeclaration, Declaration, Declaration)
-IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, Declaration)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-void DataProductDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataProductDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
-    if ( definition() )
-        definition()->resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(endModule, dgn);
 }
 
-void DataProductDeclaration::define(std::unique_ptr<DataProductScope> scope)
+void DataProductDeclaration::define(DataProductScope* scope)
 {
     if ( myDefinition )
         throw std::runtime_error("type declaration defined more than once");
 
-    myDefinition = std::move(scope);
+    myDefinition = scope;
     myDefinition->setDeclaration(this);
 }
 
 DataProductScope* DataProductDeclaration::definition()
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
 DataProductScope const* DataProductDeclaration::definition() const
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
 //
@@ -401,11 +410,14 @@ IMPL_CLONE_REMAP(myParent)
 IMPL_CLONE_REMAP(myConstraint)
 IMPL_CLONE_REMAP_END
 
-void DataProductDeclaration::Field::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataProductDeclaration::Field::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
+    auto ret = Declaration::resolveSymbols(endModule, dgn);
+
     ScopeResolver resolver(*myParent->definition());
     Context ctx(endModule, dgn, resolver);
-    ctx.resolveExpression(myConstraint);
+    ret |= ctx.resolveExpression(myConstraint);
+    return ret;
 }
 
 void DataProductDeclaration::Field::setParent(DataProductDeclaration* dpDecl)
@@ -479,13 +491,16 @@ IMPL_CLONE_REMAP_BEGIN(SymbolDeclaration, Declaration)
 IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP_END
 
-void SymbolDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes SymbolDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
+    auto ret = Declaration::resolveSymbols(endModule, dgn);
+
     ScopeResolver resolver(scope());
     resolver.addSupplementaryPrototype(symbol().prototype());
 
     Context ctx(endModule, dgn, resolver);
-    ctx.resolveExpression(myExpression);
+    ret |= ctx.resolveExpression(myExpression);
+    return ret;
 }
 
 Expression* SymbolDeclaration::expression()
@@ -556,17 +571,19 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myDataType)
 IMPL_CLONE_REMAP_END
 
-void VariableDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes VariableDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
+    auto ret = Declaration::resolveSymbols(endModule, dgn);
+
     ScopeResolver resolver(scope());
     Context ctx(endModule, dgn, resolver);
 
     if ( !myConstraint ) {
         ctx.error(*this) << "type inferencing not implemented";
-        return;
+        return SymRes::Fail;
     }
 
-    ctx.resolveExpression(myConstraint);
+    ret |= ctx.resolveExpression(myConstraint);
     addConstraint(*myConstraint);
 
     myDataType = ast::dataType(ctx, myConstraints);
@@ -575,8 +592,10 @@ void VariableDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
             ctx.error(*this) << "cannot infer data type without constraints";
         else
             ctx.error(*this) << "no data type determined for variable declaration";
-        return;
+        return SymRes::Fail;
     }
+
+    return ret;
 }
 
 void VariableDeclaration::addConstraint(Expression const& expr)
@@ -642,14 +661,18 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myDataType)
 IMPL_CLONE_REMAP_END
 
-void ProcedureParameter::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ProcedureParameter::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
+    auto ret = Declaration::resolveSymbols(endModule, dgn);
+
     ScopeResolver resolver(scope());
     Context ctx(endModule, dgn, resolver);
     myDataType = ast::dataType(ctx, myConstraints);
 
     if ( !myDataType )
         dgn.error(scope().module(), symbol().identifier()) << "parameter is missing data type";
+
+    return ret;
 }
 
 Declaration const* ProcedureParameter::dataType() const
@@ -723,7 +746,6 @@ IMPL_CLONE_CHILD(myReturnExpression)
 IMPL_CLONE_CHILD(myThisExpr)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
-IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
 IMPL_CLONE_REMAP(myReturnExpression)
@@ -733,17 +755,7 @@ IMPL_CLONE_REMAP(myResult)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-void ProcedureDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
-{
-    if ( auto defn = definition() ) {
-        for ( auto const& p : myParameters )
-            defn->addSymbol(dgn, p->symbol(), *p);
-
-        defn->resolveSymbols(endModule, dgn);
-    }
-}
-
-void ProcedureDeclaration::resolvePrototypeSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ProcedureDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
     ScopeResolver resolver(scope());
     Context ctx(endModule, dgn, resolver);
@@ -807,32 +819,35 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Module& endModule, Diagnostic
     // on knowing what front expressions are to be interpreted as procedure parameters, 
     // otherwise causing an undeclared identifier error. Parameters eventually need to hold
     // references to their constraints, but pattern resolution must first resolve those constraints
-    mySymbol->resolveSymbols(ctx);
+    auto ret = mySymbol->resolveSymbols(ctx);
+    if ( !ret )
+        return ret;
+
     resolver.addSupplementaryPrototype(mySymbol->prototype());
 
     // Parameter deduction (step #2/2)
-    if ( deduceParameters ) {
-        // constraints must be added after the symbol is resolved due to rewrites
-        for ( std::size_t i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
-            auto const ordinal = myOrdinals[i];
-            if ( ordinal < 0 )
-                continue;
+    // constraints must be added after the symbol is resolved due to rewrites
+    for ( std::size_t i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
+        auto const ordinal = myOrdinals[i];
+        if ( ordinal < 0 )
+            continue;
 
+        if ( myParameters[ordinal]->constraints().empty() ) {
             auto const paramConstraints = mySymbol->prototype().pattern()[i]->constraints();
             for ( auto const& c : paramConstraints )
                 myParameters[ordinal]->addConstraint(*c);
         }
-
-        for ( auto& p : myParameters )
-            p->resolveSymbols(endModule, dgn);
     }
+
+    for ( auto& p : myParameters )
+        ret |= ctx.resolveDeclaration(*p);
 
     // Resolve return
     // todo: return type deduction
     if ( isCtor(*this) || isDtor(*this) ) {
         if ( myReturnExpression ) {
             ctx.error(*myReturnExpression) << "ctor/dtor cannot have a return type";
-            return;
+            return SymRes::Fail;
         }
 
         myReturnExpression = createEmptyExpression();
@@ -840,18 +855,19 @@ void ProcedureDeclaration::resolvePrototypeSymbols(Module& endModule, Diagnostic
 
     if ( !myReturnExpression ) {
         ctx.error(symbol().identifier()) << "inferred return type not implemented";
-        return;
+        return SymRes::Fail;
     }
 
     auto returnSemantics = ProcedureParameter::ByValue;
-    ctx.resolveExpression(myReturnExpression);
+    ret |= ctx.resolveExpression(myReturnExpression);
     if ( myReturnExpression->as<ReferenceExpression>() )
         returnSemantics = ProcedureParameter::ByReference;
 
     myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")), *this, returnSemantics);
     myResult->addConstraint(*myReturnExpression);
 
-    myResult->resolveSymbols(endModule, dgn);
+    ret |= ctx.resolveDeclaration(*myResult);
+    return ret;
 }
 
 void ProcedureDeclaration::unresolvePrototypeSymbols()
@@ -869,20 +885,20 @@ void ProcedureDeclaration::unresolvePrototypeSymbols()
 
 ProcedureScope* ProcedureDeclaration::definition()
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
 ProcedureScope const* ProcedureDeclaration::definition() const
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
-void ProcedureDeclaration::define(std::unique_ptr<ProcedureScope> definition)
+void ProcedureDeclaration::define(ProcedureScope* definition)
 {
     if ( myDefinition )
         throw std::runtime_error("procedure " + mySymbol->identifier().lexeme() + " is already defined");
 
-    myDefinition = std::move(definition);
+    myDefinition = definition;
     myDefinition->setDeclaration(this);
 }
 
@@ -929,6 +945,20 @@ int ProcedureDeclaration::ordinal(std::size_t index) const
     return myOrdinals[index];
 }
 
+ProcedureParameter* ProcedureDeclaration::findParameter(std::string const& identifier)
+{
+    for ( auto const& p : myParameters )
+        if ( p->symbol().identifier().lexeme() == identifier )
+            return p.get();
+
+    return nullptr;
+}
+
+ProcedureParameter const* ProcedureDeclaration::findParameter(std::string const& identifier) const
+{
+    return const_cast<ProcedureDeclaration*>(this)->findParameter(identifier);
+}
+
 //
 // ImportDeclaration
 
@@ -972,9 +1002,9 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ImportDeclaration, Declaration)
 IMPL_CLONE_REMAP_END
 
-void ImportDeclaration::resolveSymbols(Module&, Diagnostics&)
+SymRes ImportDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
-    // nop
+    return Declaration::resolveSymbols(endModule, dgn);
 }
 
 //
@@ -1035,7 +1065,7 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myBoundExpression)
 IMPL_CLONE_REMAP_END
 
-void SymbolVariable::resolveSymbols(Module&, Diagnostics&)
+SymRes SymbolVariable::resolveSymbols(Module&, Diagnostics&)
 {
     throw std::runtime_error("symbol variables should not be resolved");
 }
@@ -1099,41 +1129,39 @@ void TemplateDeclaration::io(IStream& stream) const
 }
 
 IMPL_CLONE_BEGIN(TemplateDeclaration, Declaration, Declaration)
-IMPL_CLONE_CHILD(myDefinition)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, Declaration)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-void TemplateDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes TemplateDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
-    if ( auto defn = definition() )
-        defn->resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(endModule, dgn);
 }
 
 TemplateScope* TemplateDeclaration::definition()
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
 TemplateScope const* TemplateDeclaration::definition() const
 {
-    return myDefinition.get();
+    return myDefinition;
 }
 
-void TemplateDeclaration::define(std::unique_ptr<TemplateScope> definition)
+void TemplateDeclaration::define(TemplateScope* definition)
 {
     if ( myDefinition )
         throw std::runtime_error("template " + mySymbol->identifier().lexeme() + " is already defined");
 
-    myDefinition = std::move(definition);
+    myDefinition = definition;
     myDefinition->setDeclaration(this);
 }
 
 void TemplateDeclaration::merge(TemplateDeclaration& rhs)
 {
     myDefinition->merge(*rhs.myDefinition);
-    rhs.myDefinition.reset();
+    rhs.myDefinition = nullptr;
 }
 
 //

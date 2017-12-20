@@ -118,9 +118,14 @@ IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP(myUnnamedVariables)
 IMPL_CLONE_REMAP_END
 
-void Statement::resolveSymbols(Context& ctx)
+SymRes Statement::resolveSymbols(Context& ctx)
 {
-    ctx.resolveExpression(myExpression);
+    if ( !ctx.resolveExpression(myExpression) ) {
+        ctx.error(*myExpression) << "unresolved symbols in sequence";
+        return SymRes::Fail;
+    }
+
+    return SymRes::Success;
 }
 
 Statement::Kind Statement::kind() const
@@ -202,9 +207,9 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ConstructionStatement, Statement)
 IMPL_CLONE_REMAP_END
 
-void ConstructionStatement::resolveSymbols(Context& ctx)
+SymRes ConstructionStatement::resolveSymbols(Context& ctx)
 {
-    Statement::resolveSymbols(ctx);
+    return Statement::resolveSymbols(ctx);
 }
 
 VarExpression const& ConstructionStatement::varExpression() const
@@ -308,22 +313,25 @@ IMPL_CLONE_REMAP(myBranch[0])
 IMPL_CLONE_REMAP(myBranch[1])
 IMPL_CLONE_REMAP_END
 
-void BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
+SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 {
+    SymRes ret = SymRes::Success;
     if ( myCondition )
-        ctx.resolveStatement(*myCondition);
+        ret |= ctx.resolveStatement(*myCondition);
 
     if ( !branch(0) ) {
         ctx.error(token()) << "is missing first branch";
-        return;
+        return SymRes::Fail;
     }
     else if ( !branch(1) ) {
         ctx.error(token()) << "is missing second branch";
-        return;
+        return SymRes::Fail;
     }
 
     branch(0)->appendIncoming(bb);
     branch(1)->appendIncoming(bb);
+
+    return ret;
 }
 
 lexer::Token const& BranchJunction::token() const
@@ -416,10 +424,12 @@ IMPL_CLONE_REMAP_BEGIN(ReturnJunction, Junction)
 IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP_END
 
-void ReturnJunction::resolveSymbols(Context& ctx, BasicBlock& /*bb*/)
+SymRes ReturnJunction::resolveSymbols(Context& ctx, BasicBlock& /*bb*/)
 {
     if ( myExpression )
-        ctx.resolveStatement(*myExpression);
+        return ctx.resolveStatement(*myExpression);
+
+    return SymRes::Success;
 }
 
 lexer::Token const& ReturnJunction::token() const
@@ -510,10 +520,10 @@ IMPL_CLONE_REMAP_BEGIN(JumpJunction, Junction)
 IMPL_CLONE_REMAP(myTargetBlock)
 IMPL_CLONE_REMAP_END
 
-void JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
+SymRes JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 {
     if ( targetBlock() )
-        return;
+        return SymRes::Success;
 
     if ( myTargetLabel.kind() == lexer::TokenKind::Undefined ) {
         for ( auto p = bb.scope(); p; p = p->parent()->as<ProcedureScope>() ) {
@@ -523,12 +533,12 @@ void JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
                 else
                     myTargetBlock = p->basicBlocks().front();
 
-                return;
+                return SymRes::Success;
             }
         }
 
         ctx.error(token()) << "jump does not occur in a block";
-        return;
+        return SymRes::Fail;
     }
 
     for ( auto p = bb.scope(); p; p = p->parent()->as<ProcedureScope>() ) {
@@ -538,11 +548,12 @@ void JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
             else
                 myTargetBlock = p->basicBlocks().front();
 
-            return;
+            return SymRes::Success;
         }
     }
 
     ctx.error(myTargetLabel) << "block does not exist";
+    return SymRes::Fail;
 }
 
 lexer::Token const& JumpJunction::token() const
@@ -616,17 +627,19 @@ IMPL_CLONE_REMAP(myStatements)
 IMPL_CLONE_REMAP(myJunction)
 IMPL_CLONE_REMAP_END
 
-void BasicBlock::resolveSymbols(Context& ctx)
+SymRes BasicBlock::resolveSymbols(Context& ctx)
 {
+    SymRes ret = SymRes::Success;
     for ( auto& stmt : myStatements )
         ctx.resolveStatement(*stmt);
 
     if ( !junction() ) {
         ctx.error(*scope()->declaration()) << "expected terminating junction";
-        return;
+        return SymRes::Fail;
     }
 
-    junction()->resolveSymbols(ctx, *this);
+    ret |= junction()->resolveSymbols(ctx, *this);
+    return ret;
 }
 
 ProcedureScope const* BasicBlock::scope() const

@@ -24,6 +24,7 @@ class Declaration;
 class Expression;
 class LookupHit;
 class Module;
+class SymRes;
 
 class IResolver
 {
@@ -68,6 +69,15 @@ private:
 class Context
 {
 public:
+    enum Options
+    {
+        DisableCacheTemplateInstantiations = 1 << 0,
+    };
+
+    using options_t = std::uint32_t;
+
+public:
+    Context(Module& module, Diagnostics& dgn, IResolver& resolver, options_t options);
     Context(Module& module, Diagnostics& dgn, IResolver& resolver);
     ~Context();
 
@@ -96,23 +106,26 @@ public:
     IResolver* changeResolver(IResolver& resolver);
     Statement* changeStatement(Statement* statement);
 
-    void rewrite(std::unique_ptr<Expression> expr);
-    void rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func);
+    SymRes rewrite(std::unique_ptr<Expression> expr);
+    SymRes rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func);
 
-    void resolveExpression(std::unique_ptr<Expression>& expression);
-    void resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
-                            std::vector<std::unique_ptr<Expression>>::iterator right);
-    void resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
+    SymRes resolveDeclaration(Declaration& declaration);
 
-    void resolveStatement(Statement& stmt);
-    void resolveStatements(std::vector<Statement>::iterator left,
-                           std::vector<Statement>::iterator right);
-    void resolveStatements(std::vector<Statement>& stmts);
+    SymRes resolveExpression(std::unique_ptr<Expression>& expression);
+    SymRes resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
+                              std::vector<std::unique_ptr<Expression>>::iterator right);
+    SymRes resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
+
+    SymRes resolveStatement(Statement& stmt);
+    SymRes resolveStatements(std::vector<Statement>::iterator left,
+                             std::vector<Statement>::iterator right);
+    SymRes resolveStatements(std::vector<Statement>& stmts);
 
 private:
     Module* myModule = nullptr;
     Diagnostics* myDiagnostics = nullptr;
     IResolver* myResolver = nullptr;
+    options_t myOptions = 0;
     Statement* myStatement = nullptr;
     std::unique_ptr<Expression> myRewrite;
     std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> myLazyRewrite;

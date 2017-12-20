@@ -7,11 +7,62 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Context.hpp>
+#include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
     namespace ast {
+
+    namespace {
+        /**
+         * Determines suitable bindings for any meta-variables in \a target
+         * 
+         * \param bindings Substitution table
+         * \param target   Expression pattern with unbound meta-variables
+         * \param query    Query expressions used as arguments
+         * 
+         * \precondition All expressions in \a query are resolved
+         * 
+         * \note No substitution is determined for any expression in \a target that is already resolved
+         */
+        bool findBindings(binding_set_t& bindings, PatternsDecl const& target, pattern_t const& query)
+        {
+            auto const& targetPattern = target.params->pattern();
+
+            if ( auto proc = target.decl->as<ProcedureDeclaration>() ) {
+                auto const paramCount = target.params->pattern().size();
+                if ( paramCount != query.size() )
+                    return false;
+
+                for ( std::size_t i = 0; i < paramCount; ++i ) {
+                    auto const ordinal = proc->ordinal(i);
+                    if ( ordinal == -1 ) {
+                        if ( !targetPattern[i]->declaration() )
+                            if ( !matchStructural(bindings, *targetPattern[i], *query[i]) )
+                                return false;
+                    }
+
+                    if ( proc->parameters()[ordinal]->dataType() )
+                        continue;
+
+                    auto const queryDecl = query[i]->declaration();
+                    if ( !queryDecl )
+                        return false;
+
+                    if ( !matchStructural(bindings, *targetPattern[i], *query[i]) )
+                        return false;
+                }
+
+                return true;
+            }
+
+            if ( !target.params->hasMetaVariables() )
+                return true;
+
+            return matchStructural(bindings, targetPattern, query);
+        }
+    } // namespace
 
 //
 // PatternsPrototype
@@ -94,9 +145,15 @@ void PatternsPrototype::resolveVariables()
     }
 }
 
-void PatternsPrototype::resolveSymbols(Context& ctx)
+SymRes PatternsPrototype::resolveSymbols(Context& ctx)
 {
-    ctx.resolveExpressions(myPattern);
+    ScopeResolver resolver(ctx.resolver().scope());
+    resolver.addSupplementaryPrototype(*this);
+    auto save = ctx.changeResolver(resolver);
+    auto ret = ctx.resolveExpressions(myPattern);
+    ctx.changeResolver(*save);
+
+    return ret;
 }
 
 void PatternsPrototype::resetPattern()
@@ -189,6 +246,12 @@ Symbol::Symbol(lexer::Token const& identifier)
 {
 }
 
+Symbol::Symbol(std::unique_ptr<SymbolExpression> symExpr)
+    : myIdentifier(symExpr->identifier())
+    , myPrototype(std::make_unique<PatternsPrototype>(std::move(symExpr->internalExpressions())))
+{
+}
+
 Symbol::Symbol(Symbol const& rhs)
     : myIdentifier(rhs.myIdentifier)
     , myPrototypeParent(&rhs)
@@ -240,10 +303,10 @@ IMPL_CLONE_REMAP_NOBASE_BEGIN(Symbol)
 IMPL_CLONE_REMAP(myPrototype)
 IMPL_CLONE_REMAP_END
 
-void Symbol::resolveSymbols(Context& ctx)
+SymRes Symbol::resolveSymbols(Context& ctx)
 {
     myPrototype->resolveVariables();
-    myPrototype->resolveSymbols(ctx);
+    return myPrototype->resolveSymbols(ctx);
 }
 
 lexer::Token const& Symbol::identifier() const
@@ -308,7 +371,7 @@ const char* SymbolReference::name() const
     return myName;
 }
 
-SymbolReference::pattern_t const& SymbolReference::pattern() const
+pattern_t const& SymbolReference::pattern() const
 {
     return myPattern;
 }
@@ -431,10 +494,29 @@ CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, pa
     CandidateSet ret;
     ScopeResolver resolver(*myScope);
     Context ctx(endModule, dgn, resolver);
+
+    Diagnostics sfinaeDgn;
+    Context sfinaeCtx(endModule, sfinaeDgn, resolver, Context::DisableCacheTemplateInstantiations);
+
     for ( auto& e : myPrototypes ) {
         binding_set_t bindings;
-        if ( auto v = variance(ctx, bindings, e.proto.params->pattern(), paramlist) )
-            ret.append(v, e, std::move(bindings));
+        if ( !findBindings(bindings, e.proto, paramlist) )
+            continue;
+
+        if ( bindings.empty() ) {
+            if ( auto v = variance(ctx, bindings, e.proto.params->pattern(), paramlist) )
+                ret.append(v, e, std::move(bindings));
+        }
+        else {
+            auto d = ast::clone(e.proto.decl);
+            d->symbol().prototype().bindVariables(bindings);
+            auto result = sfinaeCtx.resolveDeclaration(*d);
+            if ( !result )
+                continue;
+
+            if ( auto v = variance(sfinaeCtx, bindings, d->symbol().prototype().pattern(), paramlist) )
+                ret.append(v, e, std::move(bindings));
+        }
     }
 
     return ret;
@@ -505,16 +587,17 @@ SymbolSpace::instantiate(Context& ctx,
     auto instProto = reinterpret_cast<PatternsPrototype*>(cloneMap[proto.proto.params]);
     instProto->bindVariables(bindingSet);
 
+    // todo: remove notion of "unresolve"
     if ( auto proc = instance->as<ProcedureDeclaration>() ) {
         proc->unresolvePrototypeSymbols();
-        proc->resolvePrototypeSymbols(ctx.module(), ctx.diagnostics());
+        ctx.resolveDeclaration(*proc);
     }
     else {
         instProto->resetPattern();
         instProto->resolveSymbols(ctx);
     }
 
-    instance->resolveSymbols(ctx.module(), ctx.diagnostics());
+    ctx.resolveDeclaration(*instance);
 
     proto.instances.emplace_back(PatternsDecl{instProto, instance.get()});
     myScope->append(std::move(instance));

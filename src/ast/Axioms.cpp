@@ -40,6 +40,8 @@ size_t = unsigned<wordSize>
 
 staticSize(p : pointer \T) -> size_t => wordSize
 
+//add(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
+
 add(x : unsigned<1  >, y : unsigned<1  >) -> unsigned<1  >
 add(x : unsigned<8  >, y : unsigned<8  >) -> unsigned<8  >
 add(x : unsigned<16 >, y : unsigned<16 >) -> unsigned<16 >

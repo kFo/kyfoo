@@ -198,12 +198,13 @@ public:
     virtual void remapReferences(clone_map_t const& map);
 
     virtual void resolveImports(Diagnostics& dgn);
-    virtual void resolveSymbols(Module& endModule, Diagnostics& dgn);
+    virtual SymRes resolveSymbols(Module& endModule, Diagnostics& dgn);
     virtual void resolveAttributes(Module& endModule, Diagnostics& dgn);
 
 public:
     void setDeclaration(Declaration* declaration);
     void append(std::unique_ptr<Declaration> declaration);
+    void append(std::unique_ptr<DeclarationScope> definition);
     void import(Module& module);
     void merge(DeclarationScope& rhs);
 
@@ -228,6 +229,8 @@ public:
 
     Slice<Declaration*> childDeclarations() const;
 
+    Slice<DeclarationScope*> childDefinitions() const;
+
     template <typename T> T* as();
     template <typename T> T const* as() const;
 
@@ -237,6 +240,7 @@ protected:
     Declaration* myDeclaration = nullptr;
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
+    std::vector<std::unique_ptr<DeclarationScope>> myDefinitions;
 
     mutable std::vector<SymbolSpace> mySymbols;
     mutable std::map<std::string, ImportDeclaration*> myImports;
@@ -266,7 +270,7 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     DataSumDeclaration* declaration();
@@ -302,7 +306,7 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     void resolveConstructors(Diagnostics& dgn);
@@ -353,7 +357,7 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     bool isJumpTarget() const;
@@ -416,7 +420,7 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    void resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
     TemplateDeclaration* declaration();

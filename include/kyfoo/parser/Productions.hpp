@@ -159,23 +159,18 @@ struct TupleClosed : public
     }
 };
 
-struct TupleSymbol : public
-    g::And<g::Opt<id>, openAngle, g::Repeat2<Expression, comma>, closeAngle>
+struct SymbolExpression : public
+    g::And<id, openAngle, g::Repeat2<Expression, comma>, closeAngle>
 {
     std::unique_ptr<ast::SymbolExpression> make() const
     {
-        auto e = expressions(factor<2>().captures());
-        if ( auto i = factor<0>().capture() )
-            return std::make_unique<ast::SymbolExpression>(i->token(), std::move(e));
-
-        return std::make_unique<ast::SymbolExpression>(factor<1>().token(),
-                                                       factor<3>().token(),
-                                                       std::move(e));
+        return std::make_unique<ast::SymbolExpression>(factor<0>().token(),
+                                                       expressions(factor<2>().captures()));
     }
 };
 
 struct Tuple : public
-    g::Or<TupleOpen, TupleOpenLeft, TupleOpenRight, TupleClosed, TupleSymbol>
+    g::Or<TupleOpen, TupleOpenLeft, TupleOpenRight, TupleClosed, SymbolExpression>
 {
     std::unique_ptr<ast::Expression> make() const
     {
@@ -211,26 +206,14 @@ struct DotExpression : public
 };
 
 struct Symbol : public
-    g::Or<
-          g::And<id, g::Opt<TupleSymbol>>
-        , TupleSymbol
-         >
+    g::Or<SymbolExpression, id>
 {
     ast::Symbol make() const
     {
-        switch (index()) {
-        case 0: 
-            if ( auto p = term<0>().factor<1>().capture() )
-                return ast::Symbol(term<0>().factor<0>().token(), std::move(p->make()->internalExpressions()));
-            else
-                return ast::Symbol(term<0>().factor<0>().token());
-
-        case 1:
-            return ast::Symbol(lexer::Token(), std::move(term<1>().make()->internalExpressions()));
-
-        default:
-            throw std::runtime_error("invalid symbol expression");
-        }
+        if ( index() == 0 )
+            return ast::Symbol(term<0>().make());
+        else
+            return ast::Symbol(term<1>().token());
     }
 };
 

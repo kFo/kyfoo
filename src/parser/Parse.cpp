@@ -34,7 +34,9 @@ DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
 
     scanner.next();
 
-    declaration.define(std::make_unique<ast::DataSumScope>(*myScope, declaration));
+    auto dsDefn = std::make_unique<ast::DataSumScope>(*myScope, declaration);
+    declaration.define(dsDefn.get());
+    scope()->append(std::move(dsDefn));
     return std::make_unique<DataSumScopeParser>(declaration.definition());
 }
 
@@ -49,7 +51,9 @@ DeclarationScopeParser::parseDataProductDefinition(Diagnostics& /*dgn*/,
 
     scanner.next();
 
-    declaration.define(std::make_unique<ast::DataProductScope>(*myScope, declaration));
+    auto dpDefn = std::make_unique<ast::DataProductScope>(*myScope, declaration);
+    declaration.define(dpDefn.get());
+    scope()->append(std::move(dpDefn));
     return std::make_unique<DataProductScopeParser>(declaration.definition());
 }
 
@@ -61,7 +65,9 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
     // Check if a procedure definition follows
     if ( scanner.peek().kind() == TokenKind::Yield ) {
         scanner.next(); // yield
-        declaration.define(std::make_unique<ast::ProcedureScope>(*myScope, declaration));
+        auto p = std::make_unique<ast::ProcedureScope>(*myScope, declaration);
+        declaration.define(p.get());
+        scope()->append(std::move(p));
         if ( !isIndent(scanner.peek().kind()) ) {
             auto expr = parse<Expression>(scanner);
             if ( !expr ) {
@@ -135,7 +141,9 @@ DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanne
     auto templProcDecl = parseImplicitTemplateProcedureDeclaration(scanner);
     if ( std::get<1>(templProcDecl) ) {
         auto templDecl = std::make_unique<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
-        templDecl->define(std::make_unique<ast::TemplateScope>(*myScope, *templDecl));
+        auto templDefn = std::make_unique<ast::TemplateScope>(*myScope, *templDecl);
+        templDecl->define(templDefn.get());
+        scope()->append(std::move(templDefn));
 
         auto newScopeParser = parseProcedureDefinition(dgn, scanner, *std::get<1>(templProcDecl));
         templDecl->definition()->append(std::move(std::get<1>(templProcDecl)));
@@ -177,6 +185,11 @@ DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         return ret;
 
     return parseProcedural(dgn, scanner);
+}
+
+ast::DeclarationScope* DeclarationScopeParser::scope()
+{
+    return myScope;
 }
 
 std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics& dgn, lexer::Scanner& scanner)

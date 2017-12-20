@@ -28,10 +28,12 @@ class PrimaryExpression;
 class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
+class SymRes;
 class VarianceResult;
 
 using binding_set_t = FlatMap<SymbolVariable const*, Expression const*>;
 using Pattern = std::vector<std::unique_ptr<Expression>>;
+using pattern_t = Slice<Expression*>;
 
 class PatternsPrototype : public IIO
 {
@@ -60,7 +62,7 @@ public:
 
 public:
     void resolveVariables();
-    void resolveSymbols(Context& ctx);
+    SymRes resolveSymbols(Context& ctx);
     void resetPattern();
 
 public:
@@ -89,6 +91,7 @@ public:
     Symbol(lexer::Token const& identifier,
            PatternsPrototype&& params);
     explicit Symbol(lexer::Token const& identifier);
+    Symbol(std::unique_ptr<SymbolExpression> symExpr);
 
 protected:
     Symbol(Symbol const& rhs);
@@ -109,7 +112,7 @@ public:
     DECL_CLONE_ALL_NOBASE(Symbol);
 
 public:
-    void resolveSymbols(Context& ctx);
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     lexer::Token const& identifier() const;
@@ -128,9 +131,6 @@ private:
 
 class SymbolReference
 {
-public:
-    using pattern_t = Slice<Expression*>;
-
 public:
     SymbolReference(const char* name, pattern_t pattern);
     SymbolReference(std::string const& name, pattern_t pattern);
@@ -189,8 +189,6 @@ private:
 class SymbolSpace
 {
 public:
-    using pattern_t = SymbolReference::pattern_t;
-
     struct DeclInstance {
         Declaration* parent;
         Declaration* instance;

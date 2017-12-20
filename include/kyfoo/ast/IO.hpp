@@ -15,18 +15,18 @@ namespace kyfoo {
     namespace ast {
 
 #define PRIMITIVE_TYPES(X) \
-    X(char) \
-    X(unsigned char) \
-    X(short) \
-    X(unsigned short) \
-    X(int) \
-    X(unsigned int) \
-    X(long) \
-    X(unsigned long) \
-    X(long long) \
+    X(char              ) \
+    X(unsigned char     ) \
+    X(short             ) \
+    X(unsigned short    ) \
+    X(int               ) \
+    X(unsigned int      ) \
+    X(long              ) \
+    X(unsigned long     ) \
+    X(long long         ) \
     X(unsigned long long) \
-    X(float) \
-    X(double)
+    X(float             ) \
+    X(double            )
 
 class IStream;
 class IIO

@@ -100,53 +100,40 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
     }
 }
 
-void DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
     SymbolDependencyTracker tracker(module(), dgn);
     for ( auto const& d : myDeclarations )
         traceDependencies(tracker, *d);
 
     if ( dgn.errorCount() )
-        return;
+        return SymRes::Fail;
 
     tracker.sortPasses();
 
     ScopeResolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
+    SymRes ret = SymRes::Success;
 
     // Resolve top-level declarations
     for ( auto const& symGroup : tracker.groups ) {
         for ( auto const& d : symGroup->declarations ) {
-            if ( auto proc = d->as<ProcedureDeclaration>() )
-                proc->resolvePrototypeSymbols(endModule, dgn);
-            else
-                d->symbol().resolveSymbols(ctx);
-
-            if ( !addSymbol(dgn, d->symbol(), *d) )
-                continue;
-
-            if ( isMacroDeclaration(d->kind()) )
-                d->resolveSymbols(endModule, dgn);
+            ret |= ctx.resolveDeclaration(*d);
+            addSymbol(dgn, d->symbol(), *d);
         }
     }
+
+    if ( dgn.errorCount() )
+        return SymRes::Fail;
 
     // Resolve definitions
-    for ( auto const& symGroup : tracker.groups ) {
-        for ( auto const& d : symGroup->declarations ) {
-            if ( isMacroDeclaration(d->kind()) )
-                continue;
-
-            if ( d->symbol().prototype().isConcrete() ) {
-                if ( auto proc = d->as<ProcedureDeclaration>() ) {
-                    if ( proc->symbol().prototype().isConcrete() )
-                        proc->resolveSymbols(endModule, dgn);
-                }
-                else {
-                    d->resolveSymbols(endModule, dgn);
-                }
-            }
+    for ( auto& defn : myDefinitions ) {
+        if ( defn->declaration()->symbol().prototype().isConcrete() ) {
+            ret |= defn->resolveSymbols(endModule, dgn);
         }
     }
+
+    return ret;
 }
 
 void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
@@ -223,6 +210,12 @@ void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
 {
     myDeclarations.emplace_back(std::move(declaration));
     myDeclarations.back()->setScope(*this);
+}
+
+void DeclarationScope::append(std::unique_ptr<DeclarationScope> definition)
+{
+    myDefinitions.emplace_back(std::move(definition));
+    myDefinitions.back()->myParent = this;
 }
 
 void DeclarationScope::import(Module& module)
@@ -326,6 +319,11 @@ Slice<Declaration*> DeclarationScope::childDeclarations() const
     return myDeclarations;
 }
 
+Slice<DeclarationScope*> DeclarationScope::childDefinitions() const
+{
+    return myDefinitions;
+}
+
 //
 // DataSumScope
 
@@ -363,7 +361,7 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumScope, DeclarationScope)
 IMPL_CLONE_REMAP_END
 
-void DataSumScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataSumScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
     for ( auto const& d : myDeclarations ) {
         auto dsCtor = d->as<DataSumDeclaration::Constructor>();
@@ -373,7 +371,7 @@ void DataSumScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
         myCtors.push_back(dsCtor);
     }
 
-    DeclarationScope::resolveSymbols(endModule, dgn);
+    return DeclarationScope::resolveSymbols(endModule, dgn);
 }
 
 DataSumDeclaration* DataSumScope::declaration()
@@ -432,16 +430,18 @@ IMPL_CLONE_REMAP_BEGIN(DataProductScope, DeclarationScope)
 IMPL_CLONE_REMAP(myFields)
 IMPL_CLONE_REMAP_END
 
-void DataProductScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataProductScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
     for ( auto& d : myDeclarations )
         if ( auto v = d->as<DataProductDeclaration::Field>() )
             myFields.push_back(v);
 
-    DeclarationScope::resolveSymbols(endModule, dgn);
+    auto ret = DeclarationScope::resolveSymbols(endModule, dgn);
 
     resolveConstructors(dgn);
     resolveDestructor(endModule, dgn);
+
+    return ret;
 }
 
 void DataProductScope::resolveConstructors(Diagnostics&)
@@ -456,13 +456,18 @@ std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultConstructor
 
 void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 {
+    ScopeResolver resolver(*this);
+    Context ctx(endModule, dgn, resolver);
+
     auto makeTempl = [this, &dgn] {
         auto templ = std::make_unique<TemplateDeclaration>(
             Symbol(lexer::Token(lexer::TokenKind::Identifier,
                                 declaration()->symbol().identifier().line(),
                                 declaration()->symbol().identifier().column(),
                                 "dtor")));
-        templ->define(std::make_unique<TemplateScope>(*this, *templ));
+        auto templDefn = std::make_unique<TemplateScope>(*this, *templ);
+        templ->define(templDefn.get());
+        append(std::move(templDefn));
         append(std::move(templ));
         addSymbol(dgn, myDeclarations.back()->symbol(), *myDeclarations.back());
     };
@@ -490,9 +495,9 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
         auto proc = createDefaultDestructor();
         auto p = proc.get();
         templ->definition()->append(std::move(proc));
-        p->resolvePrototypeSymbols(endModule, dgn);
+        ctx.resolveDeclaration(*p);
         templ->definition()->addSymbol(dgn, p->symbol(), *p);
-        p->resolveSymbols(endModule, dgn);
+        p->definition()->resolveSymbols(endModule, dgn);
         myDestructor = p;
         return;
     }
@@ -526,7 +531,8 @@ std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultDestructor(
             ps->append(createMemberCallExpression(*dtor, **f));
     }
 
-    proc->define(std::move(ps));
+    proc->define(ps.get());
+    append(std::move(ps));
     return proc;
 }
 
@@ -631,19 +637,21 @@ IMPL_CLONE_REMAP(myBasicBlocks)
 IMPL_CLONE_REMAP(myChildScopes)
 IMPL_CLONE_REMAP_END
 
-void ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
     // Resolve declarations
-    DeclarationScope::resolveSymbols(endModule, dgn);
+    auto ret = DeclarationScope::resolveSymbols(endModule, dgn);
 
     // Resolve expressions
     ScopeResolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
     for ( auto& bb : myBasicBlocks )
-        bb->resolveSymbols(ctx);
+        ret |= bb->resolveSymbols(ctx);
 
     for ( auto& s : myChildScopes )
-        s->resolveSymbols(endModule, dgn);
+        ret |= s->resolveSymbols(endModule, dgn);
+
+    return ret;
 }
 
 bool ProcedureScope::isJumpTarget() const
@@ -778,9 +786,9 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(TemplateScope, DeclarationScope)
 IMPL_CLONE_REMAP_END
 
-void TemplateScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes TemplateScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
-    DeclarationScope::resolveSymbols(endModule, dgn);
+    return DeclarationScope::resolveSymbols(endModule, dgn);
 }
 
 TemplateDeclaration* TemplateScope::declaration()

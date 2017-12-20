@@ -326,9 +326,13 @@ Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
 Declaration const* dataType(Declaration const* decl);
 Declaration const* dataType(Context& ctx, Slice<Expression*> constraints);
+Expression const* unifiedConstraint(Expression const& expr);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
+
+bool matchStructural(binding_set_t& bindings, Expression const& lhs, Expression const& rhs);
+bool matchStructural(binding_set_t& bindings, Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherMetaVariables(Expression& expr);
 bool hasMetaVariable(Expression const& expr);

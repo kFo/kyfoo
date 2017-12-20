@@ -10,13 +10,14 @@
 namespace kyfoo {
     namespace ast {
 
-class Context;
-class ProcedureScope;
-class Declaration;
-class VariableDeclaration;
-class Expression;
 class BasicBlock;
+class Context;
+class Declaration;
+class Expression;
+class ProcedureScope;
+class SymRes;
 class VarExpression;
+class VariableDeclaration;
 
 #define STATEMENT_KINDS(X)                 \
     X(Expression  , Statement            ) \
@@ -58,7 +59,7 @@ public:
     virtual void remapReferences(clone_map_t const& map);
 
 protected:
-    virtual void resolveSymbols(Context& ctx);
+    virtual SymRes resolveSymbols(Context& ctx);
 
 public:
     Kind kind() const;
@@ -101,7 +102,7 @@ public:
     DECL_CLONE_ALL(Statement)
 
 protected:
-    void resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     VarExpression const& varExpression() const;
@@ -140,7 +141,7 @@ public:
     virtual void cloneChildren(Junction& c, clone_map_t& map) const;
     virtual void remapReferences(clone_map_t const& map);
 
-    virtual void resolveSymbols(Context& ctx, BasicBlock& bb) = 0;
+    virtual SymRes resolveSymbols(Context& ctx, BasicBlock& bb) = 0;
 
 public:
     Kind kind() const;
@@ -175,7 +176,7 @@ public:
 public:
     DECL_CLONE_ALL(Junction)
 
-    void resolveSymbols(Context& ctx, BasicBlock& bb) override;
+    SymRes resolveSymbols(Context& ctx, BasicBlock& bb) override;
 
 public:
     lexer::Token const& token() const;
@@ -219,7 +220,7 @@ public:
 public:
     DECL_CLONE_ALL(Junction)
 
-    void resolveSymbols(Context& ctx, BasicBlock& bb) override;
+    SymRes resolveSymbols(Context& ctx, BasicBlock& bb) override;
 
 public:
     lexer::Token const& token() const;
@@ -268,7 +269,7 @@ public:
 public:
     DECL_CLONE_ALL(Junction)
 
-    void resolveSymbols(Context& ctx, BasicBlock& bb) override;
+    SymRes resolveSymbols(Context& ctx, BasicBlock& bb) override;
 
 public:
     lexer::Token const& token() const;
@@ -302,7 +303,7 @@ public:
     void cloneChildren(BasicBlock& c, clone_map_t& map) const;
     void remapReferences(clone_map_t const& map);
 
-    void resolveSymbols(Context& ctx);
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     ProcedureScope const* scope() const;

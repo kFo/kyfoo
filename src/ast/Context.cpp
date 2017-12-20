@@ -82,10 +82,16 @@ LookupHit ScopeResolver::matchOverload(Module& endModule, Diagnostics& dgn, Symb
         if ( hit.append(scope->findOverload(endModule, dgn, symbol)) )
             return hit;
 
-        if ( symbol.pattern().empty() )
-            if ( auto decl = scope->declaration() )
+        if ( symbol.pattern().empty() ) {
+            if ( auto decl = scope->declaration() ) {
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.lookup(s));
+
+                if ( auto proc = decl->as<ProcedureDeclaration>() )
+                    if ( auto p = proc->findParameter(symbol.name()) )
+                        return std::move(hit.lookup(p));
+            }
+        }
     }
 
     for ( auto m : myScope->module().imports() )
@@ -114,10 +120,16 @@ LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
 //
 // Context
 
-Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver)
+Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver, options_t options)
     : myModule(&module)
     , myDiagnostics(&dgn)
     , myResolver(&resolver)
+    , myOptions(options)
+{
+}
+
+Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver)
+    : Context(module, dgn, resolver, 0)
 {
 }
 
@@ -194,8 +206,9 @@ std::size_t Context::errorCount() const
 LookupHit Context::matchOverload(SymbolReference const& sym) const
 {
     auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, sym);
-    if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
-        myModule->appendTemplateInstance(hit.decl());
+    if ( myOptions & DisableCacheTemplateInstantiations )
+        if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
+            myModule->appendTemplateInstance(hit.decl());
 
     return hit;
 }
@@ -214,21 +227,32 @@ Statement* Context::changeStatement(Statement* statement)
     return ret;
 }
 
-void Context::rewrite(std::unique_ptr<Expression> expr)
+SymRes Context::rewrite(std::unique_ptr<Expression> expr)
 {
     myRewrite = std::move(expr);
+    return SymRes::Rewrite;
 }
 
-void Context::rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func)
+SymRes Context::rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func)
 {
     myLazyRewrite = func;
+    return SymRes::Rewrite;
 }
 
-void Context::resolveExpression(std::unique_ptr<Expression>& expression)
+SymRes Context::resolveDeclaration(Declaration& declaration)
 {
+    return declaration.resolveSymbols(*myModule, *myDiagnostics);
+}
+
+SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
+{
+    auto originalResolver = myResolver;
     myRewrite.reset();
-    expression->resolveSymbols(*this);
+    auto ret = expression->resolveSymbols(*this);
     while ( myRewrite || myLazyRewrite ) {
+        if ( ret != SymRes::Rewrite )
+            throw std::runtime_error("inconsistent rewrite request");
+
         auto c = std::move(expression->myConstraints);
 
         if ( myLazyRewrite ) {
@@ -241,45 +265,60 @@ void Context::resolveExpression(std::unique_ptr<Expression>& expression)
 
         expression = std::move(myRewrite);
         expression->myConstraints = std::move(c);
-        expression->resolveSymbols(*this);
+        myResolver = originalResolver;
+        ret = expression->resolveSymbols(*this);
     }
 
-    resolveExpressions(expression->myConstraints);
+    myResolver = originalResolver;
+
+    if ( ret == SymRes::Rewrite )
+        throw std::runtime_error("unhandled rewrite request");
+
+    ret |= resolveExpressions(expression->myConstraints);
+    return ret;
 }
 
-void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
-                                 std::vector<std::unique_ptr<Expression>>::iterator right)
+SymRes Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
+                                   std::vector<std::unique_ptr<Expression>>::iterator right)
 {
     myRewrite.reset();
+    SymRes ret;
     for ( ; left != right; ++left )
-        resolveExpression(*left);
+        ret |= resolveExpression(*left);
+
+    return ret;
 }
 
-void Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
+SymRes Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
 {
     return resolveExpressions(begin(expressions), end(expressions));
 }
 
-void Context::resolveStatement(Statement& stmt)
+SymRes Context::resolveStatement(Statement& stmt)
 {
     changeStatement(&stmt);
-    stmt.resolveSymbols(*this);
+    auto ret = stmt.resolveSymbols(*this);
     changeStatement(nullptr);
+
+    return ret;
 }
 
-void Context::resolveStatements(std::vector<Statement>::iterator left,
-                                std::vector<Statement>::iterator right)
+SymRes Context::resolveStatements(std::vector<Statement>::iterator left,
+                                  std::vector<Statement>::iterator right)
 {
+    SymRes ret = SymRes::Success;
     for ( ; left != right; ++left ) {
         changeStatement(&*left);
-        left->resolveSymbols(*this);
+        ret |= left->resolveSymbols(*this);
     }
     changeStatement(nullptr);
+
+    return ret;
 }
 
-void Context::resolveStatements(std::vector<Statement>& stmts)
+SymRes Context::resolveStatements(std::vector<Statement>& stmts)
 {
-    resolveStatements(begin(stmts), end(stmts));
+    return resolveStatements(begin(stmts), end(stmts));
 }
 
     } // namespace ast

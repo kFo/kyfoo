@@ -2,10 +2,10 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
-    <LLVM_LIB_PATH>..\..\..\llvm\build\$(Configuration)\lib</LLVM_LIB_PATH>
-    <LLVM_INCLUDE_PATH>..\..\..\llvm\install\include</LLVM_INCLUDE_PATH>
-    <BOOST_LIB_PATH>..\..\..\boost\boost_1_64_0\stage\lib</BOOST_LIB_PATH>
-    <BOOST_INCLUDE_PATH>..\..\..\boost\boost_1_64_0</BOOST_INCLUDE_PATH>
+    <LLVM_LIB_PATH>..\..\..\llvm\llvm-5.0.0.src\build\$(Configuration)\lib</LLVM_LIB_PATH>
+    <LLVM_INCLUDE_PATH>..\..\..\llvm\llvm-5.0.0.src\install\include</LLVM_INCLUDE_PATH>
+    <BOOST_LIB_PATH>..\..\..\boost\boost_1_65_1\stage\lib</BOOST_LIB_PATH>
+    <BOOST_INCLUDE_PATH>..\..\..\boost\boost_1_65_1</BOOST_INCLUDE_PATH>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />
