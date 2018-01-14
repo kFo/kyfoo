@@ -82,7 +82,7 @@ protected:
     virtual SymRes resolveSymbols(Context& ctx) = 0;
 
 public:
-    void resolveAttributes(Module& endModule, Diagnostics& dgn);
+    void resolveAttributes(Context& ctx);
 
 public:
     DeclKind kind() const;

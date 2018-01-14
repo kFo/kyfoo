@@ -138,8 +138,13 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 
 void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
 {
+    ScopeResolver resolver(*this);
+    Context ctx(endModule, dgn, resolver);
     for ( auto& d : myDeclarations )
-        d->resolveAttributes(endModule, dgn);
+        d->resolveAttributes(ctx);
+
+    for ( auto& s : myDefinitions )
+        s->resolveAttributes(endModule, dgn);
 }
 
 /**

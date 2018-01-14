@@ -1,6 +1,11 @@
 auto source = R"axioms(
+@"intrininst" "UnsignedTemplate"
 :| unsigned<\n : integer>
+
+@"intrininst" "SignedTemplate"
 :| signed<unsigned<\n : integer>>
+
+@"intrininst" "PointerTemplate"
 :| pointer<\T>
 
 u1   = unsigned<1  >
@@ -18,21 +23,28 @@ i128 = signed<u128>
 
 ascii = slice<u8>
 
+@"intrininst" "ArrayStaticTemplate"
 :& array<\T, \card : integer>
 
+@"intrininst" "ArrayDynamicTemplate"
 :& array<\T>
     base : pointer T
     card : size_t
 
+@"intrininst" "SliceTemplate"
 :& slice<\T>
     base : pointer T
     card : size_t
 
+@"intrininst" "Sliceu8"
 :& slice<u8>
     base : pointer u8
     card : size_t
 
+    @"intrininst" "Sliceu8_ctor"
     ctor(s : string)
+
+    @"intrininst" "Sliceu8_dtor"
     dtor()
 
 wordSize = 64
@@ -40,7 +52,10 @@ size_t = unsigned<wordSize>
 
 staticSize(p : pointer \T) -> size_t => wordSize
 
+@"intrininst" "Addu"
 add(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
+
+@"intrininst" "Adds"
 add(x : signed<\n>, y : signed<n>) -> signed<n>
 
 trunc<unsigned<1 >>(x : unsigned<8  >) -> unsigned<1 >
@@ -69,11 +84,14 @@ trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) -> signed<unsigned<32>>
 trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) -> signed<unsigned<32>>
 trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) -> signed<unsigned<64>>
 
+@"intrininst" "Addr"
 addr(=p : \T) -> pointer T
 
 )axioms";
 
 #include <kyfoo/ast/Axioms.hpp>
+
+#include <algorithm>
 
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Declarations.hpp>
@@ -125,7 +143,7 @@ ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) con
 
 bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < DataSumInstrinsicsCount; ++i )
+    for ( std::size_t i = 0; i < DataSumIntrinsicsCount; ++i )
         if ( myDataSumDecls[i] == &decl )
             return true;
 
@@ -163,7 +181,7 @@ bool AxiomsModule::isIntrinsic(Declaration const& decl) const
 
 bool AxiomsModule::isLiteral(DataSumDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < DataSumInstrinsicsCount; ++i )
+    for ( std::size_t i = 0; i < DataSumIntrinsicsCount; ++i )
         if ( myDataSumDecls[i] == &decl )
             return true;
 
@@ -198,6 +216,61 @@ AxiomsModule::IntegerMetaData const* AxiomsModule::integerMetaData(Declaration c
     return nullptr;
 }
 
+void AxiomsModule::setIntrinsic(std::string const& nameLiteral, Declaration const* decl)
+{
+    static const char* sums[] = {
+#define X(a) #a,
+        INTRINSIC_DATASUMS(X)
+#undef X
+    };
+    static const char* prods[] = {
+#define X(a) #a,
+        INTRINSIC_DATAPRODUCTS(X)
+#undef X
+    };
+    static const char* instrs[] = {
+#define X(a) #a,
+        INTRINSIC_INSTRUCTIONS(X)
+#undef X
+    };
+
+    auto name = nameLiteral.substr(1, nameLiteral.length() - 2);
+    if ( auto ds = decl->as<DataSumDeclaration>() ) {
+        myDataSumDecls[std::find(sums, sums + DataSumIntrinsicsCount, name) - sums] = ds;
+        return;
+    }
+
+    if ( auto dp = decl->as<DataProductDeclaration>() ) {
+        myDataProductDecls[std::find(prods, prods + DataProductIntrinsicsCount, name) - prods] = dp;
+        return;
+    }
+
+    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+        myInstructionDecls[std::find(instrs, instrs + InstructionIntrinsicsCount, name) - instrs] = proc;
+        return;
+    }
+}
+
+void AxiomsModule::findIntrinsics(DeclarationScope* s)
+{
+    for ( auto d : s->childDeclarations() ) {
+        for ( auto const& attr : d->attributes() ) {
+            if ( auto t = attr.expression().as<TupleExpression>() ) {
+                auto subject = t->expressions()[0];
+                if ( auto p = subject->as<PrimaryExpression>() ) {
+                    if ( p->token().lexeme() == "\"intrininst\"" ) {
+                        auto object = t->expressions()[1]->as<PrimaryExpression>();
+                        setIntrinsic(object->token().lexeme(), d);
+                    }
+                }
+            }
+        }
+    }
+
+    for ( auto ss : s->childDefinitions() )
+        findIntrinsics(ss);
+}
+
 bool AxiomsModule::init(Diagnostics& dgn)
 {
     std::stringstream s(source);
@@ -213,6 +286,8 @@ bool AxiomsModule::init(Diagnostics& dgn)
         semantics(dgn);
         if ( dgn.errorCount() )
             return false;
+
+        findIntrinsics(scope());
 
         myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).decl())->as<DataSumDeclaration>();
         myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).decl())->as<DataSumDeclaration>();
@@ -230,30 +305,12 @@ bool AxiomsModule::init(Diagnostics& dgn)
         myDataProductDecls[Sliceu8] = resolveIndirections(scope()->findEquivalent("ascii").decl())->as<DataProductDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
-        auto decl = begin(childDecls) + (UnsignedTemplate - EmptyLiteralType);
-        for ( int i = UnsignedTemplate; i <= PointerTemplate; ++i )
-            myDataSumDecls[i] = (*decl++)->as<DataSumDeclaration>();
+        auto decl = begin(childDecls);
 
-        while ( (*decl)->symbol().identifier().lexeme() != "array" )
+        while ( (*decl)->symbol().identifier().lexeme() != "trunc" )
             ++decl;
 
-        for ( int i = ArrayStaticTemplate; i < DataProductIntrinsicsCount; ++i )
-            myDataProductDecls[i] = (*decl++)->as<DataProductDeclaration>();
-
-        while ( (*decl)->symbol().identifier().lexeme() != "add" )
-            ++decl;
-
-        int i = Addu;
-        while ( (*decl)->symbol().identifier().lexeme() == "add" ) {
-            auto defn = (*decl)->as<TemplateDeclaration>()->definition();
-            for ( auto& d : defn->childDeclarations() ) {
-                myInstructionDecls[i] = d->as<ProcedureDeclaration>();
-                ++i;
-                ++decl;
-            }
-        }
-
-        i = Truncu1u8;
+        int i = Truncu1u8;
         while ( (*decl)->symbol().identifier().lexeme() == "trunc" ) {
             auto defn = (*decl)->as<TemplateDeclaration>()->definition();
             for ( auto& d : defn->childDeclarations() ) {
@@ -262,26 +319,6 @@ bool AxiomsModule::init(Diagnostics& dgn)
                 ++decl;
             }
         }
-
-        if ( (*decl)->symbol().identifier().lexeme() == "addr" ) {
-            auto defn = (*decl)->as<TemplateDeclaration>()->definition();
-            myInstructionDecls[Addr] = defn->childDeclarations()[0]->as<ProcedureDeclaration>();
-        }
-
-        myInstructionDecls[Sliceu8_ctor] = myDataProductDecls[Sliceu8]
-            ->definition()
-            ->childDeclarations()[2]
-            ->as<TemplateDeclaration>()
-            ->definition()
-            ->childDeclarations()[0]
-            ->as<ProcedureDeclaration>();
-        myInstructionDecls[Sliceu8_dtor] = myDataProductDecls[Sliceu8]
-            ->definition()
-            ->childDeclarations()[3]
-            ->as<TemplateDeclaration>()
-            ->definition()
-            ->childDeclarations()[0]
-            ->as<ProcedureDeclaration>();
 
         buildMetaData();
 

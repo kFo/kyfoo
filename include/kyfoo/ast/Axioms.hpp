@@ -13,80 +13,92 @@ class DataProductDeclaration;
 class ProcedureDeclaration;
 class ModuleSet;
 
+#define INTRINSIC_DATASUMS(X) \
+    X(EmptyLiteralType      ) \
+    X(IntegerLiteralType    ) \
+    X(RationalLiteralType   ) \
+    X(StringLiteralType     ) \
+    X(PointerNullLiteralType) \
+                              \
+    X(UnsignedTemplate      ) \
+    X(SignedTemplate        ) \
+    X(PointerTemplate       ) \
+                              \
+    X(u1                    ) \
+    X(u8                    ) \
+    X(u16                   ) \
+    X(u32                   ) \
+    X(u64                   ) \
+    X(u128                  ) \
+                              \
+    X(i8                    ) \
+    X(i16                   ) \
+    X(i32                   ) \
+    X(i64                   ) \
+    X(i128                  )
+
 enum DataSumIntrinsics
 {
-    EmptyLiteralType,
-    IntegerLiteralType,
-    RationalLiteralType,
-    StringLiteralType,
-    PointerNullLiteralType,
-
-    UnsignedTemplate,
-    SignedTemplate,
-    PointerTemplate,
-
-    u1,
-    u8,
-    u16,
-    u32,
-    u64,
-    u128,
-
-    i8,
-    i16,
-    i32,
-    i64,
-    i128,
-
-    DataSumInstrinsicsCount
+#define X(a) a,
+    INTRINSIC_DATASUMS(X)
+#undef X
+    DataSumIntrinsicsCount
 };
+
+#define INTRINSIC_DATAPRODUCTS(X) \
+    X(ArrayStaticTemplate ) \
+    X(ArrayDynamicTemplate) \
+    X(SliceTemplate       ) \
+    X(Sliceu8             )
 
 enum DataProductIntrinsics
 {
-    ArrayStaticTemplate,
-    ArrayDynamicTemplate,
-    SliceTemplate,
-    Sliceu8,
-
+#define X(a) a,
+    INTRINSIC_DATAPRODUCTS(X)
+#undef X
     DataProductIntrinsicsCount
 };
 
+#define INTRINSIC_INSTRUCTIONS(X) \
+    X(Sliceu8_ctor) \
+    X(Sliceu8_dtor) \
+                    \
+    X(Addu        ) \
+    X(Adds        ) \
+                    \
+    X(Truncu1u8   ) \
+    X(Truncu1u16  ) \
+    X(Truncu1u32  ) \
+    X(Truncu1u64  ) \
+    X(Truncu1u128 ) \
+    X(Truncu8u16  ) \
+    X(Truncu8u32  ) \
+    X(Truncu8u64  ) \
+    X(Truncu8u128 ) \
+    X(Truncu16u32 ) \
+    X(Truncu16u64 ) \
+    X(Truncu16u128) \
+    X(Truncu32u64 ) \
+    X(Truncu32u128) \
+    X(Truncu64u128) \
+    X(Trunci8i16  ) \
+    X(Trunci8i32  ) \
+    X(Trunci8i64  ) \
+    X(Trunci8i128 ) \
+    X(Trunci16i32 ) \
+    X(Trunci16i64 ) \
+    X(Trunci16i128) \
+    X(Trunci32i64 ) \
+    X(Trunci32i128) \
+    X(Trunci64i128) \
+                    \
+    X(Addr        )
+
 enum InstructionIntrinsics
 {
-    Sliceu8_ctor,
-    Sliceu8_dtor,
-
-    Addu,
-    Adds,
-
-    Truncu1u8,
-    Truncu1u16,
-    Truncu1u32,
-    Truncu1u64,
-    Truncu1u128,
-    Truncu8u16,
-    Truncu8u32,
-    Truncu8u64,
-    Truncu8u128,
-    Truncu16u32,
-    Truncu16u64,
-    Truncu16u128,
-    Truncu32u64,
-    Truncu32u128,
-    Truncu64u128,
-    Trunci8i16,
-    Trunci8i32,
-    Trunci8i64,
-    Trunci8i128,
-    Trunci16i32,
-    Trunci16i64,
-    Trunci16i128,
-    Trunci32i64,
-    Trunci32i128,
-    Trunci64i128,
-
-    Addr,
-
+#define X(a) a,
+    INTRINSIC_INSTRUCTIONS(X)
+#undef X
     InstructionIntrinsicsCount
 };
 
@@ -140,7 +152,10 @@ public:
     IntegerMetaData const* integerMetaData(Declaration const& decl) const;
 
 private:
-    DataSumDeclaration const* myDataSumDecls[DataSumInstrinsicsCount];
+    void setIntrinsic(std::string const& name, Declaration const* decl);
+    void findIntrinsics(DeclarationScope* s);
+
+    DataSumDeclaration const* myDataSumDecls[DataSumIntrinsicsCount];
     DataProductDeclaration const* myDataProductDecls[DataProductIntrinsicsCount];
     ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
 

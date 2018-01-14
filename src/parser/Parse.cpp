@@ -140,6 +140,7 @@ DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanne
 
     auto templProcDecl = parseImplicitTemplateProcedureDeclaration(scanner);
     if ( std::get<1>(templProcDecl) ) {
+        std::get<1>(templProcDecl)->setAttributes(std::move(myAttributes));
         auto templDecl = std::make_unique<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
         auto templDefn = std::make_unique<ast::TemplateScope>(*myScope, *templDecl);
         templDecl->define(templDefn.get());

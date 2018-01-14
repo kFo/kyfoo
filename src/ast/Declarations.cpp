@@ -75,10 +75,8 @@ SymRes Declaration::resolveSymbols(Context& ctx)
     return symbol().resolveSymbols(ctx);
 }
 
-void Declaration::resolveAttributes(Module& endModule, Diagnostics& dgn)
+void Declaration::resolveAttributes(Context& ctx)
 {
-    ScopeResolver resolver(*myScope);
-    Context ctx(endModule, dgn, resolver);
     ctx.resolveStatements(myAttributes);
 }
 
