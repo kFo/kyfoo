@@ -12,10 +12,11 @@
 #include <kyfoo/lexer/TokenKind.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
+#include <kyfoo/ast/Context.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Symbol.hpp>
-#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace lexer {
@@ -49,20 +50,6 @@ namespace {
                 return false;
 
         return true;
-    }
-
-    bool bindSymbol(binding_set_t& bindings, SymbolVariable const& symVar, Expression const& expr)
-    {
-        auto i = bindings.findKeyIndex(&symVar);
-        if ( i == bindings.size() ) {
-            // new binding
-            bindings.push_back(&symVar, &expr);
-            return true;
-        }
-
-        // existing binding must be consistent
-        // todo: print diagnostics on mismatch
-        return matchEquivalent(*bindings.values()[i], expr);
     }
 
     bounds_t bitsToBounds(int bits)
@@ -335,70 +322,19 @@ void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
 }
 
 template <typename O>
-auto commute(O& o, Expression const& lhs, Expression const& rhs)
-{
-    if ( auto l = lhs.as<PrimaryExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>() )    return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-
-        goto L_error;
-    }
-    
-    if ( auto l = lhs.as<TupleExpression>() ) {
-        if ( auto r = rhs.as<TupleExpression>() )      return o(*l, *r);
-
-        goto L_error;
-    }
-    
-L_error:
-    throw std::runtime_error("invalid dispatch");
-}
-
-template <typename O>
 auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
 {
-    if ( auto l = lhs.as<PrimaryExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
-        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
-        goto L_error;
-    }
-    if ( auto l = lhs.as<ReferenceExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
-        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
-        goto L_error;
-    }
-    if ( auto l = lhs.as<TupleExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
-        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
-        goto L_error;
-    }
-    if ( auto l = lhs.as<ApplyExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
-        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
-        goto L_error;
-    }
-    if ( auto l = lhs.as<SymbolExpression>() ) {
-        if ( auto r = rhs.as<PrimaryExpression>()   ) return o(*l, *r);
-        if ( auto r = rhs.as<ReferenceExpression>() ) return o(*l, *r);
-        if ( auto r = rhs.as<TupleExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<ApplyExpression>()     ) return o(*l, *r);
-        if ( auto r = rhs.as<SymbolExpression>()    ) return o(*l, *r);
-        goto L_error;
-    }
+    auto other = [&o, &rhs](auto l) {
+#define RHS(a,b) if ( auto r = rhs.as<b>() ) return o(*l, *r);
+        EXPRESSION_KINDS(RHS)
+#undef RHS
+        throw std::runtime_error("invalid dispatch");
+    };
 
-L_error:
+#define LHS(a,b) if ( auto l = lhs.as<b>() ) return other(l);
+    EXPRESSION_KINDS(LHS)
+#undef LHS
+
     throw std::runtime_error("invalid dispatch");
 }
 
@@ -503,88 +439,6 @@ bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
     return compare(lhs, rhs, [](auto& l, auto& r) { return matchEquivalent(l, r); });
 }
 
-bool matchStructural(binding_set_t& bindings, Expression const& lhs, Expression const& rhs)
-{
-    auto l = lookThrough(lhs.declaration());
-    if ( !l )
-        l = &lhs;
-
-    auto r = lookThrough(rhs.declaration());
-    if ( !r )
-        r = &rhs;
-
-    // todo: generalized constraint substitution
-
-    if ( l->declaration() ) {
-        if ( auto param = l->declaration()->as<ProcedureParameter>() ) {
-            if ( param->dataType() )
-                return true;
-
-            // todo: first constraint treated specially
-            auto const c = unifiedConstraint(rhs);
-            if ( !c )
-                return false;
-
-            return matchStructural(bindings, *l->constraints()[0], *c);
-        }
-    }
-
-    if ( auto p = l->as<PrimaryExpression>() ) {
-        if ( !p->declaration() )
-            return false;
-
-        if ( auto symVar = p->declaration()->as<SymbolVariable>() )
-            return bindSymbol(bindings, *symVar, *r);
-
-        return l->kind() == r->kind();
-    }
-
-    if ( auto ll = l->as<SymbolExpression>() ) {
-        auto rr = r->as<SymbolExpression>();
-        if ( !rr )
-            return false;
-
-        if ( ll->identifier().lexeme() != rr->identifier().lexeme() )
-            return false;
-
-        return matchStructural(bindings, ll->expressions(), rr->expressions());
-    }
-
-    if ( auto a = l->as<ApplyExpression>() ) {
-        if ( auto s = r->as<SymbolExpression>() ) {
-            auto subject = a->expressions().front()->as<PrimaryExpression>();
-            if ( !subject )
-                return false;
-
-            if ( subject->token().lexeme() != s->identifier().lexeme() )
-                return false;
-
-            return matchStructural(bindings, a->expressions()(1, a->expressions().size()), s->expressions());
-        }
-
-        auto aa = r->as<ApplyExpression>();
-        if ( !aa )
-            return false;
-
-        return matchStructural(bindings, a->expressions(), aa->expressions());
-    }
-
-    return l->kind() == r->kind();
-}
-
-bool matchStructural(binding_set_t& bindings, Slice<Expression*> lhs, Slice<Expression*> rhs)
-{
-    auto const n = lhs.size();
-    if ( n != rhs.size() )
-        return false;
-
-    for ( std::size_t i = 0; i < n; ++i )
-        if ( !matchStructural(bindings, *lhs[i], *rhs[i]) )
-            return false;
-
-    return true;
-}
-
 VarianceResult variance(lexer::Token const& target, lexer::Token const& query)
 {
     return target.lexeme() == query.lexeme() ? Exact : Invariant;
@@ -620,8 +474,8 @@ VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReferenc
     if ( lhs.name() != rhs.name() )
         return Invariant;
 
-    binding_set_t bindings;
-    return variance(ctx, bindings, lhs.pattern(), rhs.pattern());
+    Substitutions substs;
+    return variance(ctx, substs, lhs.pattern(), rhs.pattern());
 }
 
 VarianceResult variance(Context& ctx, DataSumDeclaration const& ds, Declaration const& query)
@@ -669,7 +523,7 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
  * Answers whether \p rhs 's value is covariant with type \p lhs
  */
 VarianceResult variance(Context& ctx,
-                        binding_set_t& leftBindings,
+                        Substitutions& substs,
                         Expression const& lhs,
                         Expression const& rhs)
 {
@@ -691,7 +545,7 @@ VarianceResult variance(Context& ctx,
         auto r = lookThrough(queryDecl);
 
         if ( l || r )
-            return variance(ctx, leftBindings, l ? *l : lhs, r ? *r : rhs);
+            return variance(ctx, substs, l ? *l : lhs, r ? *r : rhs);
     }
 
     // assumes lhs is:
@@ -714,7 +568,7 @@ VarianceResult variance(Context& ctx,
     else {
         // lhs is an identifier
         if ( auto symVar = targetDecl->as<SymbolVariable>() )
-            return bindSymbol(leftBindings, *symVar, rhs) ? Exact : Invariant;
+            return substs.bind(*symVar, rhs) ? Exact : Invariant;
 
         if ( rhsPrimary ) {
             if ( isLiteral(rhsPrimary->token().kind()) ) {
@@ -728,14 +582,14 @@ VarianceResult variance(Context& ctx,
 
         // todo: this is a hack for covariance
         if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
-            return variance(ctx, leftBindings, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
+            return variance(ctx, substs, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
 
         return variance(ctx, *targetDecl, *queryDecl);
     }
 }
 
 VarianceResult variance(Context& ctx,
-                        binding_set_t& leftBindings,
+                        Substitutions& substs,
                         Slice<Expression*> lhs,
                         Slice<Expression*> rhs)
 {
@@ -745,7 +599,7 @@ VarianceResult variance(Context& ctx,
 
     auto ret = Exact;
     for ( std::size_t i = 0; i < size; ++i ) {
-        auto v = variance(ctx, leftBindings, *lhs[i], *rhs[i]);
+        auto v = variance(ctx, substs, *lhs[i], *rhs[i]);
         if ( !v )
             return v;
 
@@ -758,8 +612,8 @@ VarianceResult variance(Context& ctx,
 
 VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs)
 {
-    binding_set_t bindings;
-    return variance(ctx, bindings, lhs, rhs);
+    Substitutions substs;
+    return variance(ctx, substs, lhs, rhs);
 }
 
 Expression const* lookThrough(Declaration const* decl)
@@ -935,34 +789,6 @@ Declaration const* dataType(Context& ctx, Slice<Expression*> constraints)
     }
 
     return ret;
-}
-
-Expression const* unifiedConstraint(Expression const& expr)
-{
-    // todo: constraints unifier
-    // todo: consider expr.constraints()
-
-    auto decl = expr.declaration();
-    if ( !decl )
-        return nullptr;
-
-    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-        if ( isCtor(*proc) )
-            return nullptr;
-
-        return proc->returnType();
-    }
-
-    if ( auto param = decl->as<ProcedureParameter>() )
-        return param->constraints()[0];
-
-    if ( auto v = decl->as<VariableDeclaration>() )
-        return v->constraints()[0];
-
-    if ( auto f = decl->as<DataProductDeclaration::Field>() )
-        return &f->constraint();
-
-    return nullptr;
 }
 
 template <typename Dispatcher>

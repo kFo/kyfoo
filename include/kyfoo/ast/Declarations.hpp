@@ -79,7 +79,7 @@ public:
     virtual void remapReferences(clone_map_t const& map);
 
 protected:
-    virtual SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) = 0;
+    virtual SymRes resolveSymbols(Context& ctx) = 0;
 
 public:
     void resolveAttributes(Module& endModule, Diagnostics& dgn);
@@ -146,7 +146,7 @@ public:
         DECL_CLONE_ALL(Declaration)
 
     protected:
-        SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+        SymRes resolveSymbols(Context& ctx) override;
 
     public:
         void setParent(DataSumDeclaration* parent);
@@ -181,7 +181,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     void define(DataSumScope* scope);
@@ -222,7 +222,7 @@ public:
         DECL_CLONE_ALL(Declaration)
 
     protected:
-        SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+        SymRes resolveSymbols(Context& ctx) override;
 
     public:
         void setParent(DataProductDeclaration* dpDecl);
@@ -261,7 +261,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     void define(DataProductScope* scope);
@@ -298,7 +298,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     Expression* expression();
@@ -337,7 +337,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     void addConstraint(Expression const& expr);
@@ -386,7 +386,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     Declaration const* dataType() const;
@@ -428,7 +428,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     void unresolvePrototypeSymbols();
@@ -488,7 +488,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 private:
     std::vector<lexer::Token> myModulePath;
@@ -523,7 +523,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn);
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     PatternsPrototype const& prototype() const;
@@ -563,7 +563,7 @@ public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+    SymRes resolveSymbols(Context& ctx) override;
 
 public:
     TemplateScope* definition();

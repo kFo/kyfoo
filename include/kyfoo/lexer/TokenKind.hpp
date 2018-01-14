@@ -117,7 +117,14 @@ inline bool isIdentifier(TokenKind kind)
 
 inline bool isLiteral(TokenKind kind)
 {
-    return !isIdentifier(kind);
+    switch ( kind ) {
+    case TokenKind::Integer:
+    case TokenKind::Rational:
+    case TokenKind::String:
+        return true;
+    }
+
+    return false;
 }
 
     } // namespace lexer

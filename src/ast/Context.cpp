@@ -206,7 +206,7 @@ std::size_t Context::errorCount() const
 LookupHit Context::matchOverload(SymbolReference const& sym) const
 {
     auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, sym);
-    if ( myOptions & DisableCacheTemplateInstantiations )
+    if ( !(myOptions & DisableCacheTemplateInstantiations) )
         if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
             myModule->appendTemplateInstance(hit.decl());
 
@@ -241,7 +241,12 @@ SymRes Context::rewrite(std::function<std::unique_ptr<Expression>(std::unique_pt
 
 SymRes Context::resolveDeclaration(Declaration& declaration)
 {
-    return declaration.resolveSymbols(*myModule, *myDiagnostics);
+    ScopeResolver resolver(declaration.scope());
+    auto oldResolver = changeResolver(resolver);
+    auto ret = declaration.resolveSymbols(*this);
+    if ( oldResolver )
+        changeResolver(*oldResolver);
+    return ret;
 }
 
 SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)

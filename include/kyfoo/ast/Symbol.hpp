@@ -6,11 +6,11 @@
 #include <string>
 #include <vector>
 
-#include <kyfoo/FlatMap.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/IO.hpp>
 #include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Substitutions.hpp>
 
 namespace kyfoo {
 
@@ -31,7 +31,6 @@ class SymbolVariable;
 class SymRes;
 class VarianceResult;
 
-using binding_set_t = FlatMap<SymbolVariable const*, Expression const*>;
 using Pattern = std::vector<std::unique_ptr<Expression>>;
 using pattern_t = Slice<Expression*>;
 
@@ -70,12 +69,12 @@ public:
     Slice<SymbolVariable*> symbolVariables() const;
 
 public:
-    void bindVariables(binding_set_t const& bindings);
+    void bindVariables(Substitutions const& substs);
     SymbolVariable* findVariable(std::string const& identifier);
     SymbolVariable const* findVariable(std::string const& identifier) const;
     SymbolVariable* createVariable(PrimaryExpression const& primary);
     bool isConcrete() const;
-    bool hasMetaVariables() const;
+    std::size_t metaVariableCount() const;
 
 private:
     Pattern myPattern;
@@ -166,7 +165,7 @@ struct Candidate
         Covariant,
     } rank;
     Prototype* proto;
-    binding_set_t bindings;
+    Substitutions substs;
 };
 
 class CandidateSet
@@ -180,7 +179,7 @@ public:
 
     void append(VarianceResult const& v,
                 Prototype& proto,
-                binding_set_t&& bindings);
+                Substitutions&& substs);
 
 private:
     std::vector<Candidate> myCandidates;
@@ -223,12 +222,14 @@ public:
 private:
     DeclInstance instantiate(Context& ctx,
                              Prototype& proto,
-                             binding_set_t&& bindingSet);
+                             Substitutions&& bindingSet);
 
 private:
     DeclarationScope* myScope = nullptr;
     std::string myName;
     std::vector<Prototype> myPrototypes;
+
+    std::vector<Substitutions> myBunkSubsts;
 };
 
 std::ostream& print(std::ostream& stream, Symbol const& sym);

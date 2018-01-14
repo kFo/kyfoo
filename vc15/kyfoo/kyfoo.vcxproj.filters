@@ -102,13 +102,13 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\FlatMap.hpp">
-      <Filter>include\kyfoo</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\Fabrication.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\ControlFlow.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
   </ItemGroup>
@@ -162,6 +162,9 @@
       <Filter>src\codegen</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ast\ControlFlow.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Substitutions.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>

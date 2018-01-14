@@ -309,8 +309,8 @@ public:
 VarianceResult variance(lexer::Token const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
-VarianceResult variance(Context& ctx, binding_set_t& leftBindings, Expression const& lhs, Expression const& rhs);
-VarianceResult variance(Context& ctx, binding_set_t& leftBindings, Slice<Expression*> lhs, Slice<Expression*> rhs);
+VarianceResult variance(Context& ctx, Substitutions& leftBindings, Expression const& lhs, Expression const& rhs);
+VarianceResult variance(Context& ctx, Substitutions& leftBindings, Slice<Expression*> lhs, Slice<Expression*> rhs);
 VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
 VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
 
@@ -326,13 +326,9 @@ Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
 Declaration const* dataType(Declaration const* decl);
 Declaration const* dataType(Context& ctx, Slice<Expression*> constraints);
-Expression const* unifiedConstraint(Expression const& expr);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
-
-bool matchStructural(binding_set_t& bindings, Expression const& lhs, Expression const& rhs);
-bool matchStructural(binding_set_t& bindings, Slice<Expression*> lhs, Slice<Expression*> rhs);
 
 std::vector<PrimaryExpression*> gatherMetaVariables(Expression& expr);
 bool hasMetaVariable(Expression const& expr);

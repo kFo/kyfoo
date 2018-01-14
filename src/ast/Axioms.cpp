@@ -40,20 +40,8 @@ size_t = unsigned<wordSize>
 
 staticSize(p : pointer \T) -> size_t => wordSize
 
-//add(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
-
-add(x : unsigned<1  >, y : unsigned<1  >) -> unsigned<1  >
-add(x : unsigned<8  >, y : unsigned<8  >) -> unsigned<8  >
-add(x : unsigned<16 >, y : unsigned<16 >) -> unsigned<16 >
-add(x : unsigned<32 >, y : unsigned<32 >) -> unsigned<32 >
-add(x : unsigned<64 >, y : unsigned<64 >) -> unsigned<64 >
-add(x : unsigned<128>, y : unsigned<128>) -> unsigned<128>
-
-add(x : signed<unsigned<8  >>, y : signed<unsigned<8  >>) -> signed<unsigned<8  >>
-add(x : signed<unsigned<16 >>, y : signed<unsigned<16 >>) -> signed<unsigned<16 >>
-add(x : signed<unsigned<32 >>, y : signed<unsigned<32 >>) -> signed<unsigned<32 >>
-add(x : signed<unsigned<64 >>, y : signed<unsigned<64 >>) -> signed<unsigned<64 >>
-add(x : signed<unsigned<128>>, y : signed<unsigned<128>>) -> signed<unsigned<128>>
+add(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
+add(x : signed<\n>, y : signed<n>) -> signed<n>
 
 trunc<unsigned<1 >>(x : unsigned<8  >) -> unsigned<1 >
 trunc<unsigned<1 >>(x : unsigned<16 >) -> unsigned<1 >
@@ -255,7 +243,7 @@ bool AxiomsModule::init(Diagnostics& dgn)
         while ( (*decl)->symbol().identifier().lexeme() != "add" )
             ++decl;
 
-        int i = Addu1;
+        int i = Addu;
         while ( (*decl)->symbol().identifier().lexeme() == "add" ) {
             auto defn = (*decl)->as<TemplateDeclaration>()->definition();
             for ( auto& d : defn->childDeclarations() ) {

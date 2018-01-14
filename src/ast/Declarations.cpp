@@ -70,10 +70,8 @@ IMPL_CLONE_REMAP(myScope)
 IMPL_CLONE_REMAP(mySymbol)
 IMPL_CLONE_REMAP_END
 
-SymRes Declaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes Declaration::resolveSymbols(Context& ctx)
 {
-    ScopeResolver resolver(scope());
-    Context ctx(endModule, dgn, resolver);
     return symbol().resolveSymbols(ctx);
 }
 
@@ -198,9 +196,9 @@ IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, Declaration)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-SymRes DataSumDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
 {
-    return Declaration::resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(ctx);
 }
 
 void DataSumDeclaration::define(DataSumScope* scope)
@@ -269,15 +267,13 @@ IMPL_CLONE_REMAP(myParent)
 IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP_END
 
-SymRes DataSumDeclaration::Constructor::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataSumDeclaration::Constructor::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(endModule, dgn);
+    auto ret = Declaration::resolveSymbols(ctx);
 
     for ( auto& e : myPattern )
         e->setScope(scope());
 
-    ScopeResolver resolver(scope());
-    Context ctx(endModule, dgn, resolver);
     for ( auto& e : myPattern )
         ret |= ctx.resolveDeclaration(*e);
 
@@ -337,9 +333,9 @@ IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, Declaration)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-SymRes DataProductDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataProductDeclaration::resolveSymbols(Context& ctx)
 {
-    return Declaration::resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(ctx);
 }
 
 void DataProductDeclaration::define(DataProductScope* scope)
@@ -410,12 +406,12 @@ IMPL_CLONE_REMAP(myParent)
 IMPL_CLONE_REMAP(myConstraint)
 IMPL_CLONE_REMAP_END
 
-SymRes DataProductDeclaration::Field::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataProductDeclaration::Field::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(endModule, dgn);
+    auto ret = Declaration::resolveSymbols(ctx);
 
     ScopeResolver resolver(*myParent->definition());
-    Context ctx(endModule, dgn, resolver);
+    ctx.changeResolver(resolver);
     ret |= ctx.resolveExpression(myConstraint);
     return ret;
 }
@@ -491,14 +487,14 @@ IMPL_CLONE_REMAP_BEGIN(SymbolDeclaration, Declaration)
 IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP_END
 
-SymRes SymbolDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes SymbolDeclaration::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(endModule, dgn);
+    auto ret = Declaration::resolveSymbols(ctx);
 
     ScopeResolver resolver(scope());
     resolver.addSupplementaryPrototype(symbol().prototype());
 
-    Context ctx(endModule, dgn, resolver);
+    ctx.changeResolver(resolver);
     ret |= ctx.resolveExpression(myExpression);
     return ret;
 }
@@ -571,12 +567,9 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myDataType)
 IMPL_CLONE_REMAP_END
 
-SymRes VariableDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(endModule, dgn);
-
-    ScopeResolver resolver(scope());
-    Context ctx(endModule, dgn, resolver);
+    auto ret = Declaration::resolveSymbols(ctx);
 
     if ( !myConstraint ) {
         ctx.error(*this) << "type inferencing not implemented";
@@ -661,16 +654,14 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myDataType)
 IMPL_CLONE_REMAP_END
 
-SymRes ProcedureParameter::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(endModule, dgn);
+    auto ret = Declaration::resolveSymbols(ctx);
 
-    ScopeResolver resolver(scope());
-    Context ctx(endModule, dgn, resolver);
     myDataType = ast::dataType(ctx, myConstraints);
 
     if ( !myDataType )
-        dgn.error(scope().module(), symbol().identifier()) << "parameter is missing data type";
+        ctx.error(symbol().identifier()) << "parameter is missing data type";
 
     return ret;
 }
@@ -755,11 +746,8 @@ IMPL_CLONE_REMAP(myResult)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-SymRes ProcedureDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 {
-    ScopeResolver resolver(scope());
-    Context ctx(endModule, dgn, resolver);
-
     // Parameter deduction (step #1/2)
     auto const& id = symbol().identifier();
     auto const deduceParameters = myParameters.empty();
@@ -823,7 +811,9 @@ SymRes ProcedureDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
     if ( !ret )
         return ret;
 
+    ScopeResolver resolver(scope());
     resolver.addSupplementaryPrototype(mySymbol->prototype());
+    ctx.changeResolver(resolver);
 
     // Parameter deduction (step #2/2)
     // constraints must be added after the symbol is resolved due to rewrites
@@ -1002,9 +992,9 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ImportDeclaration, Declaration)
 IMPL_CLONE_REMAP_END
 
-SymRes ImportDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ImportDeclaration::resolveSymbols(Context& ctx)
 {
-    return Declaration::resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(ctx);
 }
 
 //
@@ -1065,7 +1055,7 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myBoundExpression)
 IMPL_CLONE_REMAP_END
 
-SymRes SymbolVariable::resolveSymbols(Module&, Diagnostics&)
+SymRes SymbolVariable::resolveSymbols(Context&)
 {
     throw std::runtime_error("symbol variables should not be resolved");
 }
@@ -1134,9 +1124,9 @@ IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, Declaration)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-SymRes TemplateDeclaration::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes TemplateDeclaration::resolveSymbols(Context& ctx)
 {
-    return Declaration::resolveSymbols(endModule, dgn);
+    return Declaration::resolveSymbols(ctx);
 }
 
 TemplateScope* TemplateDeclaration::definition()

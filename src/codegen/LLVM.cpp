@@ -806,15 +806,8 @@ private:
                 auto v = getThis(builder, *proc, *a);
                 return v;
             }
-            else if ( decl == axioms.intrinsic(ast::Addu1)
-                   || decl == axioms.intrinsic(ast::Addu8)
-                   || decl == axioms.intrinsic(ast::Addu16)
-                   || decl == axioms.intrinsic(ast::Addu32)
-                   || decl == axioms.intrinsic(ast::Addu64)
-                   || decl == axioms.intrinsic(ast::Addi8)
-                   || decl == axioms.intrinsic(ast::Addi16)
-                   || decl == axioms.intrinsic(ast::Addi32)
-                   || decl == axioms.intrinsic(ast::Addi64) )
+            else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Addu)->symbol(), decl->symbol())
+                   || ast::descendsFromTemplate(axioms.intrinsic(ast::Adds)->symbol(), decl->symbol()) )
             {
                 auto p1 = toValue(builder, *exprs[1]);
                 auto p2 = toValue(builder, *exprs[2]);

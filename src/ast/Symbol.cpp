@@ -10,59 +10,10 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Substitutions.hpp>
 
 namespace kyfoo {
     namespace ast {
-
-    namespace {
-        /**
-         * Determines suitable bindings for any meta-variables in \a target
-         * 
-         * \param bindings Substitution table
-         * \param target   Expression pattern with unbound meta-variables
-         * \param query    Query expressions used as arguments
-         * 
-         * \precondition All expressions in \a query are resolved
-         * 
-         * \note No substitution is determined for any expression in \a target that is already resolved
-         */
-        bool findBindings(binding_set_t& bindings, PatternsDecl const& target, pattern_t const& query)
-        {
-            auto const& targetPattern = target.params->pattern();
-
-            if ( auto proc = target.decl->as<ProcedureDeclaration>() ) {
-                auto const paramCount = target.params->pattern().size();
-                if ( paramCount != query.size() )
-                    return false;
-
-                for ( std::size_t i = 0; i < paramCount; ++i ) {
-                    auto const ordinal = proc->ordinal(i);
-                    if ( ordinal == -1 ) {
-                        if ( !targetPattern[i]->declaration() )
-                            if ( !matchStructural(bindings, *targetPattern[i], *query[i]) )
-                                return false;
-                    }
-
-                    if ( proc->parameters()[ordinal]->dataType() )
-                        continue;
-
-                    auto const queryDecl = query[i]->declaration();
-                    if ( !queryDecl )
-                        return false;
-
-                    if ( !matchStructural(bindings, *targetPattern[i], *query[i]) )
-                        return false;
-                }
-
-                return true;
-            }
-
-            if ( !target.params->hasMetaVariables() )
-                return true;
-
-            return matchStructural(bindings, targetPattern, query);
-        }
-    } // namespace
 
 //
 // PatternsPrototype
@@ -172,19 +123,19 @@ Slice<SymbolVariable*> PatternsPrototype::symbolVariables() const
     return myVariables;
 }
 
-void PatternsPrototype::bindVariables(binding_set_t const& bindings)
+void PatternsPrototype::bindVariables(Substitutions const& substs)
 {
-    if ( bindings.size() != myVariables.size() )
+    if ( substs.size() != myVariables.size() )
         throw std::runtime_error("template parameter binding mismatch");
 
-    for ( std::size_t i = 0; i < bindings.size(); ++i ) {
-        auto const& key = bindings.keys()[i];
-        auto const& value = bindings.values()[i];
-        auto var = findVariable(key->identifier().lexeme());
+    for ( std::size_t i = 0; i < substs.size(); ++i ) {
+        auto const& key = substs.var(i);
+        auto const& value = substs.expr(i);
+        auto var = findVariable(key.symbol().identifier().lexeme());
         if ( !var )
             throw std::runtime_error("template parameter binding mismatch");
 
-        var->bindExpression(value);
+        var->bindExpression(&value);
     }
 }
 
@@ -226,9 +177,9 @@ bool PatternsPrototype::isConcrete() const
     return true;
 }
 
-bool PatternsPrototype::hasMetaVariables() const
+std::size_t PatternsPrototype::metaVariableCount() const
 {
-    return !myVariables.empty();
+    return myVariables.size();
 }
 
 //
@@ -404,11 +355,11 @@ Candidate& CandidateSet::operator[](std::size_t index)
     return myCandidates[index];
 }
 
-void CandidateSet::append(VarianceResult const& v, Prototype& proto, binding_set_t&& bindings)
+void CandidateSet::append(VarianceResult const& v, Prototype& proto, Substitutions&& substs)
 {
     decltype(Candidate::rank) r;
     if ( v.exact() )
-        r = bindings.empty() ? Candidate::Exact : Candidate::Parametric;
+        r = substs.empty() ? Candidate::Exact : Candidate::Parametric;
     else if ( v.covariant() )
         r = Candidate::Covariant;
     else
@@ -420,7 +371,7 @@ void CandidateSet::append(VarianceResult const& v, Prototype& proto, binding_set
         return std::make_tuple(lhs.rank, lid.line(), lid.column())
              < std::make_tuple(rhs.rank, rid.line(), rid.column());
     };
-    Candidate c{ r, &proto, std::move(bindings) };
+    Candidate c{ r, &proto, std::move(substs) };
     myCandidates.emplace(upper_bound(begin(), end(), c, lt), std::move(c));
 }
 
@@ -499,23 +450,23 @@ CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, pa
     Context sfinaeCtx(endModule, sfinaeDgn, resolver, Context::DisableCacheTemplateInstantiations);
 
     for ( auto& e : myPrototypes ) {
-        binding_set_t bindings;
-        if ( !findBindings(bindings, e.proto, paramlist) )
+        Substitutions substs(*e.proto.decl, paramlist);
+        if ( !substs )
             continue;
 
-        if ( bindings.empty() ) {
-            if ( auto v = variance(ctx, bindings, e.proto.params->pattern(), paramlist) )
-                ret.append(v, e, std::move(bindings));
+        if ( substs.empty() ) {
+            if ( auto v = variance(ctx, substs, e.proto.params->pattern(), paramlist) )
+                ret.append(v, e, std::move(substs));
         }
         else {
             auto d = ast::clone(e.proto.decl);
-            d->symbol().prototype().bindVariables(bindings);
+            d->symbol().prototype().bindVariables(substs);
             auto result = sfinaeCtx.resolveDeclaration(*d);
             if ( !result )
                 continue;
 
-            if ( auto v = variance(sfinaeCtx, bindings, d->symbol().prototype().pattern(), paramlist) )
-                ret.append(v, e, std::move(bindings));
+            if ( auto v = variance(sfinaeCtx, substs, d->symbol().prototype().pattern(), paramlist) )
+                ret.append(v, e, std::move(substs));
         }
     }
 
@@ -542,16 +493,16 @@ SymbolSpace::findOverload(Module& endModule,
         if ( hasIndirection(resolveIndirections(param)->declaration()->kind()) )
             return { c.proto->proto.decl, nullptr };
 
-    return instantiate(ctx, *c.proto, std::move(c.bindings));
+    return instantiate(ctx, *c.proto, std::move(c.substs));
 }
 
 SymbolSpace::DeclInstance
 SymbolSpace::instantiate(Context& ctx,
                          Prototype& proto,
-                         binding_set_t&& bindingSet)
+                         Substitutions&& substs)
 {
-    for ( auto const& e : bindingSet.values() ) {
-        auto decl = resolveIndirections(e)->declaration();
+    for ( std::size_t i = 0; i < substs.size(); ++i ) {
+        auto decl = resolveIndirections(&substs.decl(i));
         if ( hasIndirection(decl->kind()) )
             throw std::runtime_error("cannot instantiate template with unbound symbol variable");
     }
@@ -560,17 +511,17 @@ SymbolSpace::instantiate(Context& ctx,
     for ( std::size_t i = 0; i < proto.instances.size(); ++i ) {
         auto const& inst = proto.instances[i];
         auto const& instVars = inst.params->symbolVariables();
-        if ( instVars.size() != bindingSet.size() )
+        if ( instVars.size() != substs.size() )
             throw std::runtime_error("invalid template instance");
 
         auto l = begin(instVars);
-        auto r = begin(bindingSet.values());
+        std::size_t r = 0;
         while ( l != end(instVars) ) {
             auto lhs = (*l)->boundExpression();
             if ( !lhs )
                 break;
 
-            if ( !matchEquivalent(*lhs, **r) )
+            if ( !matchEquivalent(*lhs, substs.expr(r)) )
                 break;
 
             ++l;
@@ -585,9 +536,10 @@ SymbolSpace::instantiate(Context& ctx,
     clone_map_t cloneMap;
     auto instance = ast::clone(proto.proto.decl, cloneMap);
     auto instProto = reinterpret_cast<PatternsPrototype*>(cloneMap[proto.proto.params]);
-    instProto->bindVariables(bindingSet);
+    instProto->bindVariables(substs);
 
     // todo: remove notion of "unresolve"
+    myBunkSubsts.emplace_back(std::move(substs));
     if ( auto proc = instance->as<ProcedureDeclaration>() ) {
         proc->unresolvePrototypeSymbols();
         ctx.resolveDeclaration(*proc);
