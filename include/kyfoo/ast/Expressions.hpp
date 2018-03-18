@@ -19,21 +19,27 @@ class Context;
 class IResolver;
 class Expression;
 class Declaration;
+class LookupHit;
 class ProcedureDeclaration;
 class ProcedureScope;
 class SymbolReference;
-class LookupHit;
+class TupleExpression;
+class Type;
+class UniverseExpression;
 class VariableDeclaration;
 
-#define EXPRESSION_KINDS(X)           \
-    X(Primary  , PrimaryExpression  ) \
-    X(Reference, ReferenceExpression) \
-    X(Tuple    , TupleExpression    ) \
-    X(Apply    , ApplyExpression    ) \
-    X(Symbol   , SymbolExpression   ) \
-    X(Dot      , DotExpression      ) \
-    X(Var      , VarExpression      ) \
-    X(Lambda   , LambdaExpression   )
+#define EXPRESSION_KINDS(X)             \
+    X(Literal   , LiteralExpression   ) \
+    X(Identifier, IdentifierExpression) \
+    X(Reference , ReferenceExpression ) \
+    X(Tuple     , TupleExpression     ) \
+    X(Apply     , ApplyExpression     ) \
+    X(Symbol    , SymbolExpression    ) \
+    X(Dot       , DotExpression       ) \
+    X(Var       , VarExpression       ) \
+    X(Lambda    , LambdaExpression    ) \
+    X(Arrow     , ArrowExpression     ) \
+    X(Universe  , UniverseExpression  )
 
 class SymRes
 {
@@ -74,11 +80,31 @@ inline SymRes operator |(SymRes lhs, SymRes const& rhs)
     return lhs |= rhs;
 }
 
+class Strata
+{
+public:
+    Strata();
+    ~Strata();
+
+    Strata(Strata const&) = delete;
+    Strata(Strata&&) = delete;
+
+public:
+    Expression const* getType(Expression const& expr);
+    UniverseExpression const& universe(std::size_t level);
+    TupleExpression const& tuple(Slice<Expression*> exprs);
+
+private:
+    std::vector<std::unique_ptr<UniverseExpression>> myUniverses;
+    std::vector<std::unique_ptr<TupleExpression>> myTuples;
+};
+
 class Expression : public INode
 {
 public:
     friend class Context;
     friend class DotExpression;
+    friend std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr);
 
     enum class Kind
     {
@@ -87,9 +113,12 @@ public:
 #undef X
     };
 
+    static UniverseExpression const& universe(std::size_t level);
+    static TupleExpression const& tuple(Slice<Expression*> exprs);
+
 protected:
     explicit Expression(Kind kind);
-    Expression(Kind kind, Declaration const* decl);
+    Expression(Kind kind, Expression const* type);
     Expression(Expression const& rhs);
     Expression& operator = (Expression const& rhs) = delete;
 
@@ -113,15 +142,19 @@ protected:
 
 public:
     void addConstraint(std::unique_ptr<Expression> expr);
+    void addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs);
 
 public:
     Kind kind() const;
-    Declaration const* declaration() const;
-    void setDeclaration(Declaration const& decl);
-    void clearDeclaration();
+    Expression const* type() const;
+    void setType(std::unique_ptr<Expression> type);
+    void setType(Declaration const& decl);
+    void clearType();
 
     Slice<Expression*> constraints();
     const Slice<Expression*> constraints() const;
+
+    std::vector<std::unique_ptr<Expression>>&& takeConstraints();
 
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
@@ -131,24 +164,26 @@ private:
 
 protected:
     std::vector<std::unique_ptr<Expression>> myConstraints;
-    Declaration const* myDeclaration = nullptr;
+
+    static Strata g_strata;
+    mutable Expression const* myType = nullptr;
 };
 
-class PrimaryExpression : public Expression
+class LiteralExpression : public Expression
 {
 public:
-    explicit PrimaryExpression(lexer::Token const& token);
+    explicit LiteralExpression(lexer::Token const& token);
 
 protected:
-    PrimaryExpression(Kind kind, lexer::Token const& token);
+    LiteralExpression(Kind kind, lexer::Token const& token);
 
-    PrimaryExpression(PrimaryExpression const& rhs);
-    PrimaryExpression& operator = (PrimaryExpression const& rhs);
+    LiteralExpression(LiteralExpression const& rhs);
+    LiteralExpression& operator = (LiteralExpression const& rhs);
 
 public:
-    ~PrimaryExpression();
+    ~LiteralExpression();
 
-    void swap(PrimaryExpression& rhs);
+    void swap(LiteralExpression& rhs);
 
     // IIO
 public:
@@ -162,16 +197,58 @@ protected:
 public:
     lexer::Token const& token() const;
 
-    void setMetaVariable(Declaration const* decl);
+private:
+    lexer::Token myToken;
+};
+
+class IdentifierExpression : public Expression
+{
+public:
+    explicit IdentifierExpression(lexer::Token const& token);
+    IdentifierExpression(lexer::Token const& token, Declaration const& decl);
+
+protected:
+    IdentifierExpression(Kind kind,
+                         lexer::Token const& token,
+                         Declaration const* decl);
+
+    IdentifierExpression(IdentifierExpression const& rhs);
+    IdentifierExpression& operator = (IdentifierExpression const& rhs);
+
+public:
+    ~IdentifierExpression();
+
+    void swap(IdentifierExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx) override;
+
+public:
+    lexer::Token const& token() const;
+    Declaration const* declaration() const;
+
+    void setDeclaration(Declaration const& decl);
+    void clearDeclaration();
+
+protected:
+    // todo: removeme
+    void setToken(lexer::Token const& token);
 
 private:
     lexer::Token myToken;
+    Declaration const* myDeclaration = nullptr;
 };
 
 class ReferenceExpression : public Expression
 {
 public:
-    explicit ReferenceExpression(std::unique_ptr<Expression> expression);
+    explicit ReferenceExpression(std::unique_ptr<IdentifierExpression> expression);
 
 protected:
     ReferenceExpression(ReferenceExpression const& rhs);
@@ -192,11 +269,11 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    Expression const& expression() const;
-    Expression& expression();
+    IdentifierExpression const& expression() const;
+    IdentifierExpression& expression();
 
 private:
-    std::unique_ptr<Expression> myExpression;
+    std::unique_ptr<IdentifierExpression> myId;
 };
 
 class TupleExpression : public Expression
@@ -273,23 +350,26 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
+    SymRes elaborateSubject(Context& ctx);
     void flatten();
     void flatten(std::vector<std::unique_ptr<Expression>>::iterator first);
 
 public:
-    Slice<Expression*> expressions() const;
+    Slice<Expression*> const expressions() const;
 
-    ProcedureDeclaration const* declaration() const;
+    Expression const* subject() const;
+    Slice<Expression*> const arguments() const;
 
 private:
     // AST state
     std::vector<std::unique_ptr<Expression>> myExpressions;
 };
 
-class SymbolExpression : public Expression
+// todo: removeme
+class SymbolExpression : public IdentifierExpression
 {
 public:
-    SymbolExpression(lexer::Token const& identifier,
+    SymbolExpression(lexer::Token const& token,
                      std::vector<std::unique_ptr<Expression>>&& expressions);
     SymbolExpression(std::vector<std::unique_ptr<Expression>>&& expressions);
     SymbolExpression(lexer::Token const& open,
@@ -315,7 +395,6 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    lexer::Token const& identifier() const;
     Slice<Expression*> expressions();
     Slice<Expression*> expressions() const;
 
@@ -326,14 +405,13 @@ public:
 
 private:
     // AST state
-    lexer::Token myIdentifier;
     std::vector<std::unique_ptr<Expression>> myExpressions;
 
     lexer::Token myOpenToken;
     lexer::Token myCloseToken;
 };
 
-class DotExpression : public Expression
+class DotExpression : public IdentifierExpression
 {
 public:
     DotExpression(bool global,
@@ -374,7 +452,7 @@ private:
 class VarExpression : public Expression
 {
 public:
-    VarExpression(std::unique_ptr<PrimaryExpression> id,
+    VarExpression(std::unique_ptr<IdentifierExpression> id,
                   std::unique_ptr<Expression> expression);
     VarExpression(VariableDeclaration const& var,
                   std::unique_ptr<Expression> expression);
@@ -398,13 +476,13 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    PrimaryExpression const& identity() const;
-    PrimaryExpression& identity();
+    IdentifierExpression const& identity() const;
+    IdentifierExpression& identity();
     Expression const& expression() const;
     Expression& expression();
 
 private:
-    std::unique_ptr<PrimaryExpression> myIdentity;
+    std::unique_ptr<IdentifierExpression> myIdentity;
     std::unique_ptr<Expression> myExpression;
 };
 
@@ -443,9 +521,80 @@ public:
     Expression& body();
 
 private:
+    ProcedureDeclaration const* myProc = nullptr;
     std::unique_ptr<Expression> myParams;
     std::unique_ptr<Expression> myReturnType;
     std::unique_ptr<Expression> myBody;
+};
+
+class ArrowExpression : public Expression
+{
+public:
+    ArrowExpression(std::unique_ptr<Expression> from,
+                    std::unique_ptr<Expression> to);
+
+protected:
+    ArrowExpression(ArrowExpression const& rhs);
+    ArrowExpression& operator = (ArrowExpression const& rhs);
+
+public:
+    ~ArrowExpression();
+
+    void swap(ArrowExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx) override;
+
+public:
+    Expression const& from() const;
+    Expression const& to() const;
+
+    Expression& from();
+    Expression& to();
+
+private:
+    std::unique_ptr<Expression> myFrom;
+    std::unique_ptr<Expression> myTo;
+};
+
+class UniverseExpression : public Expression
+{
+public:
+    friend class Strata;
+    using natural_t = std::size_t; // todo
+
+private:
+    UniverseExpression(natural_t level);
+
+protected:
+    UniverseExpression(UniverseExpression const& rhs);
+    UniverseExpression& operator = (UniverseExpression const& rhs);
+
+public:
+    ~UniverseExpression();
+
+    void swap(UniverseExpression& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx) override;
+
+public:
+    natural_t level() const;
+
+private:
+    natural_t myLevel = 0;
 };
 
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }
@@ -456,7 +605,13 @@ EXPRESSION_KINDS(X)
 EXPRESSION_KINDS(X)
 #undef X
 
-bool allResolved(Slice<Expression*> const& exprs);
+Expression const* createInferredType(Expression& expr, Declaration const& decl);
+IdentifierExpression* identify(Expression& expr);
+IdentifierExpression const* identify(Expression const& expr);
+bool hasDeclaration(Expression const& expr);
+Declaration const* getDeclaration(Expression const& expr);
+Declaration const* getDeclaration(Expression const* expr);
+std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr);
 
     } // namespace ast
 } // namespace kyfoo

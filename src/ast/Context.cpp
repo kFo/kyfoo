@@ -195,7 +195,7 @@ Error& Context::error(Expression const& expr)
 
 Error& Context::error(Declaration const& decl)
 {
-    return myDiagnostics->error(resolver().scope().module(), decl.symbol().identifier());
+    return myDiagnostics->error(resolver().scope().module(), decl.symbol().token());
 }
 
 std::size_t Context::errorCount() const
@@ -249,11 +249,31 @@ SymRes Context::resolveDeclaration(Declaration& declaration)
     return ret;
 }
 
+SymRes Context::resolveExpression(Expression& expression)
+{
+    auto originalResolver = myResolver;
+    myRewrite.reset();
+    auto ret = expression.resolveSymbols(*this);
+    if ( ret && !expression.type() )
+        throw std::runtime_error("successful elaboration did not type an expression");
+
+    if ( ret == SymRes::Rewrite || myRewrite || myLazyRewrite )
+        throw std::runtime_error("expression cannot be rewritten in this context");
+
+    myResolver = originalResolver;
+
+    ret |= resolveExpressions(expression.myConstraints);
+    return ret;
+}
+
 SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
 {
     auto originalResolver = myResolver;
     myRewrite.reset();
     auto ret = expression->resolveSymbols(*this);
+    if ( ret && !expression->type() )
+        throw std::runtime_error("successful elaboration did not type an expression");
+
     while ( myRewrite || myLazyRewrite ) {
         if ( ret != SymRes::Rewrite )
             throw std::runtime_error("inconsistent rewrite request");

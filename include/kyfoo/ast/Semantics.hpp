@@ -309,14 +309,17 @@ public:
 VarianceResult variance(lexer::Token const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
-VarianceResult variance(Context& ctx, Substitutions& leftBindings, Expression const& lhs, Expression const& rhs);
-VarianceResult variance(Context& ctx, Substitutions& leftBindings, Slice<Expression*> lhs, Slice<Expression*> rhs);
+VarianceResult variance(Context& ctx, Expression const& lhs, Expression const& rhs);
 VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
 VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
+VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> rhs);
 
+Expression const* lookThrough(Expression const* expr);
 Expression const* lookThrough(Declaration const* decl);
 Declaration const* resolveIndirections(Declaration const* decl);
 Expression const* resolveIndirections(Expression const* expr);
+bool needsSubstitution(Expression const& expr);
+bool needsSubstitution(Declaration const& decl);
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 DeclarationScope const* memberScope(Declaration const& decl);
@@ -324,24 +327,23 @@ Declaration const* outerDataDeclaration(Declaration const& decl);
 Declaration* outerDataDeclaration(Declaration& decl);
 Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
-Declaration const* dataType(Declaration const* decl);
-Declaration const* dataType(Context& ctx, Slice<Expression*> constraints);
+DataProductDeclaration const* methodType(ProcedureDeclaration const& proc);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
 
-std::vector<PrimaryExpression*> gatherMetaVariables(Expression& expr);
+std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr);
 bool hasMetaVariable(Expression const& expr);
 
 lexer::Token const& front(Expression const& expr);
 lexer::Token const& front(Statement  const& stmt);
 lexer::Token const& front(Junction   const& junc);
+
 std::ostream& print(std::ostream& stream, Expression const& expr);
 std::ostream& print(std::ostream& stream, Statement  const& stmt);
 std::ostream& print(std::ostream& stream, Junction   const& junc);
-void clearDeclarations(Expression& expr);
-void clearDeclarations(Statement&  stmt);
-void clearDeclarations(Junction&   junc);
+
+std::size_t level(Expression const& expr);
 
     } // namespace ast
 } // namespace kyfoo

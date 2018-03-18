@@ -103,7 +103,7 @@ public:
 
     bool empty() const { return begin() == end(); }
 
-    pointer data() const { return myData; }
+    const_pointer data() const { return myData; }
     std::size_t length() const { return myLength; }
     std::size_t size() const { return myLength; }
 
@@ -163,6 +163,12 @@ template <typename T>
 inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start, std::size_t end)
 {
     return Slice<T*>(v)(start, end);
+}
+
+template <typename T>
+Slice<T> slice(Slice<T> s, std::size_t start)
+{
+    return s(start, s.size());
 }
 
 } // namespace kyfoo

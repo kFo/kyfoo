@@ -115,7 +115,7 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
 
     for ( auto&& e : err.references() ) {
         startLine();
-        auto const& id = e->identifier();
+        auto const& id = e->token();
         sink << "(" << id.line() << ", " << id.column() << "):     see '";
         print(sink, *e);
         sink << "' declared as " << to_string(e->kind()) << std::endl;
@@ -162,7 +162,7 @@ Error& Diagnostics::error(ast::Module const& module, ast::Junction const& junc)
 
 Error& Diagnostics::error(ast::Module const& module, ast::Declaration const& decl)
 {
-    return error(module, decl.symbol().identifier());
+    return error(module, decl.symbol().token());
 }
 
 Error& Diagnostics::undeclared(ast::Module const& module, lexer::Token const& token)

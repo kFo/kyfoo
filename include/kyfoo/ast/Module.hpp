@@ -18,10 +18,10 @@ namespace kyfoo {
 
     namespace ast {
 
+class AxiomsModule;
 class Declaration;
 class DeclarationScope;
 class Module;
-class AxiomsModule;
 
 class ModuleSet
 {

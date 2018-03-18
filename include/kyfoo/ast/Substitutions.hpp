@@ -11,7 +11,7 @@ namespace kyfoo {
 
 class Declaration;
 class Expression;
-class PrimaryExpression;
+class IdentifierExpression;
 class SymbolVariable;
 
 class Substitutions
@@ -41,17 +41,14 @@ public:
 public:
     bool deduce(Slice<Expression*> const& lhs, Slice<Expression*> const& rhs);
     bool deduce(Expression const& lhs, Expression const& rhs);
-    bool deduce(Expression const& lhs, Declaration const& rhs);
 
     bool empty() const;
     std::size_t size() const;
 
     SymbolVariable const& var(std::size_t index) const;
-    Declaration const& decl(std::size_t index) const;
     Expression const& expr(std::size_t index) const;
 
     bool bind(SymbolVariable const& symVar, Expression const& expr);
-    bool bind(SymbolVariable const& symVar, Declaration const& decl);
 
     explicit operator bool() const;
 
@@ -62,9 +59,7 @@ private:
 private:
     state_t myState = 0;
     std::vector<SymbolVariable const*> myVariables;
-    std::vector<Declaration const*> myDeclarations;
     std::vector<Expression const*> myContexts;
-    std::vector<std::unique_ptr<PrimaryExpression>> myBunkStorage;
 };
 
     } // namespace ast

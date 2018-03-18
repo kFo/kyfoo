@@ -409,7 +409,7 @@ Token Scanner::readNext()
     else if ( c == '-' ) {
         if ( peekChar() == '>' ) {
             nextChar();
-            return TOK2(Map, "->");
+            return TOK2(Arrow, "->");
         }
         else if ( peekChar() == '-' ) {
             nextChar();

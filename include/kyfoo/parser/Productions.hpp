@@ -35,7 +35,7 @@ using colonQuestion  = g::Terminal<TokenKind::ColonQuestion>;
 using colonSlash     = g::Terminal<TokenKind::ColonSlash>;
 
 using yield = g::Terminal<TokenKind::Yield>;
-using map   = g::Terminal<TokenKind::Map>;
+using arrow = g::Terminal<TokenKind::Arrow>;
 
 using at         = g::Terminal<TokenKind::At>;
 using minusMinus = g::Terminal<TokenKind::MinusMinus>;
@@ -52,12 +52,30 @@ using _return = g::Terminal<TokenKind::_return>;
 using _loop   = g::Terminal<TokenKind::_loop>;
 using _break  = g::Terminal<TokenKind::_break>;
 
-struct Primary : public
-    g::Or<id, meta, integer, rational, string>
+struct Literal : public
+    g::Or<integer, rational, string>
 {
-    std::unique_ptr<ast::PrimaryExpression> make() const
+    std::unique_ptr<ast::LiteralExpression> make() const
     {
-        return monoMake<ast::PrimaryExpression>();
+        return std::make_unique<ast::LiteralExpression>(monoMake<lexer::Token>());
+    }
+};
+
+struct Identifier : public
+    g::Or<id, meta>
+{
+    std::unique_ptr<ast::IdentifierExpression> make() const
+    {
+        return std::make_unique<ast::IdentifierExpression>(monoMake<lexer::Token>());
+    }
+};
+
+struct Primary : public
+    g::Or<Identifier, Literal>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        return monoMakePtr<ast::Expression>();
     }
 };
 
@@ -67,7 +85,7 @@ struct Reference : public
     std::unique_ptr<ast::Expression> make() const
     {
         if ( index() == 0 )
-            return std::make_unique<ast::ReferenceExpression>(std::make_unique<ast::PrimaryExpression>(term<0>().factor<1>().token()));
+            return std::make_unique<ast::ReferenceExpression>(std::make_unique<ast::IdentifierExpression>(term<0>().factor<1>().token()));
         else
             return term<1>().make();
     }
@@ -174,7 +192,7 @@ struct Tuple : public
 {
     std::unique_ptr<ast::Expression> make() const
     {
-        return monoMake<ast::Expression>();
+        return monoMakePtr<ast::Expression>();
     }
 };
 
@@ -183,7 +201,7 @@ struct BasicExpression : public
 {
     std::unique_ptr<ast::Expression> make() const
     {
-        return monoMake<ast::Expression>();
+        return monoMakePtr<ast::Expression>();
     }
 };
 
@@ -218,7 +236,7 @@ struct Symbol : public
 };
 
 struct LambdaDeclarationPart : public
-    g::And<Expression, g::Opt<g::And<map, Expression>>>
+    g::And<Expression, g::Opt<g::And<arrow, Expression>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
@@ -257,7 +275,7 @@ struct ProcedureDeclaration : public
         openParen,
         g::Repeat2<Expression, comma>,
         closeParen,
-        g::Opt<g::And<map, Expression>>>
+        g::Opt<g::And<arrow, Expression>>>
 {
     std::unique_ptr<ast::ProcedureDeclaration> make() const
     {
@@ -287,8 +305,8 @@ struct ImplicitProcedureTemplateDeclaration : public
 struct VarDecl
 {
     lexer::Token token;
-    std::unique_ptr<ast::Expression> constraint;
-    std::unique_ptr<ast::Expression> expression;
+    std::vector<std::unique_ptr<ast::Expression>> constraints;
+    std::unique_ptr<ast::Expression> initializer;
 };
 
 struct ExplicitVariableDeclaration : public
@@ -299,15 +317,15 @@ struct ExplicitVariableDeclaration : public
 {
     VarDecl make() const
     {
-        std::unique_ptr<ast::Expression> constraint;
+        std::vector<std::unique_ptr<ast::Expression>> constraints;
         if ( auto c = factor<2>().capture() )
-            constraint = c->factor<1>().make();
+            constraints = flattenConstraints(c->factor<1>().make());
 
         std::unique_ptr<ast::Expression> init;
         if ( auto i = factor<3>().capture() )
             init = i->factor<1>().make();
 
-        return { factor<1>().token(), std::move(constraint), std::move(init) };
+        return { factor<1>().token(), std::move(constraints), std::move(init) };
     }
 };
 
@@ -320,15 +338,15 @@ struct ImplicitVariableDeclaration : public
 {
     VarDecl make() const
     {
-        std::unique_ptr<ast::Expression> constraint;
+        std::vector<std::unique_ptr<ast::Expression>> constraints;
         if ( auto c = factor<2>().capture() )
-            constraint = c->make();
+            constraints = flattenConstraints(c->make());
 
         std::unique_ptr<ast::Expression> init;
         if ( auto i = factor<4>().capture() )
             init = i->make();
 
-        return { factor<0>().token(), std::move(constraint), std::move(init) };
+        return { factor<0>().token(), std::move(constraints), std::move(init) };
     }
 };
 
@@ -479,7 +497,7 @@ struct DataProductDeclarationField : public
         if ( auto c = factor<3>().capture() )
             init = c->factor<1>().make();
 
-        return std::make_unique<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), factor<2>().make(), std::move(init));
+        return std::make_unique<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), flattenConstraints(factor<2>().make()), std::move(init));
     }
 };
 

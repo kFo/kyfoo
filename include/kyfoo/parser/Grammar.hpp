@@ -9,7 +9,7 @@
 
 namespace kyfoo {
     namespace ast {
-        class PrimaryExpression;
+        class LiteralExpression;
     }
 }
 
@@ -38,9 +38,9 @@ public:
         return myCapture;
     }
 
-    std::unique_ptr<kyfoo::ast::PrimaryExpression> make() const
+    kyfoo::lexer::Token const& make() const
     {
-        return std::make_unique<kyfoo::ast::PrimaryExpression>(token());
+        return token();
     }
 
 private:
@@ -125,13 +125,13 @@ private:
 template <typename T, template <typename...> class G, typename... Branches>
 struct MonomorphicMaker
 {
-    static std::unique_ptr<T> make(G<Branches...> const& rhs)
+    static T make(G<Branches...> const& rhs)
     {
         return make<0>(rhs);
     }
 
     template <std::size_t N>
-    static std::unique_ptr<T> make(G<Branches...> const& rhs)
+    static T make(G<Branches...> const& rhs)
     {
         if ( rhs.index() == N )
             return rhs.term<N>().make();
@@ -140,7 +140,7 @@ struct MonomorphicMaker
     }
 
     template <>
-    static std::unique_ptr<T> make<sizeof...(Branches)>(G<Branches...> const&)
+    static T make<sizeof...(Branches)>(G<Branches...> const&)
     {
         throw std::runtime_error("invalid or make");
     }
@@ -209,9 +209,15 @@ public:
     }
 
     template <typename AST>
-    std::unique_ptr<AST> monoMake() const
+    AST monoMake() const
     {
         return MonomorphicMaker<AST, g::Or, T...>::make<0>(*this);
+    }
+
+    template <typename AST>
+    std::unique_ptr<AST> monoMakePtr() const
+    {
+        return MonomorphicMaker<std::unique_ptr<AST>, g::Or, T...>::make<0>(*this);
     }
 
 private:

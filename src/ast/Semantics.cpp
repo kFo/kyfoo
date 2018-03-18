@@ -89,7 +89,7 @@ SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::st
 
 void SymbolDependencyTracker::add(Declaration& decl)
 {
-    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().pattern().size());
+    auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().size());
     group->add(decl);
 }
 
@@ -97,14 +97,14 @@ void SymbolDependencyTracker::addDependency(Declaration& decl,
                                             std::string const& name,
                                             std::size_t arity)
 {
-    auto group = findOrCreate(decl.symbol().identifier().lexeme(), decl.symbol().prototype().pattern().size());
+    auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().size());
     auto dependency = findOrCreate(name, arity);
 
     dependency->addDependent(*group);
 
     if ( group->pass <= dependency->pass ) {
         if ( !group->defer(group, dependency->pass + 1) ) {
-            auto& err = dgn.error(mod, decl.symbol().identifier()) << "circular reference detected";
+            auto& err = dgn.error(mod, decl.symbol().token()) << "circular reference detected";
             for ( auto const& d : dependency->declarations )
                 err.see(*d);
         }
@@ -139,7 +139,12 @@ struct SymbolDependencyBuilder
 
     // expressions
 
-    result_t exprPrimary(PrimaryExpression const& p)
+    result_t exprLiteral(LiteralExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprIdentifier(IdentifierExpression const& p)
     {
         if ( p.token().kind() == lexer::TokenKind::Identifier )
             tracker.addDependency(decl, p.token().lexeme(), 0);
@@ -147,7 +152,7 @@ struct SymbolDependencyBuilder
 
     result_t exprReference(ReferenceExpression const& r)
     {
-        return dispatch(r.expression());
+        return exprIdentifier(r.expression());
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -159,7 +164,7 @@ struct SymbolDependencyBuilder
     result_t exprApply(ApplyExpression const& a)
     {
         // todo: failover to implicit proc call semantics
-        auto subject = a.expressions()[0]->as<PrimaryExpression>();
+        auto subject = a.expressions()[0]->as<LiteralExpression>();
         if ( subject && subject->token().kind() == lexer::TokenKind::Identifier ) {
             tracker.addDependency(decl, subject->token().lexeme(), a.expressions().size() - 1);
             return;
@@ -171,8 +176,8 @@ struct SymbolDependencyBuilder
 
     result_t exprSymbol(SymbolExpression const& s)
     {
-        if ( s.identifier().kind() == lexer::TokenKind::Identifier )
-            tracker.addDependency(decl, s.identifier().lexeme(), s.expressions().size());
+        if ( s.token().kind() == lexer::TokenKind::Identifier )
+            tracker.addDependency(decl, s.token().lexeme(), s.expressions().size());
 
         for ( auto const& e : s.expressions() )
             dispatch(*e);
@@ -186,7 +191,7 @@ struct SymbolDependencyBuilder
 
     result_t exprVar(VarExpression const& v)
     {
-        exprPrimary(v.identity());
+        exprIdentifier(v.identity());
         dispatch(v.expression());
     }
 
@@ -195,6 +200,17 @@ struct SymbolDependencyBuilder
         dispatch(l.parameters());
         dispatch(l.returnType());
         dispatch(l.body());
+    }
+
+    result_t exprArrow(ArrowExpression const& a)
+    {
+        dispatch(a.from());
+        dispatch(a.to());
+    }
+
+    result_t exprUniverse(UniverseExpression const&)
+    {
+        // nop
     }
 
     result_t stmtExpression(Statement const& s)
@@ -344,48 +360,10 @@ struct MatchEquivalent
     {
     }
 
-    // Primary match
+    // Literal match
 
-    bool operator()(PrimaryExpression const& l, PrimaryExpression const& r)
+    bool operator()(LiteralExpression const& l, LiteralExpression const& r)
     {
-        {
-            auto leftExpression = lookThrough(l.declaration());
-            auto rightExpression = lookThrough(r.declaration());
-
-            if ( leftExpression || rightExpression )
-                return noncommute(*this, leftExpression ? *leftExpression : l, rightExpression ? *rightExpression : r);
-        }
-
-        if ( isIdentifier(l.token().kind()) ) {
-            if ( l.declaration()->kind() == DeclKind::SymbolVariable )
-                return r.declaration() && r.declaration()->kind() == DeclKind::SymbolVariable;
-
-            if ( auto s = l.declaration()->as<SymbolDeclaration>() )
-                return noncommute(*this, *s->expression(), r);
-
-            if ( isIdentifier(r.token().kind()) ) {
-                if ( r.declaration()->kind() == DeclKind::SymbolVariable )
-                    return true; // todo: symvar binding
-
-                if ( auto s = r.declaration()->as<SymbolDeclaration>() )
-                    return noncommute(*this, l, *s->expression());
-
-                return l.declaration() == r.declaration();
-            }
-
-            return false;
-        }
-
-        if ( isIdentifier(r.token().kind()) ) {
-            if ( r.declaration()->kind() == DeclKind::SymbolVariable )
-                return true;
-
-            if ( auto s = r.declaration()->as<SymbolDeclaration>() )
-                return noncommute(*this, l, *s->expression());
-
-            return false;
-        }
-
         return variance(l.token(), r.token()).exact();
     }
 
@@ -415,8 +393,32 @@ struct MatchEquivalent
 
     // else
 
-    bool operator()(Expression const&, Expression const&)
+    bool operator()(Expression const& l_, Expression const& r_)
     {
+        auto l = resolveIndirections(&l_);
+        auto r = resolveIndirections(&r_);
+
+        if ( !l || !r )
+            throw std::runtime_error("unresolved indirection");
+
+        if ( auto leftDecl = getDeclaration(*l) ) {
+            auto rightDecl = getDeclaration(*r);
+            if ( !rightDecl )
+                return false;
+
+            // todo: check var constraints
+            if ( leftDecl->kind() == DeclKind::SymbolVariable )
+                return rightDecl->kind() == DeclKind::SymbolVariable;
+
+            if ( rightDecl->kind() == DeclKind::SymbolVariable )
+                return true;
+
+            return leftDecl == rightDecl;
+        }
+
+        if ( l != &l_ || r != &r_ )
+            return matchEquivalent(*l, *r);
+
         return false;
     }
 };
@@ -462,7 +464,7 @@ VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token co
     }
 
     if ( query.kind() == lexer::TokenKind::String ) {
-        if ( &target == axioms.intrinsic(StringLiteralType) )
+        if ( &target == axioms.intrinsic(Sliceu8) )
             return Covariant;
     }
 
@@ -474,13 +476,21 @@ VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReferenc
     if ( lhs.name() != rhs.name() )
         return Invariant;
 
-    Substitutions substs;
-    return variance(ctx, substs, lhs.pattern(), rhs.pattern());
+    return variance(ctx, lhs.pattern(), rhs.pattern());
 }
 
-VarianceResult variance(Context& ctx, DataSumDeclaration const& ds, Declaration const& query)
+VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
 {
-    if ( auto targetInteger = ctx.axioms().integerMetaData(ds) ) {
+    if ( &target == &query )
+        return Exact;
+
+    if ( auto f = query.as<ProcedureDeclaration>() )
+        return variance(ctx, target, *getDeclaration(*f->result()->type()));
+
+    if ( auto v = query.as<VariableDeclaration>() )
+        return variance(ctx, target, *getDeclaration(v->type()));
+
+    if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
         if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
             if ( targetInteger->bits == queryInteger->bits )
                 return Exact;
@@ -494,25 +504,8 @@ VarianceResult variance(Context& ctx, DataSumDeclaration const& ds, Declaration 
 
     // todo: removeme
     if ( &query == ctx.axioms().intrinsic(PointerNullLiteralType) )
-        if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), ds.symbol()) )
+        if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol()) )
             return Covariant;
-
-    return Invariant;
-}
-
-VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
-{
-    if ( &target == &query )
-        return Exact;
-
-    if ( auto f = query.as<ProcedureDeclaration>() )
-        return variance(ctx, target, *f->returnType()->declaration());
-
-    if ( auto v = query.as<VariableDeclaration>() )
-        return variance(ctx, target, *v->dataType());
-
-    if ( auto ds = target.as<DataSumDeclaration>() )
-        return variance(ctx, *ds, query);
 
     return Invariant;
 }
@@ -523,73 +516,122 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
  * Answers whether \p rhs 's value is covariant with type \p lhs
  */
 VarianceResult variance(Context& ctx,
-                        Substitutions& substs,
-                        Expression const& lhs,
-                        Expression const& rhs)
+                        Expression const& target,
+                        Expression const& query)
 {
-    auto targetDecl = dataType(lhs.declaration());
-    auto queryDecl = dataType(rhs.declaration());
+    // resolve ast aliases and run again
+    auto t = lookThrough(&target);
+    auto q = lookThrough(&query);
 
-    if ( !targetDecl ) {
-        ctx.error(lhs) << "compilation stopped due to unresolved expression";
-        return Invariant;
-    }
-    else if ( !queryDecl ) {
-        ctx.error(rhs) << "compilation stopped due to unresolved expression";
+    if ( !t ) {
+        ctx.error(target) << "is an unresolved alias";
         return Invariant;
     }
 
-    {
-        // resolve ast aliases and run again
-        auto l = lookThrough(targetDecl);
-        auto r = lookThrough(queryDecl);
-
-        if ( l || r )
-            return variance(ctx, substs, l ? *l : lhs, r ? *r : rhs);
+    if ( !q ) {
+        ctx.error(query) << "is an unresolved alias";
+        return Invariant;
     }
 
-    // assumes lhs is:
-    // - literal
-    // - data declaration
-    // - symbol variable
+    auto targetType = lookThrough(t->type());
+    auto queryType = lookThrough(q->type());
 
-    auto lhsPrimary = lhs.as<PrimaryExpression>();
-    auto rhsPrimary = rhs.as<PrimaryExpression>();
-    if ( lhsPrimary && isLiteral(lhsPrimary->token().kind()) ) {
-        // lhs is a literal
-        if ( rhsPrimary && isLiteral(rhsPrimary->token().kind()) ) {
-            return variance(lhsPrimary->token(), rhsPrimary->token());
+    if ( !targetType ) {
+        ctx.error(target) << "is not typed";
+        return Invariant;
+    }
+    else if ( !queryType ) {
+        ctx.error(query) << "is not typed";
+        return Invariant;
+    }
+
+    if ( auto targetLiteral = t->as<LiteralExpression>() ) {
+        if ( auto queryLiteral = q->as<LiteralExpression>() )
+            return variance(targetLiteral->token(), queryLiteral->token());
+
+        // todo: compile time execute
+        return Invariant;
+    }
+
+    if ( auto targetDecl = getDeclaration(*t) ) {
+        auto queryLiteral = q->as<LiteralExpression>();
+        if ( isBinder(targetDecl->kind()) ) {
+            auto const& targetBinder = static_cast<Binder const&>(*targetDecl);
+            // todo: hack until fixed width types are constructible from infinite types
+            if ( queryLiteral )
+                return variance(ctx, *targetBinder.type(), *queryLiteral);
+
+            return variance(ctx, *targetBinder.type(), *queryType);
         }
-        else {
-            // todo: compile time execute
+
+        if ( queryLiteral )
+            return variance(ctx, *targetDecl, queryLiteral->token());
+
+        auto queryDecl = getDeclaration(*q);
+        if ( !queryDecl )
             return Invariant;
-        }
-    }
-    else {
-        // lhs is an identifier
-        if ( auto symVar = targetDecl->as<SymbolVariable>() )
-            return substs.bind(*symVar, rhs) ? Exact : Invariant;
-
-        if ( rhsPrimary ) {
-            if ( isLiteral(rhsPrimary->token().kind()) ) {
-                // rhs is a literal
-                return variance(ctx, *targetDecl, rhsPrimary->token());
-            }
-            else {
-                // rhs is an identifier
-            }
-        }
 
         // todo: this is a hack for covariance
-        if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) )
-            return variance(ctx, substs, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
+        if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) ) {
+            return variance(ctx,
+                            targetDecl->symbol().prototype().pattern(),
+                            queryDecl->symbol().prototype().pattern());
+        }
 
         return variance(ctx, *targetDecl, *queryDecl);
     }
+
+    if ( auto targetTuple = t->as<TupleExpression>() ) {
+        auto queryTuple = q->as<TupleExpression>();
+        if ( !queryTuple )
+            return Invariant;
+
+        return variance(ctx, targetTuple->expressions(), queryTuple->expressions());
+    }
+
+    if ( auto targetArrow = t->as<ArrowExpression>() ) {
+        auto queryArrow = q->as<ArrowExpression>();
+        if ( !queryArrow )
+            return Invariant;
+
+        auto inputVariance = variance(ctx, targetArrow->from(), queryArrow->from());
+        auto outputVariance = variance(ctx, targetArrow->to(), queryArrow->to());
+
+        if ( outputVariance ) {
+            if ( inputVariance.exact() )
+                return outputVariance.exact() ? Exact : Covariant;
+            else if ( inputVariance.contravariant() )
+                return Covariant;
+            else if ( inputVariance.covariant() )
+                return Contravariant;
+        }
+        else if ( outputVariance.contravariant() ) {
+            if ( inputVariance.exact() || inputVariance.covariant() )
+                return Contravariant;
+            else if ( inputVariance.contravariant() )
+                return Covariant;
+        }
+
+        return Invariant;
+    }
+
+    if ( auto targetUniv = t->as<UniverseExpression>() ) {
+        auto queryUniv = q->as<UniverseExpression>();
+        if ( !queryUniv )
+            return Invariant; // todo
+
+        if ( targetUniv->level() == queryUniv->level() )
+            return Exact;
+        else if ( targetUniv->level() > queryUniv->level() )
+            return Covariant;
+        else
+            return Contravariant;
+    }
+
+    return Invariant;
 }
 
 VarianceResult variance(Context& ctx,
-                        Substitutions& substs,
                         Slice<Expression*> lhs,
                         Slice<Expression*> rhs)
 {
@@ -599,7 +641,7 @@ VarianceResult variance(Context& ctx,
 
     auto ret = Exact;
     for ( std::size_t i = 0; i < size; ++i ) {
-        auto v = variance(ctx, substs, *lhs[i], *rhs[i]);
+        auto v = variance(ctx, *lhs[i], *rhs[i]);
         if ( !v )
             return v;
 
@@ -610,10 +652,24 @@ VarianceResult variance(Context& ctx,
     return ret;
 }
 
-VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs)
+VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> rhs)
 {
-    Substitutions substs;
-    return variance(ctx, substs, lhs, rhs);
+    if ( auto l = lhs.as<TupleExpression>() )
+        return variance(ctx, l->expressions(), rhs);
+
+    if ( rhs.size() == 1 )
+        return variance(ctx, lhs, *rhs[0]);
+
+    return Invariant;
+}
+
+Expression const* lookThrough(Expression const* expr)
+{
+    auto decl = getDeclaration(expr);
+    if ( !decl || !hasIndirection(decl->kind()) )
+        return expr;
+
+    return lookThrough(decl);
 }
 
 Expression const* lookThrough(Declaration const* decl)
@@ -634,7 +690,11 @@ Expression const* lookThrough(Declaration const* decl)
             break;
 
         ret = expr;
-        decl = ret->declaration();
+        auto id = identify(*ret);
+        if ( !id )
+            break;
+
+        decl = id->declaration();
     }
 
     return ret;
@@ -642,26 +702,66 @@ Expression const* lookThrough(Declaration const* decl)
 
 Declaration const* resolveIndirections(Declaration const* decl)
 {
-    if ( decl ) {
-        if ( auto expr = lookThrough(decl) ) {
-            if ( !expr->declaration() )
-                throw std::runtime_error("unresolved indirection");
-
-            return expr->declaration();
+    while ( decl ) {
+        Expression const* expr = nullptr;
+        switch (decl->kind()) {
+        case DeclKind::Symbol:
+            expr = static_cast<SymbolDeclaration const*>(decl)->expression();
+            break;
+        case DeclKind::SymbolVariable:
+            expr = static_cast<SymbolVariable const*>(decl)->boundExpression();
+            break;
+        default:
+            return decl;
         }
+
+        if ( !expr )
+            return decl;
+
+        auto next = getDeclaration(expr);
+        if ( !next )
+            return decl;
+
+        decl = next;
     }
 
-    return decl;
+    return nullptr;
 }
 
 Expression const* resolveIndirections(Expression const* expr)
 {
-    if ( expr ) {
-        if ( auto e = lookThrough(expr->declaration()) )
-            return e;
+    while ( expr ) {
+        auto decl = getDeclaration(*expr);
+        if ( !decl )
+            return expr;
+
+        Expression const* next = nullptr;
+        switch ( decl->kind() ) {
+        case DeclKind::Symbol:
+            next = static_cast<SymbolDeclaration const*>(decl)->expression();
+            break;
+        case DeclKind::SymbolVariable:
+            next = static_cast<SymbolVariable const*>(decl)->boundExpression();
+            break;
+        }
+
+        if ( !next )
+            return expr;
+
+        expr = next;
     }
 
-    return expr;
+    return nullptr;
+}
+
+bool needsSubstitution(Expression const& expr)
+{
+    return lookThrough(&expr) == nullptr;
+}
+
+bool needsSubstitution(Declaration const& decl)
+{
+    return hasIndirection(decl.kind()) && lookThrough(&decl) == nullptr;
 }
 
 Symbol const* rootTemplate(Symbol const& symbol)
@@ -689,13 +789,13 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 DeclarationScope const* memberScope(Declaration const& decl)
 {
     if ( auto param = decl.as<ProcedureParameter>() )
-        return memberScope(*resolveIndirections(param->dataType()));
+        return memberScope(*resolveIndirections(getDeclaration(param->type())));
 
     if ( auto var = decl.as<VariableDeclaration>() )
-        return memberScope(*resolveIndirections(var->dataType()));
+        return memberScope(*resolveIndirections(getDeclaration(var->type())));
 
     if ( auto field = decl.as<DataProductDeclaration::Field>() )
-        return memberScope(*resolveIndirections(field->constraint().declaration()));
+        return memberScope(*resolveIndirections(getDeclaration(field->type())));
 
     if ( auto ds = decl.as<DataSumDeclaration>() )
         return ds->definition();
@@ -743,52 +843,16 @@ Declaration* callingContextDeclaration(Declaration& decl)
     return const_cast<Declaration*>(callingContextDeclaration(const_cast<Declaration const&>(decl)));
 }
 
-Declaration const* dataType(Declaration const* decl)
+DataProductDeclaration const* methodType(ProcedureDeclaration const& proc)
 {
+    auto decl = outerDataDeclaration(proc);
     if ( !decl )
         return nullptr;
 
-    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-        if ( isCtor(*proc) )
-            return outerDataDeclaration(*proc);
+    if ( auto dp = decl->as<DataProductDeclaration>() )
+        return dp;
 
-        return proc->result()->dataType();
-    }
-
-    if ( auto param = decl->as<ProcedureParameter>() )
-        return param->dataType();
-
-    if ( auto v = decl->as<VariableDeclaration>() )
-        return v->dataType();
-
-    if ( auto f = decl->as<DataProductDeclaration::Field>() )
-        return f->constraint().declaration();
-
-    return decl;
-}
-
-Declaration const* dataType(Context& ctx, Slice<Expression*> constraints)
-{
-    Declaration const* ret = nullptr;
-    for ( auto c : constraints ) {
-        auto decl = dataType(resolveIndirections(c->declaration()));
-        if ( !decl ) {
-            ctx.error(*c) << "compilation stopped due to unresolved symbols";
-            return nullptr;
-        }
-
-        if ( isDataDeclaration(decl->kind()) || decl->kind() == DeclKind::SymbolVariable ) {
-            if ( ret ) {
-                auto& err = ctx.error(*c) << "expression already has a data type";
-                err.see(*ret);
-                return nullptr;
-            }
-
-            ret = decl;
-        }
-    }
-
-    return ret;
+    return nullptr;
 }
 
 template <typename Dispatcher>
@@ -797,7 +861,7 @@ struct MetaVariableVisitor
     using result_t = void;
     Dispatcher& dispatch;
     
-    using visitor_t = std::function<void(PrimaryExpression&)>;
+    using visitor_t = std::function<void(IdentifierExpression&)>;
     visitor_t visitor;
 
     MetaVariableVisitor(Dispatcher& dispatch, visitor_t visitor)
@@ -806,7 +870,12 @@ struct MetaVariableVisitor
     {
     }
 
-    result_t exprPrimary(PrimaryExpression& p)
+    result_t exprLiteral(LiteralExpression&)
+    {
+        // nop
+    }
+
+    result_t exprIdentifier(IdentifierExpression& p)
     {
         if ( p.token().kind() == lexer::TokenKind::MetaVariable )
             return visitor(p);
@@ -843,7 +912,7 @@ struct MetaVariableVisitor
 
     result_t exprVar(VarExpression& v)
     {
-        exprPrimary(v.identity());
+        exprIdentifier(v.identity());
         dispatch(v.expression());
     }
 
@@ -852,6 +921,17 @@ struct MetaVariableVisitor
         dispatch(l.parameters());
         dispatch(l.returnType());
         dispatch(l.body());
+    }
+
+    result_t exprArrow(ArrowExpression& a)
+    {
+        dispatch(a.from());
+        dispatch(a.to());
+    }
+
+    result_t exprUniverse(UniverseExpression&)
+    {
+        // nop
     }
 
     result_t stmtExpression(Statement& e)
@@ -893,10 +973,10 @@ void visitMetaVariables(Expression& expr, F&& f)
     op(expr);
 }
 
-std::vector<PrimaryExpression*> gatherMetaVariables(Expression& expr)
+std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr)
 {
-    std::vector<PrimaryExpression*> ret;
-    visitMetaVariables(expr, [&ret](PrimaryExpression& p) {
+    std::vector<IdentifierExpression*> ret;
+    visitMetaVariables(expr, [&ret](IdentifierExpression& p) {
         ret.push_back(&p);
     });
 
@@ -914,7 +994,12 @@ struct HasMetaVariable
     {
     }
 
-    result_t exprPrimary(PrimaryExpression const& p)
+    result_t exprLiteral(LiteralExpression const&)
+    {
+        return false;
+    }
+
+    result_t exprIdentifier(IdentifierExpression const& p)
     {
         return p.token().kind() == lexer::TokenKind::MetaVariable;
     }
@@ -962,7 +1047,7 @@ struct HasMetaVariable
 
     result_t exprVar(VarExpression const& v)
     {
-        return exprPrimary(v.identity()) || dispatch(v.expression());
+        return exprIdentifier(v.identity()) || dispatch(v.expression());
     }
 
     result_t exprLambda(LambdaExpression const& l)
@@ -970,6 +1055,16 @@ struct HasMetaVariable
         return dispatch(l.parameters())
             || dispatch(l.returnType())
             || dispatch(l.body());
+    }
+
+    result_t exprArrow(ArrowExpression const& a)
+    {
+        return dispatch(a.from()) || dispatch(a.to());
+    }
+
+    result_t exprUniverse(UniverseExpression const&)
+    {
+        return false;
     }
 
     result_t stmtExpression(Statement const& e)
@@ -1031,14 +1126,19 @@ struct FrontToken
     {
     }
 
-    result_t exprPrimary(PrimaryExpression const& p)
+    result_t exprLiteral(LiteralExpression const& p)
+    {
+        return p.token();
+    }
+
+    result_t exprIdentifier(IdentifierExpression const& p)
     {
         return p.token();
     }
 
     result_t exprReference(ReferenceExpression const& r)
     {
-        return dispatch(r.expression());
+        return exprIdentifier(r.expression());
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -1056,8 +1156,8 @@ struct FrontToken
 
     result_t exprSymbol(SymbolExpression const& s)
     {
-        if ( s.identifier().kind() != lexer::TokenKind::Undefined )
-            return s.identifier();
+        if ( s.token().kind() != lexer::TokenKind::Undefined )
+            return s.token();
 
         if ( s.expressions().empty() )
             return s.openToken();
@@ -1072,12 +1172,22 @@ struct FrontToken
 
     result_t exprVar(VarExpression const& v)
     {
-        return exprPrimary(v.identity());
+        return exprIdentifier(v.identity());
     }
 
     result_t exprLambda(LambdaExpression const& l)
     {
         return dispatch(l.parameters());
+    }
+
+    result_t exprArrow(ArrowExpression const& a)
+    {
+        return dispatch(a.from());
+    }
+
+    result_t exprUniverse(UniverseExpression const&)
+    {
+        throw std::runtime_error("no front token for universe-expression");
     }
 
     result_t stmtExpression(Statement const& e)
@@ -1142,23 +1252,28 @@ struct PrintOperator
     result_t printConstraints(Expression const& expr)
     {
         for ( auto c : expr.constraints() ) {
-            stream << ": ";
+            stream << " : ";
             dispatch(*c);
         }
 
         return stream;
     }
 
-    result_t exprPrimary(PrimaryExpression const& p)
+    result_t exprLiteral(LiteralExpression const& p)
     {
-        stream << p.token().lexeme();
-        return printConstraints(p);
+        return stream << p.token().lexeme();
+    }
+
+    result_t exprIdentifier(IdentifierExpression const& id)
+    {
+        stream << id.token().lexeme();
+        return printConstraints(id);
     }
 
     result_t exprReference(ReferenceExpression const& r)
     {
         stream << "=";
-        return dispatch(r.expression());
+        return exprIdentifier(r.expression());
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -1202,7 +1317,7 @@ struct PrintOperator
 
     result_t exprSymbol(SymbolExpression const& s)
     {
-        auto const& id = s.identifier().lexeme();
+        auto const& id = s.token().lexeme();
         if ( !id.empty() )
             stream << id;
 
@@ -1246,7 +1361,7 @@ struct PrintOperator
     result_t exprVar(VarExpression const& v)
     {
         if ( v.identity().token().kind() != lexer::TokenKind::Undefined ) {
-            exprPrimary(v.identity());
+            exprIdentifier(v.identity());
             stream << " = ";
         }
 
@@ -1258,6 +1373,18 @@ struct PrintOperator
         dispatch(l.parameters());
         stream << " => ";
         return dispatch(l.body());
+    }
+
+    result_t exprArrow(ArrowExpression const& a)
+    {
+        dispatch(a.from());
+        stream << " -> ";
+        return dispatch(a.to());
+    }
+
+    result_t exprUniverse(UniverseExpression const& u)
+    {
+        return stream << "Universe<" << u.level() << ">";
     }
 
     result_t stmtExpression(Statement const& s)
@@ -1314,140 +1441,93 @@ std::ostream& print(std::ostream& stream, Junction const& junc)
 }
 
 template <typename Dispatcher>
-struct ClearDeclaration
+struct LevelFinder
 {
-    using result_t = void;
+    using result_t = std::size_t;
 
     Dispatcher& dispatch;
 
-    ClearDeclaration(Dispatcher& dispatch)
+    LevelFinder(Dispatcher& dispatch)
         : dispatch(dispatch)
     {
     }
 
-    result_t dispatchConstraints(Expression& expr)
+    result_t exprLiteral(LiteralExpression const&)
     {
-        for ( auto c : expr.constraints() )
-            dispatch(*c);
+        return 0;
     }
 
-    result_t exprPrimary(PrimaryExpression& p)
+    result_t exprIdentifier(IdentifierExpression const&)
     {
-        if ( p.token().kind() == lexer::TokenKind::Identifier )
-            p.clearDeclaration();
-
-        dispatchConstraints(p);
+        return 1; // todo: higher level types
     }
 
-    result_t exprReference(ReferenceExpression& r)
+    result_t exprReference(ReferenceExpression const& r)
     {
-        r.clearDeclaration();
-        dispatch(r.expression());
-        dispatchConstraints(r);
+        return exprIdentifier(r.expression());
     }
 
-    result_t exprTuple(TupleExpression& t)
+    result_t max(Slice<Expression*> exprs)
     {
-        t.clearDeclaration();
-        for ( auto const& e : t.expressions() )
-            dispatch(*e);
+        if ( exprs.empty() )
+            return 0;
 
-        dispatchConstraints(t);
+        auto max = dispatch(*exprs.front());
+        for ( auto const& e : slice(exprs, 1) )
+            max = std::max(max, dispatch(*e));
+
+        return max;
     }
 
-    result_t exprApply(ApplyExpression& a)
+    result_t exprTuple(TupleExpression const& t)
     {
-        a.clearDeclaration();
-        for ( auto const& e : a.expressions() )
-            dispatch(*e);
-
-        dispatchConstraints(a);
+        return max(t.expressions());
     }
 
-    result_t exprSymbol(SymbolExpression& s)
+    result_t exprApply(ApplyExpression const& a)
     {
-        s.clearDeclaration();
-        for ( auto const& e : s.expressions() )
-            dispatch(*e);
-
-        dispatchConstraints(s);
+        return max(a.expressions());
     }
 
-    result_t exprDot(DotExpression& d)
+    result_t exprSymbol(SymbolExpression const& s)
     {
-        d.clearDeclaration();
-        for ( auto& e : d.expressions() )
-            dispatch(*e);
-
-        dispatchConstraints(d);
+        return exprIdentifier(s);
     }
 
-    result_t exprVar(VarExpression& v)
+    result_t exprDot(DotExpression const& d)
     {
-        v.clearDeclaration();
+        return exprIdentifier(d);
+    }
+
+    result_t exprVar(VarExpression const& v)
+    {
+        result_t max = 0;
         if ( v.identity().token().kind() != lexer::TokenKind::Undefined )
-            exprPrimary(v.identity());
+            max = exprIdentifier(v.identity());
 
-        dispatch(v.expression());
-        dispatchConstraints(v);
+        return std::max(max, dispatch(v.expression()));
     }
 
-    result_t exprLambda(LambdaExpression& l)
+    result_t exprLambda(LambdaExpression const& l)
     {
-        l.clearDeclaration();
-        dispatch(l.parameters());
-        dispatch(l.body());
-        dispatchConstraints(l);
+        return std::max(dispatch(l.parameters()), dispatch(l.body()));
     }
 
-    result_t stmtExpression(Statement& e)
+    result_t exprArrow(ArrowExpression const& a)
     {
-        dispatch(e.expression());
+        return std::max(dispatch(a.from()), dispatch(a.to()));
     }
 
-    result_t stmtConstruction(ConstructionStatement& c)
+    result_t exprUniverse(UniverseExpression const& u)
     {
-        exprVar(c.varExpression());
-    }
-
-    result_t juncBranch(BranchJunction& b)
-    {
-        if ( b.condition() )
-            dispatch(*b.condition());
-
-        for ( std::size_t i = 0; i < 2; ++i )
-            if ( b.branch(i) )
-                dispatch.procScope(*b.branch(i)->scope());
-    }
-
-    result_t juncReturn(ReturnJunction& r)
-    {
-        if ( r.expression() )
-            r.expression()->clearDeclaration();
-    }
-
-    result_t juncJump(JumpJunction&)
-    {
-        // nop
+        return u.level();
     }
 };
 
-void clearDeclarations(Expression& expr)
+std::size_t level(Expression const& expr)
 {
-    ShallowApply<ClearDeclaration> op;
-    op(expr);
-}
-
-void clearDeclarations(Statement& stmt)
-{
-    ShallowApply<ClearDeclaration> op;
-    op(stmt);
-}
-
-void clearDeclarations(Junction& junc)
-{
-    ShallowApply<ClearDeclaration> op;
-    op(junc);
+    ShallowApply<LevelFinder> op;
+    return op(expr);
 }
 
     } // namespace ast

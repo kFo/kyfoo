@@ -4,6 +4,7 @@
 #include <map>
 
 #include <kyfoo/ast/IO.hpp>
+#include <kyfoo/Slice.hpp>
 
 #define DECL_CLONE(kind)                                          \
     auto clone(clone_map_t& map) const                            \
@@ -100,6 +101,24 @@ template <typename T>
 std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs)
 {
     return clone(rhs.get());
+}
+
+template <typename T, typename D>
+std::vector<std::unique_ptr<T>> clone(Slice<T*> rhs, D& dict)
+{
+    std::vector<std::unique_ptr<T>> ret;
+    ret.reserve(rhs.size());
+    for ( auto e : rhs )
+        ret.emplace_back(clone(e, dict));
+
+    return ret;
+}
+
+template <typename T>
+std::vector<std::unique_ptr<T>> clone(Slice<T*> rhs)
+{
+    clone_map_t map;
+    return clone(rhs, map);
 }
 
 template <typename T>

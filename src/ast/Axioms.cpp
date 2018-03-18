@@ -41,9 +41,6 @@ ascii = slice<u8>
     base : pointer u8
     card : size_t
 
-    @"intrininst" "Sliceu8_ctor"
-    ctor(s : string)
-
     @"intrininst" "Sliceu8_dtor"
     dtor()
 
@@ -114,14 +111,12 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""        ))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
-    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "string"  ))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
 
     myDataSumDecls[EmptyLiteralType      ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[0]);
     myDataSumDecls[IntegerLiteralType    ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[1]);
     myDataSumDecls[RationalLiteralType   ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[2]);
-    myDataSumDecls[StringLiteralType     ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[3]);
-    myDataSumDecls[PointerNullLiteralType] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[4]);
+    myDataSumDecls[PointerNullLiteralType] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[3]);
 }
 
 AxiomsModule::~AxiomsModule() = default;
@@ -257,9 +252,9 @@ void AxiomsModule::findIntrinsics(DeclarationScope* s)
         for ( auto const& attr : d->attributes() ) {
             if ( auto t = attr.expression().as<TupleExpression>() ) {
                 auto subject = t->expressions()[0];
-                if ( auto p = subject->as<PrimaryExpression>() ) {
+                if ( auto p = subject->as<LiteralExpression>() ) {
                     if ( p->token().lexeme() == "\"intrininst\"" ) {
-                        auto object = t->expressions()[1]->as<PrimaryExpression>();
+                        auto object = t->expressions()[1]->as<LiteralExpression>();
                         setIntrinsic(object->token().lexeme(), d);
                     }
                 }
@@ -278,6 +273,19 @@ bool AxiomsModule::init(Diagnostics& dgn)
         parse(dgn, s);
         if ( dgn.errorCount() )
             return false;
+
+        for ( auto const& d : scope()->childDeclarations() ) {
+            if ( d->symbol().token().lexeme() == "slice"
+                && d->symbol().prototype().pattern().size() == 1
+                && d->symbol().prototype().pattern()[0]->as<IdentifierExpression>()->token().lexeme() == "u8" )
+            {
+                myDataProductDecls[Sliceu8] = d->as<DataProductDeclaration>();
+                break;
+            }
+        }
+
+        if ( !myDataProductDecls[Sliceu8] )
+            throw std::runtime_error("string literal type is not defined");
 
         resolveImports(dgn);
         if ( dgn.errorCount() )
@@ -302,16 +310,14 @@ bool AxiomsModule::init(Diagnostics& dgn)
         myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).decl())->as<DataSumDeclaration>();
         myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").decl())->as<DataSumDeclaration>();
 
-        myDataProductDecls[Sliceu8] = resolveIndirections(scope()->findEquivalent("ascii").decl())->as<DataProductDeclaration>();
-
         auto childDecls = scope()->childDeclarations();
         auto decl = begin(childDecls);
 
-        while ( (*decl)->symbol().identifier().lexeme() != "trunc" )
+        while ( (*decl)->symbol().token().lexeme() != "trunc" )
             ++decl;
 
         int i = Truncu1u8;
-        while ( (*decl)->symbol().identifier().lexeme() == "trunc" ) {
+        while ( (*decl)->symbol().token().lexeme() == "trunc" ) {
             auto defn = (*decl)->as<TemplateDeclaration>()->definition();
             for ( auto& d : defn->childDeclarations() ) {
                 myInstructionDecls[i] = d->as<ProcedureDeclaration>();

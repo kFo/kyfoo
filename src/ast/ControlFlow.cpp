@@ -1,8 +1,9 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 
-#include <kyfoo/ast/Expressions.hpp>
-#include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Context.hpp>
+#include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -150,22 +151,22 @@ Slice<VariableDeclaration*> const Statement::unnamedVariables() const
 
 VariableDeclaration const* Statement::createUnnamed(ProcedureScope& scope, Declaration const& constraint)
 {
-    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(scope, constraint));
+    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(Symbol(lexer::Token()), scope, createPtrList<Expression>(createIdentifier(constraint))));
     return myUnnamedVariables.back().get();
 }
 
 void Statement::appendUnnamed(ProcedureScope& scope, Expression const& expr)
 {
-    auto decl = resolveIndirections(expr.declaration());
+    auto decl = resolveIndirections(getDeclaration(expr));
     if ( !decl )
         throw std::runtime_error("unnamed instance must have a type");
 
     Declaration const* dt = decl;
     if ( auto proc = decl->as<ProcedureDeclaration>() ) {
         if ( isCtor(*proc) )
-            dt = proc->parameters()[0]->dataType();
+            dt = getDeclaration(proc->parameters()[0]->type());
         else
-            dt = proc->returnType()->declaration();
+            dt = getDeclaration(proc->result()->type());
     }
 
     createUnnamed(scope, *dt);

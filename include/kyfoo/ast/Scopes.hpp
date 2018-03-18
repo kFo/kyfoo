@@ -309,8 +309,9 @@ public:
     SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
-    void resolveConstructors(Diagnostics& dgn);
+    SymRes resolveConstructors(Module& endModule, Diagnostics& dgn);
     std::unique_ptr<ProcedureDeclaration> createDefaultConstructor();
+    TemplateDeclaration* reflectBuilder(TemplateDeclaration const& ctorTempl);
 
     void resolveDestructor(Module& endModule, Diagnostics& dgn);
     std::unique_ptr<ProcedureDeclaration> createDefaultDestructor();

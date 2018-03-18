@@ -88,7 +88,7 @@ public:
     DeclKind kind() const;
     Symbol& symbol();
     Symbol const& symbol() const;
-    lexer::Token const& identifier() const;
+    lexer::Token const& token() const;
 
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
@@ -192,14 +192,62 @@ private:
     DataSumScope* myDefinition = nullptr;
 };
 
+class Binder : public Declaration
+{
+protected:
+    Binder(DeclKind kind,
+           Symbol&& symbol,
+           DeclarationScope* scope,
+           std::vector<std::unique_ptr<Expression>> constraints);
+
+    Binder(DeclKind kind,
+           Symbol&& symbol,
+           DeclarationScope* scope,
+           Expression const* type);
+
+    Binder(Binder const& rhs);
+    Binder& operator = (Binder const& rhs) = delete;
+
+    Binder(Binder&&) = delete;
+
+public:
+    ~Binder();
+
+    void swap(Binder& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Declaration
+public:
+    DECL_CLONE_ALL(Declaration)
+
+protected:
+    SymRes resolveSymbols(Context& ctx) override;
+
+public:
+    void addConstraint(std::unique_ptr<Expression> c);
+    void addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs);
+
+    Slice<Expression*> constraints();
+    Slice<Expression*> const constraints() const;
+
+    Expression const* type() const;
+
+private:
+    std::vector<std::unique_ptr<Expression>> myConstraints;
+    Expression const* myType = nullptr;
+};
+
 class DataProductDeclaration : public Declaration
 {
 public:
-    class Field : public Declaration
+    class Field : public Binder
     {
     public:
         Field(Symbol&& symbol,
-              std::unique_ptr<Expression> constraint,
+              std::vector<std::unique_ptr<Expression>> constraints,
               std::unique_ptr<Expression> init);
 
     protected:
@@ -229,12 +277,8 @@ public:
         DataProductDeclaration* parent();
         DataProductDeclaration const* parent() const;
 
-        Expression& constraint();
-        Expression const& constraint() const;
-
     private:
         DataProductDeclaration* myParent = nullptr;
-        std::unique_ptr<Expression> myConstraint;
         std::unique_ptr<Expression> myInitializer;
     };
 
@@ -308,14 +352,16 @@ private:
     std::unique_ptr<Expression> myExpression;
 };
 
-class VariableDeclaration : public Declaration
+class VariableDeclaration : public Binder
 {
 public:
     VariableDeclaration(Symbol&& symbol,
                         ProcedureScope& scope,
-                        std::unique_ptr<Expression> constraint);
-    VariableDeclaration(ProcedureScope& scope,
-                        Declaration const& dataType);
+                        std::vector<std::unique_ptr<Expression>> constraints);
+
+    VariableDeclaration(Symbol&& symbol,
+                        ProcedureScope& scope,
+                        Expression const& type);
 
 protected:
     VariableDeclaration(VariableDeclaration const& rhs);
@@ -338,23 +384,14 @@ public:
 
 protected:
     SymRes resolveSymbols(Context& ctx) override;
-
-public:
-    void addConstraint(Expression const& expr);
-
-    Slice<Expression const*> constraints() const;
-    Declaration const* dataType() const;
-
-protected:
-    std::unique_ptr<Expression> myConstraint;
-    std::vector<Expression const*> myConstraints;
-    Declaration const* myDataType = nullptr;
 };
 
 class ProcedureDeclaration;
-class ProcedureParameter : public Declaration
+class ProcedureParameter : public Binder
 {
 public:
+    friend class ProcedureDeclaration;
+
     enum PassSemantics
     {
         ByValue,
@@ -364,6 +401,12 @@ public:
 public:
     ProcedureParameter(Symbol&& symbol,
                        ProcedureDeclaration& proc,
+                       std::vector<std::unique_ptr<Expression>>&& constraints,
+                       PassSemantics passSemantics);
+
+    ProcedureParameter(Symbol&& symbol,
+                       ProcedureDeclaration& proc,
+                       Expression const* type,
                        PassSemantics passSemantics);
 
 protected:
@@ -389,16 +432,9 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    Declaration const* dataType() const;
-
-    Slice<Expression*> const constraints() const;
-    void addConstraint(Expression const& expr);
-
     PassSemantics passSemantics() const;
 
 private:
-    std::vector<Expression const*> myConstraints;
-    Declaration const* myDataType = nullptr;
     PassSemantics myPassSemantics = ByValue;
 };
 
@@ -431,29 +467,28 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    void unresolvePrototypeSymbols();
-
     ProcedureScope* definition();
     ProcedureScope const* definition() const;
     void define(ProcedureScope* definition);
 
+    Expression const* type() const;
+
     Expression* returnType();
     Expression const* returnType() const;
 
-    Declaration const* thisType() const;
     Slice<ProcedureParameter*> parameters();
     Slice<ProcedureParameter*> const parameters() const;
     ProcedureParameter* result();
     ProcedureParameter const* result() const;
 
     int ordinal(std::size_t index) const;
-    ProcedureParameter* findParameter(std::string const& identifier);
-    ProcedureParameter const* findParameter(std::string const& identifier) const;
+    ProcedureParameter* findParameter(std::string const& token);
+    ProcedureParameter const* findParameter(std::string const& token) const;
 
 private:
-    std::unique_ptr<Expression> myReturnExpression;
+    std::unique_ptr<ArrowExpression> myType;
+    std::unique_ptr<Expression> myReturnExpression; // todo: merge with myResult
 
-    std::unique_ptr<ReferenceExpression> myThisExpr;
     std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
     std::vector<int> myOrdinals;
 
@@ -497,11 +532,13 @@ private:
 class SymbolVariable : public Declaration
 {
 public:
-    SymbolVariable(PatternsPrototype& prototype,
-                   PrimaryExpression const& primary,
+    SymbolVariable(IdentifierExpression const& id,
+                   DeclarationScope* scope,
+                   PatternsPrototype& prototype,
                    Expression const* bindExpr);
-    SymbolVariable(PatternsPrototype& prototype,
-                   PrimaryExpression const& primary);
+    SymbolVariable(IdentifierExpression const& id,
+                   DeclarationScope* scope,
+                   PatternsPrototype& prototype);
 
 protected:
     SymbolVariable(SymbolVariable const& rhs);
@@ -527,7 +564,7 @@ protected:
 
 public:
     PatternsPrototype const& prototype() const;
-    lexer::Token const& identifier() const;
+    lexer::Token const& token() const;
 
     void bindExpression(Expression const* expr);
     Expression const* boundExpression() const;
@@ -585,10 +622,12 @@ private:
 #undef X
 
 bool isDataDeclaration(DeclKind kind);
-bool isMemoryDeclaration(DeclKind kind);
+bool isBinder(DeclKind kind);
 bool isCallableDeclaration(DeclKind kind);
 bool isMacroDeclaration(DeclKind kind);
+Expression const* getType(Declaration const& decl);
 bool hasIndirection(DeclKind kind);
+bool hasIndirection(Expression const& expr);
 TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc);
 bool isCtor(ProcedureDeclaration const& proc);
 bool isDtor(ProcedureDeclaration const& proc);

@@ -111,6 +111,7 @@ public:
 
     SymRes resolveDeclaration(Declaration& declaration);
 
+    SymRes resolveExpression(Expression& expression);
     SymRes resolveExpression(std::unique_ptr<Expression>& expression);
     SymRes resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
                               std::vector<std::unique_ptr<Expression>>::iterator right);

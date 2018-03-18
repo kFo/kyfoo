@@ -4,11 +4,12 @@
 
 #include <kyfoo/lexer/Scanner.hpp>
 
+#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Fabrication.hpp>
+#include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
-#include <kyfoo/ast/Context.hpp>
 
 namespace kyfoo {
     namespace ast {
@@ -50,6 +51,7 @@ void Declaration::swap(Declaration& rhs)
     swap(myKind, rhs.myKind);
     swap(mySymbol, rhs.mySymbol);
     swap(myScope, rhs.myScope);
+    swap(myAttributes, rhs.myAttributes);
     // myCodeGenData does not get copied
 }
 
@@ -95,9 +97,9 @@ Symbol const& Declaration::symbol() const
     return *mySymbol;
 }
 
-lexer::Token const& Declaration::identifier() const
+lexer::Token const& Declaration::token() const
 {
-    return mySymbol->identifier();
+    return mySymbol->token();
 }
 
 DeclarationScope& Declaration::scope()
@@ -297,6 +299,110 @@ DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
 }
 
 //
+// Binder
+
+Binder::Binder(DeclKind kind,
+               Symbol&& symbol,
+               DeclarationScope* scope,
+               std::vector<std::unique_ptr<Expression>> constraints)
+    : Declaration(kind, std::move(symbol), scope)
+    , myConstraints(std::move(constraints))
+{
+}
+
+Binder::Binder(DeclKind kind,
+               Symbol&& symbol,
+               DeclarationScope* scope,
+               Expression const* type)
+    : Declaration(kind, std::move(symbol), scope)
+    , myType(type)
+{
+}
+
+Binder::Binder(Binder const& rhs)
+    : Declaration(rhs)
+    , myType(rhs.myType)
+{
+    // clone myConstraints
+}
+
+Binder::~Binder() = default;
+
+void Binder::swap(Binder& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myConstraints, rhs.myConstraints);
+    swap(myType, rhs.myType);
+}
+
+void Binder::io(IStream& stream) const
+{
+    Declaration::io(stream);
+    stream.next("constraint", myConstraints);
+}
+
+IMPL_CLONE_BEGIN(Binder, Declaration, Declaration)
+IMPL_CLONE_CHILD(myConstraints)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(Binder, Declaration)
+IMPL_CLONE_REMAP(myConstraints)
+IMPL_CLONE_REMAP(myType)
+IMPL_CLONE_REMAP_END
+
+SymRes Binder::resolveSymbols(Context& ctx)
+{
+    auto ret = Declaration::resolveSymbols(ctx);
+    ret |= ctx.resolveExpressions(myConstraints);
+
+    if ( !ret )
+        return ret;
+
+    for ( auto const& c : myConstraints ) {
+        if ( auto id = identify(*c) ) {
+            if ( myType ) {
+                ctx.error(*this) << "more than one type found for binder";
+                return SymRes::Fail;
+            }
+
+            myType = id;
+        }
+    }
+
+    if ( !myType ) {
+        ctx.error(*this) << "could not deduce type from constraints";
+        return SymRes::Fail;
+    }
+
+    return ret;
+}
+
+void Binder::addConstraint(std::unique_ptr<Expression> c)
+{
+    myConstraints.emplace_back(std::move(c));
+}
+
+void Binder::addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs)
+{
+    move(begin(exprs), end(exprs), back_inserter(myConstraints));
+}
+
+Slice<Expression*> Binder::constraints()
+{
+    return myConstraints;
+}
+
+Slice<Expression*> const Binder::constraints() const
+{
+    return myConstraints;
+}
+
+Expression const* Binder::type() const
+{
+    return myType;
+}
+
+//
 // DataProductDeclaration
 
 DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
@@ -359,16 +465,15 @@ DataProductScope const* DataProductDeclaration::definition() const
 // DataProductDeclaration::Field
 
 DataProductDeclaration::Field::Field(Symbol&& symbol,
-                                     std::unique_ptr<Expression> constraint,
+                                     std::vector<std::unique_ptr<Expression>> constraints,
                                      std::unique_ptr<Expression> init)
-    : Declaration(DeclKind::Field, std::move(symbol), nullptr)
-    , myConstraint(std::move(constraint))
+    : Binder(DeclKind::Field, std::move(symbol), nullptr, std::move(constraints))
     , myInitializer(std::move(init))
 {
 }
 
 DataProductDeclaration::Field::Field(Field const& rhs)
-    : Declaration(rhs)
+    : Binder(rhs)
     , myParent(rhs.myParent)
 {
     // clone myExpression
@@ -384,33 +489,36 @@ DataProductDeclaration::Field::~Field() = default;
 
 void DataProductDeclaration::Field::swap(Field& rhs)
 {
-    Declaration::swap(rhs);
+    Binder::swap(rhs);
     using std::swap;
     swap(myParent, rhs.myParent);
-    swap(myConstraint, rhs.myConstraint);
 }
 
 void DataProductDeclaration::Field::io(IStream& stream) const
 {
-    Declaration::io(stream);
-    stream.next("constraint", myConstraint);
+    Binder::io(stream);
 }
 
-IMPL_CLONE_BEGIN(DataProductDeclaration::Field, Declaration, Declaration)
-IMPL_CLONE_CHILD(myConstraint)
+IMPL_CLONE_BEGIN(DataProductDeclaration::Field, Binder, Declaration)
+IMPL_CLONE_CHILD(myInitializer)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration::Field, Declaration)
+IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration::Field, Binder)
 IMPL_CLONE_REMAP(myParent)
-IMPL_CLONE_REMAP(myConstraint)
+IMPL_CLONE_REMAP(myInitializer)
 IMPL_CLONE_REMAP_END
 
 SymRes DataProductDeclaration::Field::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(ctx);
-
     ScopeResolver resolver(*myParent->definition());
     ctx.changeResolver(resolver);
-    ret |= ctx.resolveExpression(myConstraint);
+    
+    auto ret = Binder::resolveSymbols(ctx);
+    if ( !ret )
+        return ret;
+
+    if ( myInitializer )
+        ret |= ctx.resolveExpression(myInitializer);
+
     return ret;
 }
 
@@ -430,16 +538,6 @@ DataProductDeclaration* DataProductDeclaration::Field::parent()
 DataProductDeclaration const* DataProductDeclaration::Field::parent() const
 {
     return myParent;
-}
-
-Expression& DataProductDeclaration::Field::constraint()
-{
-    return *myConstraint;
-}
-
-Expression const& DataProductDeclaration::Field::constraint() const
-{
-    return *myConstraint;
 }
 
 //
@@ -512,22 +610,20 @@ Expression const* SymbolDeclaration::expression() const
 
 VariableDeclaration::VariableDeclaration(Symbol&& symbol,
                                          ProcedureScope& scope,
-                                         std::unique_ptr<Expression> constraint)
-    : Declaration(DeclKind::Variable, std::move(symbol), &scope)
-    , myConstraint(std::move(constraint))
+                                         std::vector<std::unique_ptr<Expression>> constraints)
+    : Binder(DeclKind::Variable, std::move(symbol), &scope, std::move(constraints))
 {
 }
 
-VariableDeclaration::VariableDeclaration(ProcedureScope& scope,
-                                         Declaration const& dataType)
-    : Declaration(DeclKind::Variable, Symbol(lexer::Token()), &scope)
-    , myDataType(&dataType)
+VariableDeclaration::VariableDeclaration(Symbol&& symbol,
+                                         ProcedureScope& scope,
+                                         Expression const& type)
+    : Binder(DeclKind::Variable, std::move(symbol), &scope, &type)
 {
 }
 
 VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs)
-    : Declaration(rhs)
-    , myDataType(rhs.myDataType)
+    : Binder(rhs)
 {
 }
 
@@ -541,67 +637,22 @@ VariableDeclaration::~VariableDeclaration() = default;
 
 void VariableDeclaration::swap(VariableDeclaration& rhs)
 {
-    Declaration::swap(rhs);
-    using std::swap;
-    swap(myConstraint, rhs.myConstraint);
-    swap(myConstraints, rhs.myConstraints);
-    swap(myDataType, rhs.myDataType);
+    Binder::swap(rhs);
 }
 
 void VariableDeclaration::io(IStream& stream) const
 {
-    Declaration::io(stream);
-    stream.openArray("constraints");
-    for ( auto c : myConstraints )
-        stream.next("", *c);
-    stream.closeArray();
+    Binder::io(stream);
 }
 
-IMPL_CLONE_BEGIN(VariableDeclaration, Declaration, Declaration)
-IMPL_CLONE_CHILD(myConstraint)
+IMPL_CLONE_BEGIN(VariableDeclaration, Binder, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(VariableDeclaration, Declaration)
-IMPL_CLONE_REMAP(myConstraints)
-IMPL_CLONE_REMAP(myDataType)
+IMPL_CLONE_REMAP_BEGIN(VariableDeclaration, Binder)
 IMPL_CLONE_REMAP_END
 
 SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(ctx);
-
-    if ( !myConstraint ) {
-        ctx.error(*this) << "type inferencing not implemented";
-        return SymRes::Fail;
-    }
-
-    ret |= ctx.resolveExpression(myConstraint);
-    addConstraint(*myConstraint);
-
-    myDataType = ast::dataType(ctx, myConstraints);
-    if ( !myDataType ) {
-        if ( myConstraints.empty() )
-            ctx.error(*this) << "cannot infer data type without constraints";
-        else
-            ctx.error(*this) << "no data type determined for variable declaration";
-        return SymRes::Fail;
-    }
-
-    return ret;
-}
-
-void VariableDeclaration::addConstraint(Expression const& expr)
-{
-    myConstraints.push_back(&expr);
-}
-
-Slice<Expression const*> VariableDeclaration::constraints() const
-{
-    return myConstraints;
-}
-
-Declaration const* VariableDeclaration::dataType() const
-{
-    return myDataType;
+    return Binder::resolveSymbols(ctx);
 }
 
 //
@@ -609,16 +660,24 @@ Declaration const* VariableDeclaration::dataType() const
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
                                        ProcedureDeclaration& proc,
+                                       std::vector<std::unique_ptr<Expression>>&& constraints,
                                        PassSemantics passSemantics)
-    : Declaration(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope())
+    : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), std::move(constraints))
+    , myPassSemantics(passSemantics)
+{
+}
+
+ProcedureParameter::ProcedureParameter(Symbol&& symbol,
+                                       ProcedureDeclaration& proc,
+                                       Expression const* type,
+                                       PassSemantics passSemantics)
+    : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), type)
     , myPassSemantics(passSemantics)
 {
 }
 
 ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs)
-    : Declaration(rhs)
-    , myConstraints(rhs.myConstraints)
-    , myDataType(rhs.myDataType)
+    : Binder(rhs)
     , myPassSemantics(rhs.myPassSemantics)
 {
 }
@@ -633,50 +692,24 @@ ProcedureParameter::~ProcedureParameter() = default;
 
 void ProcedureParameter::swap(ProcedureParameter& rhs)
 {
-    Declaration::swap(rhs);
+    Binder::swap(rhs);
     using std::swap;
-    swap(myConstraints, rhs.myConstraints);
-    swap(myDataType, rhs.myDataType);
     swap(myPassSemantics, rhs.myPassSemantics);
 }
 
 void ProcedureParameter::io(IStream& stream) const
 {
-    Declaration::io(stream);
+    Binder::io(stream);
 }
 
-IMPL_CLONE_BEGIN(ProcedureParameter, Declaration, Declaration)
+IMPL_CLONE_BEGIN(ProcedureParameter, Binder, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, Declaration)
-IMPL_CLONE_REMAP(myConstraints)
-IMPL_CLONE_REMAP(myDataType)
+IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, Binder)
 IMPL_CLONE_REMAP_END
 
 SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 {
-    auto ret = Declaration::resolveSymbols(ctx);
-
-    myDataType = ast::dataType(ctx, myConstraints);
-
-    if ( !myDataType )
-        ctx.error(symbol().identifier()) << "parameter is missing data type";
-
-    return ret;
-}
-
-Declaration const* ProcedureParameter::dataType() const
-{
-    return myDataType;
-}
-
-Slice<Expression*> const ProcedureParameter::constraints() const
-{
-    return myConstraints;
-}
-
-void ProcedureParameter::addConstraint(Expression const& expr)
-{
-    myConstraints.push_back(&expr);
+    return Binder::resolveSymbols(ctx);
 }
 
 ProcedureParameter::PassSemantics ProcedureParameter::passSemantics() const
@@ -713,7 +746,6 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
     Declaration::swap(rhs);
     using std::swap;
     swap(myReturnExpression, rhs.myReturnExpression);
-    swap(myThisExpr, rhs.myThisExpr);
     swap(myParameters, rhs.myParameters);
     swap(myOrdinals, rhs.myOrdinals);
     swap(myResult, rhs.myResult);
@@ -731,14 +763,14 @@ void ProcedureDeclaration::io(IStream& stream) const
 }
 
 IMPL_CLONE_BEGIN(ProcedureDeclaration, Declaration, Declaration)
+IMPL_CLONE_CHILD(myType)
 IMPL_CLONE_CHILD(myReturnExpression)
-IMPL_CLONE_CHILD(myThisExpr)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
+IMPL_CLONE_REMAP(myType)
 IMPL_CLONE_REMAP(myReturnExpression)
-IMPL_CLONE_REMAP(myThisExpr)
 IMPL_CLONE_REMAP(myParameters)
 IMPL_CLONE_REMAP(myResult)
 IMPL_CLONE_REMAP(myDefinition)
@@ -746,21 +778,21 @@ IMPL_CLONE_REMAP_END
 
 SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 {
-    // Parameter deduction (step #1/2)
-    auto const& id = symbol().identifier();
-    auto const deduceParameters = myParameters.empty();
-    if ( deduceParameters ) {
-        auto thisType = outerDataDeclaration(*this);
-        if ( thisType ) {
-            auto thisToken = lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this");
-            myThisExpr = std::make_unique<ReferenceExpression>(std::make_unique<PrimaryExpression>(thisToken));
-            myThisExpr->addConstraint(std::make_unique<PrimaryExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this_t")));
-            myThisExpr->constraints()[0]->setDeclaration(*thisType);
+    // todo: hack
+    mySymbol->prototype().resolveVariables(scope());
 
-            myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(thisToken), *this, ProcedureParameter::ByReference));
-            myThisExpr->setDeclaration(*myParameters.back());
-            for ( auto const& c : myThisExpr->constraints() )
-                myParameters.back()->addConstraint(*c);
+    // deduce parameters
+    auto const& id = symbol().token();
+    if ( myParameters.empty() ) {
+        if ( auto thisType = outerDataDeclaration(*this) ) {
+            auto thisToken = lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this");
+            myParameters.emplace_back(
+                std::make_unique<ProcedureParameter>(
+                    Symbol(thisToken),
+                    *this,
+                    createPtrList<Expression>(std::make_unique<IdentifierExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this_t"),
+                                                                                     *thisType)),
+                    ProcedureParameter::ByReference));
         }
 
         for ( int i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
@@ -774,10 +806,10 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
             }
 
             auto passSemantics = ProcedureParameter::ByValue;
-            auto p = expr->as<PrimaryExpression>();
+            auto p = expr->as<IdentifierExpression>();
             if ( !p ) {
                 if ( auto r = expr->as<ReferenceExpression>() ) {
-                    p = r->expression().as<PrimaryExpression>();
+                    p = &r->expression();
                     passSemantics = ProcedureParameter::ByReference;
                 }
             }
@@ -785,13 +817,14 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
             if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
                 continue;
 
-            auto hit = ctx.matchOverload(SymbolReference(p->token().lexeme()));
-            if ( !hit )
-                hit = ctx.matchOverload(p->token().lexeme());
-
+            auto hit = ctx.matchOverload(p->token().lexeme());
             if ( !hit ) {
                 myOrdinals.push_back(static_cast<int>(myParameters.size()));
-                myParameters.emplace_back(std::make_unique<ProcedureParameter>(Symbol(p->token()), *this, passSemantics));
+                myParameters.emplace_back(
+                    std::make_unique<ProcedureParameter>(Symbol(p->token()),
+                                                         *this,
+                                                         pattern->takeConstraints(),
+                                                         passSemantics));
                 p->setDeclaration(*myParameters.back());
             }
             else {
@@ -800,35 +833,26 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
         }
     }
 
-    // Pattern resolution
-    // This comes in the middle of parameter deduction because pattern resolution depends
-    // on knowing what front expressions are to be interpreted as procedure parameters, 
-    // otherwise causing an undeclared identifier error. Parameters eventually need to hold
-    // references to their constraints, but pattern resolution must first resolve those constraints
-    auto ret = mySymbol->resolveSymbols(ctx);
+    SymRes ret;
+    {
+        ScopeResolver resolver(ctx.resolver().scope());
+        resolver.addSupplementaryPrototype(mySymbol->prototype());
+        auto save = ctx.changeResolver(resolver);
+        for ( auto& p : myParameters )
+            ret |= p->resolveSymbols(ctx);
+        ctx.changeResolver(*save);
+    }
+
+    if ( !ret )
+        return ret;
+
+    ret |= mySymbol->resolveSymbols(ctx);
     if ( !ret )
         return ret;
 
     ScopeResolver resolver(scope());
     resolver.addSupplementaryPrototype(mySymbol->prototype());
     ctx.changeResolver(resolver);
-
-    // Parameter deduction (step #2/2)
-    // constraints must be added after the symbol is resolved due to rewrites
-    for ( std::size_t i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
-        auto const ordinal = myOrdinals[i];
-        if ( ordinal < 0 )
-            continue;
-
-        if ( myParameters[ordinal]->constraints().empty() ) {
-            auto const paramConstraints = mySymbol->prototype().pattern()[i]->constraints();
-            for ( auto const& c : paramConstraints )
-                myParameters[ordinal]->addConstraint(*c);
-        }
-    }
-
-    for ( auto& p : myParameters )
-        ret |= ctx.resolveDeclaration(*p);
 
     // Resolve return
     // todo: return type deduction
@@ -842,7 +866,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     }
 
     if ( !myReturnExpression ) {
-        ctx.error(symbol().identifier()) << "inferred return type not implemented";
+        ctx.error(symbol().token()) << "inferred return type not implemented";
         return SymRes::Fail;
     }
 
@@ -851,24 +875,26 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     if ( myReturnExpression->as<ReferenceExpression>() )
         returnSemantics = ProcedureParameter::ByReference;
 
-    myResult = std::make_unique<ProcedureParameter>(Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")), *this, returnSemantics);
-    myResult->addConstraint(*myReturnExpression);
+    myResult = std::make_unique<ProcedureParameter>(
+        Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")),
+        *this,
+        flattenConstraints(ast::clone(myReturnExpression)),
+        returnSemantics);
 
     ret |= ctx.resolveDeclaration(*myResult);
+    if ( !ret )
+        return ret;
+
+    std::vector<std::unique_ptr<Expression>> paramTypes;
+    paramTypes.reserve(myParameters.size());
+    for ( auto const& p : myParameters )
+        paramTypes.emplace_back(ast::clone(p->type()));
+
+    myType = std::make_unique<ArrowExpression>(std::make_unique<TupleExpression>(TupleKind::Open, std::move(paramTypes)),
+                                               ast::clone(myResult->type()));
+    ret |= ctx.resolveExpression(*myType);
+
     return ret;
-}
-
-void ProcedureDeclaration::unresolvePrototypeSymbols()
-{
-    if ( myReturnExpression )
-        clearDeclarations(*myReturnExpression);
-
-    if ( myThisExpr )
-        clearDeclarations(*myThisExpr);
-
-    myParameters.clear();
-    myOrdinals.clear();
-    myResult.reset();
 }
 
 ProcedureScope* ProcedureDeclaration::definition()
@@ -884,10 +910,15 @@ ProcedureScope const* ProcedureDeclaration::definition() const
 void ProcedureDeclaration::define(ProcedureScope* definition)
 {
     if ( myDefinition )
-        throw std::runtime_error("procedure " + mySymbol->identifier().lexeme() + " is already defined");
+        throw std::runtime_error("procedure " + mySymbol->token().lexeme() + " is already defined");
 
     myDefinition = definition;
     myDefinition->setDeclaration(this);
+}
+
+Expression const* ProcedureDeclaration::type() const
+{
+    return myType.get();
 }
 
 Expression* ProcedureDeclaration::returnType()
@@ -898,14 +929,6 @@ Expression* ProcedureDeclaration::returnType()
 Expression const* ProcedureDeclaration::returnType() const
 {
     return myReturnExpression.get();
-}
-
-Declaration const* ProcedureDeclaration::thisType() const
-{
-    if ( myThisExpr )
-        return myThisExpr->declaration()->as<ProcedureParameter>()->dataType();
-
-    return nullptr;
 }
 
 Slice<ProcedureParameter*> ProcedureDeclaration::parameters()
@@ -933,18 +956,18 @@ int ProcedureDeclaration::ordinal(std::size_t index) const
     return myOrdinals[index];
 }
 
-ProcedureParameter* ProcedureDeclaration::findParameter(std::string const& identifier)
+ProcedureParameter* ProcedureDeclaration::findParameter(std::string const& token)
 {
     for ( auto const& p : myParameters )
-        if ( p->symbol().identifier().lexeme() == identifier )
+        if ( p->symbol().token().lexeme() == token )
             return p.get();
 
     return nullptr;
 }
 
-ProcedureParameter const* ProcedureDeclaration::findParameter(std::string const& identifier) const
+ProcedureParameter const* ProcedureDeclaration::findParameter(std::string const& token) const
 {
-    return const_cast<ProcedureDeclaration*>(this)->findParameter(identifier);
+    return const_cast<ProcedureDeclaration*>(this)->findParameter(token);
 }
 
 //
@@ -953,7 +976,7 @@ ProcedureParameter const* ProcedureDeclaration::findParameter(std::string const&
 ImportDeclaration::ImportDeclaration(Symbol&& sym)
     : Declaration(DeclKind::Import, std::move(sym), nullptr)
 {
-    myModulePath.push_back(symbol().identifier());
+    myModulePath.push_back(symbol().token());
 }
 
 ImportDeclaration::ImportDeclaration(std::vector<lexer::Token>&& modulePath)
@@ -998,20 +1021,22 @@ SymRes ImportDeclaration::resolveSymbols(Context& ctx)
 //
 // SymbolVariable
 
-SymbolVariable::SymbolVariable(PatternsPrototype& prototype,
-                               PrimaryExpression const& primary,
+SymbolVariable::SymbolVariable(IdentifierExpression const& id,
+                               DeclarationScope* scope,
+                               PatternsPrototype& prototype,
                                Expression const* bindExpr)
-    : Declaration(DeclKind::SymbolVariable, Symbol(primary.token()), nullptr)
+    : Declaration(DeclKind::SymbolVariable, Symbol(id.token()), scope)
     , myPrototype(&prototype)
     , myBoundExpression(bindExpr)
 {
-    for ( auto const& c : primary.constraints() )
+    for ( auto const& c : id.constraints() )
         myConstraints.push_back(c);
 }
 
-SymbolVariable::SymbolVariable(PatternsPrototype& prototype,
-                               PrimaryExpression const& primary)
-    : SymbolVariable(prototype, primary, nullptr)
+SymbolVariable::SymbolVariable(IdentifierExpression const& id,
+                               DeclarationScope* scope,
+                               PatternsPrototype& prototype)
+    : SymbolVariable(id, scope, prototype, nullptr)
 {
 }
 
@@ -1071,9 +1096,9 @@ Expression const* SymbolVariable::boundExpression() const
     return myBoundExpression;
 }
 
-lexer::Token const& SymbolVariable::identifier() const
+lexer::Token const& SymbolVariable::token() const
 {
-    return symbol().identifier();
+    return symbol().token();
 }
 
 PatternsPrototype const& SymbolVariable::prototype() const
@@ -1140,7 +1165,7 @@ TemplateScope const* TemplateDeclaration::definition() const
 void TemplateDeclaration::define(TemplateScope* definition)
 {
     if ( myDefinition )
-        throw std::runtime_error("template " + mySymbol->identifier().lexeme() + " is already defined");
+        throw std::runtime_error("template " + mySymbol->token().lexeme() + " is already defined");
 
     myDefinition = definition;
     myDefinition->setDeclaration(this);
@@ -1167,11 +1192,12 @@ bool isDataDeclaration(DeclKind kind)
     return false;
 }
 
-bool isMemoryDeclaration(DeclKind kind)
+bool isBinder(DeclKind kind)
 {
     switch ( kind ) {
-    case DeclKind::Variable:
+    case DeclKind::Field:
     case DeclKind::ProcedureParameter:
+    case DeclKind::Variable:
         return true;
     }
 
@@ -1206,6 +1232,54 @@ bool hasIndirection(DeclKind kind)
     return isMacroDeclaration(kind) || kind == DeclKind::SymbolVariable;
 }
 
+bool hasIndirection(Expression const& expr)
+{
+    if ( auto id = identify(expr) )
+        return hasIndirection(id->declaration()->kind());
+
+    return false;
+}
+
+Expression const* getType(Declaration const& decl)
+{
+    if ( auto d = decl.as<DataSumDeclaration>() )
+        return &Expression::universe(1);
+
+    if ( auto d = decl.as<DataSumDeclaration::Constructor>() )
+        return &Expression::universe(1);
+
+    if ( auto d = decl.as<DataProductDeclaration>() )
+        return &Expression::universe(1);
+
+    if ( auto d = decl.as<DataProductDeclaration::Field>() )
+        return d->type();
+
+    if ( auto d = decl.as<SymbolDeclaration>() )
+        return d->expression()->type();
+
+    if ( auto d = decl.as<ProcedureDeclaration>() )
+        return d->type();
+
+    if ( auto d = decl.as<ProcedureParameter>() )
+        return d->type();
+
+    if ( auto d = decl.as<VariableDeclaration>() )
+        return d->type();
+
+    if ( auto d = decl.as<SymbolVariable>() ) {
+        auto expr = d->boundExpression();
+        if ( !expr )
+            return nullptr;
+
+        return expr->type();
+    }
+
+    if ( auto d = decl.as<TemplateDeclaration>() )
+        return &Expression::universe(0);
+
+    return nullptr;
+}
+
 TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc)
 {
     return proc.scope().declaration()->as<TemplateDeclaration>();
@@ -1217,7 +1291,7 @@ bool isCtor(ProcedureDeclaration const& proc)
     if ( !templ )
         return false;
 
-    return templ->symbol().identifier().lexeme() == "ctor";
+    return templ->symbol().token().lexeme() == "ctor";
 }
 
 bool isDtor(ProcedureDeclaration const& proc)
@@ -1226,7 +1300,7 @@ bool isDtor(ProcedureDeclaration const& proc)
     if ( !templ )
         return false;
 
-    return templ->symbol().identifier().lexeme() == "dtor";
+    return templ->symbol().token().lexeme() == "dtor";
 }
 
 template <typename Dispatch>
@@ -1244,27 +1318,27 @@ struct DeclarationPrinter
 
     result_t declDataSum(DataSumDeclaration const& ds)
     {
-        return stream << ds.symbol().identifier().lexeme();
+        return stream << ds.symbol().token().lexeme();
     }
 
     result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
     {
-        return stream << dsCtor.symbol().identifier().lexeme();
+        return stream << dsCtor.symbol().token().lexeme();
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
-        return stream << dp.symbol().identifier().lexeme();
+        return stream << dp.symbol().token().lexeme();
     }
 
     result_t declField(DataProductDeclaration::Field const& f)
     {
-        return stream << f.symbol().identifier().lexeme();
+        return stream << f.symbol().token().lexeme();
     }
 
     result_t declSymbol(SymbolDeclaration const& s)
     {
-        return stream << s.symbol().identifier().lexeme();
+        return stream << s.symbol().token().lexeme();
     }
 
     result_t declProcedure(ProcedureDeclaration const& proc)
@@ -1295,22 +1369,22 @@ struct DeclarationPrinter
 
     result_t declVariable(VariableDeclaration const& var)
     {
-        return stream << var.symbol().identifier().lexeme();
+        return stream << var.symbol().token().lexeme();
     }
 
     result_t declImport(ImportDeclaration const& imp)
     {
-        return stream << imp.symbol().identifier().lexeme();
+        return stream << imp.symbol().token().lexeme();
     }
 
     result_t declSymbolVariable(SymbolVariable const& symVar)
     {
-        return stream << symVar.symbol().identifier().lexeme();
+        return stream << symVar.symbol().token().lexeme();
     }
 
     result_t declTemplate(TemplateDeclaration const& t)
     {
-        return stream << t.symbol().identifier().lexeme();
+        return stream << t.symbol().token().lexeme();
     }
 };
 

@@ -17,7 +17,6 @@ class ModuleSet;
     X(EmptyLiteralType      ) \
     X(IntegerLiteralType    ) \
     X(RationalLiteralType   ) \
-    X(StringLiteralType     ) \
     X(PointerNullLiteralType) \
                               \
     X(UnsignedTemplate      ) \
@@ -60,7 +59,6 @@ enum DataProductIntrinsics
 };
 
 #define INTRINSIC_INSTRUCTIONS(X) \
-    X(Sliceu8_ctor) \
     X(Sliceu8_dtor) \
                     \
     X(Addu        ) \

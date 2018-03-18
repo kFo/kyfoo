@@ -24,7 +24,7 @@ class DeclarationScope;
 class IResolver;
 class Expression;
 class Module;
-class PrimaryExpression;
+class LiteralExpression;
 class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
@@ -60,9 +60,8 @@ public:
     DECL_CLONE_ALL_NOBASE(PatternsPrototype)
 
 public:
-    void resolveVariables();
+    void resolveVariables(DeclarationScope const& scope);
     SymRes resolveSymbols(Context& ctx);
-    void resetPattern();
 
 public:
     Slice<Expression*> pattern() const;
@@ -70,9 +69,8 @@ public:
 
 public:
     void bindVariables(Substitutions const& substs);
-    SymbolVariable* findVariable(std::string const& identifier);
-    SymbolVariable const* findVariable(std::string const& identifier) const;
-    SymbolVariable* createVariable(PrimaryExpression const& primary);
+    SymbolVariable* findVariable(std::string const& token);
+    SymbolVariable const* findVariable(std::string const& token) const;
     bool isConcrete() const;
     std::size_t metaVariableCount() const;
 
@@ -87,9 +85,9 @@ public:
     friend class SymbolSpace;
 
 public:
-    Symbol(lexer::Token const& identifier,
+    Symbol(lexer::Token const& token,
            PatternsPrototype&& params);
-    explicit Symbol(lexer::Token const& identifier);
+    explicit Symbol(lexer::Token const& token);
     Symbol(std::unique_ptr<SymbolExpression> symExpr);
 
 protected:
@@ -114,8 +112,8 @@ public:
     SymRes resolveSymbols(Context& ctx);
 
 public:
-    lexer::Token const& identifier() const;
-    lexer::Token& identifier();
+    lexer::Token const& token() const;
+    lexer::Token& token();
 
     PatternsPrototype const& prototype() const;
     PatternsPrototype& prototype();
@@ -123,7 +121,7 @@ public:
     Symbol const* prototypeParent() const;
 
 private:
-    lexer::Token myIdentifier;
+    lexer::Token myToken;
     std::unique_ptr<PatternsPrototype> myPrototype;
     Symbol const* myPrototypeParent = nullptr;
 };

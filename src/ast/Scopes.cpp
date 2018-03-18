@@ -95,7 +95,7 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 {
     for ( auto& e : myDeclarations ) {
         if ( auto d = e->as<ImportDeclaration>() ) {
-            module().import(dgn, d->identifier());
+            module().import(dgn, d->token());
         }
     }
 }
@@ -147,21 +147,6 @@ void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
         s->resolveAttributes(endModule, dgn);
 }
 
-/**
- * Locates a symbol with parameter list that has exact semantic match
- *
- * Equivalent symbols:
- * \code
- * mytype<n : integer>
- * mytype<m : integer>
- * \endcode
- *
- * Non-equivalent symbols:
- * \code
- * mytype<n : integer>
- * mytype<n : ascii>
- * \endcode
- */
 LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
 {
     auto symSpace = findSymbolSpace(symbol.name());
@@ -174,26 +159,6 @@ LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
     return LookupHit();
 }
 
-/**
- * Locates a symbol with parameter list that could be instantiated by a value expression
- *
- * Overload example:
- * \code
- * mytype<n : integer>
- * mytype<32>
- * \endcode
- *
- * Non-overload example:
- * \code
- * mytype<n : integer>
- * mytype<m : integer>
- * \endcode
- *
- * \code
- * mytype<n : integer>
- * mytype<"str">
- * \endcode
- */
 LookupHit DeclarationScope::findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const
 {
     LookupHit hit;
@@ -254,19 +219,19 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
                                  Symbol const& sym,
                                  Declaration& decl)
 {
-    auto symSpace = createSymbolSpace(dgn, sym.identifier().lexeme());
+    auto symSpace = createSymbolSpace(dgn, sym.token().lexeme());
 
     if ( auto other = symSpace->findEquivalent(sym.prototype().pattern()) ) {
         auto templDecl = decl.as<TemplateDeclaration>();
         if ( !templDecl ) {
-            auto& err = dgn.error(module(), sym.identifier()) << "symbol is already defined";
+            auto& err = dgn.error(module(), sym.token()) << "symbol is already defined";
             err.see(*other);
             return false;
         }
 
         auto otherTemplDecl = other->as<TemplateDeclaration>();
         if ( !otherTemplDecl ) {
-            auto& err = dgn.error(module(), sym.identifier()) << "symbol was not first defined as a template";
+            auto& err = dgn.error(module(), sym.token()) << "symbol was not first defined as a template";
             err.see(*other);
             return false;
         }
@@ -443,20 +408,86 @@ SymRes DataProductScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 
     auto ret = DeclarationScope::resolveSymbols(endModule, dgn);
 
-    resolveConstructors(dgn);
+    resolveConstructors(endModule, dgn);
     resolveDestructor(endModule, dgn);
 
     return ret;
 }
 
-void DataProductScope::resolveConstructors(Diagnostics&)
+SymRes DataProductScope::resolveConstructors(Module& endModule, Diagnostics& dgn)
 {
     // todo: only make default ctor when no other ctor/dtor defined
+
+    ScopeResolver resolver(*this);
+    Context ctx(endModule, dgn, resolver);
+
+    SymRes ret;
+    for ( auto const& d : myDeclarations ) {
+        if ( d->symbol().token().lexeme() == "ctor" && d->symbol().prototype().pattern().empty() ) {
+            auto templ = d->as<TemplateDeclaration>();
+            if ( !templ )
+                continue;
+
+            if ( auto reflectedTempl = reflectBuilder(*templ) ) {
+                ret |= ctx.resolveDeclaration(*reflectedTempl);
+                if ( !ret )
+                    return ret;
+
+                ret |= reflectedTempl->definition()->resolveSymbols(endModule, dgn);
+                if ( !ret )
+                    return ret;
+
+                parent()->addSymbol(dgn, reflectedTempl->symbol(), *reflectedTempl);
+            }
+        }
+    }
+
+    return ret;
 }
 
 std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultConstructor()
 {
     return nullptr;
+}
+
+TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const& ctorTempl)
+{
+    auto builder = std::make_unique<TemplateDeclaration>(makeSym(makeToken("mk"),
+                                                                 createPtrList<Expression>(createIdentifier(*declaration()))));
+    auto builderDefn = std::make_unique<TemplateScope>(*module().scope(), *builder);
+
+    auto const defn = ctorTempl.definition();
+    for ( auto const& d : defn->childDeclarations() ) {
+        if ( d->symbol().token().lexeme().empty() ) {
+            auto procCtor = d->as<ProcedureDeclaration>();
+            if ( !procCtor )
+                continue;
+
+            auto proc = std::make_unique<ProcedureDeclaration>(copyProcSym(d->symbol()),
+                                                               createIdentifier(*declaration()));
+            auto procDefn = std::make_unique<ProcedureScope>(*builderDefn, *proc);
+
+            auto v_ = std::make_unique<VariableDeclaration>(Symbol(makeToken("r")),
+                                                            *procDefn,
+                                                            createPtrList<Expression>(createIdentifier(*declaration())));
+            auto v = v_.get();
+            static_cast<DeclarationScope&>(*procDefn).append(std::move(v_));
+            procDefn->append(createMemberCall(*procCtor, *v, createTuple(proc->symbol().prototype().pattern())));
+            procDefn->basicBlocks().back()->setJunction(
+                std::make_unique<ReturnJunction>(makeToken("return"), createIdentifier(*v)));
+            
+            proc->define(procDefn.get());
+            builderDefn->append(std::move(procDefn));
+            builderDefn->append(std::move(proc));
+        }
+    }
+
+    builder->define(builderDefn.get());
+    module().scope()->append(std::move(builderDefn));
+
+    auto ret = builder.get();
+    module().scope()->append(std::move(builder));
+    return ret;
 }
 
 void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
@@ -467,8 +498,8 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
     auto makeTempl = [this, &dgn] {
         auto templ = std::make_unique<TemplateDeclaration>(
             Symbol(lexer::Token(lexer::TokenKind::Identifier,
-                                declaration()->symbol().identifier().line(),
-                                declaration()->symbol().identifier().column(),
+                                declaration()->symbol().token().line(),
+                                declaration()->symbol().token().column(),
                                 "dtor")));
         auto templDefn = std::make_unique<TemplateScope>(*this, *templ);
         templ->define(templDefn.get());
@@ -520,20 +551,24 @@ std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultDestructor(
 {
     auto proc = std::make_unique<ProcedureDeclaration>(
         Symbol(lexer::Token(lexer::TokenKind::Identifier,
-                            declaration()->symbol().identifier().line(),
-                            declaration()->symbol().identifier().column(),
+                            declaration()->symbol().token().line(),
+                            declaration()->symbol().token().column(),
                             "")),
         nullptr);
 
     auto ps = std::make_unique<ProcedureScope>(*this, *proc);
 
     for ( auto f = myFields.rbegin(); f != myFields.rend(); ++f ) {
-        auto dp = (*f)->constraint().declaration()->as<DataProductDeclaration>();
+        auto id = identify(*(*f)->type());
+        if ( !id )
+            continue;
+
+        auto dp = id->declaration()->as<DataProductDeclaration>();
         if ( !dp )
             continue;
 
         if ( auto dtor = dp->definition()->destructor() )
-            ps->append(createMemberCallExpression(*dtor, **f));
+            ps->append(createMemberCall(*dtor, **f));
     }
 
     proc->define(ps.get());

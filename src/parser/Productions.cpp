@@ -11,11 +11,18 @@ struct Expression::impl : public
 {
     std::unique_ptr<ast::Expression> make() const
     {
-        std::vector<std::unique_ptr<ast::Expression>> exprs;
-        for ( auto const& e : factor<0>().captures() )
-            exprs.emplace_back(e.make());
+        std::unique_ptr<ast::Expression> expr;
+        if ( factor<0>().captures().size() == 1 ) {
+            expr = factor<0>().captures()[0].make();
+        }
+        else {
+            std::vector<std::unique_ptr<ast::Expression>> exprs;
+            for ( auto const& e : factor<0>().captures() )
+                exprs.emplace_back(e.make());
 
-        auto expr = std::make_unique<ast::ApplyExpression>(std::move(exprs));
+            expr = std::make_unique<ast::ApplyExpression>(std::move(exprs));
+        }
+
         if ( auto c = factor<1>().capture() )
             expr->addConstraint(c->factor<1>().make());
 

@@ -9,6 +9,7 @@
 #include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -18,23 +19,75 @@ namespace kyfoo {
     namespace ast {
 
 //
+// Strata
+
+Strata::Strata() = default;
+
+Strata::~Strata() = default;
+
+Expression const* Strata::getType(Expression const& expr)
+{
+    if ( auto u = expr.as<UniverseExpression>() )
+        return &universe(u->level() + 1);
+
+    if ( auto t = expr.as<TupleExpression>() ) {
+        auto const exprs = t->expressions();
+        std::vector<Expression const*> types(exprs.size());
+        for ( std::size_t i = 0; i < types.size(); ++i )
+            types[i] = exprs[i]->type();
+        return &tuple(types);
+    }
+
+    return nullptr;
+}
+
+UniverseExpression const& Strata::universe(std::size_t level)
+{
+    while ( myUniverses.size() <= level ) {
+        auto u = new UniverseExpression(myUniverses.size());
+        myUniverses.emplace_back(std::unique_ptr<UniverseExpression>(u));
+    }
+
+    return *myUniverses[level];
+}
+
+TupleExpression const& Strata::tuple(Slice<Expression*> exprs)
+{
+    myTuples.emplace_back(std::make_unique<TupleExpression>(TupleKind::Open,
+                                                            ast::clone(exprs)));
+    return *myTuples.back();
+}
+
+//
 // Expression
+
+Strata Expression::g_strata;
+
+UniverseExpression const& Expression::universe(std::size_t level)
+{
+    return g_strata.universe(level);
+}
+
+TupleExpression const& Expression::tuple(Slice<Expression*> exprs)
+{
+    return g_strata.tuple(exprs);
+}
 
 Expression::Expression(Kind kind)
     : myKind(kind)
 {
 }
 
-Expression::Expression(Kind kind, Declaration const* decl)
+Expression::Expression(Kind kind, Expression const* type)
     : myKind(kind)
-    , myDeclaration(decl)
+    , myType(type)
 {
 }
 
 Expression::Expression(Expression const& rhs)
     : myKind(rhs.myKind)
     , myConstraints(ast::clone(rhs.myConstraints))
-    , myDeclaration(rhs.myDeclaration)
+    , myType(rhs.myType)
 {
 }
 
@@ -45,7 +98,12 @@ void Expression::swap(Expression& rhs)
     using std::swap;
     swap(myKind, rhs.myKind);
     swap(myConstraints, rhs.myConstraints);
-    swap(myDeclaration, rhs.myDeclaration);
+    swap(myType, rhs.myType);
+}
+
+void Expression::io(IStream& /*stream*/) const
+{
+    // todo
 }
 
 void Expression::cloneChildren(Expression& c, clone_map_t& map) const
@@ -55,7 +113,7 @@ void Expression::cloneChildren(Expression& c, clone_map_t& map) const
 
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Expression)
 IMPL_CLONE_REMAP(myConstraints)
-IMPL_CLONE_REMAP(myDeclaration)
+IMPL_CLONE_REMAP(myType)
 IMPL_CLONE_REMAP_END
 
 void Expression::addConstraint(std::unique_ptr<Expression> expr)
@@ -63,24 +121,44 @@ void Expression::addConstraint(std::unique_ptr<Expression> expr)
     myConstraints.emplace_back(std::move(expr));
 }
 
+void Expression::addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs)
+{
+    move(begin(exprs), end(exprs), back_inserter(myConstraints));
+}
+
 Expression::Kind Expression::kind() const
 {
     return myKind;
 }
 
-Declaration const* Expression::declaration() const
+Expression const* Expression::type() const
 {
-    return myDeclaration;
+    if ( myType )
+        return myType;
+
+    if ( auto type = g_strata.getType(*this) ) {
+        myType = type;
+        return myType;
+    }
+
+    return nullptr;
 }
 
-void Expression::setDeclaration(Declaration const& decl)
+void Expression::setType(std::unique_ptr<Expression> type)
 {
-    myDeclaration = &decl;
+    auto ptr = type.get();
+    addConstraint(std::move(type));
+    myType = ptr;
 }
 
-void Expression::clearDeclaration()
+void Expression::setType(Declaration const& decl)
 {
-    myDeclaration = nullptr;
+    setType(createIdentifier(decl));
+}
+
+void Expression::clearType()
+{
+    myType = nullptr;
 }
 
 Slice<Expression*> Expression::constraints()
@@ -93,35 +171,40 @@ const Slice<Expression*> Expression::constraints() const
     return myConstraints;
 }
 
-//
-// PrimaryExpression
+std::vector<std::unique_ptr<Expression>>&& Expression::takeConstraints()
+{
+    return std::move(myConstraints);
+}
 
-PrimaryExpression::PrimaryExpression(lexer::Token const& token)
-    : PrimaryExpression(Expression::Kind::Primary, token)
+//
+// LiteralExpression
+
+LiteralExpression::LiteralExpression(lexer::Token const& token)
+    : LiteralExpression(Expression::Kind::Literal, token)
 {
 }
 
-PrimaryExpression::PrimaryExpression(Kind kind, lexer::Token const& token)
+LiteralExpression::LiteralExpression(Kind kind, lexer::Token const& token)
     : Expression(kind)
     , myToken(token)
 {
 }
 
-PrimaryExpression::PrimaryExpression(PrimaryExpression const& rhs)
+LiteralExpression::LiteralExpression(LiteralExpression const& rhs)
     : Expression(rhs)
     , myToken(rhs.myToken)
 {
 }
 
-PrimaryExpression& PrimaryExpression::operator = (PrimaryExpression const& rhs)
+LiteralExpression& LiteralExpression::operator = (LiteralExpression const& rhs)
 {
-    PrimaryExpression(rhs).swap(*this);
+    LiteralExpression(rhs).swap(*this);
     return *this;
 }
 
-PrimaryExpression::~PrimaryExpression() = default;
+LiteralExpression::~LiteralExpression() = default;
 
-void PrimaryExpression::swap(PrimaryExpression& rhs)
+void LiteralExpression::swap(LiteralExpression& rhs)
 {
     Expression::swap(rhs);
     
@@ -129,88 +212,158 @@ void PrimaryExpression::swap(PrimaryExpression& rhs)
     swap(myToken, rhs.myToken);
 }
 
-void PrimaryExpression::io(IStream& stream) const
+void LiteralExpression::io(IStream& stream) const
 {
-    stream.next("primary", myToken);
+    stream.next("literal", myToken);
 }
 
-IMPL_CLONE_BEGIN(PrimaryExpression, Expression, Expression)
+IMPL_CLONE_BEGIN(LiteralExpression, Expression, Expression)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(PrimaryExpression, Expression)
+IMPL_CLONE_REMAP_BEGIN(LiteralExpression, Expression)
 IMPL_CLONE_REMAP_END
 
-SymRes PrimaryExpression::resolveSymbols(Context& ctx)
+SymRes LiteralExpression::resolveSymbols(Context& ctx)
 {
-    if ( myDeclaration ) {
-        if ( auto symVar = myDeclaration->as<SymbolVariable>() )
-            if ( !symVar->boundExpression() )
-                return SymRes::NeedsSubstitution;
-
+    if ( myType )
         return SymRes::Success;
-    }
 
     switch ( myToken.kind() ) {
     case lexer::TokenKind::Integer:
     {
-        myDeclaration = ctx.axioms().intrinsic(IntegerLiteralType);
+        setType(*ctx.axioms().intrinsic(IntegerLiteralType));
         return SymRes::Success;
     }
 
     case lexer::TokenKind::Rational:
     {
-        myDeclaration = ctx.axioms().intrinsic(RationalLiteralType);
+        setType(*ctx.axioms().intrinsic(RationalLiteralType));
         return SymRes::Success;
     }
 
     case lexer::TokenKind::String:
     {
         ctx.module().interpretString(ctx.diagnostics(), myToken);
-        myDeclaration = ctx.axioms().intrinsic(StringLiteralType);
+        setType(*ctx.axioms().intrinsic(Sliceu8));
         return SymRes::Success;
     }
-
-    case lexer::TokenKind::MetaVariable:
-    {
-        if ( !myDeclaration ) {
-            ctx.error(myToken) << "meta variable not expected in this context";
-            return SymRes::Fail;
-        }
-
-        if ( auto symVar = myDeclaration->as<SymbolVariable>() ) {
-            if ( symVar->boundExpression() )
-                return SymRes::Success;
-        }
-        else {
-            ctx.error(myToken) << "must be bound to a symbol-variable";
-            return SymRes::Fail;
-        }
-
-        return SymRes::NeedsSubstitution;
     }
 
-    case lexer::TokenKind::Identifier:
-    {
-        // todo: removeme
-        if ( myToken.lexeme() == "null" ) {
-            myDeclaration = ctx.axioms().intrinsic(PointerNullLiteralType);
+    throw std::runtime_error("unhandled literal-expression");
+}
+
+lexer::Token const& LiteralExpression::token() const
+{
+    return myToken;
+}
+
+//
+// IdentifierExpression
+
+IdentifierExpression::IdentifierExpression(lexer::Token const& token)
+    : IdentifierExpression(Kind::Identifier, token, nullptr)
+{
+}
+
+IdentifierExpression::IdentifierExpression(lexer::Token const& token, Declaration const& decl)
+    : IdentifierExpression(Kind::Identifier, token, &decl)
+{
+}
+
+IdentifierExpression::IdentifierExpression(Kind kind, lexer::Token const& token, Declaration const* decl)
+    : Expression(kind)
+    , myToken(token)
+{
+    if ( decl )
+        setDeclaration(*decl);
+}
+
+IdentifierExpression::IdentifierExpression(IdentifierExpression const& rhs)
+    : Expression(rhs)
+    , myToken(rhs.myToken)
+    , myDeclaration(rhs.myDeclaration)
+{
+}
+
+IdentifierExpression& IdentifierExpression::operator = (IdentifierExpression const& rhs)
+{
+    IdentifierExpression(rhs).swap(*this);
+    return *this;
+}
+
+IdentifierExpression::~IdentifierExpression() = default;
+
+void IdentifierExpression::swap(IdentifierExpression& rhs)
+{
+    Expression::swap(rhs);
+
+    using std::swap;
+    swap(myToken, rhs.myToken);
+    swap(myDeclaration, rhs.myDeclaration);
+}
+
+void IdentifierExpression::io(IStream& stream) const
+{
+    Expression::io(stream);
+    // todo
+}
+
+IMPL_CLONE_BEGIN(IdentifierExpression, Expression, Expression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(IdentifierExpression, Expression)
+IMPL_CLONE_REMAP(myDeclaration)
+IMPL_CLONE_REMAP_END
+
+SymRes IdentifierExpression::resolveSymbols(Context& ctx)
+{
+    if ( myType )
+        return SymRes::Success;
+
+    if ( myDeclaration ) {
+        if ( hasIndirection(myDeclaration->kind()) ) {
+            auto expr = lookThrough(myDeclaration);
+            if ( !expr )
+                return SymRes::NeedsSubstitution;
+
+            myType = expr->type();
             return SymRes::Success;
         }
 
-        auto hit = ctx.matchOverload(SymbolReference(myToken.lexeme()));
-        if ( !hit ) {
-            ctx.error(myToken) << "undeclared identifier";
+        myType = getType(*myDeclaration);
+        return SymRes::Success;
+    }
+
+    if ( token().kind() == lexer::TokenKind::MetaVariable ) {
+        if ( !myDeclaration ) {
+            ctx.error(token()) << "meta-variable not expected in this context";
             return SymRes::Fail;
         }
 
-        if ( hit.as<TemplateDeclaration>() ) {
-            ctx.error(myToken) << "does not refer to any template invocation";
+        auto n = lookThrough(myDeclaration);
+        if ( !n )
+            return SymRes::NeedsSubstitution;
+
+        myType = n->type();
+        return SymRes::Success;
+    }
+    else if ( token().kind() == lexer::TokenKind::Identifier ) {
+        // todo: remove by generalization
+        if ( token().lexeme() == "null" ) {
+            setType(*ctx.axioms().intrinsic(PointerNullLiteralType));
+            return SymRes::Success;
+        }
+
+        auto hit = ctx.matchOverload(token().lexeme());
+        if ( !hit ) {
+            ctx.error(token()) << "undeclared identifier";
             return SymRes::Fail;
         }
-        else if ( hit.as<ProcedureDeclaration>() ) {
-            throw std::runtime_error("primary-expression cannot refer to a procedure");
-        }
+
+        // has to refer to a template (procedures don't have names)
+        if ( hit.as<ProcedureDeclaration>() )
+            throw std::runtime_error("identifier-expression cannot refer to a procedure");
 
         myDeclaration = hit.decl();
+        myType = getType(*myDeclaration);
 
         if ( auto symVar = myDeclaration->as<SymbolVariable>() )
             if ( !symVar->boundExpression() )
@@ -219,30 +372,51 @@ SymRes PrimaryExpression::resolveSymbols(Context& ctx)
         return SymRes::Success;
     }
 
-    default:
-        throw std::runtime_error("unhandled primary expression");
-    }
+    throw std::runtime_error("unhandled identifier-expression");
 }
 
-lexer::Token const& PrimaryExpression::token() const
+lexer::Token const& IdentifierExpression::token() const
 {
     return myToken;
 }
 
-void PrimaryExpression::setMetaVariable(Declaration const* decl)
+Declaration const* IdentifierExpression::declaration() const
 {
-    if ( myDeclaration )
-        throw std::runtime_error("meta variable can only be bound once");
+    return myDeclaration;
+}
 
-    myDeclaration = decl;
+void IdentifierExpression::setDeclaration(Declaration const& decl)
+{
+    if ( myDeclaration ) {
+        switch ( resolveIndirections(myDeclaration)->kind() ) {
+        case DeclKind::DataProduct:
+        case DeclKind::Template:
+            break;
+        default:
+            throw std::runtime_error("identifier resolved more than once");
+        }
+    }
+
+    myDeclaration = &decl;
+    myType = getType(*myDeclaration);
+}
+
+void IdentifierExpression::clearDeclaration()
+{
+    myDeclaration = nullptr;
+}
+
+void IdentifierExpression::setToken(lexer::Token const& token)
+{
+    myToken = token;
 }
 
 //
 // ReferenceExpression
 
-ReferenceExpression::ReferenceExpression(std::unique_ptr<Expression> expression)
+ReferenceExpression::ReferenceExpression(std::unique_ptr<IdentifierExpression> expression)
     : Expression(Expression::Kind::Reference)
-    , myExpression(std::move(expression))
+    , myId(std::move(expression))
 {
 }
 
@@ -263,47 +437,53 @@ void ReferenceExpression::swap(ReferenceExpression& rhs)
 {
     Expression::swap(rhs);
     using std::swap;
-    swap(myExpression, rhs.myExpression);
+    swap(myId, rhs.myId);
 }
 
 void ReferenceExpression::io(IStream& stream) const
 {
-    stream.next("expr", myExpression);
+    stream.next("expr", myId);
 }
 
 IMPL_CLONE_BEGIN(ReferenceExpression, Expression, Expression)
-IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_CHILD(myId)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ReferenceExpression, Expression)
-IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP(myId)
 IMPL_CLONE_REMAP_END
 
 SymRes ReferenceExpression::resolveSymbols(Context& ctx)
 {
-    if ( myDeclaration )
+    if ( myType )
         return SymRes::Success;
 
-    auto ret = ctx.resolveExpression(myExpression);
+    auto ret = ctx.resolveExpression(*myId);
     if ( !ret )
         return ret;
 
-    if ( !isMemoryDeclaration(myExpression->declaration()->kind()) ) {
+    auto id = identify(*myId);
+    if ( !id ) {
+        ctx.error(*this) << "reference-expressions only apply to identifiers";
+        return SymRes::Fail;
+    }
+
+    if ( !isBinder(id->declaration()->kind()) ) {
         ctx.error(*this) << "reference-expressions can only apply to expressions with storage";
         return SymRes::Fail;
     }
 
-    myDeclaration = myExpression->declaration();
-    return myDeclaration ? SymRes::Success : SymRes::Fail;
+    myType = myId->type();
+    return myType ? SymRes::Success : SymRes::Fail;
 }
 
-Expression const& ReferenceExpression::expression() const
+IdentifierExpression const& ReferenceExpression::expression() const
 {
-    return *myExpression;
+    return *myId;
 }
 
-Expression& ReferenceExpression::expression()
+IdentifierExpression& ReferenceExpression::expression()
 {
-    return *myExpression;
+    return *myId;
 }
 
 //
@@ -429,7 +609,7 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
 
     if ( myKind == TupleKind::Open ) {
         if ( myExpressions.empty() ) {
-            myDeclaration = ctx.axioms().intrinsic(EmptyLiteralType);
+            setType(*ctx.axioms().intrinsic(EmptyLiteralType));
             return SymRes::Success;
         }
         else if ( myExpressions.size() == 1 ) {
@@ -441,6 +621,7 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
+    // myType is generated lazily
     return SymRes::Success;
 }
 
@@ -538,7 +719,7 @@ IMPL_CLONE_REMAP_END
 
 SymRes ApplyExpression::resolveSymbols(Context& ctx)
 {
-    if ( myDeclaration )
+    if ( myType )
         return SymRes::Success;
 
     flatten(next(begin(myExpressions)));
@@ -552,134 +733,110 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    auto subject = myExpressions.front()->as<PrimaryExpression>();
-    if ( subject ) {
-        if ( subject->token().kind() != lexer::TokenKind::Identifier )
-            return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
+    if ( auto lit = subject()->as<LiteralExpression>() )
+        return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
 
-        auto hit = ctx.matchOverload(SymbolReference(subject->token().lexeme()));
+    if ( auto id = subject()->as<IdentifierExpression>() ) {
+        auto hit = ctx.matchOverload(id->token().lexeme());
         if ( !hit )
             return ctx.rewrite(std::make_unique<SymbolExpression>(std::move(myExpressions)));
-
-        subject->setDeclaration(*hit.decl());
     }
 
-    ret = ctx.resolveExpression(myExpressions.front());
+    ret |= ctx.resolveExpression(myExpressions.front());
     if ( !ret )
         return ret;
 
-    LookupHit hit;
-    for ( auto callable = myExpressions.front()->declaration(); ; ) {
-        if ( auto d = callable->as<DataSumDeclaration>() ) {
-            if ( myExpressions.size() == 1 )
-                return ctx.rewrite(std::move(myExpressions.front()));
+    ret |= elaborateSubject(ctx);
+    if ( !ret )
+        return ret;
 
-            auto& err = ctx.error(*myExpressions.front()) << "cannot be the subject of an apply-expression";
-            err.see(*d);
-            return SymRes::Fail;
-        }
-
-        if ( auto d = callable->as<DataProductDeclaration>() ) {
-            if ( auto defn = d->definition() ) {
-                hit = defn->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("ctor"));
-                if ( hit ) {
-                    if ( auto decl = hit.as<TemplateDeclaration>() ) {
-                        hit = decl->definition()->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
-                        if ( auto proc = hit.as<ProcedureDeclaration>() ) {
-                            if ( !myExpressions.front()->as<DotExpression>() ) {
-                                auto procScope = ctx.resolver().scope().as<ProcedureScope>();
-                                auto var = ctx.statement().createUnnamed(const_cast<ProcedureScope&>(*procScope), *proc->thisType());
-
-                                std::vector<std::unique_ptr<Expression>> exprs;
-                                exprs.emplace_back(std::make_unique<PrimaryExpression>(lexer::Token()));
-                                exprs.back()->setDeclaration(*var);
-                                exprs.emplace_back(std::move(myExpressions.front()));
-
-                                myExpressions.front() = std::make_unique<DotExpression>(false, std::move(exprs));
-                                myExpressions.front()->setDeclaration(*proc);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if ( auto d = callable->as<TemplateDeclaration>() ) {
-            if ( auto defn = d->definition() )
-                hit = defn->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", slice(myExpressions, 1)));
-        }
-
-        if ( auto d = callable->as<DataSumDeclaration::Constructor>() ) {
-            ctx.error(*myExpressions.front()) << "ds ctor not implemented";
-            return SymRes::Fail;
-        }
-
-        if ( auto d = callable->as<DataProductDeclaration::Field  >() ) { callable = d->constraint().declaration(); continue; }
-        if ( auto d = callable->as<SymbolDeclaration              >() ) { callable = d->expression()->declaration(); continue; }
-        if ( auto d = callable->as<ProcedureDeclaration           >() ) { callable = d->returnType()->declaration(); continue; }
-        if ( auto d = callable->as<ProcedureParameter             >() ) { callable = d->dataType(); continue; }
-        if ( auto d = callable->as<VariableDeclaration            >() ) { callable = d->dataType(); continue; }
-        if ( auto d = callable->as<SymbolVariable                 >() ) { callable = d->boundExpression()->declaration(); continue; }
-
-        if ( auto d = callable->as<ImportDeclaration              >() ) {
-            ctx.error(*myExpressions.front()) << "cannot use import declaration in apply-expression";
-            return SymRes::Fail;
-        }
-
-        break;
-    }
-
-    auto tryLowerSingle = [this, &ctx](Declaration const* decl) -> SymRes {
-        myDeclaration = decl;
-
-        if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-            Declaration const* dt = decl;
-            if ( isCtor(*proc) )
-                dt = proc->parameters()[0]->dataType();
-            else
-                dt = proc->returnType()->declaration();
-
-            if ( dt == ctx.axioms().intrinsic(EmptyLiteralType) )
-                return SymRes::Success;
-
-            return ctx.rewrite([&ctx, dt](std::unique_ptr<Expression>& expr) {
-                auto procScope = ctx.resolver().scope().as<ProcedureScope>();
-                // todo: remove const_cast
-                auto var = ctx.statement().createUnnamed(const_cast<ProcedureScope&>(*procScope), *dt);
-                return std::make_unique<VarExpression>(*var, std::move(expr));
-            });
-        }
-
-        if ( myExpressions.size() == 1 ) {
-            myExpressions.front()->setDeclaration(*myDeclaration);
-            return ctx.rewrite(std::move(myExpressions.front()));
-        }
-
-        return SymRes::Success;
-    };
-
-    if ( !hit ) {
-        // Look for hit on symbol
-        LookupHit symHit;
-        if ( subject ) {
-            SymbolReference sym(subject->token().lexeme(), slice(myExpressions, 1));
-            if ( symHit = ctx.matchOverload(sym) )
-                return tryLowerSingle(symHit.decl());
-        }
-
-        // Doesn't match either proc or sym
-        auto& err = ctx.error(*this) << "does not match any procedure overload or symbol declaration";
-        if ( hit.symSpace() ) {
-            for ( auto const& p : hit.symSpace()->prototypes() )
-                err.see(*p.proto.decl);
-
-            for ( auto const& p : symHit.symSpace()->prototypes() )
-                err.see(*p.proto.decl);
-        }
+    auto arrow = subject()->type()->as<ArrowExpression>();
+    if ( !arrow ) {
+        ctx.error(*subject()) << "subject of an apply-expression must have an applicable type";
         return SymRes::Fail;
     }
 
-    return tryLowerSingle(hit.decl());
+    myType = &arrow->to();
+    return ret;
+}
+
+SymRes ApplyExpression::elaborateSubject(Context& ctx)
+{
+    auto subject = identify(*myExpressions.front());
+    if ( !subject )
+        return SymRes::Success;
+
+    auto applicable = resolveIndirections(subject->declaration());
+    if ( !applicable ) {
+        ctx.error(*subject) << "does not identify any known declaration";
+        return SymRes::Fail;
+    }
+
+    if ( auto d = applicable->as<DataSumDeclaration>() ) {
+        auto& err = ctx.error(*myExpressions.front()) << "cannot be the subject of an apply-expression";
+        err.see(*d);
+        return SymRes::Fail;
+    }
+
+    if ( auto d = applicable->as<DataProductDeclaration>() ) {
+        auto defn = d->definition();
+        if ( !defn ) {
+            ctx.error(*d) << "missing definition";
+            return SymRes::Fail;
+        }
+
+        auto hit = defn->findOverload(ctx.module(), ctx.diagnostics(), "ctor");
+        if ( !hit ) {
+            ctx.error(*d) << "is not constructible";
+            return SymRes::Fail;
+        }
+
+        auto decl = hit.as<TemplateDeclaration>();
+        if ( !decl )
+            throw std::runtime_error("ctor is not a template");
+
+        hit = decl->definition()->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", arguments()));
+        auto proc = hit.as<ProcedureDeclaration>();
+        if ( !proc )
+            throw std::runtime_error("ctor is not a procedure");
+
+        subject->setDeclaration(*proc);
+        return SymRes::Success;
+    }
+
+    if ( auto d = applicable->as<TemplateDeclaration>() ) {
+        auto defn = d->definition();
+        if ( !defn ) {
+            ctx.error(*d) << "missing definition";
+            return SymRes::Fail;
+        }
+
+        auto hit = defn->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", arguments()));
+        auto proc = hit.as<ProcedureDeclaration>();
+        if ( !proc ) {
+            auto& err = ctx.error(*this) << "does not match any procedure overload";
+            if ( hit.symSpace() ) {
+                for ( auto const& p : hit.symSpace()->prototypes() )
+                    err.see(*p.proto.decl);
+            }
+            return SymRes::Fail;
+        }
+
+        subject->setDeclaration(*proc);
+        return SymRes::Success;
+    }
+
+    if ( auto d = applicable->as<DataSumDeclaration::Constructor>() ) {
+        ctx.error(*myExpressions.front()) << "ds ctor not implemented";
+        return SymRes::Fail;
+    }
+
+    if ( auto d = applicable->as<ImportDeclaration>() ) {
+        ctx.error(*myExpressions.front()) << "cannot use import-declaration in apply-expression";
+        return SymRes::Fail;
+    }
+
+    return SymRes::Success;
 }
 
 /**
@@ -711,29 +868,33 @@ void ApplyExpression::flatten(std::vector<std::unique_ptr<Expression>>::iterator
     }
 }
 
-Slice<Expression*> ApplyExpression::expressions() const
+Slice<Expression*> const ApplyExpression::expressions() const
 {
     return myExpressions;
 }
 
-ProcedureDeclaration const* ApplyExpression::declaration() const
+Expression const* ApplyExpression::subject() const
 {
-    return static_cast<ProcedureDeclaration const*>(myDeclaration);
+    return myExpressions.front().get();
+}
+
+Slice<Expression*> const ApplyExpression::arguments() const
+{
+    return slice(myExpressions, 1);
 }
 
 //
 // SymbolExpression
 
-SymbolExpression::SymbolExpression(lexer::Token const& identifier,
+SymbolExpression::SymbolExpression(lexer::Token const& token,
                                    std::vector<std::unique_ptr<Expression>>&& expressions)
-    : Expression(Expression::Kind::Symbol)
-    , myIdentifier(identifier)
+    : IdentifierExpression(Expression::Kind::Symbol, token, nullptr)
     , myExpressions(std::move(expressions))
 {
 }
 
 SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& expressions)
-    : Expression(Expression::Kind::Symbol)
+    : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
 {
 }
@@ -741,7 +902,7 @@ SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& ex
 SymbolExpression::SymbolExpression(lexer::Token const& open,
                                    lexer::Token const& close,
                                    std::vector<std::unique_ptr<Expression>>&& expressions)
-    : Expression(Expression::Kind::Symbol)
+    : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
     , myOpenToken(open)
     , myCloseToken(close)
@@ -749,8 +910,7 @@ SymbolExpression::SymbolExpression(lexer::Token const& open,
 }
 
 SymbolExpression::SymbolExpression(SymbolExpression const& rhs)
-    : Expression(rhs)
-    , myIdentifier(rhs.myIdentifier)
+    : IdentifierExpression(rhs)
     , myOpenToken(rhs.myOpenToken)
     , myCloseToken(rhs.myCloseToken)
 {
@@ -766,10 +926,9 @@ SymbolExpression::~SymbolExpression() = default;
 
 void SymbolExpression::swap(SymbolExpression& rhs)
 {
-    Expression::swap(rhs);
+    IdentifierExpression::swap(rhs);
 
     using std::swap;
-    swap(myIdentifier, rhs.myIdentifier);
     swap(myExpressions, rhs.myExpressions);
     swap(myOpenToken, rhs.myOpenToken);
     swap(myCloseToken, rhs.myCloseToken);
@@ -777,34 +936,34 @@ void SymbolExpression::swap(SymbolExpression& rhs)
 
 void SymbolExpression::io(IStream& stream) const
 {
-    stream.next("identifier", myIdentifier);
+    IdentifierExpression::io(stream);
     stream.next("expressions", myExpressions);
 }
 
-IMPL_CLONE_BEGIN(SymbolExpression, Expression, Expression)
+IMPL_CLONE_BEGIN(SymbolExpression, IdentifierExpression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(SymbolExpression, Expression)
+IMPL_CLONE_REMAP_BEGIN(SymbolExpression, IdentifierExpression)
 IMPL_CLONE_REMAP(myExpressions)
 IMPL_CLONE_REMAP_END
 
 SymRes SymbolExpression::resolveSymbols(Context& ctx)
 {
-    if ( myDeclaration )
+    if ( declaration() )
         return SymRes::Success;
 
-    if ( myIdentifier.kind() == lexer::TokenKind::Undefined ) {
+    if ( token().kind() == lexer::TokenKind::Undefined ) {
         if ( myExpressions.empty() )
             return SymRes::Success;
 
-        auto subject = myExpressions.front()->as<PrimaryExpression>();
+        auto subject = myExpressions.front()->as<IdentifierExpression>();
         if ( !subject ) {
             ctx.error(*this) << "symbol tuples must start with an identifier";
             return SymRes::Fail;
         }
 
         auto subjectExpression = std::move(myExpressions.front());
-        myIdentifier = subject->token();
+        setToken(subject->token());
         move(next(begin(myExpressions)), end(myExpressions),
              begin(myExpressions));
         myExpressions.pop_back();
@@ -817,20 +976,15 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    SymbolReference sym(myIdentifier.lexeme(), myExpressions);
+    SymbolReference sym(token().lexeme(), myExpressions);
     auto hit = ctx.matchOverload(sym);
     if ( !hit ) {
         ctx.error(*this) << "undeclared symbol identifier";
         return SymRes::Fail;
     }
 
-    myDeclaration = hit.decl();
+    setDeclaration(*hit.decl());
     return SymRes::Success;
-}
-
-lexer::Token const& SymbolExpression::identifier() const
-{
-    return myIdentifier;
 }
 
 Slice<Expression*> SymbolExpression::expressions()
@@ -863,14 +1017,14 @@ std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions(
 
 DotExpression::DotExpression(bool global,
                              std::vector<std::unique_ptr<Expression>>&& exprs)
-    : Expression(Kind::Dot)
+    : IdentifierExpression(Kind::Dot, lexer::Token(), nullptr)
     , myExpressions(std::move(exprs))
     , myGlobal(global)
 {
 }
 
 DotExpression::DotExpression(DotExpression const& rhs)
-    : Expression(rhs)
+    : IdentifierExpression(rhs)
 {
     // myFirst, mySecond cloned
 }
@@ -887,25 +1041,29 @@ DotExpression::~DotExpression()
 
 void DotExpression::swap(DotExpression& rhs)
 {
-    Expression::swap(rhs);
+    IdentifierExpression::swap(rhs);
     using std::swap;
     swap(myExpressions, rhs.myExpressions);
 }
 
 void DotExpression::io(IStream& stream) const
 {
+    IdentifierExpression::io(stream);
     stream.next("expression", myExpressions);
 }
 
-IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
+IMPL_CLONE_BEGIN(DotExpression, IdentifierExpression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DotExpression, Expression)
+IMPL_CLONE_REMAP_BEGIN(DotExpression, IdentifierExpression)
 IMPL_CLONE_REMAP(myExpressions)
 IMPL_CLONE_REMAP_END
 
 SymRes DotExpression::resolveSymbols(Context& ctx)
 {
+    if ( myType )
+        return SymRes::Success;
+
     ScopeResolver resolver(*ctx.module().scope());
     if ( isModuleScope() )
         ctx.changeResolver(resolver);
@@ -915,7 +1073,13 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
         return ret;
 
     {
-        auto scope = memberScope(*resolveIndirections(myExpressions.front()->declaration()));
+        auto id = identify(*myExpressions.front());
+        if ( !id ) {
+            ctx.error(*myExpressions.front()) << "does not have any accessible members";
+            return SymRes::Fail;
+        }
+
+        auto scope = memberScope(*resolveIndirections(id->declaration()));
         if ( !scope ) {
             ctx.error(*myExpressions.front()) << "does not have any accessible members";
             return SymRes::Fail;
@@ -931,7 +1095,13 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
         if ( !ret )
             return ret;
 
-        auto scope = memberScope(*resolveIndirections(e->declaration()));
+        auto id = identify(*e);
+        if ( !id ) {
+            ctx.error(*id) << "dot-expression must be composed of identifiers";
+            return SymRes::Fail;
+        }
+
+        auto scope = memberScope(*resolveIndirections(id->declaration()));
         if ( !scope ) {
             ctx.error(*e) << "does not have any accessible members";
             return SymRes::Fail;
@@ -941,10 +1111,18 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
     }
 
     ctx.resolveExpression(myExpressions.back());
-    if ( myExpressions.back()->declaration() )
-        myDeclaration = myExpressions.back()->declaration();
+    auto id = identify(*myExpressions.back());
+    if ( !id ) {
+        ctx.error(*id) << "dot-expression must be composed of identifiers";
+        return SymRes::Fail;
+    }
 
-    return myDeclaration ? SymRes::Success : SymRes::Fail;
+    if ( id->declaration() ) {
+        setDeclaration(*id->declaration());
+        return SymRes::Success;
+    }
+
+    return SymRes::Fail;
 }
 
 Slice<Expression*> DotExpression::expressions()
@@ -975,7 +1153,7 @@ bool DotExpression::isModuleScope() const
 //
 // VarExpression
 
-VarExpression::VarExpression(std::unique_ptr<PrimaryExpression> id,
+VarExpression::VarExpression(std::unique_ptr<IdentifierExpression> id,
                              std::unique_ptr<Expression> expression)
     : Expression(Kind::Var)
     , myIdentity(std::move(id))
@@ -986,7 +1164,7 @@ VarExpression::VarExpression(std::unique_ptr<PrimaryExpression> id,
 VarExpression::VarExpression(VariableDeclaration const& var,
                              std::unique_ptr<Expression> expression)
     : Expression(Kind::Var)
-    , myIdentity(std::make_unique<PrimaryExpression>(lexer::Token()))
+    , myIdentity(createIdentifier(var))
     , myExpression(std::move(expression))
 {
     myIdentity->setDeclaration(var);
@@ -1030,10 +1208,10 @@ IMPL_CLONE_REMAP_END
 
 SymRes VarExpression::resolveSymbols(Context& ctx)
 {
-    if ( myDeclaration )
+    if ( myType )
         return SymRes::Success;
 
-    auto ret = ctx.resolveExpression(reinterpret_cast<std::unique_ptr<Expression>&>(myIdentity));
+    auto ret = ctx.resolveExpression(*myIdentity);
     if ( !ret )
         return ret;
 
@@ -1041,16 +1219,21 @@ SymRes VarExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    myDeclaration = myIdentity->declaration();
+    if ( !variance(ctx, *myIdentity, *myExpression) ) {
+        ctx.error(*this) << "assignment expression type does not match variable type";
+        return SymRes::Fail;
+    }
+
+    myType = myIdentity->type();
     return SymRes::Success;
 }
 
-PrimaryExpression const& VarExpression::identity() const
+IdentifierExpression const& VarExpression::identity() const
 {
     return *myIdentity;
 }
 
-PrimaryExpression& VarExpression::identity()
+IdentifierExpression& VarExpression::identity()
 {
     return *myIdentity;
 }
@@ -1113,6 +1296,7 @@ IMPL_CLONE_CHILD(myReturnType)
 IMPL_CLONE_CHILD(myBody)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(LambdaExpression, Expression)
+IMPL_CLONE_REMAP(myProc)
 IMPL_CLONE_REMAP(myParams)
 IMPL_CLONE_REMAP(myReturnType)
 IMPL_CLONE_REMAP(myBody)
@@ -1120,7 +1304,7 @@ IMPL_CLONE_REMAP_END
 
 SymRes LambdaExpression::resolveSymbols(Context& ctx)
 {
-    if ( myDeclaration )
+    if ( myProc )
         return SymRes::Success;
 
     auto ret = ctx.resolveExpression(myParams);
@@ -1174,15 +1358,210 @@ Expression& LambdaExpression::body()
 }
 
 //
+// ArrowExpression
+
+ArrowExpression::ArrowExpression(std::unique_ptr<Expression> from,
+                                 std::unique_ptr<Expression> to)
+    : Expression(Kind::Arrow)
+    , myFrom(std::move(from))
+    , myTo(std::move(to))
+{
+}
+
+ArrowExpression::ArrowExpression(ArrowExpression const& rhs)
+    : Expression(rhs)
+{
+}
+
+ArrowExpression& ArrowExpression::operator = (ArrowExpression const& rhs)
+{
+    ArrowExpression(rhs).swap(*this);
+    return *this;
+}
+
+ArrowExpression::~ArrowExpression() = default;
+
+void ArrowExpression::swap(ArrowExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myFrom, rhs.myFrom);
+    swap(myTo, rhs.myTo);
+}
+
+void ArrowExpression::io(IStream& stream) const
+{
+    stream.next("from", myFrom);
+    stream.next("to", myTo);
+}
+
+IMPL_CLONE_BEGIN(ArrowExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myFrom)
+IMPL_CLONE_CHILD(myTo)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ArrowExpression, Expression)
+IMPL_CLONE_REMAP(myFrom)
+IMPL_CLONE_REMAP(myTo)
+IMPL_CLONE_REMAP_END
+
+SymRes ArrowExpression::resolveSymbols(Context& ctx)
+{
+    auto ret = ctx.resolveExpression(myFrom);
+    if ( !ret )
+        return ret;
+
+    ret = ctx.resolveExpression(myTo);
+    if ( !ret )
+        return ret;
+
+    myType = &Expression::universe(level(*this));
+    return ret;
+}
+
+Expression const& ArrowExpression::from() const
+{
+    return *myFrom;
+}
+
+Expression const& ArrowExpression::to() const
+{
+    return *myTo;
+}
+
+Expression& ArrowExpression::from()
+{
+    return *myFrom;
+}
+
+Expression& ArrowExpression::to()
+{
+    return *myTo;
+}
+
+//
+// UniverseExpression
+
+UniverseExpression::UniverseExpression(natural_t level)
+    : Expression(Kind::Universe)
+    , myLevel(level)
+{
+}
+
+UniverseExpression::UniverseExpression(UniverseExpression const& rhs)
+    : Expression(rhs)
+    , myLevel(rhs.myLevel)
+{
+}
+
+UniverseExpression& UniverseExpression::operator = (UniverseExpression const& rhs)
+{
+    UniverseExpression(rhs).swap(*this);
+    return *this;
+}
+
+UniverseExpression::~UniverseExpression() = default;
+
+void UniverseExpression::swap(UniverseExpression& rhs)
+{
+    Expression::swap(rhs);
+    using std::swap;
+    swap(myLevel, rhs.myLevel);
+}
+
+void UniverseExpression::io(IStream& stream) const
+{
+    Expression::io(stream);
+    stream.next("level", myLevel);
+}
+
+IMPL_CLONE_BEGIN(UniverseExpression, Expression, Expression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(UniverseExpression, Expression)
+IMPL_CLONE_REMAP_END
+
+SymRes UniverseExpression::resolveSymbols(Context&)
+{
+    // myType is generated lazily
+    return SymRes::Success;
+}
+
+UniverseExpression::natural_t UniverseExpression::level() const
+{
+    return myLevel;
+}
+
+//
 // Utilities
 
-bool allResolved(Slice<Expression*> const& exprs)
+Expression const* createInferredType(Expression& expr, Declaration const& decl)
 {
-    for ( auto const& e : exprs )
-        if ( !e->declaration() )
-            return false;
+    auto e = createIdentifier(decl);
+    auto ret = e.get();
+    expr.addConstraint(std::move(e));
+    return ret;
+}
 
-    return true;
+bool hasDeclaration(Expression const& expr)
+{
+    switch (expr.kind()) {
+    case Expression::Kind::Identifier:
+    case Expression::Kind::Reference:
+    case Expression::Kind::Symbol:
+    case Expression::Kind::Dot:
+        return true;
+    }
+
+    return false;
+}
+
+IdentifierExpression* identify(Expression& expr)
+{
+    if ( auto id = expr.as<IdentifierExpression>() )
+        return id;
+
+    if ( auto ref = expr.as<ReferenceExpression>() )
+        return ref->expression().as<IdentifierExpression>();
+
+    if ( auto sym = expr.as<SymbolExpression>() )
+        return sym;
+
+    if ( auto dot = expr.as<DotExpression>() )
+        return dot;
+
+    return nullptr;
+}
+
+IdentifierExpression const* identify(Expression const& expr)
+{
+    return identify(const_cast<Expression&>(expr));
+}
+
+Declaration const* getDeclaration(Expression const& expr)
+{
+    if ( auto id = identify(expr) )
+        return id->declaration();
+
+    return nullptr;
+}
+
+Declaration const* getDeclaration(Expression const* expr)
+{
+    if ( expr )
+        return getDeclaration(*expr);
+
+    return nullptr;
+}
+
+std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr)
+{
+    auto ret = createPtrList<Expression>(std::move(expr));
+    for ( std::size_t i = 0; i != ret.size(); ++i ) {
+        std::move(begin(ret[i]->myConstraints), end(ret[i]->myConstraints),
+                  std::back_inserter(ret));
+        ret[i]->myConstraints.resize(0);
+    }
+
+    return ret;
 }
 
     } // namespace ast

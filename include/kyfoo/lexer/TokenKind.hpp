@@ -42,7 +42,7 @@ namespace kyfoo {
     X(ColonSlash    , "colonSlash"    ) \
     \
     X(Yield, "yield") \
-    X(Map  , "map"  ) \
+    X(Arrow, "arrow") \
     \
     X(At        , "at"         ) \
     X(MinusMinus, "minus minus") \

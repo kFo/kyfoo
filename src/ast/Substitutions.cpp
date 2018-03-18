@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
@@ -34,10 +35,10 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression*> const
         for ( std::size_t i = 0; i < paramCount; ++i ) {
             auto const ordinal = proc->ordinal(i);
             if ( ordinal == -1 ) {
-                if ( targetPattern[i]->declaration() )
+                if ( targetPattern[i]->type() )
                     continue;
             }
-            else if ( proc->parameters()[ordinal]->dataType() ) {
+            else if ( proc->parameters()[ordinal]->type() ) {
                 continue;
             }
 
@@ -52,60 +53,59 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression*> const
         setMismatch();
 }
 
-Substitutions::Substitutions(Slice<Expression*> const& lhs, Slice<Expression*> const& rhs)
+Substitutions::Substitutions(Slice<Expression*> const& target, Slice<Expression*> const& query)
 {
-    deduce(lhs, rhs);
+    deduce(target, query);
 }
 
 Substitutions::~Substitutions() = default;
 
-bool Substitutions::deduce(Slice<Expression*> const& lhs, Slice<Expression*> const& rhs)
+bool Substitutions::deduce(Slice<Expression*> const& target, Slice<Expression*> const& query)
 {
-    auto const n = lhs.size();
-    if ( n != rhs.size() )
+    auto const n = target.size();
+    if ( n != query.size() )
         return false;
 
     bool ret = true;
     for ( std::size_t i = 0; i < n; ++i )
-        ret &= deduce(*lhs[i], *rhs[i]);
+        ret &= deduce(*target[i], *query[i]);
 
     return ret;
 }
 
-bool Substitutions::deduce(Expression const& lhs, Expression const& rhs)
+bool Substitutions::deduce(Expression const& target, Expression const& query)
 {
-    auto l = lookThrough(lhs.declaration());
-    if ( !l )
-        l = &lhs;
-
-    auto r = lookThrough(rhs.declaration());
-    if ( !r )
-        r = &rhs;
-
     // todo: generalized constraint substitution
 
-    if ( l->declaration() ) {
-        if ( auto param = l->declaration()->as<ProcedureParameter>() ) {
-            if ( param->dataType() )
-                return true;
+    auto l = resolveIndirections(&target);
+    auto r = resolveIndirections(&query);
 
-            auto const dt = dataType(r->declaration());
-            if ( !dt )
-                return false;
+    // todo: removeme
+    if ( auto ref = l->as<ReferenceExpression>() )
+        l = &ref->expression();
 
-            // todo: first constraint treated specially
-            return deduce(*l->constraints()[0], *dt);
+    if ( auto targetId = l->as<IdentifierExpression>() ) {
+        if ( auto targetDecl = resolveIndirections(targetId->declaration()) ) {
+            if ( auto param = targetDecl->as<ProcedureParameter>() ) {
+                if ( param->type() )
+                    return true;
+
+                // todo: first constraint treated specially
+                return deduce(*param->constraints()[0], *r->type());
+            }
+
+            if ( auto symVar = targetDecl->as<SymbolVariable>() )
+                return bind(*symVar, *r);
         }
+
+        return false;
     }
 
-    if ( auto p = l->as<PrimaryExpression>() ) {
-        if ( !p->declaration() )
+    if ( auto lit = l->as<LiteralExpression>() ) {
+        if ( !lit->type() )
             return false;
 
-        if ( auto symVar = p->declaration()->as<SymbolVariable>() )
-            return bind(*symVar, *r);
-
-        return l->kind() == r->kind();
+        return lit->type() == r->type();
     }
 
     if ( auto ll = l->as<SymbolExpression>() ) {
@@ -113,7 +113,7 @@ bool Substitutions::deduce(Expression const& lhs, Expression const& rhs)
         if ( !rr )
             return false;
 
-        if ( ll->identifier().lexeme() != rr->identifier().lexeme() )
+        if ( ll->token().lexeme() != rr->token().lexeme() )
             return false;
 
         return deduce(ll->expressions(), rr->expressions());
@@ -121,11 +121,11 @@ bool Substitutions::deduce(Expression const& lhs, Expression const& rhs)
 
     if ( auto a = l->as<ApplyExpression>() ) {
         if ( auto s = r->as<SymbolExpression>() ) {
-            auto subject = a->expressions().front()->as<PrimaryExpression>();
+            auto subject = a->expressions().front()->as<LiteralExpression>();
             if ( !subject )
                 return false;
 
-            if ( subject->token().lexeme() != s->identifier().lexeme() )
+            if ( subject->token().lexeme() != s->token().lexeme() )
                 return false;
 
             return deduce(a->expressions()(1, a->expressions().size()), s->expressions());
@@ -139,43 +139,6 @@ bool Substitutions::deduce(Expression const& lhs, Expression const& rhs)
     }
 
     return l->kind() == r->kind();
-}
-
-bool Substitutions::deduce(Expression const& lhs, Declaration const& rhs)
-{
-    auto l = lookThrough(lhs.declaration());
-    if ( !l )
-        l = &lhs;
-
-    if ( auto p = l->as<PrimaryExpression>() ) {
-        if ( !p->declaration() )
-            return false;
-
-        if ( auto symVar = p->declaration()->as<SymbolVariable>() )
-            return bind(*symVar, rhs);
-
-        return p->token().kind() == lexer::TokenKind::Identifier && rhs.symbol().prototype().pattern().empty();
-    }
-
-    Slice<Expression*> exprs;
-    if ( auto s = l->as<SymbolExpression>() ) {
-        if ( s->identifier().lexeme() != rhs.symbol().identifier().lexeme() )
-            return false;
-
-        exprs = s->expressions();
-    }
-    else if ( auto a = l->as<ApplyExpression>() ) {
-        auto p = a->expressions().front()->as<PrimaryExpression>();
-        if ( !p || p->token().kind() != lexer::TokenKind::Identifier || p->token().lexeme() != rhs.symbol().identifier().lexeme() )
-            return false;
-
-        exprs = a->expressions()(1, a->expressions().size());
-    }
-    else {
-        return false;
-    }
-
-    return deduce(exprs, rhs.symbol().prototype().pattern());
 }
 
 bool Substitutions::empty() const
@@ -193,33 +156,9 @@ SymbolVariable const& Substitutions::var(std::size_t index) const
     return *myVariables[index];
 }
 
-Declaration const& Substitutions::decl(std::size_t index) const
-{
-    return *myDeclarations[index];
-}
-
 Expression const& Substitutions::expr(std::size_t index) const
 {
     return *myContexts[index];
-}
-
-bool Substitutions::bind(SymbolVariable const& symVar, Declaration const& decl)
-{
-    auto const i = findVarIndex(symVar);
-    if ( i == myVariables.size() ) {
-        // new substitution
-        myBunkStorage.emplace_back(std::make_unique<PrimaryExpression>(lexer::Token()));
-        myBunkStorage.back()->setDeclaration(decl);
-
-        myVariables.push_back(&symVar);
-        myDeclarations.push_back(&decl);
-        myContexts.push_back(myBunkStorage.back().get());
-        return true;
-    }
-
-    // existing substitution must be consistent
-    // todo: print diagnostics on mismatch
-    return myDeclarations[i] == &decl;
 }
 
 bool Substitutions::bind(SymbolVariable const& symVar, Expression const& expr)
@@ -228,7 +167,6 @@ bool Substitutions::bind(SymbolVariable const& symVar, Expression const& expr)
     if ( i == myVariables.size() ) {
         // new substitution
         myVariables.push_back(&symVar);
-        myDeclarations.push_back(expr.declaration());
         myContexts.push_back(&expr);
         return true;
     }

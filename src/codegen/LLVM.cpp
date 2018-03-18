@@ -63,7 +63,7 @@ struct LLVMCustomData<ast::VariableDeclaration> : public CustomData
 template<>
 struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
-    llvm::FunctionType* proto = nullptr;
+    llvm::FunctionType* type = nullptr;
     llvm::Function* body = nullptr;
     llvm::AllocaInst* returnInst = nullptr;
 };
@@ -83,7 +83,7 @@ struct LLVMCustomData<ast::DataSumDeclaration> : public CustomData
 template<>
 struct LLVMCustomData<ast::DataProductDeclaration> : public CustomData
 {
-    llvm::Type* type = nullptr;
+    llvm::StructType* type = nullptr;
 };
 
 template<>
@@ -111,6 +111,38 @@ LLVMCustomData<T>* customData(T const& ast)
     return static_cast<LLVMCustomData<T>*>(ast.codegenData());
 }
 
+llvm::Type* toType(ast::Declaration const& decl)
+{
+    auto d = resolveIndirections(&decl);
+    if ( auto ds = d->as<ast::DataSumDeclaration>() )
+        return customData(*ds)->type;
+
+    if ( auto dp = d->as<ast::DataProductDeclaration>() )
+        return customData(*dp)->type;
+
+    return nullptr;
+}
+
+llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
+{
+    auto e = resolveIndirections(&expr);
+    if ( auto decl = getDeclaration(*e) )
+        return toType(*decl);
+
+    if ( auto t = e->as<ast::TupleExpression>() ) {
+        if ( t->expressions().empty() && t->kind() == ast::TupleKind::Open )
+            return llvm::Type::getVoidTy(context);
+
+        // todo: anon struct
+        return nullptr;
+    }
+
+    if ( auto a = e->as<ast::ArrowExpression>() )
+        return nullptr; // todo
+
+    return nullptr;
+}
+
 int log2(std::uint32_t n)
 {
     int ret = 0;
@@ -130,29 +162,6 @@ std::uint32_t nextPower2(std::uint32_t n)
     ++n;
 
     return n;
-}
-
-llvm::Type* toType(ast::Declaration const& decl)
-{
-    auto d = dataType(resolveIndirections(&decl));
-    if ( !d )
-        return nullptr;
-
-    if ( auto ds = d->as<ast::DataSumDeclaration>() )
-        return customData(*ds)->type;
-
-    if ( auto dp = d->as<ast::DataProductDeclaration>() )
-        return customData(*dp)->type;
-
-    return nullptr;
-}
-
-llvm::Type* toType(ast::Expression const& expr)
-{
-    if ( !expr.declaration() )
-        return nullptr;
-
-    return toType(*expr.declaration());
 }
 
 //
@@ -221,8 +230,11 @@ struct InitCodeGenPass
 
     result_t declSymbol(ast::SymbolDeclaration const& s)
     {
-        if ( s.expression() && s.expression()->declaration() )
-            dispatch(*s.expression()->declaration());
+        if ( s.expression() ) {
+            auto decl = getDeclaration(s.expression());
+            if ( decl )
+                dispatch(*decl);
+        }
     }
 
     result_t traceProc(ast::ProcedureScope const& scope)
@@ -273,8 +285,9 @@ struct InitCodeGenPass
 
     result_t declSymbolVariable(ast::SymbolVariable const& sv)
     {
-        if ( sv.boundExpression() && sv.boundExpression()->declaration() )
-            dispatch(*sv.boundExpression()->declaration());
+        if ( sv.boundExpression() )
+            if ( auto decl = getDeclaration(sv.boundExpression()) )
+                dispatch(*decl);
     }
 
     result_t declTemplate(ast::TemplateDeclaration const& decl)
@@ -351,16 +364,16 @@ struct CodeGenPass
 
         auto fun = customData(decl);
         if ( fun->body ) {
-            error(decl.symbol().identifier()) << "defined more than once";
+            error(decl.symbol().token()) << "defined more than once";
             die();
         }
 
-        if ( fun->proto )
+        if ( fun->type )
             return;
 
         auto returnType = toType(*decl.returnType());
         if ( !returnType ) {
-            error(decl.symbol().identifier()) << "cannot resolve return type";
+            error(decl.symbol().token()) << "cannot resolve return type";
             die();
         }
 
@@ -370,9 +383,9 @@ struct CodeGenPass
         std::vector<llvm::Type*> params;
         params.reserve(decl.parameters().size());
         for ( auto const& p : decl.parameters() ) {
-            llvm::Type* paramType = toType(*p->dataType());
+            llvm::Type* paramType = toType(*p->type());
             if ( !paramType ) {
-                error(p->symbol().identifier()) << "cannot resolve parameter type";
+                error(p->symbol().token()) << "cannot resolve parameter type";
                 die();
             }
 
@@ -382,11 +395,11 @@ struct CodeGenPass
             params.push_back(paramType);
         }
 
-        fun->proto = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
+        fun->type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
-        fun->body = llvm::Function::Create(fun->proto,
+        fun->body = llvm::Function::Create(fun->type,
                                            llvm::Function::ExternalLinkage, // todo
-                                           decl.scope().declaration()->symbol().identifier().lexeme(),
+                                           decl.scope().declaration()->symbol().token().lexeme(),
                                            module);
 
         auto defn = decl.definition();
@@ -409,14 +422,14 @@ struct CodeGenPass
         [&](ast::ProcedureScope const& scope) {
             for ( auto const& d : scope.childDeclarations() ) {
                 if ( auto var = d->as<ast::VariableDeclaration>() ) {
-                    customData(*var)->inst = builder.CreateAlloca(toType(*var->dataType()));
+                    customData(*var)->inst = builder.CreateAlloca(toType(*var->type()));
                 }
             }
 
-            auto gatherStatement = [&builder](ast::Statement& stmt) {
+            auto gatherStatement = [this, &builder](ast::Statement& stmt) {
                 for ( auto const& v : stmt.unnamedVariables() ) {
                     auto vdata = std::make_unique<LLVMCustomData<ast::VariableDeclaration>>();
-                    vdata->inst = builder.CreateAlloca(toType(*v->dataType()));
+                    vdata->inst = builder.CreateAlloca(toType(*v->type()));
                     v->setCodegenData(std::move(vdata));
                 }
             };
@@ -470,7 +483,7 @@ struct CodeGenPass
         //    auto const decls = scope.childDeclarations();
         //    std::vector<ast::VariableDeclaration*> priorVars;
         //    for ( ; cleanupDeclLast < decls.size(); ++cleanupDeclLast ) {
-        //        if ( token.kind() != lexer::TokenKind::Undefined && !isBefore(decls[cleanupDeclLast]->symbol().identifier(), token) )
+        //        if ( token.kind() != lexer::TokenKind::Undefined && !isBefore(decls[cleanupDeclLast]->symbol().token(), token) )
         //            break;
 
         //        if ( auto var = decls[cleanupDeclLast]->as<ast::VariableDeclaration>() )
@@ -481,7 +494,7 @@ struct CodeGenPass
         //    llvm::IRBuilder<> cleanupBuilder(cleanupBlocks.back());
         //    for ( auto v = priorVars.rbegin(); v != priorVars.rend(); ++v ) {
         //        if ( auto dp = (*v)->dataType()->as<ast::DataProductDeclaration>() ) {
-        //            auto expr = createMemberCallExpression(*dp->definition()->destructor(), **v);
+        //            auto expr = createMemberCall(*dp->definition()->destructor(), **v);
         //            toValue(cleanupBuilder, *expr);
         //        }
         //    }
@@ -510,8 +523,8 @@ struct CodeGenPass
             auto u = stmt->unnamedVariables();
             if ( u.length() ) {
                 for ( std::size_t i = u.length() - 1; ~i; --i ) {
-                    if ( auto dp = u[i]->dataType()->as<ast::DataProductDeclaration>() ) {
-                        auto expr = createMemberCallExpression(*dp->definition()->destructor(), *u[i]);
+                    if ( auto dp = getDeclaration(u[i]->type())->as<ast::DataProductDeclaration>() ) {
+                        auto expr = createMemberCall(*dp->definition()->destructor(), *u[i]);
                         toValue(builder, *expr);
                     }
                 }
@@ -623,11 +636,11 @@ private:
         dgn.die();
     }
 
-    llvm::AllocaInst* getThis(llvm::IRBuilder<>& builder,
+    llvm::Value* getThis(llvm::IRBuilder<>& builder,
                               ast::ProcedureDeclaration const& proc,
                               ast::ApplyExpression const& a)
     {
-        if ( !proc.thisType() ) {
+        if ( !methodType(proc) ) {
             error(proc) << "is not a method";
             die();
         }
@@ -642,7 +655,13 @@ private:
             if ( auto d = subject->as<ast::DotExpression>() ) {
                 // member access via dot-expression
                 auto instance = d->expressions()[d->expressions().size() - 2];
-                val = toValue(builder, *instance);
+                if ( auto decl = getDeclaration(*instance) ) {
+                    if ( auto var = decl->as<ast::VariableDeclaration>() )
+                        val = customData(*var)->inst;
+
+                    if ( auto param = decl->as<ast::ProcedureParameter>() )
+                        val = customData(*param)->arg;
+                }
             }
             else {
                 error(a) << "cannot determine this param";
@@ -652,18 +671,23 @@ private:
         else if ( arity == argCount + 1 ) {
             val = toValue(builder, *a.expressions()[1]);
         }
-        else {
+        
+        if ( !val ) {
             error(a) << "cannot determine this param";
             die();
         }
 
-        auto ret = llvm::dyn_cast_or_null<llvm::AllocaInst>(val);
-        if ( !ret ) {
-            error(a) << "this parameter is not an AllocaInst";
+        if ( !val->getType()->isPointerTy() ) {
+            error(a) << "this parameter must be a pointer";
             die();
         }
 
-        return ret;
+        return val;
+    }
+
+    llvm::Type* toType(ast::Expression const& expr)
+    {
+        return codegen::toType(module->getContext(), expr);
     }
 
     llvm::Value* toValue(llvm::IRBuilder<>& builder, ast::Expression const& expression)
@@ -673,24 +697,38 @@ private:
         if ( auto intrin = intrinsicInstruction(builder, expr) )
             return intrin;
 
-        if ( auto p = expr.as<ast::PrimaryExpression>() ) {
-            auto decl = p->declaration();
+        if ( auto l = expr.as<ast::LiteralExpression>() ) {
+            auto decl = resolveIndirections(getDeclaration(l->type()));
+            if ( !decl )
+                die("untyped literal");
+
+            switch (l->token().kind()) {
+            case lexer::TokenKind::Integer:
+                return llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder.getContext()),
+                                              l->token().lexeme(), 10);
+            case lexer::TokenKind::Rational:
+                return llvm::ConstantFP::get(llvm::Type::getDoubleTy(builder.getContext()),
+                                             l->token().lexeme());
+            case lexer::TokenKind::String:
+            {
+                auto str = sourceModule.interpretString(dgn, l->token());
+                llvm::GlobalVariable* gv = builder.CreateGlobalString(str);
+                auto zero = builder.getInt32(0);
+                llvm::Constant* idx[] = { zero, zero };
+                llvm::Constant* s[2] = {
+                    llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
+                    builder.getInt64(str.length())
+                };
+                return llvm::ConstantStruct::get(customData(*axioms.intrinsic(ast::Sliceu8))->type, s);
+            }
+            }
+
+            die("unhandled literal");
+        }
+        else if ( auto id = expr.as<ast::IdentifierExpression>() ) {
+            auto decl = resolveIndirections(id->declaration());
             if ( !decl )
                 die("unresolved identifier");
-
-            if ( auto ds = decl->as<ast::DataSumDeclaration>() ) {
-                if ( ds == axioms.intrinsic(ast::IntegerLiteralType) ) {
-                    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder.getContext()),
-                                                  p->token().lexeme(), 10);
-                }
-                else if ( ds == axioms.intrinsic(ast::RationalLiteralType) ) {
-                    return llvm::ConstantFP::get(llvm::Type::getDoubleTy(builder.getContext()),
-                                                 p->token().lexeme());
-                }
-                else if ( ds == axioms.intrinsic(ast::StringLiteralType) ) {
-                    return builder.CreateGlobalStringPtr(sourceModule.interpretString(dgn, p->token()));
-                }
-            }
 
             if ( auto dsCtor = decl->as<ast::DataSumDeclaration::Constructor>() )
                 die("dsctor not implemented");
@@ -702,13 +740,13 @@ private:
 
             if ( auto var = decl->as<ast::VariableDeclaration>() ) {
                 auto vdata = customData(*var);
-                return vdata->inst;
+                return builder.CreateLoad(vdata->inst);
             }
 
             die("unhandled identifier");
         }
         else if ( auto a = expr.as<ast::ApplyExpression>() ) {
-            auto proc = a->declaration()->as<ast::ProcedureDeclaration>();
+            auto proc = getDeclaration(a->subject())->as<ast::ProcedureDeclaration>();
             if ( !proc ) {
                 error(*a) << "expected apply-expression to refer to procedure-declaration";
                 die();
@@ -716,8 +754,8 @@ private:
 
             std::vector<llvm::Value*> params;
             params.reserve(a->expressions().size());
-            
-            auto const isMethod = proc->thisType() ? 1 : 0;
+
+            auto const isMethod = methodType(*proc) ? 1 : 0;
             if ( isMethod )
                 params.push_back(getThis(builder, *proc, *a));
 
@@ -728,8 +766,8 @@ private:
                         continue;
 
                     auto const& e = a->expressions()[i];
-                    if ( e->declaration() == axioms.intrinsic(ast::PointerNullLiteralType) ) {
-                        auto paramType = toType(*proc->parameters()[paramOrdinal]->dataType());
+                    if ( getDeclaration(e->type()) == axioms.intrinsic(ast::PointerNullLiteralType) ) {
+                        auto paramType = toType(*proc->parameters()[paramOrdinal]->type());
                         params.push_back(llvm::ConstantPointerNull::get(static_cast<llvm::PointerType*>(paramType)));
                     }
                     else {
@@ -744,7 +782,7 @@ private:
             llvm::Value* ret = nullptr;
             auto exprs = dot->expressions();
             for ( auto const& e : exprs ) {
-                if ( auto field = e->declaration()->as<ast::DataProductDeclaration::Field>() ) {
+                if ( auto field = getDeclaration(e)->as<ast::DataProductDeclaration::Field>() ) {
                     assert(ret && "expected field comes after another value");
                     auto fieldData = customData(*field);
                     ret = builder.CreateExtractValue(ret, fieldData->index);
@@ -780,83 +818,78 @@ private:
     llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
                                       ast::Expression const& expr)
     {
+        auto a = expr.as<ast::ApplyExpression>();
+        if ( !a )
+            return nullptr;
+
+        auto const proc = getDeclaration(a->subject())->as<ast::ProcedureDeclaration>();
+        if ( !proc )
+            return nullptr;
+
         const auto& axioms = sourceModule.axioms();
+        auto const& exprs = a->expressions();
 
-        if ( auto a = expr.as<ast::ApplyExpression>() ) {
-            auto const& exprs = a->expressions();
-            auto const decl = a->declaration();
+        if ( proc == axioms.intrinsic(ast::Sliceu8_dtor) ) {
+            auto v = getThis(builder, *proc, *a);
+            return v;
+        }
+        else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Addu)->symbol(), proc->symbol())
+                || ast::descendsFromTemplate(axioms.intrinsic(ast::Adds)->symbol(), proc->symbol()) )
+        {
+            auto p1 = toValue(builder, *exprs[1]);
+            auto p2 = toValue(builder, *exprs[2]);
+            return builder.CreateAdd(p1, p2);
+        }
+        else if ( proc == axioms.intrinsic(ast::Truncu1u8)
+                || proc == axioms.intrinsic(ast::Truncu1u16)
+                || proc == axioms.intrinsic(ast::Truncu1u32)
+                || proc == axioms.intrinsic(ast::Truncu1u64)
+                || proc == axioms.intrinsic(ast::Truncu1u128) )
+        {
+            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt1Ty(builder.getContext()));
+        }
+        else if ( proc == axioms.intrinsic(ast::Truncu8u16)
+                || proc == axioms.intrinsic(ast::Truncu8u32)
+                || proc == axioms.intrinsic(ast::Truncu8u64)
+                || proc == axioms.intrinsic(ast::Truncu8u128)
+                || proc == axioms.intrinsic(ast::Trunci8i16)
+                || proc == axioms.intrinsic(ast::Trunci8i32)
+                || proc == axioms.intrinsic(ast::Trunci8i64)
+                || proc == axioms.intrinsic(ast::Trunci8i128) )
+        {
+            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt8Ty(builder.getContext()));
+        }
+        else if ( proc == axioms.intrinsic(ast::Truncu16u32)
+                || proc == axioms.intrinsic(ast::Truncu16u64)
+                || proc == axioms.intrinsic(ast::Truncu16u128)
+                || proc == axioms.intrinsic(ast::Trunci16i32)
+                || proc == axioms.intrinsic(ast::Trunci16i64)
+                || proc == axioms.intrinsic(ast::Trunci16i128) )
+        {
+            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt16Ty(builder.getContext()));
+        }
+        else if ( proc == axioms.intrinsic(ast::Truncu32u64)
+                || proc == axioms.intrinsic(ast::Truncu32u128)
+                || proc == axioms.intrinsic(ast::Trunci32i64)
+                || proc == axioms.intrinsic(ast::Trunci32i128) )
+        {
+            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt32Ty(builder.getContext()));
+        }
+        else if ( proc == axioms.intrinsic(ast::Truncu64u128)
+                || proc == axioms.intrinsic(ast::Trunci64i128) )
+        {
+            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt128Ty(builder.getContext()));
+        }
 
-            if ( decl == axioms.intrinsic(ast::Sliceu8_ctor) ) {
-                auto proc = decl->as<ast::ProcedureDeclaration>();
-                auto v = getThis(builder, *proc, *a);
+        if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {
+            auto decl = resolveIndirections(getDeclaration(exprs[1]));
+            if ( !decl )
+                return nullptr;
 
-                // base
-                builder.CreateStore(toValue(builder, *exprs[1]), builder.CreateStructGEP(nullptr, v, 0));
+            if ( auto var = decl->as<ast::VariableDeclaration>() )
+                return customData(*var)->inst;
 
-                // card
-                auto const len = sourceModule.interpretString(dgn, exprs[1]->as<ast::PrimaryExpression>()->token()).size() + 1;
-                auto lenVal = llvm::ConstantInt::get(toType(*axioms.intrinsic(ast::Sliceu8))->getContainedType(1), len);
-                builder.CreateStore(lenVal, builder.CreateStructGEP(nullptr, v, 1));
-
-                // todo: removeme
-                return builder.CreateLoad(v);
-            }
-            else if ( decl == axioms.intrinsic(ast::Sliceu8_dtor) ) {
-                auto proc = decl->as<ast::ProcedureDeclaration>();
-                auto v = getThis(builder, *proc, *a);
-                return v;
-            }
-            else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Addu)->symbol(), decl->symbol())
-                   || ast::descendsFromTemplate(axioms.intrinsic(ast::Adds)->symbol(), decl->symbol()) )
-            {
-                auto p1 = toValue(builder, *exprs[1]);
-                auto p2 = toValue(builder, *exprs[2]);
-                return builder.CreateAdd(p1, p2);
-            }
-            else if ( decl == axioms.intrinsic(ast::Truncu1u8)
-                   || decl == axioms.intrinsic(ast::Truncu1u16)
-                   || decl == axioms.intrinsic(ast::Truncu1u32)
-                   || decl == axioms.intrinsic(ast::Truncu1u64)
-                   || decl == axioms.intrinsic(ast::Truncu1u128) )
-            {
-                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt1Ty(builder.getContext()));
-            }
-            else if ( decl == axioms.intrinsic(ast::Truncu8u16)
-                   || decl == axioms.intrinsic(ast::Truncu8u32)
-                   || decl == axioms.intrinsic(ast::Truncu8u64)
-                   || decl == axioms.intrinsic(ast::Truncu8u128)
-                   || decl == axioms.intrinsic(ast::Trunci8i16)
-                   || decl == axioms.intrinsic(ast::Trunci8i32)
-                   || decl == axioms.intrinsic(ast::Trunci8i64)
-                   || decl == axioms.intrinsic(ast::Trunci8i128) )
-            {
-                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt8Ty(builder.getContext()));
-            }
-            else if ( decl == axioms.intrinsic(ast::Truncu16u32)
-                   || decl == axioms.intrinsic(ast::Truncu16u64)
-                   || decl == axioms.intrinsic(ast::Truncu16u128)
-                   || decl == axioms.intrinsic(ast::Trunci16i32)
-                   || decl == axioms.intrinsic(ast::Trunci16i64)
-                   || decl == axioms.intrinsic(ast::Trunci16i128) )
-            {
-                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt16Ty(builder.getContext()));
-            }
-            else if ( decl == axioms.intrinsic(ast::Truncu32u64)
-                   || decl == axioms.intrinsic(ast::Truncu32u128)
-                   || decl == axioms.intrinsic(ast::Trunci32i64)
-                   || decl == axioms.intrinsic(ast::Trunci32i128) )
-            {
-                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt32Ty(builder.getContext()));
-            }
-            else if ( decl == axioms.intrinsic(ast::Truncu64u128)
-                   || decl == axioms.intrinsic(ast::Trunci64i128) )
-            {
-                return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt128Ty(builder.getContext()));
-            }
-
-            if ( rootTemplate(decl->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {
-                return toValue(builder, *exprs[1]);
-            }
+            return nullptr;
         }
 
         return nullptr;
@@ -890,30 +923,6 @@ struct LLVMGenerator::LLVMState
     ast::AxiomsModule const& axioms() const
     {
         return moduleSet.axioms();
-    }
-
-    void generate(ast::Module const& module)
-    {
-        module.setCodegenData(std::make_unique<LLVMCustomData<ast::Module>>());
-        auto mdata = customData(module);
-        mdata->module = std::make_unique<llvm::Module>(module.name(), *context);
-
-        ast::ShallowApply<InitCodeGenPass> init(dgn, module);
-        for ( auto d : module.scope()->childDeclarations() )
-            init(*d);
-
-        for ( auto d : module.templateInstantiations() )
-            init(*d);
-
-        registerTypes(module, *module.scope());
-        for ( auto d : module.templateInstantiations() )
-            registerTypes(module, *d);
-
-        ast::ShallowApply<CodeGenPass> gen(dgn, mdata->module.get(), module);
-        for ( auto d : module.templateInstantiations() )
-            gen(*d);
-        for ( auto d : module.scope()->childDeclarations() )
-            gen(*d);
     }
 
     void write(ast::Module const& module, std::experimental::filesystem::path const& path)
@@ -999,6 +1008,35 @@ struct LLVMGenerator::LLVMState
         customData(module)->module->print(outFile, nullptr);
     }
 
+    void generate(ast::Module const& module)
+    {
+        module.setCodegenData(std::make_unique<LLVMCustomData<ast::Module>>());
+        auto mdata = customData(module);
+        mdata->module = std::make_unique<llvm::Module>(module.name(), *context);
+
+        ast::ShallowApply<InitCodeGenPass> init(dgn, module);
+        for ( auto d : module.scope()->childDeclarations() )
+            init(*d);
+
+        for ( auto d : module.templateInstantiations() )
+            init(*d);
+
+        registerTypes(module, *module.scope());
+        for ( auto d : module.templateInstantiations() )
+            registerTypes(module, *d);
+
+        ast::ShallowApply<CodeGenPass> gen(dgn, mdata->module.get(), module);
+        for ( auto d : module.templateInstantiations() )
+            gen(*d);
+        for ( auto d : module.scope()->childDeclarations() )
+            gen(*d);
+    }
+
+    llvm::Type* toType(ast::Expression const& expr)
+    {
+        return codegen::toType(*context, expr);
+    }
+
     llvm::Type* intrinsicType(ast::Declaration const& decl)
     {
         if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
@@ -1007,8 +1045,7 @@ struct LLVMGenerator::LLVMState
                 return dsData->type;
 
             if ( ds == axioms().intrinsic(ast::IntegerLiteralType )
-              || ds == axioms().intrinsic(ast::RationalLiteralType)
-              || ds == axioms().intrinsic(ast::StringLiteralType  ) )
+              || ds == axioms().intrinsic(ast::RationalLiteralType) )
             {
                 dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
                 return dsData->type;
@@ -1076,9 +1113,10 @@ struct LLVMGenerator::LLVMState
             std::vector<llvm::Type*> fieldTypes;
             fieldTypes.reserve(defn->fields().size());
             for ( auto& f : defn->fields() ) {
-                auto type = registerType(mod, *resolveIndirections(f->constraint().declaration()));
+                auto d = getDeclaration(f->type());
+                auto type = registerType(mod, *resolveIndirections(d));
                 if ( !type ) {
-                    dgn.error(mod, *f->constraint().declaration()) << "type is not registered";
+                    dgn.error(mod, *d) << "type is not registered";
                     dgn.die();
                 }
 
@@ -1087,7 +1125,7 @@ struct LLVMGenerator::LLVMState
 
             dpData->type = llvm::StructType::create(*context,
                                                     fieldTypes,
-                                                    dp->symbol().identifier().lexeme(),
+                                                    dp->symbol().token().lexeme(),
                                                     /*isPacked*/false);
             return dpData->type;
         }
