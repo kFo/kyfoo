@@ -2,6 +2,7 @@
 
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
@@ -82,13 +83,13 @@ Error& Error::operator << (lexer::Token const& token)
 
 std::ostream& operator << (std::ostream& sink, Error const& err)
 {
-    auto startLine = [&] {
-        if ( !err.module().path().empty() )
-            sink << err.module().path().string();
+    auto startLine = [&](ast::Module const& mod) {
+        if ( !mod.path().empty() )
+            sink << mod.path().string();
         else
-            sink << err.module().name();
+            sink << mod.name();
     };
-    startLine();
+    startLine(err.module());
     sink << "(" << err.token().line() << ", " << err.token().column() << "): error: ";
 
     switch (err.code()) {
@@ -114,7 +115,7 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
     }
 
     for ( auto&& e : err.references() ) {
-        startLine();
+        startLine(e->scope().module());
         auto const& id = e->token();
         sink << "(" << id.line() << ", " << id.column() << "):     see '";
         print(sink, *e);
