@@ -5,8 +5,11 @@ auto source = R"axioms(
 @"intrininst" "SignedTemplate"
 :| signed<unsigned<\n : integer>>
 
+@"intrininst" "ReferenceTemplate"
+:| ref<\T>
+
 @"intrininst" "PointerTemplate"
-:| pointer<\T>
+:| ptr<\T>
 
 u1   = unsigned<1  >
 u8   = unsigned<8  >
@@ -28,17 +31,17 @@ ascii = slice<u8>
 
 @"intrininst" "ArrayDynamicTemplate"
 :& array<\T>
-    base : pointer T
+    base : ptr T
     card : size_t
 
 @"intrininst" "SliceTemplate"
 :& slice<\T>
-    base : pointer T
+    base : ptr T
     card : size_t
 
 @"intrininst" "Sliceu8"
 :& slice<u8>
-    base : pointer u8
+    base : ptr u8
     card : size_t
 
     @"intrininst" "Sliceu8_dtor"
@@ -47,7 +50,7 @@ ascii = slice<u8>
 wordSize = 64
 size_t = unsigned<wordSize>
 
-staticSize(p : pointer \T) -> size_t => wordSize
+staticSize(p : ptr \T) -> size_t => wordSize
 
 @"intrininst" "Addu"
 add(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
@@ -82,7 +85,7 @@ trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) -> signed<unsigned<32>>
 trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) -> signed<unsigned<64>>
 
 @"intrininst" "Addr"
-addr(=p : \T) -> pointer T
+addr(p : ref \T) -> ptr T
 
 )axioms";
 
@@ -113,10 +116,8 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
 
-    myDataSumDecls[EmptyLiteralType      ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[0]);
-    myDataSumDecls[IntegerLiteralType    ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[1]);
-    myDataSumDecls[RationalLiteralType   ] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[2]);
-    myDataSumDecls[PointerNullLiteralType] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[3]);
+    for ( std::size_t i = EmptyLiteralType; i <= PointerNullLiteralType; ++i )
+        myDataSumDecls[i] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[i]);
 }
 
 AxiomsModule::~AxiomsModule() = default;
@@ -250,7 +251,8 @@ void AxiomsModule::findIntrinsics(DeclarationScope* s)
 {
     for ( auto d : s->childDeclarations() ) {
         for ( auto const& attr : d->attributes() ) {
-            if ( auto t = attr.expression().as<TupleExpression>() ) {
+            // parsed as apply-expressions, lowered to tuple-expression during elaboration
+            if ( auto t = attr.expression().as<ApplyExpression>() ) {
                 auto subject = t->expressions()[0];
                 if ( auto p = subject->as<LiteralExpression>() ) {
                     if ( p->token().lexeme() == "\"intrininst\"" ) {
@@ -274,18 +276,7 @@ bool AxiomsModule::init(Diagnostics& dgn)
         if ( dgn.errorCount() )
             return false;
 
-        for ( auto const& d : scope()->childDeclarations() ) {
-            if ( d->symbol().token().lexeme() == "slice"
-                && d->symbol().prototype().pattern().size() == 1
-                && d->symbol().prototype().pattern()[0]->as<IdentifierExpression>()->token().lexeme() == "u8" )
-            {
-                myDataProductDecls[Sliceu8] = d->as<DataProductDeclaration>();
-                break;
-            }
-        }
-
-        if ( !myDataProductDecls[Sliceu8] )
-            throw std::runtime_error("string literal type is not defined");
+        findIntrinsics(scope());
 
         resolveImports(dgn);
         if ( dgn.errorCount() )
@@ -294,8 +285,6 @@ bool AxiomsModule::init(Diagnostics& dgn)
         semantics(dgn);
         if ( dgn.errorCount() )
             return false;
-
-        findIntrinsics(scope());
 
         myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).decl())->as<DataSumDeclaration>();
         myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).decl())->as<DataSumDeclaration>();

@@ -60,7 +60,7 @@ Substitutions::Substitutions(Slice<Expression*> const& target, Slice<Expression*
 
 Substitutions::~Substitutions() = default;
 
-bool Substitutions::deduce(Slice<Expression*> const& target, Slice<Expression*> const& query)
+bool Substitutions::deduce(Slice<Expression*> target, Slice<Expression*> query)
 {
     auto const n = target.size();
     if ( n != query.size() )
@@ -73,16 +73,34 @@ bool Substitutions::deduce(Slice<Expression*> const& target, Slice<Expression*> 
     return ret;
 }
 
+bool Substitutions::deduce(Slice<Expression*> target, Expression const& query)
+{
+    if ( auto tup = query.as<TupleExpression>() )
+        return deduce(target, tup->expressions());
+
+    if ( target.size() == 1 )
+        return deduce(*target[0], query);
+
+    return false;
+}
+
+bool Substitutions::deduce(Expression const& target, Slice<Expression*> query)
+{
+    if ( auto tup = target.as<TupleExpression>() )
+        return deduce(tup->expressions(), query);
+
+    if ( query.size() == 1 )
+        return deduce(target, *query[0]);
+
+    return false;
+}
+
 bool Substitutions::deduce(Expression const& target, Expression const& query)
 {
     // todo: generalized constraint substitution
 
     auto l = resolveIndirections(&target);
     auto r = resolveIndirections(&query);
-
-    // todo: removeme
-    if ( auto ref = l->as<ReferenceExpression>() )
-        l = &ref->expression();
 
     if ( auto targetId = l->as<IdentifierExpression>() ) {
         if ( auto targetDecl = resolveIndirections(targetId->declaration()) ) {
@@ -113,20 +131,30 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
         if ( !rr )
             return false;
 
-        if ( ll->token().lexeme() != rr->token().lexeme() )
+        if ( ll->token().lexeme() != rr->token().lexeme() ) {
+            // todo: generalize to deduction guides
+            if ( ll->token().lexeme() == "ref" )
+                return deduce(ll->expressions(), *r);
+
             return false;
+        }
 
         return deduce(ll->expressions(), rr->expressions());
     }
 
     if ( auto a = l->as<ApplyExpression>() ) {
         if ( auto s = r->as<SymbolExpression>() ) {
-            auto subject = a->expressions().front()->as<LiteralExpression>();
+            auto subject = a->expressions().front()->as<IdentifierExpression>();
             if ( !subject )
                 return false;
 
-            if ( subject->token().lexeme() != s->token().lexeme() )
+            if ( subject->token().lexeme() != s->token().lexeme() ) {
+                // todo: generalize to deduction guides
+                if ( subject->token().lexeme() == "ref" )
+                    return deduce(a->arguments(), *r);
+
                 return false;
+            }
 
             return deduce(a->expressions()(1, a->expressions().size()), s->expressions());
         }

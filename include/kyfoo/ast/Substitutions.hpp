@@ -39,7 +39,9 @@ public:
     ~Substitutions();
 
 public:
-    bool deduce(Slice<Expression*> const& lhs, Slice<Expression*> const& rhs);
+    bool deduce(Slice<Expression*> lhs, Slice<Expression*> rhs);
+    bool deduce(Slice<Expression*> target, Expression const& query);
+    bool deduce(Expression const& target, Slice<Expression*> query);
     bool deduce(Expression const& lhs, Expression const& rhs);
 
     bool empty() const;

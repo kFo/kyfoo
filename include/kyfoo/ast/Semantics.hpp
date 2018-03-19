@@ -311,8 +311,9 @@ VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token co
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
 VarianceResult variance(Context& ctx, Expression const& lhs, Expression const& rhs);
 VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
-VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
 VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> rhs);
+VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Expression const& rhs);
+VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
 
 Expression const* lookThrough(Expression const* expr);
 Expression const* lookThrough(Declaration const* decl);

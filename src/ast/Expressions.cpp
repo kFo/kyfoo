@@ -32,6 +32,9 @@ Expression const* Strata::getType(Expression const& expr)
 
     if ( auto t = expr.as<TupleExpression>() ) {
         auto const exprs = t->expressions();
+        if ( exprs.empty() )
+            return &universe(1);
+
         std::vector<Expression const*> types(exprs.size());
         for ( std::size_t i = 0; i < types.size(); ++i )
             types[i] = exprs[i]->type();
@@ -318,6 +321,16 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
+    auto ensureType = [this, &ctx]() {
+        if ( !myType ) {
+            auto& err = ctx.error(*this) << "cannot be typed";
+            err.see(*myDeclaration);
+            return SymRes::Fail;
+        }
+
+        return SymRes::Success;
+    };
+
     if ( myDeclaration ) {
         if ( hasIndirection(myDeclaration->kind()) ) {
             auto expr = lookThrough(myDeclaration);
@@ -329,7 +342,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
         }
 
         myType = getType(*myDeclaration);
-        return SymRes::Success;
+        return ensureType();
     }
 
     if ( token().kind() == lexer::TokenKind::MetaVariable ) {
@@ -343,13 +356,13 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
             return SymRes::NeedsSubstitution;
 
         myType = n->type();
-        return SymRes::Success;
+        return ensureType();
     }
     else if ( token().kind() == lexer::TokenKind::Identifier ) {
         // todo: remove by generalization
         if ( token().lexeme() == "null" ) {
             setType(*ctx.axioms().intrinsic(PointerNullLiteralType));
-            return SymRes::Success;
+            return ensureType();
         }
 
         auto hit = ctx.matchOverload(token().lexeme());
@@ -369,7 +382,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
             if ( !symVar->boundExpression() )
                 return SymRes::NeedsSubstitution;
 
-        return SymRes::Success;
+        return ensureType();
     }
 
     throw std::runtime_error("unhandled identifier-expression");
@@ -409,81 +422,6 @@ void IdentifierExpression::clearDeclaration()
 void IdentifierExpression::setToken(lexer::Token const& token)
 {
     myToken = token;
-}
-
-//
-// ReferenceExpression
-
-ReferenceExpression::ReferenceExpression(std::unique_ptr<IdentifierExpression> expression)
-    : Expression(Expression::Kind::Reference)
-    , myId(std::move(expression))
-{
-}
-
-ReferenceExpression::ReferenceExpression(ReferenceExpression const& rhs)
-    : Expression(rhs)
-{
-}
-
-ReferenceExpression& ReferenceExpression::operator = (ReferenceExpression const& rhs)
-{
-    ReferenceExpression(rhs).swap(*this);
-    return *this;
-}
-
-ReferenceExpression::~ReferenceExpression() = default;
-
-void ReferenceExpression::swap(ReferenceExpression& rhs)
-{
-    Expression::swap(rhs);
-    using std::swap;
-    swap(myId, rhs.myId);
-}
-
-void ReferenceExpression::io(IStream& stream) const
-{
-    stream.next("expr", myId);
-}
-
-IMPL_CLONE_BEGIN(ReferenceExpression, Expression, Expression)
-IMPL_CLONE_CHILD(myId)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ReferenceExpression, Expression)
-IMPL_CLONE_REMAP(myId)
-IMPL_CLONE_REMAP_END
-
-SymRes ReferenceExpression::resolveSymbols(Context& ctx)
-{
-    if ( myType )
-        return SymRes::Success;
-
-    auto ret = ctx.resolveExpression(*myId);
-    if ( !ret )
-        return ret;
-
-    auto id = identify(*myId);
-    if ( !id ) {
-        ctx.error(*this) << "reference-expressions only apply to identifiers";
-        return SymRes::Fail;
-    }
-
-    if ( !isBinder(id->declaration()->kind()) ) {
-        ctx.error(*this) << "reference-expressions can only apply to expressions with storage";
-        return SymRes::Fail;
-    }
-
-    myType = myId->type();
-    return myType ? SymRes::Success : SymRes::Fail;
-}
-
-IdentifierExpression const& ReferenceExpression::expression() const
-{
-    return *myId;
-}
-
-IdentifierExpression& ReferenceExpression::expression()
-{
-    return *myId;
 }
 
 //
@@ -1505,7 +1443,6 @@ bool hasDeclaration(Expression const& expr)
 {
     switch (expr.kind()) {
     case Expression::Kind::Identifier:
-    case Expression::Kind::Reference:
     case Expression::Kind::Symbol:
     case Expression::Kind::Dot:
         return true;
@@ -1518,9 +1455,6 @@ IdentifierExpression* identify(Expression& expr)
 {
     if ( auto id = expr.as<IdentifierExpression>() )
         return id;
-
-    if ( auto ref = expr.as<ReferenceExpression>() )
-        return ref->expression().as<IdentifierExpression>();
 
     if ( auto sym = expr.as<SymbolExpression>() )
         return sym;

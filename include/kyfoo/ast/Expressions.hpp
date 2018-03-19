@@ -31,7 +31,6 @@ class VariableDeclaration;
 #define EXPRESSION_KINDS(X)             \
     X(Literal   , LiteralExpression   ) \
     X(Identifier, IdentifierExpression) \
-    X(Reference , ReferenceExpression ) \
     X(Tuple     , TupleExpression     ) \
     X(Apply     , ApplyExpression     ) \
     X(Symbol    , SymbolExpression    ) \
@@ -243,37 +242,6 @@ protected:
 private:
     lexer::Token myToken;
     Declaration const* myDeclaration = nullptr;
-};
-
-class ReferenceExpression : public Expression
-{
-public:
-    explicit ReferenceExpression(std::unique_ptr<IdentifierExpression> expression);
-
-protected:
-    ReferenceExpression(ReferenceExpression const& rhs);
-    ReferenceExpression& operator = (ReferenceExpression const& rhs);
-
-public:
-    ~ReferenceExpression();
-
-    void swap(ReferenceExpression& rhs);
-
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
-    // Expression
-    DECL_CLONE_ALL(Expression)
-protected:
-    SymRes resolveSymbols(Context& ctx) override;
-
-public:
-    IdentifierExpression const& expression() const;
-    IdentifierExpression& expression();
-
-private:
-    std::unique_ptr<IdentifierExpression> myId;
 };
 
 class TupleExpression : public Expression

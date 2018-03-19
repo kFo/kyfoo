@@ -21,6 +21,7 @@ class ModuleSet;
                               \
     X(UnsignedTemplate      ) \
     X(SignedTemplate        ) \
+    X(ReferenceTemplate     ) \
     X(PointerTemplate       ) \
                               \
     X(u1                    ) \

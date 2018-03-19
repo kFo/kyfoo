@@ -807,13 +807,6 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
             auto passSemantics = ProcedureParameter::ByValue;
             auto p = expr->as<IdentifierExpression>();
-            if ( !p ) {
-                if ( auto r = expr->as<ReferenceExpression>() ) {
-                    p = &r->expression();
-                    passSemantics = ProcedureParameter::ByReference;
-                }
-            }
-
             if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
                 continue;
 
@@ -872,8 +865,6 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
     auto returnSemantics = ProcedureParameter::ByValue;
     ret |= ctx.resolveExpression(myReturnExpression);
-    if ( myReturnExpression->as<ReferenceExpression>() )
-        returnSemantics = ProcedureParameter::ByReference;
 
     myResult = std::make_unique<ProcedureParameter>(
         Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")),
@@ -1346,30 +1337,56 @@ struct DeclarationPrinter
         if ( auto templ = parentTemplate(proc) )
             print(stream, templ->symbol());
 
+        auto sink = [this](Expression const& e) {
+            if ( auto id = e.as<IdentifierExpression>() ) {
+                if ( auto param = id->declaration()->as<ProcedureParameter>() ) {
+                    declProcedureParameter(*param);
+                    return;
+                }
+            }
+
+            print(stream, e);
+        };
+
         stream << "(";
         auto first = begin(proc.symbol().prototype().pattern());
         auto last = end(proc.symbol().prototype().pattern());
         if ( first != last )
-            print(stream, **first);
+            sink(**first);
 
         for ( ++first; first != last; ++first ) {
             stream << ", ";
-            print(stream, **first);
+            sink(**first);
         }
 
         stream << ")";
+        
+        if ( proc.returnType() ) {
+            stream << " -> ";
+            sink(*proc.returnType());
+        }
+
         return stream;
     }
 
-    result_t declProcedureParameter(ProcedureParameter const&)
+    result_t declProcedureParameter(ProcedureParameter const& p)
     {
-        // nop
+        stream << p.token().lexeme();
+        for ( auto const& c : p.constraints() ) {
+            stream << " : ";
+            print(stream, *c);
+        }
         return stream;
     }
 
     result_t declVariable(VariableDeclaration const& var)
     {
-        return stream << var.symbol().token().lexeme();
+        stream << var.symbol().token().lexeme();
+        for ( auto const& c : var.constraints() ) {
+            stream << " : ";
+            print(stream, *c);
+        }
+        return stream;
     }
 
     result_t declImport(ImportDeclaration const& imp)

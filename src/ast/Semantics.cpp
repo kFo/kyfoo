@@ -150,11 +150,6 @@ struct SymbolDependencyBuilder
             tracker.addDependency(decl, p.token().lexeme(), 0);
     }
 
-    result_t exprReference(ReferenceExpression const& r)
-    {
-        return exprIdentifier(r.expression());
-    }
-
     result_t exprTuple(TupleExpression const& t)
     {
         for ( auto const& e : t.expressions() )
@@ -471,24 +466,10 @@ VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token co
     return Invariant;
 }
 
-VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs)
-{
-    if ( lhs.name() != rhs.name() )
-        return Invariant;
-
-    return variance(ctx, lhs.pattern(), rhs.pattern());
-}
-
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
 {
     if ( &target == &query )
         return Exact;
-
-    if ( auto f = query.as<ProcedureDeclaration>() )
-        return variance(ctx, target, *getDeclaration(*f->result()->type()));
-
-    if ( auto v = query.as<VariableDeclaration>() )
-        return variance(ctx, target, *getDeclaration(v->type()));
 
     if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
         if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
@@ -500,12 +481,36 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
 
             return subset(queryBounds, targetBounds) ? Covariant : Contravariant;
         }
+
+        return Invariant;
     }
 
     // todo: removeme
-    if ( &query == ctx.axioms().intrinsic(PointerNullLiteralType) )
+    if ( &query == ctx.axioms().intrinsic(PointerNullLiteralType) ) {
         if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol()) )
             return Covariant;
+
+        return Invariant;
+    }
+
+    if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), target.symbol()) ) {
+        if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), query.symbol()) )
+            return variance(ctx, target.symbol().prototype().pattern(), query.symbol().prototype().pattern());
+
+        if ( query.kind() == DeclKind::Variable || query.kind() == DeclKind::Field ) {
+            auto const& binder = static_cast<Binder const&>(query);
+            return variance(ctx, target.symbol().prototype().pattern(), *binder.type());
+        }
+
+        return Invariant;
+    }
+
+    // todo: this is a hack for covariance
+    if ( rootTemplate(target.symbol()) == rootTemplate(query.symbol()) ) {
+        return variance(ctx,
+                        target.symbol().prototype().pattern(),
+                        query.symbol().prototype().pattern());
+    }
 
     return Invariant;
 }
@@ -554,29 +559,21 @@ VarianceResult variance(Context& ctx,
     }
 
     if ( auto targetDecl = getDeclaration(*t) ) {
-        auto queryLiteral = q->as<LiteralExpression>();
         if ( isBinder(targetDecl->kind()) ) {
             auto const& targetBinder = static_cast<Binder const&>(*targetDecl);
-            // todo: hack until fixed width types are constructible from infinite types
-            if ( queryLiteral )
-                return variance(ctx, *targetBinder.type(), *queryLiteral);
+            auto ret = variance(ctx, *targetBinder.type(), *q);
+            if ( ret.invariant() )
+                return variance(ctx, *targetBinder.type(), *q->type());
 
-            return variance(ctx, *targetBinder.type(), *queryType);
+            return ret;
         }
 
-        if ( queryLiteral )
+        if ( auto queryLiteral = q->as<LiteralExpression>() )
             return variance(ctx, *targetDecl, queryLiteral->token());
 
         auto queryDecl = getDeclaration(*q);
         if ( !queryDecl )
             return Invariant;
-
-        // todo: this is a hack for covariance
-        if ( rootTemplate(targetDecl->symbol()) == rootTemplate(queryDecl->symbol()) ) {
-            return variance(ctx,
-                            targetDecl->symbol().prototype().pattern(),
-                            queryDecl->symbol().prototype().pattern());
-        }
 
         return variance(ctx, *targetDecl, *queryDecl);
     }
@@ -661,6 +658,25 @@ VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> 
         return variance(ctx, lhs, *rhs[0]);
 
     return Invariant;
+}
+
+VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Expression const& rhs)
+{
+    if ( auto r = rhs.as<TupleExpression>() )
+        return variance(ctx, lhs, r->expressions());
+
+    if ( lhs.size() == 1 )
+        return variance(ctx, *lhs[0], rhs);
+
+    return Invariant;
+}
+
+VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs)
+{
+    if ( lhs.name() != rhs.name() )
+        return Invariant;
+
+    return variance(ctx, lhs.pattern(), rhs.pattern());
 }
 
 Expression const* lookThrough(Expression const* expr)
@@ -881,11 +897,6 @@ struct MetaVariableVisitor
             return visitor(p);
     }
 
-    result_t exprReference(ReferenceExpression&)
-    {
-        // nop
-    }
-
     result_t exprTuple(TupleExpression& t)
     {
         for ( auto const& e : t.expressions() )
@@ -1002,11 +1013,6 @@ struct HasMetaVariable
     result_t exprIdentifier(IdentifierExpression const& p)
     {
         return p.token().kind() == lexer::TokenKind::MetaVariable;
-    }
-
-    result_t exprReference(ReferenceExpression const&)
-    {
-        return false;
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -1136,11 +1142,6 @@ struct FrontToken
         return p.token();
     }
 
-    result_t exprReference(ReferenceExpression const& r)
-    {
-        return exprIdentifier(r.expression());
-    }
-
     result_t exprTuple(TupleExpression const& t)
     {
         if ( t.expressions().empty() )
@@ -1259,6 +1260,22 @@ struct PrintOperator
         return stream;
     }
 
+    result_t printType(Expression const& expr)
+    {
+        if ( expr.type() ) {
+            stream << " : ";
+            return dispatch(*expr.type());
+        }
+
+        return stream << " : ~err";
+    }
+
+    result_t showTyped(Expression const& expr)
+    {
+        dispatch(expr);
+        return printType(expr);
+    }
+
     result_t exprLiteral(LiteralExpression const& p)
     {
         return stream << p.token().lexeme();
@@ -1266,14 +1283,7 @@ struct PrintOperator
 
     result_t exprIdentifier(IdentifierExpression const& id)
     {
-        stream << id.token().lexeme();
-        return printConstraints(id);
-    }
-
-    result_t exprReference(ReferenceExpression const& r)
-    {
-        stream << "=";
-        return exprIdentifier(r.expression());
+        return stream << id.token().lexeme();
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -1281,16 +1291,15 @@ struct PrintOperator
         stream << presentTupleOpen(t.kind());
 
         if ( !t.expressions().empty() ) {
-            dispatch(*t.expressions()[0]);
+            showTyped(*t.expressions()[0]);
 
             for ( auto const& e : t.expressions()(1, t.expressions().size()) ) {
                 stream << presentTupleWeave(t.kind());
-                dispatch(*e);
+                showTyped(*e);
             }
         }
 
-        stream << presentTupleClose(t.kind());
-        return printConstraints(t);
+        return stream << presentTupleClose(t.kind());;
     }
 
     result_t exprApply(ApplyExpression const& a)
@@ -1312,7 +1321,7 @@ struct PrintOperator
         if ( nest )
             stream << ")";
 
-        return printConstraints(a);
+        return stream;
     }
 
     result_t exprSymbol(SymbolExpression const& s)
@@ -1336,7 +1345,7 @@ struct PrintOperator
         if ( id.empty() )
             stream << "<>";
 
-        return printConstraints(s);
+        return stream;
     }
 
     result_t exprDot(DotExpression const& d)
@@ -1355,13 +1364,14 @@ struct PrintOperator
             dispatch(*(*l));
         }
 
-        return printConstraints(d);
+        return stream;
     }
 
     result_t exprVar(VarExpression const& v)
     {
         if ( v.identity().token().kind() != lexer::TokenKind::Undefined ) {
             exprIdentifier(v.identity());
+            printType(v.identity());
             stream << " = ";
         }
 
@@ -1460,11 +1470,6 @@ struct LevelFinder
     result_t exprIdentifier(IdentifierExpression const&)
     {
         return 1; // todo: higher level types
-    }
-
-    result_t exprReference(ReferenceExpression const& r)
-    {
-        return exprIdentifier(r.expression());
     }
 
     result_t max(Slice<Expression*> exprs)
