@@ -471,7 +471,7 @@ public:
     ProcedureScope const* definition() const;
     void define(ProcedureScope* definition);
 
-    Expression const* type() const;
+    ArrowExpression const* type() const;
 
     Expression* returnType();
     Expression const* returnType() const;

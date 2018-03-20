@@ -366,17 +366,20 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
         }
 
         auto hit = ctx.matchOverload(token().lexeme());
-        if ( !hit ) {
+        myDeclaration = hit.decl();
+        if ( !myDeclaration ) {
             ctx.error(token()) << "undeclared identifier";
             return SymRes::Fail;
         }
 
-        // has to refer to a template (procedures don't have names)
-        if ( hit.as<ProcedureDeclaration>() )
-            throw std::runtime_error("identifier-expression cannot refer to a procedure");
+        if ( ctx.isTopLevel() ) {
+            auto ret = tryLowerTemplateToProc(ctx);
+            if ( !ret )
+                return ret;
+        }
 
-        myDeclaration = hit.decl();
-        myType = getType(*myDeclaration);
+        if ( !myType )
+            myType = getType(*myDeclaration);
 
         if ( auto symVar = myDeclaration->as<SymbolVariable>() )
             if ( !symVar->boundExpression() )
@@ -396,6 +399,33 @@ lexer::Token const& IdentifierExpression::token() const
 Declaration const* IdentifierExpression::declaration() const
 {
     return myDeclaration;
+}
+
+SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
+{
+    if ( !myDeclaration )
+        return SymRes::Success;
+
+    auto templ = myDeclaration->as<TemplateDeclaration>();
+    if ( !templ )
+        return SymRes::Success;
+
+    auto defn = templ->definition();
+    if ( !defn ) {
+        auto& err = ctx.error(*this) << "missing definition";
+        err.see(*templ);
+        return SymRes::Fail;
+    }
+
+    auto proc = defn->findOverload(ctx.module(), ctx.diagnostics(), "").as<ProcedureDeclaration>();
+    if ( !proc ) {
+        ctx.error(*this) << "does not refer to any procedure";
+        return SymRes::Fail;
+    }
+
+    myDeclaration = proc;
+    myType = &proc->type()->to();
+    return SymRes::Success;
 }
 
 void IdentifierExpression::setDeclaration(Declaration const& decl)
@@ -543,7 +573,9 @@ IMPL_CLONE_REMAP_END
 
 SymRes TupleExpression::resolveSymbols(Context& ctx)
 {
-    flattenOpenTuples();
+    auto ret = ctx.resolveExpressions(myExpressions);
+    if ( !ret )
+        return ret;
 
     if ( myKind == TupleKind::Open ) {
         if ( myExpressions.empty() ) {
@@ -555,9 +587,7 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
         }
     }
 
-    auto ret = ctx.resolveExpressions(myExpressions);
-    if ( !ret )
-        return ret;
+    flattenOpenTuples();
 
     // myType is generated lazily
     return SymRes::Success;
@@ -660,16 +690,35 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
-    flatten(next(begin(myExpressions)));
+    auto tryLowerSingle = [this, &ctx]() -> SymRes {
+        if ( myExpressions.empty() )
+            return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
+        else if ( myExpressions.size() == 1 )
+            return ctx.rewrite(std::move(myExpressions.front()));
 
-    if ( myExpressions.empty() )
-        return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
-    else if ( myExpressions.size() == 1 )
-        return ctx.rewrite(std::move(myExpressions.front()));
+        return SymRes::Success;
+    };
 
-    auto ret = ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
+    auto ret = tryLowerSingle();
     if ( !ret )
         return ret;
+
+    ret |= ctx.resolveExpressions(next(begin(myExpressions)), end(myExpressions));
+    if ( !ret )
+        return ret;
+
+    flatten(next(begin(myExpressions)));
+    ret |= tryLowerSingle(); // again
+    if ( !ret )
+        return ret;
+
+    for ( auto e : arguments() ) {
+        if ( auto id = identify(*e) ) {
+            auto r = id->tryLowerTemplateToProc(ctx);
+            if ( !r )
+                return r;
+        }
+    }
 
     if ( auto lit = subject()->as<LiteralExpression>() )
         return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
@@ -691,6 +740,11 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     auto arrow = subject()->type()->as<ArrowExpression>();
     if ( !arrow ) {
         ctx.error(*subject()) << "subject of an apply-expression must have an applicable type";
+        return SymRes::Fail;
+    }
+
+    if ( !variance(ctx, arrow->from(), arguments()) ) {
+        ctx.error(*this) << "types do not agree";
         return SymRes::Fail;
     }
 

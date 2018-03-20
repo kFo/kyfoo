@@ -571,11 +571,17 @@ VarianceResult variance(Context& ctx,
         if ( auto queryLiteral = q->as<LiteralExpression>() )
             return variance(ctx, *targetDecl, queryLiteral->token());
 
-        auto queryDecl = getDeclaration(*q);
-        if ( !queryDecl )
+        if ( auto queryDecl = getDeclaration(*q) ) {
+            auto ret = variance(ctx, *targetDecl, *queryDecl);
+            if ( !ret.invariant() )
+                return ret;
+        }
+
+        auto queryTypeDecl = getDeclaration(*queryType);
+        if ( !queryTypeDecl )
             return Invariant;
 
-        return variance(ctx, *targetDecl, *queryDecl);
+        return variance(ctx, *targetDecl, *queryTypeDecl);
     }
 
     if ( auto targetTuple = t->as<TupleExpression>() ) {

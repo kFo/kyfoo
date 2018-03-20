@@ -253,7 +253,9 @@ SymRes Context::resolveExpression(Expression& expression)
 {
     auto originalResolver = myResolver;
     myRewrite.reset();
+    ++myExpressionDepth;
     auto ret = expression.resolveSymbols(*this);
+    --myExpressionDepth;
     if ( ret && !expression.type() )
         throw std::runtime_error("successful elaboration did not type an expression");
 
@@ -270,7 +272,9 @@ SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
 {
     auto originalResolver = myResolver;
     myRewrite.reset();
+    ++myExpressionDepth;
     auto ret = expression->resolveSymbols(*this);
+    --myExpressionDepth;
     if ( ret && !expression->type() )
         throw std::runtime_error("successful elaboration did not type an expression");
 
@@ -289,7 +293,7 @@ SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
         }
 
         expression = std::move(myRewrite);
-        expression->myConstraints = std::move(c);
+        expression->addConstraints(std::move(c));
         myResolver = originalResolver;
         ret = expression->resolveSymbols(*this);
     }
@@ -344,6 +348,11 @@ SymRes Context::resolveStatements(std::vector<Statement>::iterator left,
 SymRes Context::resolveStatements(std::vector<Statement>& stmts)
 {
     return resolveStatements(begin(stmts), end(stmts));
+}
+
+bool Context::isTopLevel() const
+{
+    return myExpressionDepth == 0;
 }
 
     } // namespace ast

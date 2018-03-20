@@ -67,6 +67,8 @@ public:
     {
         if ( rhs.myRes == Fail )
             myRes = Fail;
+        else if ( rhs.myRes == Rewrite )
+            myRes = Rewrite;
         else if ( myRes == Success && rhs.myRes == NeedsSubstitution )
             myRes = NeedsSubstitution;
 
@@ -231,6 +233,8 @@ protected:
 public:
     lexer::Token const& token() const;
     Declaration const* declaration() const;
+
+    SymRes tryLowerTemplateToProc(Context& ctx);
 
     void setDeclaration(Declaration const& decl);
     void clearDeclaration();

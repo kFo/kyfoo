@@ -515,7 +515,7 @@ struct CodeGenPass
         //};
 
         for ( auto const& stmt : block.statements() ) {
-            if ( !toValue(builder, stmt->expression()) ) {
+            if ( !toValue(builder, builder.getVoidTy(), stmt->expression()) ) {
                 error(stmt->expression()) << "invalid instruction";
                 die();
             }
@@ -525,15 +525,17 @@ struct CodeGenPass
                 for ( std::size_t i = u.length() - 1; ~i; --i ) {
                     if ( auto dp = getDeclaration(u[i]->type())->as<ast::DataProductDeclaration>() ) {
                         auto expr = createMemberCall(*dp->definition()->destructor(), *u[i]);
-                        toValue(builder, *expr);
+                        toValue(builder, builder.getVoidTy(), *expr);
                     }
                 }
             }
         }
 
         if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
-            if ( retJunc->expression() )
-                builder.CreateStore(toValue(builder, *retJunc->expression()), fdata->returnInst);
+            if ( retJunc->expression() ) {
+                builder.CreateStore(toValue(builder, fdata->returnInst->getAllocatedType(), *retJunc->expression()),
+                                    fdata->returnInst);
+            }
 
             /*createCleanupBlock(retJunc->token(), true);
             builder.CreateBr(cleanupBlocks.back());*/
@@ -546,7 +548,7 @@ struct CodeGenPass
         }
 
         if ( auto brJunc = block.junction()->as<ast::BranchJunction>() ) {
-            auto cond = toValue(builder, *brJunc->condition());
+            auto cond = toValue(builder, nullptr, *brJunc->condition());
             auto cmp = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
 
             auto trueBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
@@ -669,7 +671,7 @@ private:
             }
         }
         else if ( arity == argCount + 1 ) {
-            val = toValue(builder, *a.expressions()[1]);
+            val = toValue(builder, nullptr, *a.expressions()[1]);
         }
         
         if ( !val ) {
@@ -690,45 +692,81 @@ private:
         return codegen::toType(module->getContext(), expr);
     }
 
-    llvm::Value* toValue(llvm::IRBuilder<>& builder, ast::Expression const& expression)
+    llvm::Constant* toLiteral(llvm::IRBuilder<>& builder, llvm::Type* destType, lexer::Token const& token)
+    {
+        switch ( token.kind() ) {
+        case lexer::TokenKind::Integer:
+        {
+            auto intType = llvm::dyn_cast_or_null<llvm::IntegerType>(destType);
+            if ( !intType ) {
+                auto bits = llvm::APInt::getBitsNeeded(token.lexeme(), 10);
+                return builder.getInt(llvm::APInt(bits, token.lexeme(), 10));
+            }
+
+            return llvm::ConstantInt::get(intType, token.lexeme(), 10);
+        }
+        case lexer::TokenKind::Rational:
+            return llvm::ConstantFP::get(destType, token.lexeme());
+        case lexer::TokenKind::String:
+        {
+            auto const strType = customData(*sourceModule.axioms().intrinsic(ast::Sliceu8))->type;
+            if ( destType != strType )
+                return nullptr;
+
+            auto const& str = sourceModule.interpretString(dgn, token);
+            llvm::GlobalVariable* gv = builder.CreateGlobalString(str);
+            auto zero = builder.getInt32(0);
+            llvm::Constant* idx[] = { zero, zero };
+            llvm::Constant* s[2] = {
+                llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
+                builder.getInt64(str.length())
+            };
+            return llvm::ConstantStruct::get(strType, s);
+        }
+        }
+
+        die("invalid literal");
+        return nullptr;
+    }
+
+    llvm::Value* toValue(llvm::IRBuilder<>& builder, llvm::Type* destType, ast::Expression const& expression)
     {
         auto const& axioms = sourceModule.axioms();
         auto const& expr = *resolveIndirections(&expression);
-        if ( auto intrin = intrinsicInstruction(builder, expr) )
+        if ( auto intrin = intrinsicInstruction(builder, destType, expr) )
             return intrin;
 
-        if ( auto l = expr.as<ast::LiteralExpression>() ) {
-            auto decl = resolveIndirections(getDeclaration(l->type()));
-            if ( !decl )
-                die("untyped literal");
+        if ( auto lit = expr.as<ast::LiteralExpression>() )
+            return toLiteral(builder, destType, lit->token());
 
-            switch (l->token().kind()) {
-            case lexer::TokenKind::Integer:
-                return llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder.getContext()),
-                                              l->token().lexeme(), 10);
-            case lexer::TokenKind::Rational:
-                return llvm::ConstantFP::get(llvm::Type::getDoubleTy(builder.getContext()),
-                                             l->token().lexeme());
-            case lexer::TokenKind::String:
-            {
-                auto str = sourceModule.interpretString(dgn, l->token());
-                llvm::GlobalVariable* gv = builder.CreateGlobalString(str);
-                auto zero = builder.getInt32(0);
-                llvm::Constant* idx[] = { zero, zero };
-                llvm::Constant* s[2] = {
-                    llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
-                    builder.getInt64(str.length())
-                };
-                return llvm::ConstantStruct::get(customData(*axioms.intrinsic(ast::Sliceu8))->type, s);
-            }
+        if ( auto dot = expr.as<ast::DotExpression>() ) {
+            llvm::Value* ret = nullptr;
+            auto exprs = dot->expressions();
+            for ( auto const& e : exprs ) {
+                if ( auto field = getDeclaration(e)->as<ast::DataProductDeclaration::Field>() ) {
+                    assert(ret && "expected field comes after another value");
+                    auto fieldData = customData(*field);
+                    ret = builder.CreateExtractValue(ret, fieldData->index);
+                }
+                else {
+                    ret = toValue(builder, destType, *e);
+                }
             }
 
-            die("unhandled literal");
+            return ret;
         }
-        else if ( auto id = expr.as<ast::IdentifierExpression>() ) {
-            auto decl = resolveIndirections(id->declaration());
-            if ( !decl )
+
+        if ( auto id = identify(expr) ) {
+            auto decl = id->declaration();
+            if ( !decl ) {
+                auto d = resolveIndirections(getDeclaration(*id->type()));
+                if ( d == axioms.intrinsic(ast::PointerNullLiteralType) ) {
+                    auto ptrType = llvm::dyn_cast_or_null<llvm::PointerType>(destType);
+                    return llvm::ConstantPointerNull::get(ptrType);
+                }
+
                 die("unresolved identifier");
+            }
 
             if ( auto dsCtor = decl->as<ast::DataSumDeclaration::Constructor>() )
                 die("dsctor not implemented");
@@ -743,61 +781,51 @@ private:
                 return builder.CreateLoad(vdata->inst);
             }
 
+            if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
+                auto pdata = customData(*proc);
+                return builder.CreateCall(pdata->body);
+            }
+
             die("unhandled identifier");
         }
-        else if ( auto a = expr.as<ast::ApplyExpression>() ) {
+
+        if ( auto a = expr.as<ast::ApplyExpression>() ) {
             auto proc = getDeclaration(a->subject())->as<ast::ProcedureDeclaration>();
             if ( !proc ) {
                 error(*a) << "expected apply-expression to refer to procedure-declaration";
                 die();
             }
 
+            auto const& exprs = a->expressions();
             std::vector<llvm::Value*> params;
-            params.reserve(a->expressions().size());
+            params.reserve(exprs.size());
 
             auto const isMethod = methodType(*proc) ? 1 : 0;
             if ( isMethod )
                 params.push_back(getThis(builder, *proc, *a));
 
-            if ( a->expressions().size() > 1 ) {
-                for ( std::size_t i = 1; i < a->expressions().size(); ++i ) {
+            if ( exprs.size() > 1 ) {
+                for ( std::size_t i = 1; i < exprs.size(); ++i ) {
                     auto const paramOrdinal = proc->ordinal(i - 1);
                     if ( paramOrdinal < isMethod )
                         continue;
 
-                    auto const& e = a->expressions()[i];
-                    if ( getDeclaration(e->type()) == axioms.intrinsic(ast::PointerNullLiteralType) ) {
-                        auto paramType = toType(*proc->parameters()[paramOrdinal]->type());
-                        params.push_back(llvm::ConstantPointerNull::get(static_cast<llvm::PointerType*>(paramType)));
-                    }
-                    else {
-                        params.push_back(toValue(builder, *e));
-                    }
+                    auto paramType = toType(*proc->parameters()[paramOrdinal]->type());
+                    auto val = toValue(builder, paramType, *exprs[i]);
+                    if ( !val )
+                        die("cannot determine arg");
+                    params.push_back(val);
                 }
             }
 
             return builder.CreateCall(customData(*proc)->body, params);
         }
-        else if ( auto dot = expr.as<ast::DotExpression>() ) {
-            llvm::Value* ret = nullptr;
-            auto exprs = dot->expressions();
-            for ( auto const& e : exprs ) {
-                if ( auto field = getDeclaration(e)->as<ast::DataProductDeclaration::Field>() ) {
-                    assert(ret && "expected field comes after another value");
-                    auto fieldData = customData(*field);
-                    ret = builder.CreateExtractValue(ret, fieldData->index);
-                }
-                else {
-                    ret = toValue(builder, *e);
-                }
-            }
 
-            return ret;
-        }
-        else if ( auto varExpr = expr.as<ast::VarExpression>() ) {
+        if ( auto varExpr = expr.as<ast::VarExpression>() ) {
             auto var = varExpr->identity().declaration()->as<ast::VariableDeclaration>();
             auto vdata = customData(*var);
-            builder.CreateStore(toValue(builder, varExpr->expression()), vdata->inst);
+            builder.CreateStore(toValue(builder, vdata->inst->getAllocatedType(), varExpr->expression()),
+                                vdata->inst);
             return builder.CreateLoad(vdata->inst);
         }
 
@@ -816,6 +844,7 @@ private:
     }
 
     llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
+                                      llvm::Type* destType,
                                       ast::Expression const& expr)
     {
         auto a = expr.as<ast::ApplyExpression>();
@@ -836,8 +865,9 @@ private:
         else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Addu)->symbol(), proc->symbol())
                 || ast::descendsFromTemplate(axioms.intrinsic(ast::Adds)->symbol(), proc->symbol()) )
         {
-            auto p1 = toValue(builder, *exprs[1]);
-            auto p2 = toValue(builder, *exprs[2]);
+            auto type = toType(*exprs[1]->type());
+            auto p1 = toValue(builder, type, *exprs[1]);
+            auto p2 = toValue(builder, type, *exprs[2]);
             return builder.CreateAdd(p1, p2);
         }
         else if ( proc == axioms.intrinsic(ast::Truncu1u8)
@@ -846,7 +876,7 @@ private:
                 || proc == axioms.intrinsic(ast::Truncu1u64)
                 || proc == axioms.intrinsic(ast::Truncu1u128) )
         {
-            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt1Ty(builder.getContext()));
+            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt1Ty(builder.getContext()));
         }
         else if ( proc == axioms.intrinsic(ast::Truncu8u16)
                 || proc == axioms.intrinsic(ast::Truncu8u32)
@@ -857,7 +887,7 @@ private:
                 || proc == axioms.intrinsic(ast::Trunci8i64)
                 || proc == axioms.intrinsic(ast::Trunci8i128) )
         {
-            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt8Ty(builder.getContext()));
+            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt8Ty(builder.getContext()));
         }
         else if ( proc == axioms.intrinsic(ast::Truncu16u32)
                 || proc == axioms.intrinsic(ast::Truncu16u64)
@@ -866,19 +896,19 @@ private:
                 || proc == axioms.intrinsic(ast::Trunci16i64)
                 || proc == axioms.intrinsic(ast::Trunci16i128) )
         {
-            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt16Ty(builder.getContext()));
+            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt16Ty(builder.getContext()));
         }
         else if ( proc == axioms.intrinsic(ast::Truncu32u64)
                 || proc == axioms.intrinsic(ast::Truncu32u128)
                 || proc == axioms.intrinsic(ast::Trunci32i64)
                 || proc == axioms.intrinsic(ast::Trunci32i128) )
         {
-            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt32Ty(builder.getContext()));
+            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt32Ty(builder.getContext()));
         }
         else if ( proc == axioms.intrinsic(ast::Truncu64u128)
                 || proc == axioms.intrinsic(ast::Trunci64i128) )
         {
-            return builder.CreateTrunc(toValue(builder, *exprs[1]), llvm::Type::getInt128Ty(builder.getContext()));
+            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt128Ty(builder.getContext()));
         }
 
         if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {

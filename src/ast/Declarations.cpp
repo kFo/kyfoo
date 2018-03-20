@@ -907,7 +907,7 @@ void ProcedureDeclaration::define(ProcedureScope* definition)
     myDefinition->setDeclaration(this);
 }
 
-Expression const* ProcedureDeclaration::type() const
+ArrowExpression const* ProcedureDeclaration::type() const
 {
     return myType.get();
 }

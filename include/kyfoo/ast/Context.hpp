@@ -122,6 +122,8 @@ public:
                              std::vector<Statement>::iterator right);
     SymRes resolveStatements(std::vector<Statement>& stmts);
 
+    bool isTopLevel() const;
+
 private:
     Module* myModule = nullptr;
     Diagnostics* myDiagnostics = nullptr;
@@ -130,6 +132,7 @@ private:
     Statement* myStatement = nullptr;
     std::unique_ptr<Expression> myRewrite;
     std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> myLazyRewrite;
+    int myExpressionDepth = -1;
 };
 
     } // namespace ast
