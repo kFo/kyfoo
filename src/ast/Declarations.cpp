@@ -130,7 +130,7 @@ void Declaration::setAttributes(std::vector<std::unique_ptr<Expression>>&& exprs
     exprs.clear();
 }
 
-Slice<Statement> const Declaration::attributes() const
+Slice<Statement const> Declaration::attributes() const
 {
     return myAttributes;
 }
@@ -392,7 +392,7 @@ Slice<Expression*> Binder::constraints()
     return myConstraints;
 }
 
-Slice<Expression*> const Binder::constraints() const
+Slice<Expression const*> const Binder::constraints() const
 {
     return myConstraints;
 }
@@ -796,7 +796,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
         }
 
         for ( int i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
-            auto const& pattern = mySymbol->prototype().pattern()[i];
+            auto& pattern = mySymbol->prototype().pattern()[i];
             auto expr = pattern;
             if ( auto a = pattern->as<ApplyExpression>() ) {
                 if ( a->expressions().size() != 1 )
@@ -927,7 +927,7 @@ Slice<ProcedureParameter*> ProcedureDeclaration::parameters()
     return myParameters;
 }
 
-Slice<ProcedureParameter*> const ProcedureDeclaration::parameters() const
+Slice<ProcedureParameter const*> ProcedureDeclaration::parameters() const
 {
     return myParameters;
 }

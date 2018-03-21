@@ -107,12 +107,17 @@ SymRes PatternsPrototype::resolveSymbols(Context& ctx)
     return ret;
 }
 
-Slice<Expression*> PatternsPrototype::pattern() const
+Slice<Expression*> PatternsPrototype::pattern()
 {
     return myPattern;
 }
 
-Slice<SymbolVariable*> PatternsPrototype::symbolVariables() const
+Slice<Expression const*> PatternsPrototype::pattern() const
+{
+    return myPattern;
+}
+
+Slice<SymbolVariable const*> PatternsPrototype::symbolVariables() const
 {
     return myVariables;
 }
@@ -268,13 +273,13 @@ Symbol const* Symbol::prototypeParent() const
 //
 // SymbolReference
 
-SymbolReference::SymbolReference(const char* name, pattern_t pattern)
+SymbolReference::SymbolReference(const char* name, const_pattern_t pattern)
     : myName(name)
     , myPattern(pattern)
 {
 }
 
-SymbolReference::SymbolReference(std::string const& name, pattern_t pattern)
+SymbolReference::SymbolReference(std::string const& name, const_pattern_t pattern)
     : myName(name.c_str())
     , myPattern(pattern)
 {
@@ -302,7 +307,7 @@ const char* SymbolReference::name() const
     return myName;
 }
 
-pattern_t const& SymbolReference::pattern() const
+const_pattern_t const& SymbolReference::pattern() const
 {
     return myPattern;
 }
@@ -395,7 +400,7 @@ std::string const& SymbolSpace::name() const
     return myName;
 }
 
-Slice<Prototype> SymbolSpace::prototypes() const
+Slice<Prototype const> SymbolSpace::prototypes() const
 {
     return myPrototypes;
 }
@@ -406,7 +411,7 @@ void SymbolSpace::append(PatternsPrototype const& prototype,
     myPrototypes.push_back(Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
 }
 
-Declaration const* SymbolSpace::findEquivalent(pattern_t const& paramlist) const
+Declaration const* SymbolSpace::findEquivalent(const_pattern_t paramlist) const
 {
     for ( auto const& e : myPrototypes )
         if ( matchEquivalent(e.proto.params->pattern(), paramlist) )
@@ -415,12 +420,12 @@ Declaration const* SymbolSpace::findEquivalent(pattern_t const& paramlist) const
     return nullptr;
 }
 
-Declaration* SymbolSpace::findEquivalent(pattern_t const& paramlist)
+Declaration* SymbolSpace::findEquivalent(const_pattern_t paramlist)
 {
     return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(paramlist));
 }
 
-CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, pattern_t const& paramlist)
+CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist)
 {
     CandidateSet ret;
     ScopeResolver resolver(*myScope);
@@ -456,7 +461,7 @@ CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, pa
 SymbolSpace::DeclInstance
 SymbolSpace::findOverload(Module& endModule,
                           Diagnostics& dgn,
-                          pattern_t const& paramlist)
+                          const_pattern_t paramlist)
 {
     ScopeResolver resolver(*myScope);
     Context ctx(endModule, dgn, resolver);

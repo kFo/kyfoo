@@ -44,10 +44,10 @@ public:
     AxiomsModule const& axioms() const;
 
     Slice<Module*> modules();
-    Slice<Module*> modules() const;
+    Slice<Module const*> modules() const;
 
     Slice<Module*> impliedImports();
-    Slice<Module*> impliedImports() const;
+    Slice<Module const*> impliedImports() const;
 
 private:
     AxiomsModule* myAxioms;

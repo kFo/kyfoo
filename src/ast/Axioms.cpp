@@ -117,7 +117,7 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
 
     for ( std::size_t i = EmptyLiteralType; i <= PointerNullLiteralType; ++i )
-        myDataSumDecls[i] = static_cast<DataSumDeclaration*>(scope()->childDeclarations()[i]);
+        myDataSumDecls[i] = scope()->childDeclarations()[i]->as<DataSumDeclaration>();
 }
 
 AxiomsModule::~AxiomsModule() = default;
@@ -247,7 +247,7 @@ void AxiomsModule::setIntrinsic(std::string const& nameLiteral, Declaration cons
     }
 }
 
-void AxiomsModule::findIntrinsics(DeclarationScope* s)
+void AxiomsModule::findIntrinsics(DeclarationScope const* s)
 {
     for ( auto d : s->childDeclarations() ) {
         for ( auto const& attr : d->attributes() ) {

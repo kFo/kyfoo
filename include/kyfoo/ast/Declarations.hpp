@@ -99,7 +99,7 @@ public:
     void setScope(DeclarationScope& parent);
 
     void setAttributes(std::vector<std::unique_ptr<Expression>>&& exprs);
-    Slice<Statement> const attributes() const;
+    Slice<Statement const> attributes() const;
     Slice<Statement> attributes();
 
     codegen::CustomData* codegenData();
@@ -231,7 +231,7 @@ public:
     void addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs);
 
     Slice<Expression*> constraints();
-    Slice<Expression*> const constraints() const;
+    Slice<Expression const*> const constraints() const;
 
     Expression const* type() const;
 
@@ -477,7 +477,8 @@ public:
     Expression const* returnType() const;
 
     Slice<ProcedureParameter*> parameters();
-    Slice<ProcedureParameter*> const parameters() const;
+    Slice<ProcedureParameter const*> parameters() const;
+
     ProcedureParameter* result();
     ProcedureParameter const* result() const;
 
@@ -571,7 +572,7 @@ public:
 
 private:
     PatternsPrototype* myPrototype = nullptr;
-    std::vector<Expression*> myConstraints;
+    std::vector<Expression const*> myConstraints;
     Expression const* myBoundExpression = nullptr;
 };
 

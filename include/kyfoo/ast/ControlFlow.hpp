@@ -70,7 +70,7 @@ public:
     Expression const& expression() const;
     Expression& expression();
 
-    Slice<VariableDeclaration*> const unnamedVariables() const;
+    Slice<VariableDeclaration const*> unnamedVariables() const;
 
     VariableDeclaration const* createUnnamed(ProcedureScope& scope, Declaration const& constraint);
     void appendUnnamed(ProcedureScope& scope, Expression const& expr);
@@ -311,7 +311,7 @@ public:
 
     Slice<BasicBlock*> incoming();
 
-    Slice<Statement*> const statements() const;
+    Slice<Statement const*> statements() const;
     Slice<Statement*> statements();
 
     Junction const* junction() const;

@@ -21,7 +21,7 @@ namespace kyfoo {
  *
  * \note No substitution is determined for any expression in \a target that is already resolved
  */
-Substitutions::Substitutions(Declaration const& target, Slice<Expression*> const& query)
+Substitutions::Substitutions(Declaration const& target, Slice<Expression const*> query)
 {
     auto const& targetPattern = target.symbol().prototype().pattern();
 
@@ -53,14 +53,14 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression*> const
         setMismatch();
 }
 
-Substitutions::Substitutions(Slice<Expression*> const& target, Slice<Expression*> const& query)
+Substitutions::Substitutions(Slice<Expression const*> target, Slice<Expression const*> query)
 {
     deduce(target, query);
 }
 
 Substitutions::~Substitutions() = default;
 
-bool Substitutions::deduce(Slice<Expression*> target, Slice<Expression*> query)
+bool Substitutions::deduce(Slice<Expression const*> target, Slice<Expression const*> query)
 {
     auto const n = target.size();
     if ( n != query.size() )
@@ -73,7 +73,7 @@ bool Substitutions::deduce(Slice<Expression*> target, Slice<Expression*> query)
     return ret;
 }
 
-bool Substitutions::deduce(Slice<Expression*> target, Expression const& query)
+bool Substitutions::deduce(Slice<Expression const*> target, Expression const& query)
 {
     if ( auto tup = query.as<TupleExpression>() )
         return deduce(target, tup->expressions());
@@ -84,7 +84,7 @@ bool Substitutions::deduce(Slice<Expression*> target, Expression const& query)
     return false;
 }
 
-bool Substitutions::deduce(Expression const& target, Slice<Expression*> query)
+bool Substitutions::deduce(Expression const& target, Slice<Expression const*> query)
 {
     if ( auto tup = target.as<TupleExpression>() )
         return deduce(tup->expressions(), query);

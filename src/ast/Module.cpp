@@ -117,7 +117,7 @@ Slice<Module*> ModuleSet::modules()
     return myModules;
 }
 
-Slice<Module*> ModuleSet::modules() const
+Slice<Module const*> ModuleSet::modules() const
 {
     return myModules;
 }
@@ -127,7 +127,7 @@ Slice<Module*> ModuleSet::impliedImports()
     return myImpliedImports;
 }
 
-Slice<Module*> ModuleSet::impliedImports() const
+Slice<Module const*> ModuleSet::impliedImports() const
 {
     return myImpliedImports;
 }

@@ -104,9 +104,9 @@ std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs)
 }
 
 template <typename T, typename D>
-std::vector<std::unique_ptr<T>> clone(Slice<T*> rhs, D& dict)
+std::vector<std::unique_ptr<std::remove_const_t<T>>> clone(Slice<T*> rhs, D& dict)
 {
-    std::vector<std::unique_ptr<T>> ret;
+    std::vector<std::unique_ptr<std::remove_const_t<T>>> ret;
     ret.reserve(rhs.size());
     for ( auto e : rhs )
         ret.emplace_back(clone(e, dict));
@@ -115,14 +115,16 @@ std::vector<std::unique_ptr<T>> clone(Slice<T*> rhs, D& dict)
 }
 
 template <typename T>
-std::vector<std::unique_ptr<T>> clone(Slice<T*> rhs)
+std::vector<std::unique_ptr<std::remove_const_t<T>>> clone(Slice<T*> rhs)
 {
     clone_map_t map;
     return clone(rhs, map);
 }
 
 template <typename T>
-std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>, T>> clone(T const& rhs)
+std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>
+                              && !is_slice_v<T>, T>>
+clone(T const& rhs)
 {
     clone_map_t map;
     return clone(rhs, map);

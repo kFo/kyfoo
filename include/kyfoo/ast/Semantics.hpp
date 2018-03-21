@@ -310,9 +310,9 @@ VarianceResult variance(lexer::Token const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query);
 VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
 VarianceResult variance(Context& ctx, Expression const& lhs, Expression const& rhs);
-VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Slice<Expression*> rhs);
-VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> rhs);
-VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Expression const& rhs);
+VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Slice<Expression const*> rhs);
+VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression const*> rhs);
+VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Expression const& rhs);
 VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
 
 Expression const* lookThrough(Expression const* expr);
@@ -331,7 +331,7 @@ Declaration* callingContextDeclaration(Declaration& decl);
 DataProductDeclaration const* methodType(ProcedureDeclaration const& proc);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
-bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs);
+bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
 
 std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr);
 bool hasMetaVariable(Expression const& expr);

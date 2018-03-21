@@ -426,7 +426,7 @@ struct CodeGenPass
                 }
             }
 
-            auto gatherStatement = [this, &builder](ast::Statement& stmt) {
+            auto gatherStatement = [this, &builder](ast::Statement const& stmt) {
                 for ( auto const& v : stmt.unnamedVariables() ) {
                     auto vdata = std::make_unique<LLVMCustomData<ast::VariableDeclaration>>();
                     vdata->inst = builder.CreateAlloca(toType(*v->type()));

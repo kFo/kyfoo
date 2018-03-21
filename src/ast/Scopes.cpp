@@ -284,12 +284,12 @@ DeclarationScope const* DeclarationScope::parent() const
     return myParent;
 }
 
-Slice<Declaration*> DeclarationScope::childDeclarations() const
+Slice<Declaration const*> DeclarationScope::childDeclarations() const
 {
     return myDeclarations;
 }
 
-Slice<DeclarationScope*> DeclarationScope::childDefinitions() const
+Slice<DeclarationScope const*> DeclarationScope::childDefinitions() const
 {
     return myDefinitions;
 }
@@ -349,12 +349,12 @@ DataSumDeclaration* DataSumScope::declaration()
     return static_cast<DataSumDeclaration*>(myDeclaration);
 }
 
-Slice<DataSumDeclaration::Constructor*> const DataSumScope::constructors() const
+Slice<DataSumDeclaration::Constructor*> DataSumScope::constructors()
 {
     return myCtors;
 }
 
-Slice<DataSumDeclaration::Constructor*> DataSumScope::constructors()
+Slice<DataSumDeclaration::Constructor const*> DataSumScope::constructors() const
 {
     return myCtors;
 }
@@ -586,7 +586,7 @@ Slice<DataProductDeclaration::Field*> DataProductScope::fields()
     return myFields;
 }
 
-const Slice<DataProductDeclaration::Field*> DataProductScope::fields() const
+Slice<DataProductDeclaration::Field const*> DataProductScope::fields() const
 {
     return myFields;
 }
@@ -734,7 +734,7 @@ Slice<ProcedureScope*> ProcedureScope::childScopes()
     return myChildScopes;
 }
 
-Slice<ProcedureScope*> const ProcedureScope::childScopes() const
+Slice<ProcedureScope const*> ProcedureScope::childScopes() const
 {
     return myChildScopes;
 }
@@ -744,7 +744,7 @@ Slice<BasicBlock*> ProcedureScope::basicBlocks()
     return myBasicBlocks;
 }
 
-Slice<BasicBlock*> const ProcedureScope::basicBlocks() const
+Slice<BasicBlock const*> ProcedureScope::basicBlocks() const
 {
     return myBasicBlocks;
 }

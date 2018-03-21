@@ -54,7 +54,7 @@ UniverseExpression const& Strata::universe(std::size_t level)
     return *myUniverses[level];
 }
 
-TupleExpression const& Strata::tuple(Slice<Expression*> exprs)
+TupleExpression const& Strata::tuple(Slice<Expression const*> exprs)
 {
     myTuples.emplace_back(std::make_unique<TupleExpression>(TupleKind::Open,
                                                             ast::clone(exprs)));
@@ -71,7 +71,7 @@ UniverseExpression const& Expression::universe(std::size_t level)
     return g_strata.universe(level);
 }
 
-TupleExpression const& Expression::tuple(Slice<Expression*> exprs)
+TupleExpression const& Expression::tuple(Slice<Expression const*> exprs)
 {
     return g_strata.tuple(exprs);
 }
@@ -169,7 +169,7 @@ Slice<Expression*> Expression::constraints()
     return myConstraints;
 }
 
-const Slice<Expression*> Expression::constraints() const
+Slice<Expression const*> Expression::constraints() const
 {
     return myConstraints;
 }
@@ -608,12 +608,12 @@ lexer::Token const& TupleExpression::closeToken() const
     return myCloseToken;
 }
 
-Slice<Expression*> TupleExpression::expressions() const
+Slice<Expression*> TupleExpression::expressions()
 {
     return myExpressions;
 }
 
-Slice<Expression*> TupleExpression::expressions()
+Slice<Expression const*> TupleExpression::expressions() const
 {
     return myExpressions;
 }
@@ -860,9 +860,19 @@ void ApplyExpression::flatten(std::vector<std::unique_ptr<Expression>>::iterator
     }
 }
 
-Slice<Expression*> const ApplyExpression::expressions() const
+Slice<Expression*> ApplyExpression::expressions()
 {
     return myExpressions;
+}
+
+Slice<Expression const*> ApplyExpression::expressions() const
+{
+    return myExpressions;
+}
+
+Expression* ApplyExpression::subject()
+{
+    return myExpressions.front().get();
 }
 
 Expression const* ApplyExpression::subject() const
@@ -870,7 +880,12 @@ Expression const* ApplyExpression::subject() const
     return myExpressions.front().get();
 }
 
-Slice<Expression*> const ApplyExpression::arguments() const
+Slice<Expression*> ApplyExpression::arguments()
+{
+    return slice(myExpressions, 1);
+}
+
+Slice<Expression const*> ApplyExpression::arguments() const
 {
     return slice(myExpressions, 1);
 }
@@ -984,7 +999,7 @@ Slice<Expression*> SymbolExpression::expressions()
     return myExpressions;
 }
 
-Slice<Expression*> SymbolExpression::expressions() const
+Slice<Expression const*> SymbolExpression::expressions() const
 {
     return myExpressions;
 }
@@ -1122,7 +1137,7 @@ Slice<Expression*> DotExpression::expressions()
     return myExpressions;
 }
 
-Slice<Expression*> DotExpression::expressions() const
+Slice<Expression const*> DotExpression::expressions() const
 {
     return myExpressions;
 }

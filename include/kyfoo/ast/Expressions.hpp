@@ -93,7 +93,7 @@ public:
 public:
     Expression const* getType(Expression const& expr);
     UniverseExpression const& universe(std::size_t level);
-    TupleExpression const& tuple(Slice<Expression*> exprs);
+    TupleExpression const& tuple(Slice<Expression const*> exprs);
 
 private:
     std::vector<std::unique_ptr<UniverseExpression>> myUniverses;
@@ -115,7 +115,7 @@ public:
     };
 
     static UniverseExpression const& universe(std::size_t level);
-    static TupleExpression const& tuple(Slice<Expression*> exprs);
+    static TupleExpression const& tuple(Slice<Expression const*> exprs);
 
 protected:
     explicit Expression(Kind kind);
@@ -153,7 +153,7 @@ public:
     void clearType();
 
     Slice<Expression*> constraints();
-    const Slice<Expression*> constraints() const;
+    Slice<Expression const*> constraints() const;
 
     std::vector<std::unique_ptr<Expression>>&& takeConstraints();
 
@@ -283,8 +283,8 @@ public:
     lexer::Token const& openToken() const;
     lexer::Token const& closeToken() const;
 
-    Slice<Expression*> expressions() const;
     Slice<Expression*> expressions();
+    Slice<Expression const*> expressions() const;
 
 private:
     void flattenOpenTuples();
@@ -327,10 +327,14 @@ public:
     void flatten(std::vector<std::unique_ptr<Expression>>::iterator first);
 
 public:
-    Slice<Expression*> const expressions() const;
+    Slice<Expression*> expressions();
+    Slice<Expression const*> expressions() const;
 
+    Expression* subject();
     Expression const* subject() const;
-    Slice<Expression*> const arguments() const;
+
+    Slice<Expression*> arguments();
+    Slice<Expression const*> arguments() const;
 
 private:
     // AST state
@@ -368,7 +372,7 @@ protected:
 
 public:
     Slice<Expression*> expressions();
-    Slice<Expression*> expressions() const;
+    Slice<Expression const*> expressions() const;
 
     lexer::Token const& openToken() const;
     lexer::Token const& closeToken() const;
@@ -409,7 +413,7 @@ protected:
 
 public:
     Slice<Expression*> expressions();
-    Slice<Expression*> expressions() const;
+    Slice<Expression const*> expressions() const;
 
     Expression& top();
     Expression const& top() const;
@@ -542,7 +546,7 @@ public:
     using natural_t = std::size_t; // todo
 
 private:
-    UniverseExpression(natural_t level);
+    explicit UniverseExpression(natural_t level);
 
 protected:
     UniverseExpression(UniverseExpression const& rhs);

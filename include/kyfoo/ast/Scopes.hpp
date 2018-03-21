@@ -139,7 +139,7 @@ public:
         return myDecl;
     }
 
-    Slice<SymbolSpace const*> trace() const
+    Slice<SymbolSpace const* const> trace() const
     {
         return mySpaces;
     }
@@ -227,9 +227,9 @@ public:
     DeclarationScope* parent();
     DeclarationScope const* parent() const;
 
-    Slice<Declaration*> childDeclarations() const;
+    Slice<Declaration const*> childDeclarations() const;
 
-    Slice<DeclarationScope*> childDefinitions() const;
+    Slice<DeclarationScope const*> childDefinitions() const;
 
     template <typename T> T* as();
     template <typename T> T const* as() const;
@@ -275,8 +275,8 @@ public:
 public:
     DataSumDeclaration* declaration();
 
-    Slice<DataSumDeclaration::Constructor*> const constructors() const;
     Slice<DataSumDeclaration::Constructor*> constructors();
+    Slice<DataSumDeclaration::Constructor const*> constructors() const;
 
 private:
     std::vector<DataSumDeclaration::Constructor*> myCtors;
@@ -317,8 +317,10 @@ public:
     std::unique_ptr<ProcedureDeclaration> createDefaultDestructor();
 
     DataProductDeclaration* declaration();
+
     Slice<DataProductDeclaration::Field*> fields();
-    const Slice<DataProductDeclaration::Field*> fields() const;
+    Slice<DataProductDeclaration::Field const*> fields() const;
+
     ProcedureDeclaration const* destructor() const;
 
 private:
@@ -373,10 +375,10 @@ public:
     ProcedureDeclaration const* declaration() const;
 
     Slice<ProcedureScope*> childScopes();
-    Slice<ProcedureScope*> const childScopes() const;
+    Slice<ProcedureScope const*> childScopes() const;
 
     Slice<BasicBlock*> basicBlocks();
-    Slice<BasicBlock*> const basicBlocks() const;
+    Slice<BasicBlock const*> basicBlocks() const;
 
 public:
     void append(std::unique_ptr<Expression> expr);

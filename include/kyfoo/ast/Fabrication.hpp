@@ -23,7 +23,7 @@ makeSym(lexer::Token const& token, std::vector<std::unique_ptr<Expression>>&& ex
 }
 
 inline Symbol
-makeSym(lexer::Token const& token, Slice<Expression*> exprs)
+makeSym(lexer::Token const& token, Slice<Expression const*> exprs)
 {
     return makeSym(token, ast::clone(exprs));
 }
@@ -131,7 +131,7 @@ createTuple(std::vector<std::unique_ptr<Expression>>&& exprs)
 }
 
 inline std::unique_ptr<TupleExpression>
-createTuple(Slice<Expression*> exprs)
+createTuple(Slice<Expression const*> exprs)
 {
     return createTuple(ast::clone(exprs));
 }

@@ -34,8 +34,8 @@ namespace kyfoo {
 
 namespace {
     template <typename T>
-    bool compare(Slice<Expression*> lhs,
-                 Slice<Expression*> rhs,
+    bool compare(Slice<Expression const*> lhs,
+                 Slice<Expression const*> rhs,
                  T&& op)
     {
         if ( lhs.size() != rhs.size() )
@@ -431,7 +431,7 @@ bool matchEquivalent(Expression const& lhs, Expression const& rhs)
     return noncommute(op, lhs, rhs);
 }
 
-bool matchEquivalent(Slice<Expression*> lhs, Slice<Expression*> rhs)
+bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs)
 {
     return compare(lhs, rhs, [](auto& l, auto& r) { return matchEquivalent(l, r); });
 }
@@ -635,8 +635,8 @@ VarianceResult variance(Context& ctx,
 }
 
 VarianceResult variance(Context& ctx,
-                        Slice<Expression*> lhs,
-                        Slice<Expression*> rhs)
+                        Slice<Expression const*> lhs,
+                        Slice<Expression const*> rhs)
 {
     auto const size = lhs.size();
     if ( size != rhs.size() )
@@ -655,7 +655,7 @@ VarianceResult variance(Context& ctx,
     return ret;
 }
 
-VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> rhs)
+VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression const*> rhs)
 {
     if ( auto l = lhs.as<TupleExpression>() )
         return variance(ctx, l->expressions(), rhs);
@@ -666,7 +666,7 @@ VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression*> 
     return Invariant;
 }
 
-VarianceResult variance(Context& ctx, Slice<Expression*> lhs, Expression const& rhs)
+VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Expression const& rhs)
 {
     if ( auto r = rhs.as<TupleExpression>() )
         return variance(ctx, lhs, r->expressions());
@@ -1478,7 +1478,7 @@ struct LevelFinder
         return 1; // todo: higher level types
     }
 
-    result_t max(Slice<Expression*> exprs)
+    result_t max(Slice<Expression const*> exprs)
     {
         if ( exprs.empty() )
             return 0;

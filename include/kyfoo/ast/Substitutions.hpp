@@ -27,8 +27,8 @@ public:
 public:
     Substitutions() = default;
 
-    Substitutions(Declaration const& target, Slice<Expression*> const& query);
-    Substitutions(Slice<Expression*> const& lhs, Slice<Expression*> const& rhs);
+    Substitutions(Declaration const& target, Slice<Expression const*> query);
+    Substitutions(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
 
     Substitutions(Substitutions const&) = default;
     Substitutions& operator = (Substitutions const&) = default;
@@ -39,9 +39,9 @@ public:
     ~Substitutions();
 
 public:
-    bool deduce(Slice<Expression*> lhs, Slice<Expression*> rhs);
-    bool deduce(Slice<Expression*> target, Expression const& query);
-    bool deduce(Expression const& target, Slice<Expression*> query);
+    bool deduce(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
+    bool deduce(Slice<Expression const*> target, Expression const& query);
+    bool deduce(Expression const& target, Slice<Expression const*> query);
     bool deduce(Expression const& lhs, Expression const& rhs);
 
     bool empty() const;

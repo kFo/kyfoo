@@ -144,7 +144,7 @@ Expression& Statement::expression()
     return *myExpression;
 }
 
-Slice<VariableDeclaration*> const Statement::unnamedVariables() const
+Slice<VariableDeclaration const*> Statement::unnamedVariables() const
 {
     return myUnnamedVariables;
 }
@@ -658,7 +658,7 @@ Slice<BasicBlock*> BasicBlock::incoming()
     return myIncoming;
 }
 
-Slice<Statement*> const BasicBlock::statements() const
+Slice<Statement const*> BasicBlock::statements() const
 {
     return myStatements;
 }

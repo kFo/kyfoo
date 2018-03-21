@@ -33,6 +33,7 @@ class VarianceResult;
 
 using Pattern = std::vector<std::unique_ptr<Expression>>;
 using pattern_t = Slice<Expression*>;
+using const_pattern_t = Slice<Expression const*>;
 
 class PatternsPrototype : public IIO
 {
@@ -64,8 +65,10 @@ public:
     SymRes resolveSymbols(Context& ctx);
 
 public:
-    Slice<Expression*> pattern() const;
-    Slice<SymbolVariable*> symbolVariables() const;
+    Slice<Expression*> pattern();
+    Slice<Expression const*> pattern() const;
+
+    Slice<SymbolVariable const*> symbolVariables() const;
 
 public:
     void bindVariables(Substitutions const& substs);
@@ -129,8 +132,8 @@ private:
 class SymbolReference
 {
 public:
-    SymbolReference(const char* name, pattern_t pattern);
-    SymbolReference(std::string const& name, pattern_t pattern);
+    SymbolReference(const char* name, const_pattern_t pattern);
+    SymbolReference(std::string const& name, const_pattern_t pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
     /*implicit*/ SymbolReference(std::string const& name);
     /*implicit*/ SymbolReference(const char* name);
@@ -138,11 +141,11 @@ public:
 
 public:
     const char* name() const;
-    pattern_t const& pattern() const;
+    const_pattern_t const& pattern() const;
 
 private:
     char const* myName;
-    pattern_t myPattern;
+    const_pattern_t myPattern;
 };
 
 struct PatternsDecl {
@@ -206,16 +209,16 @@ public:
 
 public:
     std::string const& name() const;
-    Slice<Prototype> prototypes() const;
+    Slice<Prototype const> prototypes() const;
 
     void append(PatternsPrototype const& prototype,
                 Declaration& declaration);
 
-    Declaration const* findEquivalent(pattern_t const& paramlist) const;
-    Declaration* findEquivalent(pattern_t const& paramlist);
+    Declaration const* findEquivalent(const_pattern_t paramlist) const;
+    Declaration* findEquivalent(const_pattern_t paramlist);
     
-    CandidateSet findCandidates(Module& endModule, Diagnostics& dgn, pattern_t const& paramlist);
-    DeclInstance findOverload(Module& endModule, Diagnostics& dgn, pattern_t const& paramlist);
+    CandidateSet findCandidates(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist);
+    DeclInstance findOverload(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist);
 
 private:
     DeclInstance instantiate(Context& ctx,

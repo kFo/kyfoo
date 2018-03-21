@@ -7,28 +7,16 @@
 namespace kyfoo {
 
 template <typename T>
-struct remove_unique_ptr {
-    using type = T;
-};
-
-template <typename T>
-struct remove_unique_ptr<std::unique_ptr<T>> {
-    using type = T*;
-};
-
-template <typename T>
-using remove_unique_ptr_t = typename remove_unique_ptr<T>::type;
-
-// todo: implement tail const slice
-
-template <typename T>
 class Slice
 {
 public:
-    using value_type = remove_unique_ptr_t<T>;
-    using pointer = value_type*;
+    using value_type = T;
+    using pointer =
+        std::conditional_t<std::is_pointer_v<value_type>
+                        && std::is_const_v<std::remove_pointer_t<value_type>>,
+                         value_type const*, value_type*>;
     using const_pointer = value_type const*;
-    using reference = value_type&;
+    using reference = std::remove_pointer_t<pointer>&;
     using const_reference = value_type const&;
     using iterator = pointer;
     using const_iterator = const_pointer;
@@ -37,61 +25,88 @@ public:
 public:
     Slice() = default;
 
-    using pointee_t = std::remove_pointer_t<value_type>;
-
-    //Slice(std::vector<std::unique_ptr<pointee_t>> const& v,
-    //      size_type start,
-    //      size_type end)
-    //    : myData(reinterpret_cast<value_type*>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))) + start)
-    //    , myLength(end - start)
-    //{
-    //}
-
-    ///*implicit*/ Slice(std::vector<std::unique_ptr<pointee_t>> const& v)
-    //    : Slice(v, 0, v.size())
-    //{
-    //}
-
-    // todo
-    template <typename U>
-    Slice(std::vector<U> const& v,
-          size_type start,
-          size_type end)
-        : myData(reinterpret_cast<value_type*>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))) + start)
-        , myLength(end - start)
+    Slice(pointer p, size_type len)
+        : myData(p)
+        , myLength(len)
     {
     }
 
-    template <typename U>
-    Slice(Slice<U> s,
-          size_type start,
-          size_type end)
-        : myData(s.data())
-        , myLength(end - start)
+    /*implicit*/ Slice(std::vector<value_type>& v)
+        : Slice(v.data(), v.size())
     {
     }
 
-    template <typename U>
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, pointer>>>
     /*implicit*/ Slice(std::vector<U> const& v)
-        : Slice(v, 0, v.size())
+        : Slice(v.data(), v.size())
     {
     }
 
-    template <typename U>
-    /*implicit*/ Slice(Slice<U> s)
-        : Slice(s, 0, s.size())
+    template <typename U,
+              typename = std::enable_if_t<sizeof(std::unique_ptr<U>) == sizeof(value_type)
+                                       && std::is_pointer_v<value_type>
+                                       && std::is_convertible_v<U const*, value_type>>>
+    /*implicit*/ Slice(std::vector<std::unique_ptr<U>> const& v)
+        : myData(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))))
+        , myLength(v.size())
     {
+    }
+
+    template <typename U,
+              typename = std::enable_if_t<sizeof(std::unique_ptr<U>) == sizeof(value_type)
+                                       && std::is_pointer_v<value_type>
+                                       && std::is_convertible_v<U*, value_type>>>
+    /*implicit*/ Slice(std::vector<std::unique_ptr<U>>& v)
+        : myData(reinterpret_cast<pointer>(reinterpret_cast<void*>(v.data())))
+        , myLength(v.size())
+    {
+    }
+
+    /*implicit*/ Slice(Slice const& s)
+        : myData(s.myData)
+        , myLength(s.myLength)
+    {
+    }
+
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U, value_type>>>
+    /*implicit*/ Slice(Slice<U> const& s)
+        //: Slice(const_cast<Slice<U>&>(s).data(), s.size())
+        : Slice(s.data(), s.size())
+    {
+    }
+
+    Slice& operator = (Slice s)
+    {
+        s.swap(*this);
+        return *this;
+    }
+
+    void swap(Slice& s)
+    {
+        using std::swap;
+        swap(myData, s.myData);
+        swap(myLength, s.myLength);
     }
 
 public:
-    const_reference operator [] (std::size_t index) const
+    reference operator [] (size_type index)
     {
         return myData[index];
     }
 
-    Slice operator () (size_type left, size_type right) const
+    const_reference operator [] (size_type index) const
     {
-        return Slice(myData + left, right - left);
+        return myData[index];
+    }
+
+    Slice operator () (size_type start, size_type end)
+    {
+        return Slice(myData + start, end - start);
+    }
+
+    Slice operator () (size_type start, size_type end) const
+    {
+        return Slice(myData + start, end - start);
     }
 
 public:
@@ -103,22 +118,19 @@ public:
 
     bool empty() const { return begin() == end(); }
 
+    pointer data() { return myData; }
     const_pointer data() const { return myData; }
+
     std::size_t length() const { return myLength; }
     std::size_t size() const { return myLength; }
 
     reference front() { return *myData; }
     const_reference front() const { return *myData; }
+
     reference back() { return myData[myLength - 1]; }
     const_reference back() const { return myData[myLength - 1]; }
 
 private:
-    Slice(pointer data, size_type len)
-        : myData(data)
-        , myLength(len)
-    {
-    }
-
     pointer myData = nullptr;
     size_type myLength = 0;
 };
@@ -148,21 +160,33 @@ typename Slice<T>::const_iterator end(Slice<T> const& rhs)
 }
 
 template <typename T>
-inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v)
+Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v)
 {
     return Slice<T*>(v);
 }
 
 template <typename T>
-inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start)
+Slice<T*> slice(std::vector<std::unique_ptr<T>>& v, std::size_t start)
 {
     return Slice<T*>(v)(start, v.size());
 }
 
 template <typename T>
-inline Slice<T*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start, std::size_t end)
+Slice<T const*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start)
+{
+    return Slice<T const*>(v)(start, v.size());
+}
+
+template <typename T>
+Slice<T*> slice(std::vector<std::unique_ptr<T>>& v, std::size_t start, std::size_t end)
 {
     return Slice<T*>(v)(start, end);
+}
+
+template <typename T>
+Slice<T const*> slice(std::vector<std::unique_ptr<T>> const& v, std::size_t start, std::size_t end)
+{
+    return Slice<T const*>(v)(start, end);
 }
 
 template <typename T>
@@ -170,5 +194,14 @@ Slice<T> slice(Slice<T> s, std::size_t start)
 {
     return s(start, s.size());
 }
+
+template <typename T>
+struct is_slice : std::false_type {};
+
+template <typename T>
+struct is_slice<Slice<T>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_slice_v = is_slice<T>::value;
 
 } // namespace kyfoo
