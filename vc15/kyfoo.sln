@@ -9,6 +9,8 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		DebugFaster|x64 = DebugFaster|x64
+		DebugFaster|x86 = DebugFaster|x86
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
@@ -17,6 +19,10 @@ Global
 		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.Debug|x64.Build.0 = Debug|x64
 		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.Debug|x86.ActiveCfg = Debug|Win32
 		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.Debug|x86.Build.0 = Debug|Win32
+		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.DebugFaster|x64.ActiveCfg = DebugFaster|x64
+		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.DebugFaster|x64.Build.0 = DebugFaster|x64
+		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.DebugFaster|x86.ActiveCfg = DebugFaster|Win32
+		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.DebugFaster|x86.Build.0 = DebugFaster|Win32
 		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.Release|x64.ActiveCfg = Release|x64
 		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.Release|x64.Build.0 = Release|x64
 		{2CABB216-E168-4171-ABBC-AF17D39DC6AD}.Release|x86.ActiveCfg = Release|Win32
@@ -24,5 +30,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {03015E5F-C7BD-4E85-99B7-1877CD28A307}
 	EndGlobalSection
 EndGlobal

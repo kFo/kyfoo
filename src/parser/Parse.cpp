@@ -4,7 +4,15 @@
 #include <fstream>
 
 #include <kyfoo/Diagnostics.hpp>
+
+#include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
+
+#include <kyfoo/parser/Parse.hpp>
+#include <kyfoo/parser/Productions.hpp>
+
+#include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
@@ -29,7 +37,7 @@ DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
                                                ast::DataSumDeclaration& declaration)
 {
     // Check if type definition follows
-    if ( scanner.peek().kind() != TokenKind::IndentGT )
+    if ( scanner.peek().kind() != lexer::TokenKind::IndentGT )
         return nullptr;
 
     scanner.next();
@@ -46,7 +54,7 @@ DeclarationScopeParser::parseDataProductDefinition(Diagnostics& /*dgn*/,
                                                    ast::DataProductDeclaration& declaration)
 {
     // Check if type definition follows
-    if ( scanner.peek().kind() != TokenKind::IndentGT )
+    if ( scanner.peek().kind() != lexer::TokenKind::IndentGT )
         return nullptr;
 
     scanner.next();
@@ -63,7 +71,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
                                                  ast::ProcedureDeclaration& declaration)
 {
     // Check if a procedure definition follows
-    if ( scanner.peek().kind() == TokenKind::Yield ) {
+    if ( scanner.peek().kind() == lexer::TokenKind::Yield ) {
         scanner.next(); // yield
         auto p = std::make_unique<ast::ProcedureScope>(*myScope, declaration);
         declaration.define(p.get());
@@ -80,7 +88,7 @@ DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
         }
 
         auto indent = scanner.next();
-        if ( indent.kind() != TokenKind::IndentGT ) {
+        if ( indent.kind() != lexer::TokenKind::IndentGT ) {
             dgn.error(myScope->module(), scanner.peek()) << "expected new scope for procedure definition";
             dgn.die();
         }
@@ -208,7 +216,7 @@ std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics
         if ( newScopeParser )
             return newScopeParser;
 
-        if ( scanner.peek().kind() != TokenKind::IndentEQ )
+        if ( scanner.peek().kind() != lexer::TokenKind::IndentEQ )
             return nullptr;
 
         scanner.next();

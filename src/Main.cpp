@@ -10,8 +10,6 @@
 
 #include <kyfoo/lexer/Scanner.hpp>
 
-#include <kyfoo/parser/Parse.hpp>
-
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Node.hpp>

@@ -454,8 +454,12 @@ struct CodeGenPass
         gatherAllocas(*defn);
 
         toBlock(*defn, *defn->basicBlocks().front(), fun->body, entryBlock, nullptr);
-        if ( llvm::verifyFunction(*fun->body, &llvm::errs()) )
+        if ( llvm::verifyFunction(*fun->body, &llvm::errs()) ) {
+#ifndef NDEBUG
             fun->body->dump();
+#endif
+            die("verify failure");
+        }
     }
 
     void toBlock(ast::ProcedureScope const& scope,

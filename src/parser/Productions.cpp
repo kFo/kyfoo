@@ -37,7 +37,30 @@ Expression::Expression(Expression const& rhs)
 {
 }
 
+Expression& Expression::operator = (Expression const& rhs)
+{
+    Expression(rhs).swap(*this);
+    return *this;
+}
+
+Expression::Expression(Expression&& rhs)
+    : myGrammar(std::move(rhs.myGrammar))
+{
+}
+
+Expression& Expression::operator = (Expression&& rhs)
+{
+    myGrammar = std::move(rhs.myGrammar);
+    return *this;
+}
+
 Expression::~Expression() = default;
+
+void Expression::swap(Expression& rhs)
+{
+    using std::swap;
+    swap(myGrammar, rhs.myGrammar);
+}
 
 bool Expression::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
 {

@@ -13,44 +13,41 @@
 namespace kyfoo {
     namespace parser {
 
-using lexer::TokenKind;
-using lexer::Token;
+using id       = g::Terminal<lexer::TokenKind::Identifier>;
+using meta     = g::Terminal<lexer::TokenKind::MetaVariable>;
+using integer  = g::Terminal<lexer::TokenKind::Integer>;
+using rational = g::Terminal<lexer::TokenKind::Rational>;
+using string   = g::Terminal<lexer::TokenKind::String>;
 
-using id       = g::Terminal<TokenKind::Identifier>;
-using meta     = g::Terminal<TokenKind::MetaVariable>;
-using integer  = g::Terminal<TokenKind::Integer>;
-using rational = g::Terminal<TokenKind::Rational>;
-using string   = g::Terminal<TokenKind::String>;
+using equal = g::Terminal<lexer::TokenKind::Equal>;
+using comma = g::Terminal<lexer::TokenKind::Comma>;
+using dot   = g::Terminal<lexer::TokenKind::Dot>;
 
-using comma = g::Terminal<TokenKind::Comma>;
-using dot   = g::Terminal<TokenKind::Dot>;
-using equal = g::Terminal<TokenKind::Equal>;
+using colon          = g::Terminal<lexer::TokenKind::Colon>;
+using colonPipe      = g::Terminal<lexer::TokenKind::ColonPipe>;
+using colonAmpersand = g::Terminal<lexer::TokenKind::ColonAmpersand>;
+using colonEqual     = g::Terminal<lexer::TokenKind::ColonEqual>;
+using colonOpenAngle = g::Terminal<lexer::TokenKind::ColonOpenAngle>;
+using colonQuestion  = g::Terminal<lexer::TokenKind::ColonQuestion>;
+using colonSlash     = g::Terminal<lexer::TokenKind::ColonSlash>;
 
-using colon          = g::Terminal<TokenKind::Colon>;
-using colonPipe      = g::Terminal<TokenKind::ColonPipe>;
-using colonAmpersand = g::Terminal<TokenKind::ColonAmpersand>;
-using colonEqual     = g::Terminal<TokenKind::ColonEqual>;
-using colonOpenAngle = g::Terminal<TokenKind::ColonOpenAngle>;
-using colonQuestion  = g::Terminal<TokenKind::ColonQuestion>;
-using colonSlash     = g::Terminal<TokenKind::ColonSlash>;
+using yield = g::Terminal<lexer::TokenKind::Yield>;
+using arrow = g::Terminal<lexer::TokenKind::Arrow>;
 
-using yield = g::Terminal<TokenKind::Yield>;
-using arrow = g::Terminal<TokenKind::Arrow>;
+using at         = g::Terminal<lexer::TokenKind::At>;
+using minusMinus = g::Terminal<lexer::TokenKind::MinusMinus>;
 
-using at         = g::Terminal<TokenKind::At>;
-using minusMinus = g::Terminal<TokenKind::MinusMinus>;
+using openParen    = g::Terminal<lexer::TokenKind::OpenParen>;
+using closeParen   = g::Terminal<lexer::TokenKind::CloseParen>;
+using openBracket  = g::Terminal<lexer::TokenKind::OpenBracket>;
+using closeBracket = g::Terminal<lexer::TokenKind::CloseBracket>;
+using openAngle    = g::Terminal<lexer::TokenKind::OpenAngle>;
+using closeAngle   = g::Terminal<lexer::TokenKind::CloseAngle>;
 
-using openParen    = g::Terminal<TokenKind::OpenParen>;
-using closeParen   = g::Terminal<TokenKind::CloseParen>;
-using openBracket  = g::Terminal<TokenKind::OpenBracket>;
-using closeBracket = g::Terminal<TokenKind::CloseBracket>;
-using openAngle    = g::Terminal<TokenKind::OpenAngle>;
-using closeAngle   = g::Terminal<TokenKind::CloseAngle>;
-
-using _import = g::Terminal<TokenKind::_import>;
-using _return = g::Terminal<TokenKind::_return>;
-using _loop   = g::Terminal<TokenKind::_loop>;
-using _break  = g::Terminal<TokenKind::_break>;
+using _import = g::Terminal<lexer::TokenKind::_import>;
+using _return = g::Terminal<lexer::TokenKind::_return>;
+using _loop   = g::Terminal<lexer::TokenKind::_loop>;
+using _break  = g::Terminal<lexer::TokenKind::_break>;
 
 struct Literal : public
     g::Or<integer, rational, string>
@@ -83,9 +80,16 @@ class Expression
 {
 public:
     Expression();
+
     Expression(Expression const& rhs);
-    Expression(Expression&&) = delete;
+    Expression& operator = (Expression const& rhs);
+
+    Expression(Expression&& rhs);
+    Expression& operator = (Expression&& rhs);
+
     ~Expression();
+
+    void swap(Expression& rhs);
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);

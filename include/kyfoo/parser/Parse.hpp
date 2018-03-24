@@ -1,9 +1,8 @@
 #pragma once
 
 #include <memory>
-
-#include <kyfoo/lexer/Scanner.hpp>
-#include <kyfoo/parser/Productions.hpp>
+#include <tuple>
+#include <vector>
 
 namespace kyfoo {
     class Diagnostics;
@@ -14,9 +13,15 @@ namespace kyfoo {
 
     namespace ast {
         class Module;
+        class Declaration;
         class DeclarationScope;
         class DataSumScope;
+        class DataProductScope;
         class ProcedureScope;
+        class DataSumDeclaration;
+        class DataProductDeclaration;
+        class ProcedureDeclaration;
+        class Expression;
     }
 
     namespace parser {
@@ -102,6 +107,27 @@ private:
 private:
     bool myIsLoop = false;
 };
+
+template <typename T>
+std::size_t parse(lexer::Scanner& scanner, T& production)
+{
+    std::size_t matches = 0;
+    if ( production.match(scanner, matches) ) {
+        return true;
+    }
+
+    return false;
+}
+
+template <typename P>
+auto parse(lexer::Scanner& scanner)
+{
+    P production;
+    if ( parse(scanner, production) )
+        return production.make();
+
+    return decltype(production.make())();
+}
 
     } // namespace parser
 } // namespace kyfoo

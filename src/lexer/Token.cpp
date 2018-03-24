@@ -3,9 +3,7 @@
 namespace kyfoo {
     namespace lexer {
 
-Token::Token()
-{
-}
+Token::Token() = default;
 
 Token::Token(TokenKind kind,
              line_index_t line,
@@ -26,7 +24,13 @@ Token::Token(Token const& rhs)
 {
 }
 
-Token::Token(Token const&& rhs)
+Token& Token::operator = (Token const& rhs)
+{
+    Token(rhs).swap(*this);
+    return *this;
+}
+
+Token::Token(Token&& rhs)
     : myKind(rhs.myKind)
     , myLine(rhs.myLine)
     , myColumn(rhs.myColumn)
@@ -34,11 +38,10 @@ Token::Token(Token const&& rhs)
 {
 }
 
-Token& Token::operator = (Token const& rhs)
+Token& Token::operator = (Token&& rhs)
 {
-    if ( &rhs != this )
-        Token(rhs).swap(*this);
-    
+    this->~Token();
+    new (this) Token(std::move(rhs));
     return *this;
 }
 

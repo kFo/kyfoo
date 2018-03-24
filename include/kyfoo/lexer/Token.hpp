@@ -26,8 +26,11 @@ public:
 
 public:
     Token(Token const&);
-    Token(Token const&&);
     Token& operator = (Token const&);
+
+    Token(Token&&);
+    Token& operator = (Token&&);
+
     void swap(Token&);
 
 public:

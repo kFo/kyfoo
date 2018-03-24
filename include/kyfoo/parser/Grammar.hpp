@@ -3,6 +3,7 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+#include <variant>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
@@ -182,9 +183,9 @@ public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
     {
         std::size_t m = 0;
+        myTerms.emplace<0>();
         if ( std::get<0>(myTerms).match(scan, m) ) {
             matches += m;
-            myCapture = 0;
             return scan.commit();
         }
 
@@ -199,7 +200,7 @@ public:
 
     std::size_t index() const
     {
-        return myCapture;
+        return myTerms.index();
     }
 
     template <std::size_t N>
@@ -227,9 +228,9 @@ private:
         scan.restart();
 
         std::size_t m = 0;
+        myTerms.emplace<N>();
         if ( std::get<N>(myTerms).match(scan, m) ) {
             matches += m;
-            myCapture = N;
             return true;
         }
 
@@ -243,16 +244,12 @@ private:
     }
 
 private:
-    std::tuple<T...> myTerms;
-    std::size_t myCapture = 0;
+    std::variant<T...> myTerms;
 };
 
 template <typename... T>
 class Long
 {
-public:
-    friend class Long;
-
 public:
     Long() = default;
 
@@ -378,11 +375,6 @@ class Opt
 public:
     Opt() = default;
 
-    Opt(T const& rhs)
-        : myRhs(rhs)
-    {
-    }
-
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
     {
@@ -415,21 +407,17 @@ class Repeat
 public:
     Repeat() = default;
 
-    explicit Repeat(T const& rhs)
-        : myRhs(rhs)
-    {
-    }
-
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
     {
         myCaptures.clear();
 
         std::size_t m = 0;
-        while ( myRhs.match(scan, m) ) {
+        T pattern
+        while ( pattern.match(scan, m) ) {
             matches += m;
             m = 0;
-            myCaptures.push_back(myRhs);
+            myCaptures.emplace_back(std::move(pattern));
         }
 
         return scan.commit();
@@ -441,7 +429,6 @@ public:
     }
 
 private:
-    T myRhs;
     std::vector<T> myCaptures;
 };
 
@@ -451,34 +438,28 @@ class Repeat2
 public:
     Repeat2() = default;
 
-    Repeat2(U const& lhs, V const& rhs)
-        : myLhs(lhs)
-        , myRhs(rhs)
-    {
-    }
-
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
     {
         myCaptures.clear();
-        myWeaveCaptures.clear();
 
         std::size_t m0 = 0;
-        if ( !myLhs.match(scan, m0) )
+        U pattern;
+        if ( !pattern.match(scan, m0) )
             return scan.commit();
 
-        myCaptures.push_back(myLhs);
+        myCaptures.emplace_back(std::move(pattern));
         matches += m0;
         m0 = 0;
 
         for (;;) {
             m0 = 0;
             std::size_t m1 = 0;
-            if ( !myRhs.match(scan, m0) || !myLhs.match(scan, m1) ) 
+            V weave;
+            if ( !weave.match(scan, m0) || !pattern.match(scan, m1) ) 
                 break;
 
-            myCaptures.push_back(myLhs);
-            myWeaveCaptures.push_back(myRhs);
+            myCaptures.emplace_back(std::move(pattern));
             matches += m0 + m1;
         }
 
@@ -490,29 +471,18 @@ public:
         return myCaptures;
     }
 
-    std::vector<V> const& captures2() const
-    {
-        return myWeaveCaptures;
-    }
-
 private:
-    U myLhs;
-    V myRhs;
-
     std::vector<U> myCaptures;
-    std::vector<V> myWeaveCaptures;
 };
 
 template <typename T>
 class OneOrMore
 {
 public:
-    OneOrMore() = default;
+    using CaptureVector = std::vector<T>;
 
-    OneOrMore(T const& rhs)
-        : myRhs(rhs)
-    {
-    }
+public:
+    OneOrMore() = default;
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
@@ -520,78 +490,71 @@ public:
         myCaptures.clear();
 
         std::size_t m = 0;
-        if ( !myRhs.match(scan, m) )
+        T pattern;
+        if ( !pattern.match(scan, m) )
             return false;
 
         do {
             matches += m;
             m = 0;
-            myCaptures.push_back(myRhs);
-        } while ( myRhs.match(scan, m) );
+            myCaptures.emplace_back(std::move(pattern));
+        } while ( pattern.match(scan, m) );
 
         return scan.commit();
     }
 
-    std::vector<T> const& captures() const
+    CaptureVector const& captures() const
     {
         return myCaptures;
     }
 
 private:
-    T myRhs;
-    std::vector<T> myCaptures;
+    CaptureVector myCaptures;
 };
 
 template <typename U, typename V>
 class OneOrMore2
 {
 public:
-    OneOrMore2() = default;
+    using CaptureVector = std::vector<U>;
 
-    OneOrMore2(U const& lhs, V const& rhs)
-        : myLhs(lhs)
-        , myRhs(rhs)
-    {
-    }
+public:
+    OneOrMore2() = default;
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
     {
         myCaptures.clear();
-        myWeaveCaptures.clear();
 
         std::size_t m0 = 0;
-        if ( !myLhs.match(scan, m0) )
+        U pattern;
+        if ( !pattern.match(scan, m0) )
             return false;
 
         matches += m0;
-        myCaptures.push_back(myLhs);
+        myCaptures.emplace_back(std::move(pattern));
 
         for (;;) {
             m0 = 0;
             std::size_t m1 = 0;
-            if ( !myRhs.match(scan, m0) || !myLhs.match(scan, m1) )
+            V weave;
+            if ( !weave.match(scan, m0) || !pattern.match(scan, m1) )
                 break;
 
             matches += m0 + m1;
-            myCaptures.push_back(myLhs);
-            myWeaveCaptures.push_back(myRhs);
+            myCaptures.emplace_back(std::move(pattern));
         }
 
         return scan.commit();
     }
 
-    std::vector<U> const& captures() const
+    CaptureVector const& captures() const
     {
         return myCaptures;
     }
 
 private:
-    U myLhs;
-    V myRhs;
-
-    std::vector<U> myCaptures;
-    std::vector<V> myWeaveCaptures;
+    CaptureVector myCaptures;
 };
 
 template <typename... U, typename... V>
@@ -714,26 +677,7 @@ namespace kyfoo {
 class Declaration;
 class Expression;
 
-template <typename T>
-std::size_t parse(lexer::Scanner& scanner, T& production)
-{
-    std::size_t matches = 0;
-    if ( production.match(scanner, matches) ) {
-        return true;
-    }
 
-    return false;
-}
-
-template <typename P>
-auto parse(lexer::Scanner& scanner)
-{
-    P production;
-    if ( parse(scanner, production) )
-        return production.make();
-
-    return decltype(production.make())();
-}
 
     } // namespace parser
 } // namespace kyfoo
