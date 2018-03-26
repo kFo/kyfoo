@@ -111,12 +111,11 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
 {
     myScope = std::make_unique<ast::DeclarationScope>(*this);
 
-    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, ""        ))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
     myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
 
-    for ( std::size_t i = EmptyLiteralType; i <= PointerNullLiteralType; ++i )
+    for ( std::size_t i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
         myDataSumDecls[i] = scope()->childDeclarations()[i]->as<DataSumDeclaration>();
 }
 

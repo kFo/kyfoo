@@ -29,19 +29,31 @@ class SymRes;
 class IResolver
 {
 public:
+    enum Options
+    {
+        None        = 0,
+        Narrow      = 1 << 0,
+        SkipImports = 1 << 1,
+    };
+
+    using options_t = Options;
+
+public:
     virtual ~IResolver() = default;
 
     virtual DeclarationScope const& scope() const = 0;
 
     virtual LookupHit matchEquivalent(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& symbol) = 0;
+    virtual LookupHit matchOverload(Module& endModule,
+                                    Diagnostics& dgn,
+                                    SymbolReference const& symbol) = 0;
 };
 
 class ScopeResolver : public IResolver
 {
 public:
-    explicit ScopeResolver(DeclarationScope& scope);
-    explicit ScopeResolver(DeclarationScope const& scope);
+    explicit ScopeResolver(DeclarationScope& scope, Options opts = None);
+    explicit ScopeResolver(DeclarationScope const& scope, Options opts = None);
 
     ScopeResolver(ScopeResolver&& rhs);
     ScopeResolver& operator = (ScopeResolver&& rhs);
@@ -55,7 +67,9 @@ public:
     DeclarationScope const& scope() const;
 
     LookupHit matchEquivalent(SymbolReference const& symbol) const override;
-    LookupHit matchOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& symbol) override;
+    LookupHit matchOverload(Module& endModule,
+                            Diagnostics& dgn,
+                            SymbolReference const& symbol) override;
 
 public:
     void addSupplementaryPrototype(PatternsPrototype& proto);
@@ -63,6 +77,7 @@ public:
 
 private:
     DeclarationScope* myScope = nullptr;
+    Options myOptions = None;
     std::vector<PatternsPrototype*> mySupplementaryPrototypes;
 };
 

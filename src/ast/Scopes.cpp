@@ -492,9 +492,6 @@ TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const&
 
 void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 {
-    ScopeResolver resolver(*this);
-    Context ctx(endModule, dgn, resolver);
-
     auto makeTempl = [this, &dgn] {
         auto templ = std::make_unique<TemplateDeclaration>(
             Symbol(lexer::Token(lexer::TokenKind::Identifier,
@@ -526,11 +523,15 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
         return;
     }
 
-    decl = templ->definition()->findOverload(endModule, dgn, SymbolReference("")).decl();
+    ScopeResolver narrowResolver(*templ->definition(), IResolver::Narrow);
+    Context ctx(endModule, dgn, narrowResolver);
+    decl = ctx.matchOverload("").decl();
     if ( !decl ) {
         auto proc = createDefaultDestructor();
         auto p = proc.get();
         templ->definition()->append(std::move(proc));
+        ScopeResolver resolver(*templ->definition());
+        ctx.changeResolver(resolver);
         ctx.resolveDeclaration(*p);
         templ->definition()->addSymbol(dgn, p->symbol(), *p);
         p->definition()->resolveSymbols(endModule, dgn);

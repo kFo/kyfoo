@@ -28,7 +28,7 @@ namespace kyfoo {
     X(CloseBrace  , "closeBrace"  ) \
     \
     X(Equal         , "equal"         ) \
-    X(Range         , "range"         ) \
+    X(DotDot        , "range"         ) \
     X(Dot           , "dot"           ) \
     X(Colon         , "colon"         ) \
     X(Semicolon     , "semicolon"     ) \

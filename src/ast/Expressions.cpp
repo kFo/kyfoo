@@ -147,11 +147,16 @@ Expression const* Expression::type() const
     return nullptr;
 }
 
+void Expression::setType(Expression const* type)
+{
+    myType = type;
+}
+
 void Expression::setType(std::unique_ptr<Expression> type)
 {
     auto ptr = type.get();
     addConstraint(std::move(type));
-    myType = ptr;
+    setType(ptr);
 }
 
 void Expression::setType(Declaration const& decl)
@@ -417,7 +422,9 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
         return SymRes::Fail;
     }
 
-    auto proc = defn->findOverload(ctx.module(), ctx.diagnostics(), "").as<ProcedureDeclaration>();
+    ScopeResolver resolver(*defn, IResolver::Narrow);
+    Context templateCtx(ctx.module(), ctx.diagnostics(), resolver);
+    auto proc = templateCtx.matchOverload("").as<ProcedureDeclaration>();
     if ( !proc ) {
         ctx.error(*this) << "does not refer to any procedure";
         return SymRes::Fail;
@@ -533,6 +540,15 @@ TupleExpression::TupleExpression(lexer::Token const& open,
 {
 }
 
+TupleExpression::TupleExpression(std::vector<std::unique_ptr<Expression>>&& expressions,
+                                 std::unique_ptr<Expression> cardExpression)
+    : Expression(Expression::Kind::Tuple)
+    , myKind(TupleKind::Closed)
+    , myExpressions(std::move(expressions))
+    , myCardExpression(std::move(cardExpression))
+{
+}
+
 TupleExpression::TupleExpression(TupleExpression const& rhs)
     : Expression(rhs)
     , myKind(rhs.myKind)
@@ -577,14 +593,29 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
+    if ( myCardExpression ) {
+        ret |= ctx.resolveExpression(myCardExpression);
+        if ( !ret )
+            return ret;
+
+        auto lit = resolveIndirections(myCardExpression.get())->as<LiteralExpression>();
+        if ( !lit || lit->token().kind() != lexer::TokenKind::Integer ) {
+            ctx.error(*myCardExpression) << "array cardinality must be an integer";
+            return SymRes::Fail;
+        }
+
+        auto n = std::atoi(lit->token().lexeme().c_str());
+        if ( n < 0 ) {
+            ctx.error(*myCardExpression) << "array cardinality cannot be negative";
+            return SymRes::Fail;
+        }
+
+        myCard = static_cast<std::size_t>(n);
+    }
+
     if ( myKind == TupleKind::Open ) {
-        if ( myExpressions.empty() ) {
-            setType(*ctx.axioms().intrinsic(EmptyLiteralType));
-            return SymRes::Success;
-        }
-        else if ( myExpressions.size() == 1 ) {
+        if ( myExpressions.size() == 1 )
             return ctx.rewrite(std::move(myExpressions[0]));
-        }
     }
 
     flattenOpenTuples();
@@ -618,6 +649,16 @@ Slice<Expression const*> TupleExpression::expressions() const
     return myExpressions;
 }
 
+ExpressionArray TupleExpression::elements() const
+{
+    return ExpressionArray(myExpressions, elementsCount());
+}
+
+std::size_t TupleExpression::elementsCount() const
+{
+    return myCard;
+}
+
 /**
  * Flatten open-tuples
  */
@@ -626,7 +667,7 @@ void TupleExpression::flattenOpenTuples()
     for ( auto i = begin(myExpressions); i != end(myExpressions); ) {
         if ( (*i)->kind() == Expression::Kind::Tuple ) {
             auto tuple = static_cast<TupleExpression*>(i->get());
-            if ( tuple->kind() == TupleKind::Open ) {
+            if ( tuple->kind() == TupleKind::Open && tuple->myCard == 1 ) {
                 auto index = distance(begin(myExpressions), i) + tuple->myExpressions.size();
                 move(begin(tuple->myExpressions), end(tuple->myExpressions),
                      std::inserter(myExpressions, i));
@@ -777,7 +818,9 @@ SymRes ApplyExpression::elaborateSubject(Context& ctx)
             return SymRes::Fail;
         }
 
-        auto hit = defn->findOverload(ctx.module(), ctx.diagnostics(), "ctor");
+        ScopeResolver resolver(*defn, IResolver::Narrow);
+        Context dpCtx(ctx.module(), ctx.diagnostics(), resolver);
+        auto hit = dpCtx.matchOverload("ctor");
         if ( !hit ) {
             ctx.error(*d) << "is not constructible";
             return SymRes::Fail;
@@ -787,7 +830,9 @@ SymRes ApplyExpression::elaborateSubject(Context& ctx)
         if ( !decl )
             throw std::runtime_error("ctor is not a template");
 
-        hit = decl->definition()->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", arguments()));
+        ScopeResolver templScope(*decl->definition(), IResolver::Narrow);
+        dpCtx.changeResolver(templScope);
+        hit = dpCtx.matchOverload(SymbolReference("", arguments()));
         auto proc = hit.as<ProcedureDeclaration>();
         if ( !proc )
             throw std::runtime_error("ctor is not a procedure");
@@ -803,7 +848,9 @@ SymRes ApplyExpression::elaborateSubject(Context& ctx)
             return SymRes::Fail;
         }
 
-        auto hit = defn->findOverload(ctx.module(), ctx.diagnostics(), SymbolReference("", arguments()));
+        ScopeResolver resolver(*defn, IResolver::Narrow);
+        Context templCtx(ctx.module(), ctx.diagnostics(), resolver);
+        auto hit = templCtx.matchOverload(SymbolReference("", arguments()));
         auto proc = hit.as<ProcedureDeclaration>();
         if ( !proc ) {
             auto& err = ctx.error(*this) << "does not match any procedure overload";
@@ -1022,16 +1069,16 @@ std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions(
 //
 // DotExpression
 
-DotExpression::DotExpression(bool global,
+DotExpression::DotExpression(bool modScope,
                              std::vector<std::unique_ptr<Expression>>&& exprs)
-    : IdentifierExpression(Kind::Dot, lexer::Token(), nullptr)
+    : Expression(Kind::Dot)
     , myExpressions(std::move(exprs))
-    , myGlobal(global)
+    , myModScope(modScope)
 {
 }
 
 DotExpression::DotExpression(DotExpression const& rhs)
-    : IdentifierExpression(rhs)
+    : Expression(rhs)
 {
     // myFirst, mySecond cloned
 }
@@ -1048,21 +1095,21 @@ DotExpression::~DotExpression()
 
 void DotExpression::swap(DotExpression& rhs)
 {
-    IdentifierExpression::swap(rhs);
+    Expression::swap(rhs);
     using std::swap;
     swap(myExpressions, rhs.myExpressions);
 }
 
 void DotExpression::io(IStream& stream) const
 {
-    IdentifierExpression::io(stream);
+    Expression::io(stream);
     stream.next("expression", myExpressions);
 }
 
-IMPL_CLONE_BEGIN(DotExpression, IdentifierExpression, Expression)
+IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DotExpression, IdentifierExpression)
+IMPL_CLONE_REMAP_BEGIN(DotExpression, Expression)
 IMPL_CLONE_REMAP(myExpressions)
 IMPL_CLONE_REMAP_END
 
@@ -1079,57 +1126,96 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
+    auto updateContext = [&ctx, &resolver](Expression const& expr)
     {
-        auto id = identify(*myExpressions.front());
-        if ( !id ) {
-            ctx.error(*myExpressions.front()) << "does not have any accessible members";
-            return SymRes::Fail;
+        if ( auto decl = getDeclaration(expr) ) {
+            if ( auto scope = memberScope(*resolveIndirections(decl)) ) {
+                resolver = ScopeResolver(*scope);
+                ctx.changeResolver(resolver);
+            }
         }
+    };
 
-        auto scope = memberScope(*resolveIndirections(id->declaration()));
-        if ( !scope ) {
-            ctx.error(*myExpressions.front()) << "does not have any accessible members";
-            return SymRes::Fail;
-        }
+    updateContext(*myExpressions.front());
 
-        resolver = ScopeResolver(*scope);
-        ctx.changeResolver(resolver);
-    }
-
-    for ( std::size_t i = 1; i < myExpressions.size() - 1; ++i ) {
-        auto& e = myExpressions[i];
-        ret = ctx.resolveExpression(e);
+    for ( std::size_t i = 1; i < myExpressions.size(); ++i ) {
+        ret = ctx.resolveExpression(myExpressions[i]);
         if ( !ret )
             return ret;
 
-        auto id = identify(*e);
-        if ( !id ) {
-            ctx.error(*id) << "dot-expression must be composed of identifiers";
-            return SymRes::Fail;
+        auto e = myExpressions[i].get();
+
+        if ( auto lit = e->as<LiteralExpression>() ) {
+            if ( lit->token().kind() != lexer::TokenKind::Integer ) {
+                ctx.error(*e) << "cannot be an accessor";
+                return SymRes::Fail;
+            }
+
+            int index = std::atoi(lit->token().lexeme().c_str());
+            if ( index < 0 ) {
+                ctx.error(*e) << "field accessor cannot be negative";
+                return SymRes::Fail;
+            }
+
+            auto composite = resolveIndirections(myExpressions[i - 1].get());
+            bool binder = false;
+            if ( auto decl = getDeclaration(*composite) ) {
+                if ( auto b = getBinder(*decl) ) {
+                    composite = resolveIndirections(b->type());
+                    binder = true;
+                }
+            }
+
+            if ( auto decl = getDeclaration(*composite) ) {
+                auto dp = decl->as<DataProductDeclaration>();
+                if ( !dp ) {
+                    (ctx.error(*e) << "field accessor must refer to composite type")
+                        .see(*dp);
+                    return SymRes::Fail;
+                }
+
+                auto defn = dp->definition();
+                if ( !defn ) {
+                    (ctx.error(*composite) << "is not defined")
+                        .see(*dp);
+                    return SymRes::Fail;
+                }
+
+                if ( index >= defn->fields().size() ) {
+                    (ctx.error(*e) << "field accessor out of bounds")
+                        .see(*dp);
+                    return SymRes::Fail;
+                }
+
+                auto const tok = lit->token();
+                myExpressions[i] = createIdentifier(makeToken(tok.lexeme().c_str(),
+                                                              tok.line(),
+                                                              tok.column()),
+                                                    *defn->fields()[index]);
+                e = myExpressions[i].get();
+            }
+            else if ( auto tup = composite->as<TupleExpression>() ) {
+                if ( index >= tup->elementsCount() ) {
+                    ctx.error(*e) << "field index out of bounds";
+                    return SymRes::Fail;
+                }
+
+                if ( binder )
+                    lit->setType(tup->elements()[index]);
+                else
+                    lit->setType(tup->elements()[index]->type());
+            }
+            else {
+                ctx.error(*e) << "cannot be indexed";
+                return SymRes::Fail;
+            }
         }
 
-        auto scope = memberScope(*resolveIndirections(id->declaration()));
-        if ( !scope ) {
-            ctx.error(*e) << "does not have any accessible members";
-            return SymRes::Fail;
-        }
-
-        resolver = ScopeResolver(*scope);
+        updateContext(*myExpressions[i]);
     }
 
-    ctx.resolveExpression(myExpressions.back());
-    auto id = identify(*myExpressions.back());
-    if ( !id ) {
-        ctx.error(*id) << "dot-expression must be composed of identifiers";
-        return SymRes::Fail;
-    }
-
-    if ( id->declaration() ) {
-        setDeclaration(*id->declaration());
-        return SymRes::Success;
-    }
-
-    return SymRes::Fail;
+    setType(myExpressions.back()->type());
+    return SymRes::Success;
 }
 
 Slice<Expression*> DotExpression::expressions()
@@ -1142,19 +1228,17 @@ Slice<Expression const*> DotExpression::expressions() const
     return myExpressions;
 }
 
-Expression& DotExpression::top()
+Expression const* DotExpression::top(std::size_t index) const
 {
-    return *myExpressions.back();
-}
+    if ( index >= myExpressions.size() )
+        return nullptr;
 
-Expression const& DotExpression::top() const
-{
-    return *myExpressions.back();
+    return myExpressions[myExpressions.size() - index - 1].get();
 }
 
 bool DotExpression::isModuleScope() const
 {
-    return myGlobal;
+    return myModScope;
 }
 
 //
@@ -1529,7 +1613,7 @@ IdentifierExpression* identify(Expression& expr)
         return sym;
 
     if ( auto dot = expr.as<DotExpression>() )
-        return dot;
+        return identify(*dot->expressions().back());
 
     return nullptr;
 }
@@ -1565,6 +1649,45 @@ std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expr
     }
 
     return ret;
+}
+
+std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr_)
+{
+    auto expr = resolveIndirections(&expr_);
+    if ( auto dot = expr->as<DotExpression>() ) {
+        std::size_t i = 0;
+        auto e = resolveIndirections(dot->top(i));
+        for ( ; e; e = resolveIndirections(dot->top(++i)) ) {
+            if ( auto decl = getDeclaration(e) ) {
+                if ( auto var = decl->as<VariableDeclaration>() )
+                    return {var, dot->type()};
+
+                if ( auto field = decl->as<DataProductDeclaration::Field>() )
+                    continue;
+            }
+
+            if ( auto lit = e->as<LiteralExpression>() ) {
+                if ( lit->token().kind() == lexer::TokenKind::Integer )
+                    continue;
+            }
+
+            break;
+        }
+
+        return {nullptr, nullptr};
+    }
+
+    if ( auto decl = getDeclaration(expr) ) {
+        if ( auto var = decl->as<VariableDeclaration>() )
+            return {var, var->type()};
+    }
+
+    return {nullptr, nullptr};
+}
+
+Expression const* getRefType(Expression const& expr)
+{
+    return std::get<1>(getRef(expr));
 }
 
     } // namespace ast

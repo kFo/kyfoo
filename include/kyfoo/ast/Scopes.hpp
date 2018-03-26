@@ -166,6 +166,10 @@ public:
 #undef X
     };
 
+    friend class Context;
+    friend class ScopeResolver;
+    friend class DataProductScope;
+
 protected:
     DeclarationScope(Kind kind,
                      Module* module,
@@ -209,6 +213,8 @@ public:
     void merge(DeclarationScope& rhs);
 
     LookupHit findEquivalent(SymbolReference const& symbol) const;
+
+protected:
     LookupHit findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string const& name);
@@ -218,6 +224,7 @@ public:
 
     SymbolSpace* findSymbolSpace(std::string const& name) const;
 
+public:
     Module& module();
     Module const& module() const;
 

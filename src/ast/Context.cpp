@@ -11,13 +11,15 @@ namespace kyfoo {
 //
 // ScopeResolver
 
-ScopeResolver::ScopeResolver(DeclarationScope& scope)
+ScopeResolver::ScopeResolver(DeclarationScope& scope, Options opts)
     : myScope(&scope)
+    , myOptions(opts)
 {
 }
 
-ScopeResolver::ScopeResolver(DeclarationScope const& scope)
+ScopeResolver::ScopeResolver(DeclarationScope const& scope, Options opts)
     : myScope(const_cast<DeclarationScope*>(&scope))
+    , myOptions(opts)
 {
 }
 
@@ -62,16 +64,23 @@ LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.lookup(s));
+
+        if ( myOptions & Narrow )
+            break;
     }
 
-    for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findEquivalent(symbol)) )
-            return hit;
+    if ( !(myOptions & SkipImports) ) {
+        for ( auto m : myScope->module().imports() )
+            if ( hit.append(m->scope()->findEquivalent(symbol)) )
+                return hit;
+    }
 
     return hit;
 }
 
-LookupHit ScopeResolver::matchOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& symbol)
+LookupHit ScopeResolver::matchOverload(Module& endModule,
+                                       Diagnostics& dgn,
+                                       SymbolReference const& symbol)
 {
     LookupHit hit = matchSupplementary(symbol);
 
@@ -92,11 +101,16 @@ LookupHit ScopeResolver::matchOverload(Module& endModule, Diagnostics& dgn, Symb
                         return std::move(hit.lookup(p));
             }
         }
+
+        if ( myOptions & Narrow )
+            break;
     }
 
-    for ( auto m : myScope->module().imports() )
-        if ( hit.append(m->scope()->findOverload(endModule, dgn, symbol)) )
-            return hit;
+    if ( !(myOptions & SkipImports) ) {
+        for ( auto m : myScope->module().imports() )
+            if ( hit.append(m->scope()->findOverload(endModule, dgn, symbol)) )
+                return hit;
+    }
 
     return hit;
 }

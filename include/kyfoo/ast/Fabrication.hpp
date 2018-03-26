@@ -61,9 +61,15 @@ createEmptyExpression()
 }
 
 inline std::unique_ptr<IdentifierExpression>
+createIdentifier(lexer::Token const& tok, Declaration const& decl)
+{
+    return std::make_unique<IdentifierExpression>(tok, decl);
+}
+
+inline std::unique_ptr<IdentifierExpression>
 createIdentifier(Declaration const& decl)
 {
-    return std::make_unique<IdentifierExpression>(lexer::Token(), decl);
+    return createIdentifier(lexer::Token(), decl);
 }
 
 template <typename T, typename F, typename Head, typename... Args>
@@ -106,11 +112,9 @@ createMemberAccess(Decls&&... decls)
     std::vector<std::unique_ptr<Expression>> members;
     members.reserve(sizeof...(Decls));
 
-    appendExprList_impl(members, createIdentifier, std::forward<Decls>(decls)...);
-    auto decl = members.back()->as<IdentifierExpression>()->declaration();
-    auto ret = std::make_unique<DotExpression>(false, std::move(members));
-    ret->setDeclaration(*decl);
-    return ret;
+    std::unique_ptr<IdentifierExpression> (*f)(Declaration const&) = &createIdentifier;
+    appendExprList_impl(members, f, std::forward<Decls>(decls)...);
+    return std::make_unique<DotExpression>(false, std::move(members));
 }
 
 template <typename... Args>

@@ -133,8 +133,23 @@ llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
         if ( t->expressions().empty() && t->kind() == ast::TupleKind::Open )
             return llvm::Type::getVoidTy(context);
 
-        // todo: anon struct
-        return nullptr;
+        llvm::Type* elementType = nullptr;
+        if ( t->expressions().size() > 1 ) {
+            std::vector<llvm::Type*> types;
+            types.reserve(t->expressions().size());
+            for ( auto const& te : t->expressions() )
+                types.push_back(toType(context, *te));
+
+            elementType = llvm::StructType::get(context, types);
+        }
+        else {
+            elementType = toType(context, *t->expressions()[0]);
+        }
+
+        if ( t->elementsCount() > 1 )
+            return llvm::ArrayType::get(elementType, t->elementsCount());
+
+        return elementType;
     }
 
     if ( auto a = e->as<ast::ArrowExpression>() )
@@ -733,6 +748,59 @@ private:
         return nullptr;
     }
 
+    llvm::Value* toRef(llvm::IRBuilder<>& builder, ast::Expression const& expr_)
+    {
+        auto expr = resolveIndirections(&expr_);
+        if ( auto dot = expr->as<ast::DotExpression>() ) {
+            llvm::Value* ret = nullptr;
+            auto exprs = dot->expressions();
+            for ( auto e : exprs ) {
+                e = resolveIndirections(e);
+                if ( auto decl = getDeclaration(e) ) {
+                    if ( auto var = decl->as<ast::VariableDeclaration>() ) {
+                        ret = customData(*var)->inst;
+                        continue;
+                    }
+
+                    if ( auto param = decl->as<ast::ProcedureParameter>() ) {
+                        ret = customData(*param)->arg;
+                        continue;
+                    }
+
+                    if ( auto field = decl->as<ast::DataProductDeclaration::Field>() ) {
+                        auto fdata = customData(*field);
+                        ret = builder.CreateStructGEP(ret->getType(), ret, fdata->index);
+                        continue;
+                    }
+                }
+                else if ( auto lit = e->as<ast::LiteralExpression>() ) {
+                    if ( lit->token().kind() != lexer::TokenKind::Integer )
+                        die("bad index");
+
+                    auto index = static_cast<unsigned>(std::atoi(lit->token().lexeme().c_str()));
+                    ret = builder.CreateStructGEP(ret->getType()->getPointerElementType(),
+                                                  ret,
+                                                  index);
+                    continue;
+                }
+
+                die("invalid dot expression");
+            }
+
+            return ret;
+        }
+
+        if ( auto decl = getDeclaration(expr) ) {
+            if ( auto var = decl->as<ast::VariableDeclaration>() )
+                return customData(*var)->inst;
+
+            if ( auto param = decl->as<ast::ProcedureParameter>() )
+                return customData(*param)->arg;
+        }
+
+        return nullptr;
+    }
+
     llvm::Value* toValue(llvm::IRBuilder<>& builder, llvm::Type* destType, ast::Expression const& expression)
     {
         auto const& axioms = sourceModule.axioms();
@@ -747,14 +815,24 @@ private:
             llvm::Value* ret = nullptr;
             auto exprs = dot->expressions();
             for ( auto const& e : exprs ) {
-                if ( auto field = getDeclaration(e)->as<ast::DataProductDeclaration::Field>() ) {
-                    assert(ret && "expected field comes after another value");
-                    auto fieldData = customData(*field);
-                    ret = builder.CreateExtractValue(ret, fieldData->index);
+                if ( auto decl = getDeclaration(e) ) {
+                    if ( auto field = decl->as<ast::DataProductDeclaration::Field>() ) {
+                        assert(ret && "expected field comes after another value");
+                        auto fieldData = customData(*field);
+                        ret = builder.CreateExtractValue(ret, fieldData->index);
+                        continue;
+                    }
                 }
-                else {
-                    ret = toValue(builder, destType, *e);
+                else if ( auto lit = e->as<ast::LiteralExpression>() ) {
+                    if ( lit->token().kind() != lexer::TokenKind::Integer )
+                        die("bad index");
+
+                    auto index = static_cast<unsigned>(std::atoi(lit->token().lexeme().c_str()));
+                    ret = builder.CreateExtractValue(ret, index);
+                    continue;
                 }
+
+                ret = toValue(builder, destType, *e);
             }
 
             return ret;
@@ -855,7 +933,7 @@ private:
         if ( !a )
             return nullptr;
 
-        auto const proc = getDeclaration(a->subject())->as<ast::ProcedureDeclaration>();
+        auto const proc = getDeclaration(resolveIndirections(a->subject()))->as<ast::ProcedureDeclaration>();
         if ( !proc )
             return nullptr;
 
@@ -916,14 +994,11 @@ private:
         }
 
         if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {
-            auto decl = resolveIndirections(getDeclaration(exprs[1]));
-            if ( !decl )
-                return nullptr;
+            auto ret = toRef(builder, *resolveIndirections(exprs[1]));
+            if ( !ret )
+                die("missing identity for addr");
 
-            if ( auto var = decl->as<ast::VariableDeclaration>() )
-                return customData(*var)->inst;
-
-            return nullptr;
+            return ret;
         }
 
         return nullptr;
@@ -1084,7 +1159,6 @@ struct LLVMGenerator::LLVMState
                 dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
                 return dsData->type;
             }
-            else if ( ds == axioms().intrinsic(ast::EmptyLiteralType) ) return dsData->type = llvm::Type::getVoidTy(*context);
             else if ( ds == axioms().intrinsic(ast::u1  ) ) return dsData->type = llvm::Type::getInt1Ty  (*context);
             else if ( ds == axioms().intrinsic(ast::u8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
             else if ( ds == axioms().intrinsic(ast::u16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);

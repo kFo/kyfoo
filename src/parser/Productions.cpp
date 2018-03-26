@@ -7,7 +7,7 @@ namespace kyfoo {
 // Expression
 
 struct Expression::impl : public
-    g::And<g::OneOrMore<DotExpression>, g::Opt<g::And<colon, Expression>>>
+    g::And<g::OneOrMore<RangeExpression>, g::Opt<g::And<colon, Expression>>>
 {
     std::unique_ptr<ast::Expression> make() const
     {

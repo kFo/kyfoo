@@ -393,7 +393,7 @@ Token Scanner::readNext()
     else if ( c == '.' ) {
         if ( peekChar() == '.' ) {
             nextChar();
-            return TOK2(Range, "..");
+            return TOK2(DotDot, "..");
         }
 
         return TOK2(Dot, ".");

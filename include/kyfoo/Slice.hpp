@@ -14,7 +14,7 @@ public:
     using pointer =
         std::conditional_t<std::is_pointer_v<value_type>
                         && std::is_const_v<std::remove_pointer_t<value_type>>,
-                         value_type const*, value_type*>;
+                           value_type const*, value_type*>;
     using const_pointer = value_type const*;
     using reference = std::remove_pointer_t<pointer>&;
     using const_reference = value_type const&;
@@ -70,7 +70,6 @@ public:
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U, value_type>>>
     /*implicit*/ Slice(Slice<U> const& s)
-        //: Slice(const_cast<Slice<U>&>(s).data(), s.size())
         : Slice(s.data(), s.size())
     {
     }
@@ -129,6 +128,9 @@ public:
 
     reference back() { return myData[myLength - 1]; }
     const_reference back() const { return myData[myLength - 1]; }
+
+    void popFront() { ++myData; --myLength; }
+    void popBack() { --myLength; }
 
 private:
     pointer myData = nullptr;

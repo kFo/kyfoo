@@ -7,6 +7,7 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
@@ -22,6 +23,7 @@ using string   = g::Terminal<lexer::TokenKind::String>;
 using equal = g::Terminal<lexer::TokenKind::Equal>;
 using comma = g::Terminal<lexer::TokenKind::Comma>;
 using dot   = g::Terminal<lexer::TokenKind::Dot>;
+using dotdot = g::Terminal<lexer::TokenKind::DotDot>;
 
 using colon          = g::Terminal<lexer::TokenKind::Colon>;
 using colonPipe      = g::Terminal<lexer::TokenKind::ColonPipe>;
@@ -212,6 +214,45 @@ struct DotExpression : public
             return std::move(exprs.front());
 
         return std::make_unique<ast::DotExpression>(global, std::move(exprs));
+    }
+};
+
+struct RangeExpression : public
+    g::Or<
+        g::And<g::OneOrMore2<DotExpression, dotdot>, g::Opt<dotdot>>
+      , g::And<dotdot, g::OneOrMore2<DotExpression, dotdot>, g::Opt<dotdot>>
+      , dotdot
+    >
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        if ( index() == 0 ) {
+            auto const& c = term<0>().factor<0>().captures();
+            std::unique_ptr<ast::Expression> from = c[0].make();
+            for ( std::size_t i = 1; i < c.size(); ++i )
+                from = std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                                                              c[i].make());
+
+            if ( auto cc = term<0>().factor<1>().capture() )
+                return std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                                                              nullptr);
+
+            return std::move(from);
+        }
+        else if ( index() == 1 ) {
+            std::unique_ptr<ast::Expression> from;
+            for ( auto const& c : term<1>().factor<1>().captures() )
+                from = std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                                                              c.make());
+
+            if ( auto c = term<1>().factor<2>().capture() )
+                return std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                                                              nullptr);
+
+            return std::move(from);
+        }
+
+        return std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(), nullptr);
     }
 };
 

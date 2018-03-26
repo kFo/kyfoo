@@ -148,6 +148,7 @@ public:
 public:
     Kind kind() const;
     Expression const* type() const;
+    void setType(Expression const* type);
     void setType(std::unique_ptr<Expression> type);
     void setType(Declaration const& decl);
     void clearType();
@@ -248,6 +249,74 @@ private:
     Declaration const* myDeclaration = nullptr;
 };
 
+class ExpressionArray
+{
+public:
+    struct iterator_end
+    {
+        std::size_t i;
+    };
+
+    class iterator
+    {
+        Slice<Expression const*> const* s;
+        std::size_t ei = 0;
+        std::size_t ai = 0;
+
+    public:
+        explicit iterator(Slice<Expression const*> const& s)
+            : s(&s)
+        {
+        }
+
+    public:
+        void operator++()
+        {
+            ++ei;
+            if ( ei == s->size() ) {
+                ei = 0;
+                ++ai;
+            }
+        }
+
+        Expression const* operator*() const { return (*s)[ei]; }
+
+        bool operator==(iterator_end rhs)
+        {
+            return ai == rhs.i;
+        }
+    };
+
+public:
+    ExpressionArray(Slice<Expression const*> exprs, std::size_t n)
+        : exprs(exprs)
+        , n(n)
+    {
+    }
+
+    /*implicit*/ ExpressionArray(Slice<Expression const*> exprs)
+        : exprs(exprs)
+        , n(1)
+    {
+    }
+
+public:
+    iterator begin() const { return iterator(exprs); }
+    iterator_end end() const { return iterator_end{n}; }
+
+    std::size_t size() const { return exprs.size() * n; }
+    bool empty() const { return size() == 0; }
+
+    Expression const* front() const { return exprs.front(); }
+    Expression const* back() const { return exprs.back(); }
+
+    Expression const* operator[](std::size_t i) const { return exprs[i % exprs.size()]; }
+
+private:
+    Slice<Expression const*> exprs;
+    std::size_t n = 1;
+};
+
 class TupleExpression : public Expression
 {
 public:
@@ -259,6 +328,9 @@ public:
     TupleExpression(lexer::Token const& open,
                     lexer::Token const& close,
                     std::vector<std::unique_ptr<Expression>>&& expressions);
+
+    TupleExpression(std::vector<std::unique_ptr<Expression>>&& expressions,
+                    std::unique_ptr<Expression> cardExpression);
 
 protected:
     TupleExpression(TupleExpression const& rhs);
@@ -286,6 +358,9 @@ public:
     Slice<Expression*> expressions();
     Slice<Expression const*> expressions() const;
 
+    ExpressionArray elements() const;
+    std::size_t elementsCount() const;
+
 private:
     void flattenOpenTuples();
 
@@ -293,6 +368,8 @@ private:
     // AST state
     TupleKind myKind;
     std::vector<std::unique_ptr<Expression>> myExpressions;
+    std::unique_ptr<Expression> myCardExpression;
+    std::size_t myCard = 0;
 
     lexer::Token myOpenToken;
     lexer::Token myCloseToken;
@@ -387,10 +464,10 @@ private:
     lexer::Token myCloseToken;
 };
 
-class DotExpression : public IdentifierExpression
+class DotExpression : public Expression
 {
 public:
-    DotExpression(bool global,
+    DotExpression(bool modScope,
                   std::vector<std::unique_ptr<Expression>>&& exprs);
 
 protected:
@@ -415,14 +492,13 @@ public:
     Slice<Expression*> expressions();
     Slice<Expression const*> expressions() const;
 
-    Expression& top();
-    Expression const& top() const;
+    Expression const* top(std::size_t index = 0) const;
 
     bool isModuleScope() const;
 
 private:
     std::vector<std::unique_ptr<Expression>> myExpressions;
-    bool myGlobal = false;
+    bool myModScope = false;
 };
 
 class VarExpression : public Expression
@@ -588,6 +664,8 @@ bool hasDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const* expr);
 std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr);
+std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr);
+Expression const* getRefType(Expression const& expr);
 
     } // namespace ast
 } // namespace kyfoo

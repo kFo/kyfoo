@@ -359,13 +359,13 @@ SymRes Binder::resolveSymbols(Context& ctx)
         return ret;
 
     for ( auto const& c : myConstraints ) {
-        if ( auto id = identify(*c) ) {
+        if ( auto type = dataType(*c) ) {
             if ( myType ) {
                 ctx.error(*this) << "more than one type found for binder";
                 return SymRes::Fail;
             }
 
-            myType = id;
+            myType = type;
         }
     }
 
@@ -1176,7 +1176,6 @@ bool isDataDeclaration(DeclKind kind)
     switch (kind) {
     case DeclKind::DataProduct:
     case DeclKind::DataSum:
-    case DeclKind::DataSumCtor:
         return true;
     }
 
@@ -1193,6 +1192,14 @@ bool isBinder(DeclKind kind)
     }
 
     return false;
+}
+
+Binder const* getBinder(Declaration const& decl)
+{
+    if ( isBinder(decl.kind()) )
+        return static_cast<Binder const*>(&decl);
+
+    return nullptr;
 }
 
 bool isCallableDeclaration(DeclKind kind)

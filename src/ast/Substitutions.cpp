@@ -131,15 +131,15 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
         if ( !rr )
             return false;
 
-        if ( ll->token().lexeme() != rr->token().lexeme() ) {
-            // todo: generalize to deduction guides
-            if ( ll->token().lexeme() == "ref" )
-                return deduce(ll->expressions(), *r);
+        if ( ll->token().lexeme() == rr->token().lexeme() )
+            if ( deduce(ll->expressions(), rr->expressions()) )
+                return true;
 
-            return false;
-        }
+        // todo: generalize to deduction guides
+        if ( ll->token().lexeme() == "ref" )
+            return deduce(ll->expressions(), *r);
 
-        return deduce(ll->expressions(), rr->expressions());
+        return false;
     }
 
     if ( auto a = l->as<ApplyExpression>() ) {
@@ -160,8 +160,14 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
         }
 
         auto aa = r->as<ApplyExpression>();
-        if ( !aa )
+        if ( !aa ) {
+            // todo: generalize to deduction guides
+            if ( auto id = a->expressions().front()->as<IdentifierExpression>() )
+                if ( id->token().lexeme() == "ref" )
+                    return deduce(a->arguments(), *r);
+
             return false;
+        }
 
         return deduce(a->expressions(), aa->expressions());
     }

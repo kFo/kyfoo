@@ -14,7 +14,6 @@ class ProcedureDeclaration;
 class ModuleSet;
 
 #define INTRINSIC_DATASUMS(X) \
-    X(EmptyLiteralType      ) \
     X(IntegerLiteralType    ) \
     X(RationalLiteralType   ) \
     X(PointerNullLiteralType) \

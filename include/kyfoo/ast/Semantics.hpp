@@ -329,6 +329,7 @@ Declaration* outerDataDeclaration(Declaration& decl);
 Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
 DataProductDeclaration const* methodType(ProcedureDeclaration const& proc);
+Expression const* dataType(Expression const& expr);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs);

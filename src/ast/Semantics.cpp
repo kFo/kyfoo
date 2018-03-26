@@ -418,13 +418,6 @@ struct MatchEquivalent
     }
 };
 
-/**
- * Matches lhs :> rhs semantically
- *
- * Answers whether the type \p rhs is covered by type \p lhs
- *
- * \todo Match should return degree in presence of specialization
- */
 bool matchEquivalent(Expression const& lhs, Expression const& rhs)
 {
     MatchEquivalent op;
@@ -493,18 +486,6 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
         return Invariant;
     }
 
-    if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), target.symbol()) ) {
-        if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), query.symbol()) )
-            return variance(ctx, target.symbol().prototype().pattern(), query.symbol().prototype().pattern());
-
-        if ( query.kind() == DeclKind::Variable || query.kind() == DeclKind::Field ) {
-            auto const& binder = static_cast<Binder const&>(query);
-            return variance(ctx, target.symbol().prototype().pattern(), *binder.type());
-        }
-
-        return Invariant;
-    }
-
     // todo: this is a hack for covariance
     if ( rootTemplate(target.symbol()) == rootTemplate(query.symbol()) ) {
         return variance(ctx,
@@ -515,16 +496,10 @@ VarianceResult variance(Context& ctx, Declaration const& target, Declaration con
     return Invariant;
 }
 
-/**
- * Matches lhs :> value(rhs) semantically
- * 
- * Answers whether \p rhs 's value is covariant with type \p lhs
- */
 VarianceResult variance(Context& ctx,
                         Expression const& target,
                         Expression const& query)
 {
-    // resolve ast aliases and run again
     auto t = lookThrough(&target);
     auto q = lookThrough(&query);
 
@@ -559,11 +534,21 @@ VarianceResult variance(Context& ctx,
     }
 
     if ( auto targetDecl = getDeclaration(*t) ) {
-        if ( isBinder(targetDecl->kind()) ) {
-            auto const& targetBinder = static_cast<Binder const&>(*targetDecl);
-            auto ret = variance(ctx, *targetBinder.type(), *q);
+        if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), targetDecl->symbol()) ) {
+            if ( auto queryRef = getRefType(*q) )
+                return variance(ctx, targetDecl->symbol().prototype().pattern(), *queryRef);
+
+            if ( auto queryDecl = getDeclaration(*q) )
+                if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), queryDecl->symbol()) )
+                    return variance(ctx, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
+
+            return Invariant;
+        }
+
+        if ( auto targetBinder = getBinder(*targetDecl) ) {
+            auto ret = variance(ctx, *targetBinder->type(), *q);
             if ( ret.invariant() )
-                return variance(ctx, *targetBinder.type(), *q->type());
+                return variance(ctx, *targetBinder->type(), *q->type());
 
             return ret;
         }
@@ -658,7 +643,8 @@ VarianceResult variance(Context& ctx,
 VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression const*> rhs)
 {
     if ( auto l = lhs.as<TupleExpression>() )
-        return variance(ctx, l->expressions(), rhs);
+        if ( l->kind() == TupleKind::Open )
+            return variance(ctx, l->expressions(), rhs);
 
     if ( rhs.size() == 1 )
         return variance(ctx, lhs, *rhs[0]);
@@ -669,7 +655,8 @@ VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression co
 VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Expression const& rhs)
 {
     if ( auto r = rhs.as<TupleExpression>() )
-        return variance(ctx, lhs, r->expressions());
+        if ( r->kind() == TupleKind::Open )
+            return variance(ctx, lhs, r->expressions());
 
     if ( lhs.size() == 1 )
         return variance(ctx, *lhs[0], rhs);
@@ -810,14 +797,13 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 
 DeclarationScope const* memberScope(Declaration const& decl)
 {
-    if ( auto param = decl.as<ProcedureParameter>() )
-        return memberScope(*resolveIndirections(getDeclaration(param->type())));
+    if ( auto b = getBinder(decl) ) {
+        auto d = resolveIndirections(getDeclaration(b->type()));
+        if ( !d )
+            return nullptr;
 
-    if ( auto var = decl.as<VariableDeclaration>() )
-        return memberScope(*resolveIndirections(getDeclaration(var->type())));
-
-    if ( auto field = decl.as<DataProductDeclaration::Field>() )
-        return memberScope(*resolveIndirections(getDeclaration(field->type())));
+        return memberScope(*d);
+    }
 
     if ( auto ds = decl.as<DataSumDeclaration>() )
         return ds->definition();
@@ -873,6 +859,30 @@ DataProductDeclaration const* methodType(ProcedureDeclaration const& proc)
 
     if ( auto dp = decl->as<DataProductDeclaration>() )
         return dp;
+
+    return nullptr;
+}
+
+Expression const* dataType(Expression const& expr_)
+{
+    auto expr = resolveIndirections(&expr_);
+    if ( auto decl = getDeclaration(*expr) ) {
+        if ( isDataDeclaration(decl->kind()) )
+            return expr;
+
+        return nullptr;
+    }
+
+    if ( auto tup = expr->as<TupleExpression>() ) {
+        for ( auto const& e : tup->expressions() )
+            if ( !dataType(*e) )
+                return nullptr;
+
+        return expr;
+    }
+
+    if ( expr->kind() == Expression::Kind::Arrow )
+        return expr;
 
     return nullptr;
 }
@@ -1507,7 +1517,7 @@ struct LevelFinder
 
     result_t exprDot(DotExpression const& d)
     {
-        return exprIdentifier(d);
+        return dispatch(*d.expressions().back());
     }
 
     result_t exprVar(VarExpression const& v)

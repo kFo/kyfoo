@@ -624,6 +624,7 @@ private:
 
 bool isDataDeclaration(DeclKind kind);
 bool isBinder(DeclKind kind);
+Binder const* getBinder(Declaration const& decl);
 bool isCallableDeclaration(DeclKind kind);
 bool isMacroDeclaration(DeclKind kind);
 Expression const* getType(Declaration const& decl);
