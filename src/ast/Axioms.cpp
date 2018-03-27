@@ -298,6 +298,8 @@ bool AxiomsModule::init(Diagnostics& dgn)
         myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).decl())->as<DataSumDeclaration>();
         myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").decl())->as<DataSumDeclaration>();
 
+        myDataSumDecls[size_t] = resolveIndirections(scope()->findEquivalent("size_t").decl())->as<DataSumDeclaration>();
+
         auto childDecls = scope()->childDeclarations();
         auto decl = begin(childDecls);
 

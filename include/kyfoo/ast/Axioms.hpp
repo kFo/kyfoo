@@ -34,7 +34,8 @@ class ModuleSet;
     X(i16                   ) \
     X(i32                   ) \
     X(i64                   ) \
-    X(i128                  )
+    X(i128                  ) \
+    X(size_t                )
 
 enum DataSumIntrinsics
 {

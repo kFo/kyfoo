@@ -774,9 +774,20 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    ret |= elaborateSubject(ctx);
-    if ( !ret )
-        return ret;
+    if ( myExpressions.front()->type()->kind() != Kind::Arrow ) {
+        if ( auto id = identify(*myExpressions.front()) ) {
+            auto decl = id->declaration();
+            if ( auto binder = getBinder(*decl) )
+                return elaborateSpecial(ctx);
+
+            ret |= lowerToApplicable(ctx, *id);
+            if ( !ret )
+                return ret;
+        }
+        else {
+            return elaborateSpecial(ctx);
+        }
+    }
 
     auto arrow = subject()->type()->as<ArrowExpression>();
     if ( !arrow ) {
@@ -793,17 +804,9 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     return ret;
 }
 
-SymRes ApplyExpression::elaborateSubject(Context& ctx)
+SymRes ApplyExpression::lowerToApplicable(Context& ctx, IdentifierExpression& id)
 {
-    auto subject = identify(*myExpressions.front());
-    if ( !subject )
-        return SymRes::Success;
-
-    auto applicable = resolveIndirections(subject->declaration());
-    if ( !applicable ) {
-        ctx.error(*subject) << "does not identify any known declaration";
-        return SymRes::Fail;
-    }
+    auto applicable = id.declaration();
 
     if ( auto d = applicable->as<DataSumDeclaration>() ) {
         auto& err = ctx.error(*myExpressions.front()) << "cannot be the subject of an apply-expression";
@@ -837,7 +840,7 @@ SymRes ApplyExpression::elaborateSubject(Context& ctx)
         if ( !proc )
             throw std::runtime_error("ctor is not a procedure");
 
-        subject->setDeclaration(*proc);
+        id.setDeclaration(*proc);
         return SymRes::Success;
     }
 
@@ -861,7 +864,7 @@ SymRes ApplyExpression::elaborateSubject(Context& ctx)
             return SymRes::Fail;
         }
 
-        subject->setDeclaration(*proc);
+        id.setDeclaration(*proc);
         return SymRes::Success;
     }
 
@@ -874,6 +877,53 @@ SymRes ApplyExpression::elaborateSubject(Context& ctx)
         ctx.error(*myExpressions.front()) << "cannot use import-declaration in apply-expression";
         return SymRes::Fail;
     }
+
+    return SymRes::Success;
+}
+
+SymRes ApplyExpression::elaborateSpecial(Context& ctx)
+{
+    auto subjectType = myExpressions.front()->type()->as<TupleExpression>();
+    if ( !subjectType ) {
+        ctx.error(*myExpressions.front()) << "is not applicable";
+        return SymRes::Fail;
+    }
+
+    if ( subjectType->kind() != TupleKind::Closed ) {
+        ctx.error(*subject()) << "non-closed tuple application not implemented";
+        return SymRes::Fail;
+    }
+
+    if ( myExpressions.size() != 2 ) {
+        ctx.error(*subject()) << "too many arguments to tuple";
+        return SymRes::Fail;
+    }
+
+    if ( auto lit = myExpressions[1]->as<LiteralExpression>() ) {
+        if ( lit->token().kind() != lexer::TokenKind::Integer ) {
+            ctx.error(*lit) << "expected integer for index";
+            return SymRes::Fail;
+        }
+
+        return ctx.rewrite(std::make_unique<DotExpression>(false, std::move(myExpressions)));
+    }
+
+    if ( subjectType->elementsCount() <= 1 ) {
+        ctx.error(*subject()) << "index only implemented for arrays";
+        return SymRes::Fail;
+    }
+
+    auto argType = myExpressions[1]->type();
+    auto indexType = createIdentifier(*ctx.axioms().intrinsic(size_t));
+    if ( !variance(ctx, *indexType, *argType) ) {
+        ctx.error(*myExpressions[1]) << "cannot be converted to size_t";
+        return SymRes::Fail;
+    }
+
+    if ( subjectType->expressions().size() == 1 )
+        myType = subjectType->expressions().front();
+    else
+        myType = &Expression::tuple(subjectType->expressions());
 
     return SymRes::Success;
 }
@@ -1680,6 +1730,15 @@ std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr_
     if ( auto decl = getDeclaration(expr) ) {
         if ( auto var = decl->as<VariableDeclaration>() )
             return {var, var->type()};
+    }
+
+    if ( auto app = expr->as<ApplyExpression>() ) {
+        if ( app->subject()->type()->kind() == Expression::Kind::Tuple )
+            if ( auto decl = getDeclaration(app->subject()) )
+                if ( auto var = decl->as<VariableDeclaration>() )
+                    return {var, app->type()};
+
+        return {nullptr, nullptr};
     }
 
     return {nullptr, nullptr};

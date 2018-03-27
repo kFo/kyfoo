@@ -798,6 +798,20 @@ private:
                 return customData(*param)->arg;
         }
 
+        if ( auto app = expr->as<ast::ApplyExpression>() ) {
+            if ( app->expressions().size() == 2
+                && app->subject()->type()->kind() == ast::Expression::Kind::Tuple )
+            {
+                auto arr = toRef(builder, *app->subject());
+                auto idx = toValue(builder, builder.getInt64Ty(), *app->expressions()[1]);
+                llvm::Value* idxList[] = {
+                    llvm::ConstantInt::get(idx->getType(), 0),
+                    idx,
+                };
+                return builder.CreateGEP(arr, idxList);
+            }
+        }
+
         return nullptr;
     }
 

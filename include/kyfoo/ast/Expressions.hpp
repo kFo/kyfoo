@@ -399,7 +399,8 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    SymRes elaborateSubject(Context& ctx);
+    SymRes lowerToApplicable(Context& ctx, IdentifierExpression& id);
+    SymRes elaborateSpecial(Context& ctx);
     void flatten();
     void flatten(std::vector<std::unique_ptr<Expression>>::iterator first);
 
