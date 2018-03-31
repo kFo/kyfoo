@@ -64,6 +64,37 @@ enum DataProductIntrinsics
                     \
     X(Addu        ) \
     X(Adds        ) \
+    X(Subu        ) \
+    X(Subs        ) \
+    X(Mulu        ) \
+    X(Muls        ) \
+    X(Divu        ) \
+    X(Divs        ) \
+    X(Remu        ) \
+    X(Rems        ) \
+    X(Shlu        ) \
+    X(Shls        ) \
+    X(Shru        ) \
+    X(Shrs        ) \
+    X(Bitandu     ) \
+    X(Bitands     ) \
+    X(Bitoru      ) \
+    X(Bitors      ) \
+    X(Bitxoru     ) \
+    X(Bitxors     ) \
+                    \
+    X(Equ         ) \
+    X(Eqs         ) \
+    X(Nequ        ) \
+    X(Neqs        ) \
+    X(Gtu         ) \
+    X(Gts         ) \
+    X(Geu         ) \
+    X(Ges         ) \
+    X(Ltu         ) \
+    X(Lts         ) \
+    X(Leu         ) \
+    X(Les         ) \
                     \
     X(Truncu1u8   ) \
     X(Truncu1u16  ) \

@@ -955,14 +955,58 @@ private:
             auto v = getThis(builder, *proc, *a);
             return v;
         }
-        else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Addu)->symbol(), proc->symbol())
-                || ast::descendsFromTemplate(axioms.intrinsic(ast::Adds)->symbol(), proc->symbol()) )
-        {
-            auto type = toType(*exprs[1]->type());
-            auto p1 = toValue(builder, type, *exprs[1]);
-            auto p2 = toValue(builder, type, *exprs[2]);
-            return builder.CreateAdd(p1, p2);
+
+        // todo: hash lookup
+#define US(SYM)    \
+    X(SYM##u, SYM) \
+    X(SYM##s, SYM)
+
+#define X_INSTR(X)   \
+    US(Add)          \
+    US(Sub)          \
+    US(Mul)          \
+    X(Divu, UDiv)    \
+    X(Divs, SDiv)    \
+    X(Remu, URem)    \
+    X(Rems, SRem)    \
+                     \
+    US(Shl)          \
+    X(Shru   , LShr) \
+    X(Shrs   , AShr) \
+    X(Bitandu, And ) \
+    X(Bitands, And ) \
+    X(Bitoru , Or  ) \
+    X(Bitors , Or  ) \
+    X(Bitxoru, Xor ) \
+    X(Bitxoru, Xor ) \
+                     \
+    X(Equ , ICmpEQ ) \
+    X(Eqs , ICmpEQ ) \
+    X(Nequ, ICmpNE ) \
+    X(Neqs, ICmpNE ) \
+    X(Gtu , ICmpUGT) \
+    X(Gts , ICmpSGT) \
+    X(Geu , ICmpUGE) \
+    X(Ges , ICmpSGE) \
+    X(Ltu , ICmpULT) \
+    X(Lts , ICmpSLT) \
+    X(Leu , ICmpULE) \
+    X(Les , ICmpSLE) \
+
+#define X(ID,LLVMSUFFIX)                                                                             \
+        else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::ID)->symbol(), proc->symbol()) ) { \
+            auto type = toType(*exprs[1]->type());                                                   \
+            auto p1 = toValue(builder, type, *exprs[1]);                                             \
+            auto p2 = toValue(builder, type, *exprs[2]);                                             \
+            return builder.Create##LLVMSUFFIX(p1, p2);                                               \
         }
+
+        X_INSTR(X)
+
+#undef X
+#undef X_INSTR
+#undef US
+
         else if ( proc == axioms.intrinsic(ast::Truncu1u8)
                 || proc == axioms.intrinsic(ast::Truncu1u16)
                 || proc == axioms.intrinsic(ast::Truncu1u32)

@@ -53,10 +53,100 @@ size_t := unsigned<wordSize>
 staticSize(p : ptr \T) -> size_t => wordSize
 
 @"intrininst" "Addu"
-add(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
+add(x y : unsigned<\n>) -> unsigned<n>
 
 @"intrininst" "Adds"
-add(x : signed<\n>, y : signed<n>) -> signed<n>
+add(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Subu"
+sub(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Subs"
+sub(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Mulu"
+mul(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Muls"
+mul(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Divu"
+div(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Divs"
+div(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Remu"
+rem(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Rems"
+rem(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Shlu"
+shl(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
+
+@"intrininst" "Shls"
+shl(x : signed<\n>, y : unsigned<n>) -> signed<n>
+
+@"intrininst" "Shru"
+shr(x : unsigned<\n>, y : unsigned<n>) -> unsigned<n>
+
+@"intrininst" "Shrs"
+shr(x : signed<\n>, y : unsigned<n>) -> signed<n>
+
+@"intrininst" "Bitandu"
+bitand(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Bitands"
+bitand(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Bitoru"
+bitor(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Bitors"
+bitor(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Bitxoru"
+bitxor(x y : unsigned<\n>) -> unsigned<n>
+
+@"intrininst" "Bitxors"
+bitxor(x y : signed<\n>) -> signed<n>
+
+@"intrininst" "Equ"
+eq(x y : unsigned<\n>) -> u1
+
+@"intrininst" "Eqs"
+eq(x y : signed<\n>) -> u1
+
+@"intrininst" "Nequ"
+neq(x y : unsigned<\n>) -> u1
+
+@"intrininst" "Neqs"
+neq(x y : signed<\n>) -> u1
+
+@"intrininst" "Gtu"
+gt(x y : unsigned<\n>) -> u1
+
+@"intrininst" "Gts"
+gt(x y : signed<\n>) -> u1
+
+@"intrininst" "Geu"
+ge(x y : unsigned<\n>) -> u1
+
+@"intrininst" "Ges"
+ge(x y : signed<\n>) -> u1
+
+@"intrininst" "Ltu"
+lt(x y : unsigned<\n>) -> u1
+
+@"intrininst" "Lts"
+lt(x y : signed<\n>) -> u1
+
+@"intrininst" "Leu"
+le(x y : unsigned<\n>) -> u1
+
+@"intrininst" "Les"
+le(x y : signed<\n>) -> u1
 
 trunc<unsigned<1 >>(x : unsigned<8  >) -> unsigned<1 >
 trunc<unsigned<1 >>(x : unsigned<16 >) -> unsigned<1 >
@@ -244,6 +334,8 @@ void AxiomsModule::setIntrinsic(std::string const& nameLiteral, Declaration cons
         myInstructionDecls[std::find(instrs, instrs + InstructionIntrinsicsCount, name) - instrs] = proc;
         return;
     }
+
+    throw std::runtime_error("unknown intrinsic");
 }
 
 void AxiomsModule::findIntrinsics(DeclarationScope const* s)
