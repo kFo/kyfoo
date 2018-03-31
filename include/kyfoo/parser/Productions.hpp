@@ -78,29 +78,33 @@ struct Primary : public
     }
 };
 
-class Expression
+template <typename T>
+class Defer
 {
 public:
-    Expression();
+    Defer();
 
-    Expression(Expression const& rhs);
-    Expression& operator = (Expression const& rhs);
+    Defer(Defer const& rhs);
+    Defer& operator = (Defer const& rhs);
 
-    Expression(Expression&& rhs);
-    Expression& operator = (Expression&& rhs);
+    Defer(Defer&& rhs);
+    Defer& operator = (Defer&& rhs);
 
-    ~Expression();
+    ~Defer();
 
-    void swap(Expression& rhs);
+    void swap(Defer& rhs);
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);
     std::unique_ptr<ast::Expression> make() const;
 
 private:
-    struct impl;
-    std::unique_ptr<impl> myGrammar;
+    std::unique_ptr<T> myGrammar;
 };
+
+struct AssignExpression;
+
+using Expression = Defer<AssignExpression>;
 
 inline std::vector<std::unique_ptr<ast::Expression>>
 expressions(std::vector<Expression> const& rhs)
@@ -256,6 +260,51 @@ struct RangeExpression : public
     }
 };
 
+struct ApplyExpression :
+    g::OneOrMore<RangeExpression>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        if ( captures().size() == 1 )
+            return captures().front().make();
+
+        std::vector<std::unique_ptr<ast::Expression>> exprs;
+        exprs.reserve(captures().size());
+        for ( auto const& c : captures() )
+            exprs.emplace_back(c.make());
+
+        return std::make_unique<ast::ApplyExpression>(std::move(exprs));
+    }
+};
+
+struct ConstraintExpression :
+    g::OneOrMore2<ApplyExpression, colon>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        auto ret = captures().front().make();
+        for ( std::size_t i = 1; i < captures().size(); ++i )
+            ret->addConstraint(captures()[i].make());
+
+        return ret;
+    }
+};
+
+struct AssignExpression :
+    g::OneOrMore2<ConstraintExpression, equal>
+{
+    std::unique_ptr<ast::Expression> make() const
+    {
+        auto const& c = captures();
+        std::unique_ptr<ast::Expression> ret = c.back().make();
+        for ( std::size_t i = c.size() - 2; ~i; --i )
+            ret = std::make_unique<ast::AssignExpression>(c[i].make(),
+                                                          std::move(ret));
+
+        return ret;
+    }
+};
+
 struct Symbol : public
     g::Or<SymbolExpression, id>
 {
@@ -342,11 +391,11 @@ struct VarDecl
     std::unique_ptr<ast::Expression> initializer;
 };
 
-struct ExplicitVariableDeclaration : public
+struct VariableDeclaration : public
     g::And<colonEqual
          , id
-         , g::Opt<g::And<colon, Expression>>
-         , g::Opt<g::And<equal, Expression>>>
+         , g::Opt<g::And<colon, ConstraintExpression>>
+         , g::Opt<g::And<equal, AssignExpression>>>
 {
     VarDecl make() const
     {
@@ -359,39 +408,6 @@ struct ExplicitVariableDeclaration : public
             init = i->factor<1>().make();
 
         return { factor<1>().token(), std::move(constraints), std::move(init) };
-    }
-};
-
-struct ImplicitVariableDeclaration : public
-    g::And<id
-         , colon
-         , g::Opt<Expression>
-         , equal
-         , g::Opt<Expression>>
-{
-    VarDecl make() const
-    {
-        std::vector<std::unique_ptr<ast::Expression>> constraints;
-        if ( auto c = factor<2>().capture() )
-            constraints = flattenConstraints(c->make());
-
-        std::unique_ptr<ast::Expression> init;
-        if ( auto i = factor<4>().capture() )
-            init = i->make();
-
-        return { factor<0>().token(), std::move(constraints), std::move(init) };
-    }
-};
-
-struct VariableDeclaration : public
-    g::Or<ExplicitVariableDeclaration, ImplicitVariableDeclaration>
-{
-    VarDecl make() const
-    {
-        if ( index() == 0 )
-            return term<0>().make();
-        else
-            return term<1>().make();
     }
 };
 
@@ -473,7 +489,7 @@ struct JumpJunction : public
 };
 
 struct SymbolDeclaration : public
-    g::And<Symbol, equal, Expression>
+    g::And<Symbol, colonEqual, Expression>
 {
     std::unique_ptr<ast::SymbolDeclaration> make() const
     {
@@ -542,6 +558,66 @@ struct Attribute : public
         return factor<1>().make();
     }
 };
+
+//
+// Defer
+
+template <typename T>
+Defer<T>::Defer() = default;
+
+template <typename T>
+Defer<T>::Defer(Defer const& rhs)
+    : myGrammar(rhs.myGrammar ? std::make_unique<T>(*rhs.myGrammar) : nullptr)
+{
+}
+
+template <typename T>
+Defer<T>& Defer<T>::operator = (Defer const& rhs)
+{
+    Expression(rhs).swap(*this);
+    return *this;
+}
+
+template <typename T>
+Defer<T>::Defer(Defer&& rhs)
+    : myGrammar(std::move(rhs.myGrammar))
+{
+}
+
+template <typename T>
+Defer<T>& Defer<T>::operator = (Defer&& rhs)
+{
+    myGrammar = std::move(rhs.myGrammar);
+    return *this;
+}
+
+template <typename T>
+Defer<T>::~Defer() = default;
+
+template <typename T>
+void Defer<T>::swap(Defer& rhs)
+{
+    using std::swap;
+    swap(myGrammar, rhs.myGrammar);
+}
+
+template <typename T>
+bool Defer<T>::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+{
+    if ( !myGrammar )
+        myGrammar = std::make_unique<T>();
+
+    if ( myGrammar->match(scan, matches) )
+        return scan.commit();
+
+    return false;
+}
+
+template <typename T>
+std::unique_ptr<ast::Expression> Defer<T>::make() const
+{
+    return myGrammar->make();
+}
 
     } // namespace parser
 } // namespace kyfoo

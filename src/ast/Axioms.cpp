@@ -11,20 +11,20 @@ auto source = R"axioms(
 @"intrininst" "PointerTemplate"
 :| ptr<\T>
 
-u1   = unsigned<1  >
-u8   = unsigned<8  >
-u16  = unsigned<16 >
-u32  = unsigned<32 >
-u64  = unsigned<64 >
-u128 = unsigned<128>
+u1   := unsigned<1  >
+u8   := unsigned<8  >
+u16  := unsigned<16 >
+u32  := unsigned<32 >
+u64  := unsigned<64 >
+u128 := unsigned<128>
 
-i8   = signed<u8  >
-i16  = signed<u16 >
-i32  = signed<u32 >
-i64  = signed<u64 >
-i128 = signed<u128>
+i8   := signed<u8  >
+i16  := signed<u16 >
+i32  := signed<u32 >
+i64  := signed<u64 >
+i128 := signed<u128>
 
-ascii = slice<u8>
+ascii := slice<u8>
 
 @"intrininst" "ArrayStaticTemplate"
 :& array<\T, \card : integer>
@@ -47,8 +47,8 @@ ascii = slice<u8>
     @"intrininst" "Sliceu8_dtor"
     dtor()
 
-wordSize = 64
-size_t = unsigned<wordSize>
+wordSize := 64
+size_t := unsigned<wordSize>
 
 staticSize(p : ptr \T) -> size_t => wordSize
 

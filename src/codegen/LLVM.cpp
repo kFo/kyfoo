@@ -911,10 +911,13 @@ private:
             return builder.CreateCall(customData(*proc)->body, params);
         }
 
-        if ( auto varExpr = expr.as<ast::VarExpression>() ) {
-            auto var = varExpr->identity().declaration()->as<ast::VariableDeclaration>();
+        if ( auto assign = expr.as<ast::AssignExpression>() ) {
+            auto ref = getRef(assign->left());
+            auto var = std::get<0>(ref)->as<ast::VariableDeclaration>();
+            if ( !var )
+                die("assignment is not a variable");
             auto vdata = customData(*var);
-            builder.CreateStore(toValue(builder, vdata->inst->getAllocatedType(), varExpr->expression()),
+            builder.CreateStore(toValue(builder, vdata->inst->getAllocatedType(), assign->right()),
                                 vdata->inst);
             return builder.CreateLoad(vdata->inst);
         }

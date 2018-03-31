@@ -184,10 +184,10 @@ struct SymbolDependencyBuilder
             dispatch(*e);
     }
 
-    result_t exprVar(VarExpression const& v)
+    result_t exprAssign(AssignExpression const& v)
     {
-        exprIdentifier(v.identity());
-        dispatch(v.expression());
+        dispatch(v.left());
+        dispatch(v.right());
     }
 
     result_t exprLambda(LambdaExpression const& l)
@@ -211,11 +211,6 @@ struct SymbolDependencyBuilder
     result_t stmtExpression(Statement const& s)
     {
         dispatch(s.expression());
-    }
-
-    result_t stmtConstruction(ConstructionStatement const& c)
-    {
-        exprVar(c.varExpression());
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -937,10 +932,10 @@ struct MetaVariableVisitor
             dispatch(*e);
     }
 
-    result_t exprVar(VarExpression& v)
+    result_t exprAssign(AssignExpression& v)
     {
-        exprIdentifier(v.identity());
-        dispatch(v.expression());
+        dispatch(v.left());
+        dispatch(v.right());
     }
 
     result_t exprLambda(LambdaExpression& l)
@@ -964,11 +959,6 @@ struct MetaVariableVisitor
     result_t stmtExpression(Statement& e)
     {
         return dispatch(e.expression());
-    }
-
-    result_t stmtConstruction(ConstructionStatement& c)
-    {
-        return varExpr(c.varExpression());
     }
 
     result_t juncBranch(BranchJunction& b)
@@ -1067,9 +1057,9 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t exprVar(VarExpression const& v)
+    result_t exprAssign(AssignExpression const& v)
     {
-        return exprIdentifier(v.identity()) || dispatch(v.expression());
+        return dispatch(v.left()) || dispatch(v.right());
     }
 
     result_t exprLambda(LambdaExpression const& l)
@@ -1092,11 +1082,6 @@ struct HasMetaVariable
     result_t stmtExpression(Statement const& e)
     {
         return dispatch(e.expression());
-    }
-
-    result_t stmtConstruction(ConstructionStatement const& c)
-    {
-        return exprVar(c.varExpression());
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -1187,9 +1172,9 @@ struct FrontToken
         return dispatch(*d.expressions()[0]);
     }
 
-    result_t exprVar(VarExpression const& v)
+    result_t exprAssign(AssignExpression const& v)
     {
-        return exprIdentifier(v.identity());
+        return dispatch(v.left());
     }
 
     result_t exprLambda(LambdaExpression const& l)
@@ -1210,11 +1195,6 @@ struct FrontToken
     result_t stmtExpression(Statement const& e)
     {
         return dispatch(e.expression());
-    }
-
-    result_t stmtConstruction(ConstructionStatement const& c)
-    {
-        return exprVar(c.varExpression());
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -1383,15 +1363,12 @@ struct PrintOperator
         return stream;
     }
 
-    result_t exprVar(VarExpression const& v)
+    result_t exprAssign(AssignExpression const& v)
     {
-        if ( v.identity().token().kind() != lexer::TokenKind::Undefined ) {
-            exprIdentifier(v.identity());
-            printType(v.identity());
-            stream << " = ";
-        }
+        dispatch(v.left());
+        stream << " = ";
 
-        return dispatch(v.expression());
+        return dispatch(v.right());
     }
 
     result_t exprLambda(LambdaExpression const& l)
@@ -1416,11 +1393,6 @@ struct PrintOperator
     result_t stmtExpression(Statement const& s)
     {
         return dispatch(s.expression());
-    }
-
-    result_t stmtConstruction(ConstructionStatement const& c)
-    {
-        return exprVar(c.varExpression());
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -1520,13 +1492,9 @@ struct LevelFinder
         return dispatch(*d.expressions().back());
     }
 
-    result_t exprVar(VarExpression const& v)
+    result_t exprAssign(AssignExpression const& v)
     {
-        result_t max = 0;
-        if ( v.identity().token().kind() != lexer::TokenKind::Undefined )
-            max = exprIdentifier(v.identity());
-
-        return std::max(max, dispatch(v.expression()));
+        return std::max(dispatch(v.left()), dispatch(v.right()));
     }
 
     result_t exprLambda(LambdaExpression const& l)

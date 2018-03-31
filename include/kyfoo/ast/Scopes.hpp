@@ -389,7 +389,6 @@ public:
 
 public:
     void append(std::unique_ptr<Expression> expr);
-    void appendConstruction(std::unique_ptr<VarExpression> expr);
     BasicBlock* createBasicBlock();
     void popBasicBlock();
     ProcedureScope* createChildScope(BasicBlock* mergeBlock,

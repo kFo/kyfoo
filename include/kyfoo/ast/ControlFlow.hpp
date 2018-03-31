@@ -16,12 +16,11 @@ class Declaration;
 class Expression;
 class ProcedureScope;
 class SymRes;
-class VarExpression;
+class AssignExpression;
 class VariableDeclaration;
 
-#define STATEMENT_KINDS(X)                 \
-    X(Expression  , Statement            ) \
-    X(Construction, ConstructionStatement)
+#define STATEMENT_KINDS(X)    \
+    X(Expression  , Statement)
 
 class Statement : public IIO
 {
@@ -81,37 +80,9 @@ private:
     std::vector<std::unique_ptr<VariableDeclaration>> myUnnamedVariables;
 };
 
-class ConstructionStatement : public Statement
-{
-public:
-    explicit ConstructionStatement(std::unique_ptr<VarExpression> expr);
-
-protected:
-    ConstructionStatement(ConstructionStatement const& rhs);
-    ConstructionStatement& operator = (ConstructionStatement const& rhs);
-
-public:
-    ConstructionStatement(ConstructionStatement&&) = delete;
-
-    ~ConstructionStatement();
-    void swap(ConstructionStatement& rhs);
-
-    // Statement
-public:
-    void io(IStream& stream) const override;
-    DECL_CLONE_ALL(Statement)
-
-protected:
-    SymRes resolveSymbols(Context& ctx) override;
-
-public:
-    VarExpression const& varExpression() const;
-    VarExpression& varExpression();
-};
-
-#define JUNCTION_KINDS(X) \
-    X(Branch, BranchJunction)    \
-    X(Return, ReturnJunction)    \
+#define JUNCTION_KINDS(X)     \
+    X(Branch, BranchJunction) \
+    X(Return, ReturnJunction) \
     X(Jump  , JumpJunction  )
 
 class Junction : public IIO
@@ -322,7 +293,6 @@ public:
     void appendIncoming(BasicBlock& from);
 
     void append(std::unique_ptr<Expression> expr);
-    void appendConstruction(std::unique_ptr<VarExpression> expr);
 
     void setJunction(std::unique_ptr<Junction> junction);
     

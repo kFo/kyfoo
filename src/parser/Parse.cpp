@@ -447,12 +447,14 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
         VariableDeclaration varGrammar;
         if ( parse(scanner, varGrammar) ) {
             auto v = varGrammar.make();
-            auto var = std::make_unique<ast::VariableDeclaration>(ast::Symbol(v.token), *scope(), std::move(v.constraints));
+            auto var = std::make_unique<ast::VariableDeclaration>(ast::Symbol(v.token),
+                                                                  *scope(),
+                                                                  std::move(v.constraints));
             static_cast<ast::DeclarationScope*>(scope())->append(std::move(var));
             if ( v.initializer ) {
                 auto p = std::make_unique<ast::IdentifierExpression>(v.token, *scope()->childDeclarations().back());
-                auto expr = std::make_unique<ast::VarExpression>(std::move(p), std::move(v.initializer));
-                scope()->appendConstruction(std::move(expr));
+                auto expr = std::make_unique<ast::AssignExpression>(std::move(p), std::move(v.initializer));
+                scope()->append(std::move(expr));
             }
             return std::make_tuple(true, nullptr);
         }

@@ -35,7 +35,7 @@ class VariableDeclaration;
     X(Apply     , ApplyExpression     ) \
     X(Symbol    , SymbolExpression    ) \
     X(Dot       , DotExpression       ) \
-    X(Var       , VarExpression       ) \
+    X(Assign    , AssignExpression    ) \
     X(Lambda    , LambdaExpression    ) \
     X(Arrow     , ArrowExpression     ) \
     X(Universe  , UniverseExpression  )
@@ -505,22 +505,22 @@ private:
     bool myModScope = false;
 };
 
-class VarExpression : public Expression
+class AssignExpression : public Expression
 {
 public:
-    VarExpression(std::unique_ptr<IdentifierExpression> id,
-                  std::unique_ptr<Expression> expression);
-    VarExpression(VariableDeclaration const& var,
-                  std::unique_ptr<Expression> expression);
+    AssignExpression(std::unique_ptr<Expression> lhs,
+                     std::unique_ptr<Expression> rhs);
+    AssignExpression(VariableDeclaration const& var,
+                     std::unique_ptr<Expression> expression);
 
 protected:
-    VarExpression(VarExpression const& rhs);
-    VarExpression& operator = (VarExpression const& rhs);
+    AssignExpression(AssignExpression const& rhs);
+    AssignExpression& operator = (AssignExpression const& rhs);
 
 public:
-    ~VarExpression();
+    ~AssignExpression();
 
-    void swap(VarExpression& rhs);
+    void swap(AssignExpression& rhs);
 
     // IIO
 public:
@@ -532,14 +532,14 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    IdentifierExpression const& identity() const;
-    IdentifierExpression& identity();
-    Expression const& expression() const;
-    Expression& expression();
+    Expression const& left() const;
+    Expression& left();
+    Expression const& right() const;
+    Expression& right();
 
 private:
-    std::unique_ptr<IdentifierExpression> myIdentity;
-    std::unique_ptr<Expression> myExpression;
+    std::unique_ptr<Expression> myLeft;
+    std::unique_ptr<Expression> myRight;
 };
 
 class LambdaExpression : public Expression

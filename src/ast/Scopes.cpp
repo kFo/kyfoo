@@ -758,14 +758,6 @@ void ProcedureScope::append(std::unique_ptr<Expression> expr)
     myBasicBlocks.back()->append(std::move(expr));
 }
 
-void ProcedureScope::appendConstruction(std::unique_ptr<VarExpression> expr)
-{
-    if ( myBasicBlocks.back()->junction() )
-        createBasicBlock();
-
-    myBasicBlocks.back()->appendConstruction(std::move(expr));
-}
-
 BasicBlock* ProcedureScope::createBasicBlock()
 {
     myBasicBlocks.emplace_back(std::make_unique<BasicBlock>(this));

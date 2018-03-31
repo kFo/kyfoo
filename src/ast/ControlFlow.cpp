@@ -173,57 +173,6 @@ void Statement::appendUnnamed(ProcedureScope& scope, Expression const& expr)
 }
 
 //
-// ConstructionStatement
-
-ConstructionStatement::ConstructionStatement(std::unique_ptr<VarExpression> expr)
-    : Statement(Kind::Construction, std::move(expr))
-{
-}
-
-ConstructionStatement::ConstructionStatement(ConstructionStatement const& rhs)
-    : Statement(rhs)
-{
-}
-
-ConstructionStatement& ConstructionStatement::operator = (ConstructionStatement const& rhs)
-{
-    ConstructionStatement(rhs).swap(*this);
-    return *this;
-}
-
-ConstructionStatement::~ConstructionStatement() = default;
-
-void ConstructionStatement::swap(ConstructionStatement& rhs)
-{
-    Statement::swap(rhs);
-}
-
-void ConstructionStatement::io(IStream& stream) const
-{
-    Statement::io(stream);
-}
-
-IMPL_CLONE_BEGIN(ConstructionStatement, Statement, Statement)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ConstructionStatement, Statement)
-IMPL_CLONE_REMAP_END
-
-SymRes ConstructionStatement::resolveSymbols(Context& ctx)
-{
-    return Statement::resolveSymbols(ctx);
-}
-
-VarExpression const& ConstructionStatement::varExpression() const
-{
-    return static_cast<VarExpression const&>(expression());
-}
-
-VarExpression& ConstructionStatement::varExpression()
-{
-    return static_cast<VarExpression&>(expression());
-}
-
-//
 // Junction
 
 Junction::Junction(Kind kind)
@@ -693,11 +642,6 @@ void BasicBlock::appendIncoming(BasicBlock& from)
 void BasicBlock::append(std::unique_ptr<Expression> expr)
 {
     myStatements.emplace_back(std::make_unique<Statement>(std::move(expr)));
-}
-
-void BasicBlock::appendConstruction(std::unique_ptr<VarExpression> expr)
-{
-    myStatements.emplace_back(std::make_unique<ConstructionStatement>(std::move(expr)));
 }
 
 void BasicBlock::setJunction(std::unique_ptr<Junction> junction)

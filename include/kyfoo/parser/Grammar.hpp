@@ -670,14 +670,3 @@ constexpr OneOrMore2<U, V> operator + (U const& lhs, V const& rhs)
 }
 
 } // namespace g
-
-namespace kyfoo {
-    namespace parser {
-
-class Declaration;
-class Expression;
-
-
-
-    } // namespace parser
-} // namespace kyfoo

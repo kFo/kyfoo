@@ -1292,101 +1292,101 @@ bool DotExpression::isModuleScope() const
 }
 
 //
-// VarExpression
+// AssignExpression
 
-VarExpression::VarExpression(std::unique_ptr<IdentifierExpression> id,
-                             std::unique_ptr<Expression> expression)
-    : Expression(Kind::Var)
-    , myIdentity(std::move(id))
-    , myExpression(std::move(expression))
+AssignExpression::AssignExpression(std::unique_ptr<Expression> lhs,
+                                   std::unique_ptr<Expression> rhs)
+    : Expression(Kind::Assign)
+    , myLeft(std::move(lhs))
+    , myRight(std::move(rhs))
 {
 }
 
-VarExpression::VarExpression(VariableDeclaration const& var,
-                             std::unique_ptr<Expression> expression)
-    : Expression(Kind::Var)
-    , myIdentity(createIdentifier(var))
-    , myExpression(std::move(expression))
+AssignExpression::AssignExpression(VariableDeclaration const& var,
+                                   std::unique_ptr<Expression> expression)
+    : Expression(Kind::Assign)
+    , myLeft(createIdentifier(var))
+    , myRight(std::move(expression))
 {
-    myIdentity->setDeclaration(var);
+    myLeft->as<IdentifierExpression>()->setDeclaration(var);
 }
 
-VarExpression::VarExpression(VarExpression const& rhs)
+AssignExpression::AssignExpression(AssignExpression const& rhs)
     : Expression(rhs)
 {
 }
 
-VarExpression& VarExpression::operator = (VarExpression const& rhs)
+AssignExpression& AssignExpression::operator = (AssignExpression const& rhs)
 {
-    VarExpression(rhs).swap(*this);
+    AssignExpression(rhs).swap(*this);
     return *this;
 }
 
-VarExpression::~VarExpression() = default;
+AssignExpression::~AssignExpression() = default;
 
-void VarExpression::swap(VarExpression& rhs)
+void AssignExpression::swap(AssignExpression& rhs)
 {
     Expression::swap(rhs);
     using std::swap;
-    swap(myIdentity, rhs.myIdentity);
-    swap(myExpression, rhs.myExpression);
+    swap(myLeft, rhs.myLeft);
+    swap(myRight, rhs.myRight);
 }
 
-void VarExpression::io(IStream& stream) const
+void AssignExpression::io(IStream& stream) const
 {
-    stream.next("identity", myIdentity);
-    stream.next("expression", myExpression);
+    stream.next("left", myLeft);
+    stream.next("right", myRight);
 }
 
-IMPL_CLONE_BEGIN(VarExpression, Expression, Expression)
-IMPL_CLONE_CHILD(myIdentity)
-IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_BEGIN(AssignExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myLeft)
+IMPL_CLONE_CHILD(myRight)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(VarExpression, Expression)
-IMPL_CLONE_REMAP(myIdentity)
-IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP_BEGIN(AssignExpression, Expression)
+IMPL_CLONE_REMAP(myLeft)
+IMPL_CLONE_REMAP(myRight)
 IMPL_CLONE_REMAP_END
 
-SymRes VarExpression::resolveSymbols(Context& ctx)
+SymRes AssignExpression::resolveSymbols(Context& ctx)
 {
     if ( myType )
         return SymRes::Success;
 
-    auto ret = ctx.resolveExpression(*myIdentity);
+    auto ret = ctx.resolveExpression(*myLeft);
     if ( !ret )
         return ret;
 
-    ret = ctx.resolveExpression(myExpression);
+    ret = ctx.resolveExpression(myRight);
     if ( !ret )
         return ret;
 
-    if ( !variance(ctx, *myIdentity, *myExpression) ) {
+    if ( !variance(ctx, *myLeft, *myRight) ) {
         ctx.error(*this) << "assignment expression type does not match variable type";
         return SymRes::Fail;
     }
 
-    myType = myIdentity->type();
+    myType = myLeft->type();
     return SymRes::Success;
 }
 
-IdentifierExpression const& VarExpression::identity() const
+Expression const& AssignExpression::left() const
 {
-    return *myIdentity;
+    return *myLeft;
 }
 
-IdentifierExpression& VarExpression::identity()
+Expression& AssignExpression::left()
 {
-    return *myIdentity;
+    return *myLeft;
 }
 
-Expression const& VarExpression::expression() const
+Expression const& AssignExpression::right() const
 {
-    return *myExpression;
+    return *myRight;
 }
 
-Expression& VarExpression::expression()
+Expression& AssignExpression::right()
 {
-    return *myExpression;
+    return *myRight;
 }
 
 //
