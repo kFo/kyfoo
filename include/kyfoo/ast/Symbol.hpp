@@ -38,6 +38,9 @@ using const_pattern_t = Slice<Expression const*>;
 class PatternsPrototype : public IIO
 {
 public:
+    friend class ProcedureDeclaration;
+
+public:
     PatternsPrototype();
     PatternsPrototype(std::vector<std::unique_ptr<Expression>>&& pattern);
 

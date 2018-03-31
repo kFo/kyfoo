@@ -392,9 +392,6 @@ struct CodeGenPass
             die();
         }
 
-        if ( decl.result()->passSemantics() == ast::ProcedureParameter::ByReference )
-            returnType = llvm::PointerType::getUnqual(returnType);
-
         std::vector<llvm::Type*> params;
         params.reserve(decl.parameters().size());
         for ( auto const& p : decl.parameters() ) {
@@ -403,9 +400,6 @@ struct CodeGenPass
                 error(p->symbol().token()) << "cannot resolve parameter type";
                 die();
             }
-
-            if ( p->passSemantics() == ast::ProcedureParameter::ByReference )
-                paramType = llvm::PointerType::getUnqual(paramType);
 
             params.push_back(paramType);
         }

@@ -392,22 +392,14 @@ class ProcedureParameter : public Binder
 public:
     friend class ProcedureDeclaration;
 
-    enum PassSemantics
-    {
-        ByValue,
-        ByReference,
-    };
-
 public:
     ProcedureParameter(Symbol&& symbol,
                        ProcedureDeclaration& proc,
-                       std::vector<std::unique_ptr<Expression>>&& constraints,
-                       PassSemantics passSemantics);
+                       std::vector<std::unique_ptr<Expression>>&& constraints);
 
     ProcedureParameter(Symbol&& symbol,
                        ProcedureDeclaration& proc,
-                       Expression const* type,
-                       PassSemantics passSemantics);
+                       Expression const* type);
 
 protected:
     ProcedureParameter(ProcedureParameter const& rhs);
@@ -430,12 +422,6 @@ public:
 
 protected:
     SymRes resolveSymbols(Context& ctx) override;
-
-public:
-    PassSemantics passSemantics() const;
-
-private:
-    PassSemantics myPassSemantics = ByValue;
 };
 
 class ProcedureDeclaration : public Declaration

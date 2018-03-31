@@ -660,25 +660,20 @@ SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
                                        ProcedureDeclaration& proc,
-                                       std::vector<std::unique_ptr<Expression>>&& constraints,
-                                       PassSemantics passSemantics)
+                                       std::vector<std::unique_ptr<Expression>>&& constraints)
     : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), std::move(constraints))
-    , myPassSemantics(passSemantics)
 {
 }
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
                                        ProcedureDeclaration& proc,
-                                       Expression const* type,
-                                       PassSemantics passSemantics)
+                                       Expression const* type)
     : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), type)
-    , myPassSemantics(passSemantics)
 {
 }
 
 ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs)
     : Binder(rhs)
-    , myPassSemantics(rhs.myPassSemantics)
 {
 }
 
@@ -693,8 +688,6 @@ ProcedureParameter::~ProcedureParameter() = default;
 void ProcedureParameter::swap(ProcedureParameter& rhs)
 {
     Binder::swap(rhs);
-    using std::swap;
-    swap(myPassSemantics, rhs.myPassSemantics);
 }
 
 void ProcedureParameter::io(IStream& stream) const
@@ -710,11 +703,6 @@ IMPL_CLONE_REMAP_END
 SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 {
     return Binder::resolveSymbols(ctx);
-}
-
-ProcedureParameter::PassSemantics ProcedureParameter::passSemantics() const
-{
-    return myPassSemantics;
 }
 
 //
@@ -791,33 +779,40 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
                     Symbol(thisToken),
                     *this,
                     createPtrList<Expression>(std::make_unique<IdentifierExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this_t"),
-                                                                                     *thisType)),
-                    ProcedureParameter::ByReference));
+                                                                                     *thisType))));
         }
 
-        for ( int i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
-            auto& pattern = mySymbol->prototype().pattern()[i];
-            auto expr = pattern;
-            if ( auto a = pattern->as<ApplyExpression>() ) {
-                if ( a->expressions().size() != 1 )
-                    continue;
+        auto canBeParam = [&ctx](Expression const& e) {
+            auto p = e.as<IdentifierExpression>();
+            if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
+                return false;
 
-                expr = a->expressions()[0];
+            if ( ctx.matchOverload(p->token().lexeme()) )
+                return false;
+
+            return true;
+        };
+
+        for ( std::size_t i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
+            if ( auto app = mySymbol->prototype().pattern()[i]->as<ApplyExpression>() ) {
+                auto& protoPattern = mySymbol->prototype().myPattern;
+                auto a = std::move(reinterpret_cast<std::unique_ptr<ApplyExpression>&>(protoPattern[i]));
+                protoPattern[i] = std::move(a->myExpressions[0]);
+                for ( std::size_t j = 1; j < a->myExpressions.size(); ++j ) {
+                    protoPattern.emplace(begin(protoPattern) + i + j, std::move(a->myExpressions[j]));
+                    protoPattern[i + j]->addConstraints(ast::clone(a->constraints()));
+                }
+                protoPattern[i]->addConstraints(a->takeConstraints());
             }
 
-            auto passSemantics = ProcedureParameter::ByValue;
-            auto p = expr->as<IdentifierExpression>();
-            if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
-                continue;
-
-            auto hit = ctx.matchOverload(p->token().lexeme());
-            if ( !hit ) {
+            auto& e = *mySymbol->prototype().pattern()[i];
+            if ( canBeParam(e) ) {
+                auto p = e.as<IdentifierExpression>();
                 myOrdinals.push_back(static_cast<int>(myParameters.size()));
                 myParameters.emplace_back(
                     std::make_unique<ProcedureParameter>(Symbol(p->token()),
                                                          *this,
-                                                         pattern->takeConstraints(),
-                                                         passSemantics));
+                                                         e.takeConstraints()));
                 p->setDeclaration(*myParameters.back());
             }
             else {
@@ -863,14 +858,12 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
-    auto returnSemantics = ProcedureParameter::ByValue;
     ret |= ctx.resolveExpression(myReturnExpression);
 
     myResult = std::make_unique<ProcedureParameter>(
         Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")),
         *this,
-        flattenConstraints(ast::clone(myReturnExpression)),
-        returnSemantics);
+        flattenConstraints(ast::clone(myReturnExpression)));
 
     ret |= ctx.resolveDeclaration(*myResult);
     if ( !ret )

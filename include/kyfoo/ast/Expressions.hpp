@@ -378,6 +378,9 @@ private:
 class ApplyExpression : public Expression
 {
 public:
+    friend class ProcedureDeclaration;
+
+public:
     ApplyExpression(std::vector<std::unique_ptr<Expression>>&& expressions);
 
 protected:
