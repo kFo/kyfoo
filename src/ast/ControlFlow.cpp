@@ -113,10 +113,12 @@ void Statement::io(IStream& stream) const
 IMPL_CLONE_NOBASE_BEGIN(Statement, Statement)
 IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_CHILD(myUnnamedVariables)
+IMPL_CLONE_CHILD(myAssignExpressions)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Statement)
 IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP(myUnnamedVariables)
+IMPL_CLONE_REMAP(myAssignExpressions)
 IMPL_CLONE_REMAP_END
 
 SymRes Statement::resolveSymbols(Context& ctx)
@@ -149,27 +151,24 @@ Slice<VariableDeclaration const*> Statement::unnamedVariables() const
     return myUnnamedVariables;
 }
 
-VariableDeclaration const* Statement::createUnnamed(ProcedureScope& scope, Declaration const& constraint)
+Slice<AssignExpression const*> Statement::assignExpressions() const
 {
-    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(Symbol(lexer::Token()), scope, createPtrList<Expression>(createIdentifier(constraint))));
+    return myAssignExpressions;
+}
+
+VariableDeclaration const* Statement::createUnnamedVariable(ProcedureScope& scope,
+                                                            Expression const& type)
+{
+    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
     return myUnnamedVariables.back().get();
 }
 
-void Statement::appendUnnamed(ProcedureScope& scope, Expression const& expr)
+VariableDeclaration const* Statement::appendUnnamedExpression(ProcedureScope& scope,
+                                                              std::unique_ptr<Expression> expr)
 {
-    auto decl = resolveIndirections(getDeclaration(expr));
-    if ( !decl )
-        throw std::runtime_error("unnamed instance must have a type");
-
-    Declaration const* dt = decl;
-    if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-        if ( isCtor(*proc) )
-            dt = getDeclaration(proc->parameters()[0]->type());
-        else
-            dt = getDeclaration(proc->result()->type());
-    }
-
-    createUnnamed(scope, *dt);
+    auto var = createUnnamedVariable(scope, *expr->type());
+    myAssignExpressions.emplace_back(std::make_unique<AssignExpression>(*var, std::move(expr)));
+    return var;
 }
 
 //

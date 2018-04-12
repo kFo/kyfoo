@@ -528,6 +528,13 @@ struct CodeGenPass
         //};
 
         for ( auto const& stmt : block.statements() ) {
+            for ( auto ass : stmt->assignExpressions() ) {
+                if ( !toValue(builder, builder.getVoidTy(), *ass) ) {
+                    error(*ass) << "invalid instruction";
+                    die();
+                }
+            }
+
             if ( !toValue(builder, builder.getVoidTy(), stmt->expression()) ) {
                 error(stmt->expression()) << "invalid instruction";
                 die();

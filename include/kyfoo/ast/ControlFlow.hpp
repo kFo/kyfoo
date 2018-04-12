@@ -70,14 +70,18 @@ public:
     Expression& expression();
 
     Slice<VariableDeclaration const*> unnamedVariables() const;
+    Slice<AssignExpression const*> assignExpressions() const;
 
-    VariableDeclaration const* createUnnamed(ProcedureScope& scope, Declaration const& constraint);
-    void appendUnnamed(ProcedureScope& scope, Expression const& expr);
+    VariableDeclaration const* createUnnamedVariable(ProcedureScope& scope,
+                                                     Expression const& type);
+    VariableDeclaration const* appendUnnamedExpression(ProcedureScope& scope,
+                                                       std::unique_ptr<Expression> expr);
 
 private:
     Kind myKind;
     std::unique_ptr<Expression> myExpression;
     std::vector<std::unique_ptr<VariableDeclaration>> myUnnamedVariables;
+    std::vector<std::unique_ptr<AssignExpression>> myAssignExpressions;
 };
 
 #define JUNCTION_KINDS(X)     \

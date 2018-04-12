@@ -801,6 +801,15 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     }
 
     myType = &arrow->to();
+
+    if ( !ctx.isTopLevel() ) {
+        return ctx.rewrite([&ctx](std::unique_ptr<Expression>& expr) {
+            // todo: explicit proc scope knowledge
+            auto const& procScope = static_cast<ProcedureScope const&>(ctx.resolver().scope());
+            return createIdentifier(*ctx.statement().appendUnnamedExpression(const_cast<ProcedureScope&>(procScope), std::move(expr)));
+        });
+    }
+
     return ret;
 }
 
@@ -1308,7 +1317,6 @@ AssignExpression::AssignExpression(VariableDeclaration const& var,
     , myLeft(createIdentifier(var))
     , myRight(std::move(expression))
 {
-    myLeft->as<IdentifierExpression>()->setDeclaration(var);
 }
 
 AssignExpression::AssignExpression(AssignExpression const& rhs)
