@@ -806,7 +806,7 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
         return ctx.rewrite([&ctx](std::unique_ptr<Expression>& expr) {
             // todo: explicit proc scope knowledge
             auto const& procScope = static_cast<ProcedureScope const&>(ctx.resolver().scope());
-            return createIdentifier(*ctx.statement().appendUnnamedExpression(const_cast<ProcedureScope&>(procScope), std::move(expr)));
+            return ctx.statement().appendUnnamedExpression(const_cast<ProcedureScope&>(procScope), std::move(expr));
         });
     }
 

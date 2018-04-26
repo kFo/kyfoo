@@ -74,14 +74,14 @@ public:
 
     VariableDeclaration const* createUnnamedVariable(ProcedureScope& scope,
                                                      Expression const& type);
-    VariableDeclaration const* appendUnnamedExpression(ProcedureScope& scope,
-                                                       std::unique_ptr<Expression> expr);
+    std::unique_ptr<AssignExpression> appendUnnamedExpression(ProcedureScope& scope,
+                                                              std::unique_ptr<Expression> expr);
 
 private:
     Kind myKind;
     std::unique_ptr<Expression> myExpression;
     std::vector<std::unique_ptr<VariableDeclaration>> myUnnamedVariables;
-    std::vector<std::unique_ptr<AssignExpression>> myAssignExpressions;
+    std::vector<AssignExpression const*> myAssignExpressions;
 };
 
 #define JUNCTION_KINDS(X)     \
@@ -284,6 +284,7 @@ public:
     ProcedureScope const* scope() const;
     ProcedureScope* scope();
 
+    Slice<BasicBlock const*> incoming() const;
     Slice<BasicBlock*> incoming();
 
     Slice<Statement const*> statements() const;
@@ -313,6 +314,102 @@ private:
     std::unique_ptr<Junction> myJunction;
 
     mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
+};
+
+class Extent
+{
+public:
+    struct Usage {
+        Expression const* expr;
+        enum Kind {
+            Read,
+            Write,
+            Ref,
+            Move,
+        } kind;
+    };
+
+    enum class Requirement {
+        None,
+        Defined,
+    };
+
+    enum class Provision {
+        None,
+        Defines,
+        Moves,
+        Refers,
+    };
+
+    struct Block {
+        BasicBlock const* bb;
+        std::vector<Usage> uses;
+        std::vector<Block*> pred;
+        std::vector<Block*> succ;
+        Requirement in;
+        Provision out;
+    };
+
+public:
+    explicit Extent(Declaration const& decl);
+
+public:
+    Declaration const& declaration() const;
+    Slice<Block const*> blocks() const;
+    Slice<Block*> blocks();
+
+public:
+    void appendBlock(BasicBlock const& bb);
+    void appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind);
+
+    void pruneEmptyBlocks();
+    SymRes cacheLocalFlows(Context& ctx);
+
+private:
+    Declaration const* myDeclaration = nullptr;
+    std::vector<std::unique_ptr<Block>> myBlocks;
+};
+
+class FlowTracer
+{
+public:
+    enum Shape {
+        None,
+        Forward,
+        Loop,
+    };
+
+public:
+    explicit FlowTracer(BasicBlock const& head);
+
+public:
+    BasicBlock const* currentBlock() const;
+    Shape advanceBlock();
+
+    Shape advancePath();
+    Slice<BasicBlock const*> currentPath() const;
+
+private:
+    Shape checkLoop();
+
+private:
+    std::vector<BasicBlock const*> myPath;
+};
+
+struct ExtentCompare {
+    struct is_transparent;
+
+    bool operator()(Extent const* lhs, Extent const* rhs) const {
+        return &lhs->declaration() < &rhs->declaration();
+    }
+
+    bool operator()(Declaration const& lhs, Extent const* rhs) const {
+        return &lhs < &rhs->declaration();
+    }
+
+    bool operator()(Extent const* lhs, Declaration const& rhs) const {
+        return &lhs->declaration() < &rhs;
+    }
 };
 
 #define X(a, b) template <> inline b* Statement::as<b>() { return myKind == Statement::Kind::a ? static_cast<b*>(this) : nullptr; }

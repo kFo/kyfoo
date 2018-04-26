@@ -529,12 +529,12 @@ VarianceResult variance(Context& ctx,
     }
 
     if ( auto targetDecl = getDeclaration(*t) ) {
-        if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), targetDecl->symbol()) ) {
+        if ( isReference(ctx, *targetDecl) ) {
             if ( auto queryRef = getRefType(*q) )
                 return variance(ctx, targetDecl->symbol().prototype().pattern(), *queryRef);
 
             if ( auto queryDecl = getDeclaration(*q) )
-                if ( descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), queryDecl->symbol()) )
+                if ( isReference(ctx, *queryDecl) )
                     return variance(ctx, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
 
             return Invariant;
@@ -786,6 +786,24 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 
         p = p->prototypeParent();
     }
+
+    return false;
+}
+
+bool isReference(Context const& ctx, Declaration const& decl)
+{
+    return isReference(ctx, decl.symbol());
+}
+
+bool isReference(Context const& ctx, Symbol const& sym)
+{
+    return descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), sym);
+}
+
+bool isReference(Context const& ctx, Expression const& expr)
+{
+    if ( auto d = getDeclaration(expr) )
+        return isReference(ctx, *d);
 
     return false;
 }

@@ -238,6 +238,7 @@
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Utility.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />

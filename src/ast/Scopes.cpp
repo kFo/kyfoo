@@ -1,8 +1,10 @@
 #include <kyfoo/ast/Scopes.hpp>
 
 #include <cassert>
+#include <functional>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Utility.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
@@ -692,12 +694,29 @@ SymRes ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
     for ( auto& s : myChildScopes )
         ret |= s->resolveSymbols(endModule, dgn);
 
-    return ret;
+    if ( !ret )
+        return ret;
+
+    if ( !isTop() )
+        return ret;
+
+    return cacheVariableExtents(ctx);
 }
 
 bool ProcedureScope::isJumpTarget() const
 {
     return myOpenToken.kind() != lexer::TokenKind::Undefined;
+}
+
+bool ProcedureScope::isTop() const
+{
+    if ( !myParent )
+        return true;
+
+    if ( auto s = myParent->as<ProcedureScope>() )
+        return s->declaration() != declaration();
+
+    return true;
 }
 
 BasicBlock const* ProcedureScope::mergeBlock() const
@@ -780,6 +799,218 @@ ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
 ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock)
 {
     return createChildScope(mergeBlock, lexer::Token(), lexer::Token());
+}
+
+namespace {
+template <typename Dispatcher>
+struct Sequencer
+{
+    using result_t = void;
+    using extent_set_t = std::set<Extent*, ExtentCompare>;
+
+    Dispatcher& dispatch;
+
+    Context& ctx;
+    extent_set_t& extents;
+    BasicBlock const& basicBlock;
+    bool refCtx = false;
+
+    Sequencer(Dispatcher& dispatch,
+              Context& ctx,
+              extent_set_t& extents,
+              BasicBlock const& bb)
+        : dispatch(dispatch)
+        , ctx(ctx)
+        , extents(extents)
+        , basicBlock(bb)
+    {
+    }
+
+    result_t recurse(Slice<Expression const*> exprs)
+    {
+        for ( auto e : exprs )
+            dispatch(*e);
+    }
+
+    Extent::Usage::Kind asRead()
+    {
+        return refCtx ? Extent::Usage::Ref : Extent::Usage::Read;
+    }
+
+    result_t exprLiteral(LiteralExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprIdentifier(IdentifierExpression const& id)
+    {
+        if ( auto d = id.declaration() ) {
+            auto ext = extents.find(*d);
+            if ( ext != extents.end() )
+                (*ext)->appendUsage(basicBlock, id, asRead());
+        }
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        recurse(t.expressions());
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        dispatch(*a.subject());
+        auto decl = getDeclaration(a.subject());
+        auto declExt = extents.find(*decl);
+        if ( declExt != end(extents) )
+            (*declExt)->appendUsage(basicBlock, a, Extent::Usage::Ref);
+
+        auto args = a.arguments();
+        if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+            auto o = proc->ordinals();
+            auto p = proc->parameters();
+            for ( std::size_t i = 0; i < args.size(); ++i ) {
+                check_point refCtx;
+                refCtx = o[i] >= 0 && isReference(ctx, *p[o[i]]->type());
+                dispatch(*args[i]);
+            }
+
+            return;
+        }
+
+        recurse(args);
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        recurse(s.expressions());
+        exprIdentifier(s);
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        recurse(d.expressions());
+    }
+
+    result_t exprAssign(AssignExpression const& v)
+    {
+        if ( auto d = getDeclaration(v.right()) ) {
+            auto ext = extents.find(*d);
+            if ( ext != end(extents) ) {
+                // todo: movable types
+                //(*ext)->appendUsage(basicBlock, v, Extent::Usage::Move);
+                (*ext)->appendUsage(basicBlock, v, Extent::Usage::Read);
+            }
+        }
+        else {
+            dispatch(v.right());
+        }
+
+        if ( auto d = getDeclaration(v.left()) ) {
+            auto ext = extents.find(*d);
+            if ( ext != end(extents) )
+                (*ext)->appendUsage(basicBlock, v, Extent::Usage::Write);
+        }
+        else {
+            dispatch(v.left());
+        }
+    }
+
+    result_t exprLambda(LambdaExpression const& l)
+    {
+        dispatch(l.parameters());
+        dispatch(l.body());
+    }
+
+    result_t exprArrow(ArrowExpression const& a)
+    {
+        dispatch(a.from());
+        dispatch(a.to());
+    }
+
+    result_t exprUniverse(UniverseExpression const&)
+    {
+        // nop
+    }
+};
+
+} // namespace
+
+SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
+{
+    if ( myBasicBlocks.empty() )
+        return SymRes::Success;
+
+    for ( auto sym : declaration()->symbol().prototype().symbolVariables() )
+        myExtents.emplace_back(*sym);
+
+    for ( auto param : declaration()->parameters() )
+        myExtents.emplace_back(*param);
+
+    ycomb(
+        [this](auto rec, ProcedureScope const& scope) -> void {
+            for ( auto d : scope.childDeclarations() )
+                if ( d->kind() == DeclKind::Variable )
+                    myExtents.emplace_back(*d);
+
+            for ( auto s : scope.childScopes() )
+                rec(*s);
+        })(*this);
+
+    Sequencer<ShallowApply<Sequencer>>::extent_set_t extents;
+    for ( auto& ext : myExtents )
+        extents.insert(&ext);
+
+    for ( FlowTracer trace(*myBasicBlocks.front()); ; ) {
+        auto bb = trace.currentBlock();
+        for ( auto& ext : myExtents )
+            ext.appendBlock(*bb);
+
+        ShallowApply<Sequencer> op(ctx, extents, *bb);
+        for ( auto stmt : bb->statements() )
+            op(stmt->expression());
+
+        if ( auto br = bb->junction()->as<BranchJunction>() ) {
+            if ( br->statement() )
+                op(*br->condition());
+        }
+        else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {
+            if ( ret->statement() )
+                op(*ret->expression());
+        }
+
+        if ( trace.advanceBlock() != FlowTracer::Forward ) {
+            auto flow = trace.advancePath();
+            while ( flow == FlowTracer::Loop )
+                flow = trace.advancePath();
+
+            if ( flow == FlowTracer::None )
+                break;
+        }
+    }
+
+    // Flow connectivity
+    for ( auto& ext : myExtents ) {
+        for ( auto b : ext.blocks() ) {
+            for ( auto incoming : b->bb->incoming() ) {
+                for ( auto b2 : ext.blocks() ) {
+                    if ( b2->bb == incoming ) {
+                        b2->succ.push_back(b);
+                        b->pred.push_back(b2);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for ( auto& ext : myExtents )
+        ext.pruneEmptyBlocks();
+
+    SymRes ret;
+    for ( auto& ext : myExtents )
+        ret |= ext.cacheLocalFlows(ctx);
+
+    return ret;
 }
 
 //

@@ -903,7 +903,7 @@ private:
 
             if ( exprs.size() > 1 ) {
                 for ( std::size_t i = 1; i < exprs.size(); ++i ) {
-                    auto const paramOrdinal = proc->ordinal(i - 1);
+                    auto const paramOrdinal = proc->ordinals()[i - 1];
                     if ( paramOrdinal < isMethod )
                         continue;
 

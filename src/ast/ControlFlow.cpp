@@ -113,7 +113,6 @@ void Statement::io(IStream& stream) const
 IMPL_CLONE_NOBASE_BEGIN(Statement, Statement)
 IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_CHILD(myUnnamedVariables)
-IMPL_CLONE_CHILD(myAssignExpressions)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Statement)
 IMPL_CLONE_REMAP(myExpression)
@@ -163,12 +162,13 @@ VariableDeclaration const* Statement::createUnnamedVariable(ProcedureScope& scop
     return myUnnamedVariables.back().get();
 }
 
-VariableDeclaration const* Statement::appendUnnamedExpression(ProcedureScope& scope,
-                                                              std::unique_ptr<Expression> expr)
+std::unique_ptr<AssignExpression> Statement::appendUnnamedExpression(ProcedureScope& scope,
+                                                                     std::unique_ptr<Expression> expr)
 {
     auto var = createUnnamedVariable(scope, *expr->type());
-    myAssignExpressions.emplace_back(std::make_unique<AssignExpression>(*var, std::move(expr)));
-    return var;
+    auto ret = std::make_unique<AssignExpression>(*var, std::move(expr));
+    myAssignExpressions.push_back(ret.get());
+    return ret;
 }
 
 //
@@ -471,8 +471,10 @@ IMPL_CLONE_REMAP_END
 
 SymRes JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 {
-    if ( targetBlock() )
+    if ( targetBlock() ) {
+        targetBlock()->appendIncoming(bb);
         return SymRes::Success;
+    }
 
     if ( myTargetLabel.kind() == lexer::TokenKind::Undefined ) {
         for ( auto p = bb.scope(); p; p = p->parent()->as<ProcedureScope>() ) {
@@ -481,6 +483,8 @@ SymRes JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
                     myTargetBlock = p->mergeBlock();
                 else
                     myTargetBlock = p->basicBlocks().front();
+
+                myTargetBlock->appendIncoming(bb);
 
                 return SymRes::Success;
             }
@@ -496,6 +500,8 @@ SymRes JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
                 myTargetBlock = p->mergeBlock();
             else
                 myTargetBlock = p->basicBlocks().front();
+
+            myTargetBlock->appendIncoming(bb);
 
             return SymRes::Success;
         }
@@ -588,6 +594,9 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
     }
 
     ret |= junction()->resolveSymbols(ctx, *this);
+    if ( !ret )
+        return ret;
+
     return ret;
 }
 
@@ -599,6 +608,11 @@ ProcedureScope const* BasicBlock::scope() const
 ProcedureScope* BasicBlock::scope()
 {
     return myScope;
+}
+
+Slice<BasicBlock const*> BasicBlock::incoming() const
+{
+    return myIncoming;
 }
 
 Slice<BasicBlock*> BasicBlock::incoming()
@@ -635,7 +649,8 @@ bool BasicBlock::empty() const
 
 void BasicBlock::appendIncoming(BasicBlock& from)
 {
-    myIncoming.push_back(&from);
+    if ( find(begin(myIncoming), end(myIncoming), &from) == end(myIncoming) )
+        myIncoming.push_back(&from);
 }
 
 void BasicBlock::append(std::unique_ptr<Expression> expr)
@@ -669,6 +684,238 @@ void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data)
 void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
 {
     return const_cast<BasicBlock*>(this)->setCodegenData(std::move(data));
+}
+
+//
+// Extent
+
+Extent::Extent(Declaration const& decl)
+    : myDeclaration(&decl)
+{
+}
+
+Declaration const& Extent::declaration() const
+{
+    return *myDeclaration;
+}
+
+Slice<Extent::Block const*> Extent::blocks() const
+{
+    return myBlocks;
+}
+
+Slice<Extent::Block*> Extent::blocks()
+{
+    return myBlocks;
+}
+
+void Extent::appendBlock(BasicBlock const& bb)
+{
+    myBlocks.emplace_back(std::make_unique<Block>(Block{&bb, {}, {}}));
+}
+
+void Extent::appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind)
+{
+    if ( myBlocks.empty() || myBlocks.back()->bb != &bb )
+        appendBlock(bb);
+
+    myBlocks.back()->uses.push_back(Usage{&expr, kind});
+}
+
+void Extent::pruneEmptyBlocks()
+{
+    for ( auto b = begin(myBlocks); b != end(myBlocks); ) {
+        if ( !(*b)->uses.empty() ) {
+            ++b;
+            continue;
+        }
+
+        for ( auto p : (*b)->pred ) {
+            for ( auto s : (*b)->succ ) {
+                if ( find(p->succ.begin(), p->succ.end(), s) == p->succ.end() ) {
+                    p->succ.push_back(s);
+                    s->pred.push_back(p);
+                }
+            }
+
+            p->succ.erase(find(p->succ.begin(), p->succ.end(), b->get()));
+        }
+
+        for ( auto s : (*b)->succ )
+            s->pred.erase(find(s->pred.begin(), s->pred.end(), b->get()));
+
+        b = myBlocks.erase(b);
+    }
+}
+
+SymRes Extent::cacheLocalFlows(Context& ctx)
+{
+    if ( myBlocks.empty() ) {
+        ctx.error(*myDeclaration) << "declared but never used";
+        return SymRes::Fail;
+    }
+
+    for ( auto& b : myBlocks ) {
+        switch( b->uses[0].kind ) {
+        case Usage::Read:
+        case Usage::Move:
+            b->in = Requirement::Defined;
+            break;
+        
+        default:
+            b->in = Requirement::None;
+        }
+
+        bool hasValue = true;
+        auto provision = Provision::None;
+        for ( std::size_t i = 1; i < b->uses.size(); ++i ) {
+            auto const& u = b->uses[i];
+            switch (u.kind) {
+            case Usage::Read:
+                if ( !hasValue ) {
+                    ctx.error(*u.expr) << "use of undefined value";
+                    return SymRes::Fail;
+                }
+                break;
+
+            case Usage::Write:
+                hasValue = true;
+                provision = Provision::Defines;
+                break;
+
+            case Usage::Ref:
+                // liberal assumption that the ref defines it
+                // todo: interprocedural analysis
+                hasValue = true;
+                provision = Provision::Refers;
+                break;
+
+            case Usage::Move:
+                if ( !hasValue ) {
+                    ctx.error(*u.expr) << "use of moved value";
+                    return SymRes::Fail;
+                }
+                hasValue = false;
+                provision = Provision::Moves;
+                break;
+            }
+        }
+
+        b->out = provision;
+    }
+
+    std::set<Extent::Block*> visited;
+    std::vector<Extent::Block*> topo;
+    topo.reserve(myBlocks.size());
+    for ( auto& b : myBlocks ) {
+        if ( b->pred.empty() )
+            topo.push_back(b.get());
+    }
+
+    if ( auto param = myDeclaration->as<ProcedureParameter>() ) {
+        for ( auto b : topo )
+            b->in = Requirement::None;
+    }
+
+    for ( std::size_t i = 0, len = topo.size(); i != len; ++i ) {
+        for ( auto s : topo[i]->succ ) {
+            auto iter = visited.lower_bound(s);
+            if ( iter == end(visited) || *iter != s ) {
+                visited.insert(iter, s);
+                topo.push_back(s);
+            }
+        }
+
+        len = topo.size();
+    }
+
+    for ( auto b : topo ) {
+        bool allWrite = !b->pred.empty();
+        for ( auto p : b->pred ) {
+            if ( p->out != Provision::Defines && p->out != Provision::Refers )
+            {
+                allWrite = false;
+                break;
+            }
+        }
+
+        if ( b->in == Requirement::Defined ) {
+            if ( !allWrite ) {
+                ctx.error(*b->uses[0].expr) << "is not defined on all paths";
+                return SymRes::Fail;
+            }
+        }
+
+        if ( b->out == Provision::None ) {
+            b->out = Provision::Defines;
+        }
+    }
+
+    return SymRes::Success;
+}
+
+//
+// FlowTracer
+
+FlowTracer::FlowTracer(BasicBlock const& head)
+    : myPath({ &head })
+{
+}
+
+BasicBlock const* FlowTracer::currentBlock() const
+{
+    return myPath.back();
+}
+
+FlowTracer::Shape FlowTracer::advanceBlock()
+{
+    auto bb = myPath.back();
+    if ( auto br = bb->junction()->as<BranchJunction>() ) {
+        myPath.push_back(br->branch(0) ? br->branch(0) : br->branch(1));
+        return checkLoop();
+    }
+    else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {
+        return None;
+    }
+    else if ( auto j = bb->junction()->as<JumpJunction>() ) {
+        myPath.push_back(j->targetBlock());
+        return checkLoop();
+    }
+
+    throw std::runtime_error("invalid junction");
+}
+
+FlowTracer::Shape FlowTracer::advancePath()
+{
+    while ( myPath.size() > 1 ) {
+        auto bb = myPath[myPath.size() - 1];
+        auto pred = myPath[myPath.size() - 2];
+        if ( auto br = pred->junction()->as<BranchJunction>() ) {
+            if ( bb == br->branch(0) ) {
+                myPath.back() = br->branch(1);
+                return checkLoop();
+            }
+        }
+
+        myPath.pop_back();
+    }
+
+    return None;
+}
+
+Slice<BasicBlock const*> FlowTracer::currentPath() const
+{
+    return myPath;
+}
+
+FlowTracer::Shape FlowTracer::checkLoop()
+{
+    auto bb = myPath.back();
+    for ( auto i = myPath.size() - 2; ~i; --i )
+        if ( myPath[i] == bb )
+            return Loop;
+
+    return Forward;
 }
 
     } // namespace ast

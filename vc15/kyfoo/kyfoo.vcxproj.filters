@@ -111,6 +111,9 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Utility.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">

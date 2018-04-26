@@ -935,9 +935,9 @@ ProcedureParameter const* ProcedureDeclaration::result() const
     return myResult.get();
 }
 
-int ProcedureDeclaration::ordinal(std::size_t index) const
+Slice<int const> ProcedureDeclaration::ordinals() const
 {
-    return myOrdinals[index];
+    return myOrdinals;
 }
 
 ProcedureParameter* ProcedureDeclaration::findParameter(std::string const& token)

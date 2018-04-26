@@ -33,7 +33,7 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression const*>
         }
 
         for ( std::size_t i = 0; i < paramCount; ++i ) {
-            auto const ordinal = proc->ordinal(i);
+            auto const ordinal = proc->ordinals()[i];
             if ( ordinal == -1 ) {
                 if ( targetPattern[i]->type() )
                     continue;

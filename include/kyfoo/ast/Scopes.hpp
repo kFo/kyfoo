@@ -371,6 +371,7 @@ public:
 
 public:
     bool isJumpTarget() const;
+    bool isTop() const;
 
     BasicBlock const* mergeBlock() const;
     BasicBlock* mergeBlock();
@@ -397,12 +398,17 @@ public:
     ProcedureScope* createChildScope(BasicBlock* mergeBlock);
 
 private:
+    SymRes cacheVariableExtents(Context& ctx);
+
+private:
     BasicBlock* myMergeBlock = nullptr;
     lexer::Token myOpenToken;
     lexer::Token myLabel;
 
     std::vector<std::unique_ptr<ProcedureScope>> myChildScopes;
     std::vector<std::unique_ptr<BasicBlock>> myBasicBlocks;
+
+    mutable std::vector<Extent> myExtents;
 };
 
 class TemplateScope : public DeclarationScope

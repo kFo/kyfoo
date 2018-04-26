@@ -468,7 +468,7 @@ public:
     ProcedureParameter* result();
     ProcedureParameter const* result() const;
 
-    int ordinal(std::size_t index) const;
+    Slice<int const> ordinals() const;
     ProcedureParameter* findParameter(std::string const& token);
     ProcedureParameter const* findParameter(std::string const& token) const;
 
