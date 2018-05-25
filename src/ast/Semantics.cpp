@@ -555,11 +555,10 @@ VarianceResult variance(Context& ctx,
                 return ret;
         }
 
-        auto queryTypeDecl = getDeclaration(*queryType);
-        if ( !queryTypeDecl )
+        if ( queryType->kind() == Expression::Kind::Universe )
             return Invariant;
 
-        return variance(ctx, *targetDecl, *queryTypeDecl);
+        return variance(ctx, *t, *queryType);
     }
 
     if ( auto targetTuple = t->as<TupleExpression>() ) {
@@ -567,7 +566,25 @@ VarianceResult variance(Context& ctx,
         if ( !queryTuple )
             return Invariant;
 
-        return variance(ctx, targetTuple->expressions(), queryTuple->expressions());
+        if ( targetTuple->kind() != queryTuple->kind() )
+            return Invariant;
+
+        auto const l = targetTuple->elements();
+        auto const r = queryTuple->elements();
+        if ( l.size() != r.size() )
+            return Invariant;
+
+        VarianceResult ret = Exact;
+        for ( auto i = begin(l), j = begin(r); i != end(l); ++i, ++j ) {
+            auto v = variance(ctx, **i, **j);
+            if ( !v )
+                return v;
+
+            if ( !v.exact() )
+                ret = Covariant;
+        }
+
+        return ret;
     }
 
     if ( auto targetArrow = t->as<ArrowExpression>() ) {

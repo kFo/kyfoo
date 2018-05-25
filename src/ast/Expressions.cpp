@@ -612,6 +612,9 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
 
         myCard = static_cast<std::size_t>(n);
     }
+    else {
+        myCard = 1;
+    }
 
     if ( myKind == TupleKind::Open ) {
         if ( myExpressions.size() == 1 )

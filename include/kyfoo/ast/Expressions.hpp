@@ -285,18 +285,22 @@ public:
         {
             return ai == rhs.i;
         }
+
+        bool operator!=(iterator_end rhs)
+        {
+            return !operator==(rhs);
+        }
     };
 
 public:
     ExpressionArray(Slice<Expression const*> exprs, std::size_t n)
         : exprs(exprs)
-        , n(n)
+        , n(exprs.empty() ? 0 : n)
     {
     }
 
     /*implicit*/ ExpressionArray(Slice<Expression const*> exprs)
-        : exprs(exprs)
-        , n(1)
+        : ExpressionArray(exprs, 1)
     {
     }
 
@@ -316,6 +320,9 @@ private:
     Slice<Expression const*> exprs;
     std::size_t n = 1;
 };
+
+inline ExpressionArray::iterator begin(ExpressionArray const& rhs) { return rhs.begin(); }
+inline ExpressionArray::iterator_end end(ExpressionArray const& rhs) { return rhs.end(); }
 
 class TupleExpression : public Expression
 {
@@ -603,10 +610,14 @@ protected:
 
 public:
     Expression const& from() const;
-    Expression const& to() const;
-
     Expression& from();
+
+    Slice<Expression const*> sliceFrom() const;
+
+    Expression const& to() const;
     Expression& to();
+
+    Slice<Expression const*> sliceTo() const;
 
 private:
     std::unique_ptr<Expression> myFrom;
