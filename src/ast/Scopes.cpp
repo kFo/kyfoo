@@ -74,6 +74,7 @@ void DeclarationScope::swap(DeclarationScope& rhs)
     swap(myDeclaration, rhs.myDeclaration);
     swap(myParent, rhs.myParent);
     swap(myDeclarations, rhs.myDeclarations);
+    swap(myLambdas, rhs.myLambdas);
     swap(mySymbols, rhs.mySymbols);
     swap(myImports, rhs.myImports);
 }
@@ -85,12 +86,14 @@ void DeclarationScope::io(IStream& stream) const
 
 IMPL_CLONE_NOBASE_BEGIN(DeclarationScope, DeclarationScope)
 IMPL_CLONE_CHILD(myDeclarations)
+IMPL_CLONE_CHILD(myLambdas)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(DeclarationScope)
 IMPL_CLONE_REMAP(myModule)
 IMPL_CLONE_REMAP(myDeclaration)
 IMPL_CLONE_REMAP(myParent)
 IMPL_CLONE_REMAP(myDeclarations)
+IMPL_CLONE_REMAP(myLambdas)
 IMPL_CLONE_REMAP_END
 
 void DeclarationScope::resolveImports(Diagnostics& dgn)
@@ -126,7 +129,14 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
     }
 
     if ( dgn.errorCount() )
-        return SymRes::Fail;
+        return ret;
+
+    // Resolve lambdas
+    for ( auto& l : myLambdas )
+        ret |= ctx.resolveDeclaration(*l);
+
+    if ( dgn.errorCount() )
+        return ret;
 
     // Resolve definitions
     for ( auto& defn : myDefinitions ) {
@@ -188,6 +198,14 @@ void DeclarationScope::append(std::unique_ptr<DeclarationScope> definition)
 {
     myDefinitions.emplace_back(std::move(definition));
     myDefinitions.back()->myParent = this;
+}
+
+void DeclarationScope::appendLambda(std::unique_ptr<ProcedureDeclaration> proc,
+                                    std::unique_ptr<ProcedureScope> defn)
+{
+    myLambdas.emplace_back(std::move(proc));
+    myLambdas.back()->setScope(*this);
+    append(std::move(defn));
 }
 
 void DeclarationScope::import(Module& module)
@@ -294,6 +312,11 @@ Slice<Declaration const*> DeclarationScope::childDeclarations() const
 Slice<DeclarationScope const*> DeclarationScope::childDefinitions() const
 {
     return myDefinitions;
+}
+
+Slice<ProcedureDeclaration const*> DeclarationScope::childLambdas() const
+{
+    return myLambdas;
 }
 
 //

@@ -14,6 +14,7 @@ class Scanner
 {
 public:
     explicit Scanner(std::istream&);
+    explicit Scanner(std::deque<Token>&& buffer);
 
 public:
     Scanner(Scanner const&) = delete;

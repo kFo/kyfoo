@@ -3,6 +3,8 @@
 #include <cassert>
 #include <cctype>
 
+#include <sstream>
+
 #include <map>
 
 namespace kyfoo {
@@ -10,6 +12,8 @@ namespace kyfoo {
 
 namespace
 {
+    std::istringstream g_nullStream;
+
     bool isSpace(char c)
     {
         switch (c)
@@ -113,8 +117,13 @@ Scanner::Scanner(std::istream& stream)
     : myStream(stream)
     , myState(InternalScanState{ 0 })
 {
-    if ( peek().kind() == TokenKind::IndentEQ )
-        next();
+}
+
+Scanner::Scanner(std::deque<Token>&& buffer)
+    : myStream(g_nullStream)
+    , myState(InternalScanState{ 0 })
+    , myBuffer(std::move(buffer))
+{
 }
 
 Token Scanner::next()
@@ -441,6 +450,18 @@ Token Scanner::readNext()
         else if ( peekChar() == '/' ) {
             nextChar();
             return TOK2(ColonSlash, ":/");
+        }
+        else if ( peekChar() == '+' ) {
+            nextChar();
+            return TOK2(ColonPlus, ":+");
+        }
+        else if ( peekChar() == '-' ) {
+            nextChar();
+            return TOK2(ColonMinus, ":-");
+        }
+        else if ( peekChar() == '.' ) {
+            nextChar();
+            return TOK2(ColonDot, ":.");
         }
 
         if ( !isSpace(peekChar()) )

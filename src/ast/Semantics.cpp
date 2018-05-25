@@ -192,9 +192,7 @@ struct SymbolDependencyBuilder
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        dispatch(l.parameters());
-        dispatch(l.returnType());
-        dispatch(l.body());
+        return declProcedure(l.procedure());
     }
 
     result_t exprArrow(ArrowExpression const& a)
@@ -958,9 +956,14 @@ struct MetaVariableVisitor
 
     result_t exprLambda(LambdaExpression& l)
     {
-        dispatch(l.parameters());
-        dispatch(l.returnType());
-        dispatch(l.body());
+        for ( auto p : l.procedure().parameters() )
+            for ( auto c : p->constraints() )
+                dispatch(*c);
+
+        for ( auto c : l.procedure().result()->constraints() )
+            dispatch(*c);
+
+        // todo: defn
     }
 
     result_t exprArrow(ArrowExpression& a)
@@ -1082,9 +1085,18 @@ struct HasMetaVariable
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        return dispatch(l.parameters())
-            || dispatch(l.returnType())
-            || dispatch(l.body());
+        for ( auto p : l.procedure().parameters() ) {
+            for ( auto c : p->constraints() ) {
+                if ( dispatch(*c) )
+                    return true;
+            }
+        }
+
+        for ( auto c : l.procedure().result()->constraints() )
+            if ( dispatch(*c) )
+                return true;
+
+        return false;
     }
 
     result_t exprArrow(ArrowExpression const& a)
@@ -1197,7 +1209,10 @@ struct FrontToken
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        return dispatch(l.parameters());
+        if ( !l.procedure().parameters().empty() )
+            return l.procedure().parameters().front()->symbol().token();
+
+        return l.yieldToken();
     }
 
     result_t exprArrow(ArrowExpression const& a)
@@ -1391,9 +1406,17 @@ struct PrintOperator
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        dispatch(l.parameters());
-        stream << " => ";
-        return dispatch(l.body());
+        stream << "(";
+        for ( auto p : l.procedure().parameters() ) {
+            stream << p->symbol().token().lexeme();
+            if ( !p->constraints().empty() )
+                stream << " : ";
+
+            for ( auto c : p->constraints() )
+                dispatch(*c);
+        }
+
+        return stream << ")";
     }
 
     result_t exprArrow(ArrowExpression const& a)
@@ -1517,7 +1540,11 @@ struct LevelFinder
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        return std::max(dispatch(l.parameters()), dispatch(l.body()));
+        result_t ret = 1;
+        for ( auto const p : l.procedure().parameters() )
+            ret = std::max(ret, dispatch(*p->type()));
+
+        return std::max(ret, dispatch(*l.procedure().result()->type()));
     }
 
     result_t exprArrow(ArrowExpression const& a)

@@ -64,7 +64,7 @@ template<>
 struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
     llvm::FunctionType* type = nullptr;
-    llvm::Function* body = nullptr;
+    llvm::Function* defn = nullptr;
     llvm::AllocaInst* returnInst = nullptr;
 };
 
@@ -206,9 +206,13 @@ struct InitCodeGenPass
 
         decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration>>());
 
-        if ( auto defn = decl.definition() )
+        if ( auto defn = decl.definition() ) {
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
+
+            for ( auto& e : defn->childLambdas() )
+                dispatch(*e);
+        }
     }
 
     result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& decl)
@@ -235,6 +239,9 @@ struct InitCodeGenPass
 
             for ( auto& e : defn->childDeclarations() )
                 dispatch(*e);
+
+            for ( auto& e : defn->childLambdas() )
+                dispatch(*e);
         }
     }
 
@@ -255,6 +262,9 @@ struct InitCodeGenPass
     result_t traceProc(ast::ProcedureScope const& scope)
     {
         for ( auto& e : scope.childDeclarations() )
+            dispatch(*e);
+
+        for ( auto& e : scope.childLambdas() )
             dispatch(*e);
 
         for ( auto const& e : scope.childScopes() )
@@ -356,6 +366,9 @@ struct CodeGenPass
         if ( auto defn = decl.definition() ) {
             for ( auto c : defn->childDeclarations() )
                 dispatch(*c);
+
+            for ( auto l : defn->childLambdas() )
+                dispatch(*l);
         }
     }
 
@@ -378,7 +391,7 @@ struct CodeGenPass
             return;
 
         auto fun = customData(decl);
-        if ( fun->body ) {
+        if ( fun->defn ) {
             error(decl.symbol().token()) << "defined more than once";
             die();
         }
@@ -406,24 +419,37 @@ struct CodeGenPass
 
         fun->type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
-        fun->body = llvm::Function::Create(fun->type,
-                                           llvm::Function::ExternalLinkage, // todo
-                                           decl.scope().declaration()->symbol().token().lexeme(),
-                                           module);
+        if ( decl.scope().declaration() )
+            fun->defn = llvm::Function::Create(fun->type,
+                                               llvm::Function::ExternalLinkage,
+                                               decl.scope().declaration()->symbol().token().lexeme(),
+                                               module);
+        else
+            fun->defn = llvm::Function::Create(fun->type,
+                                               llvm::Function::InternalLinkage,
+                                               "",
+                                               module);
 
         auto defn = decl.definition();
         if ( !defn )
             return;
 
+        for ( auto d : defn->childDeclarations() )
+            dispatch(*d);
+
+        for ( auto l : defn->childLambdas() )
+            dispatch(*l);
+
         {
-            auto arg = fun->body->arg_begin();
+            auto arg = fun->defn->arg_begin();
             for ( auto const& p : decl.parameters() )
                 customData(*p)->arg = &*(arg++);
         }
 
-        auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun->body);
+        auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun->defn);
         llvm::IRBuilder<> builder(entryBlock);
 
+        // todo: comply with calling convention
         if ( !returnType->isVoidTy() )
             fun->returnInst = builder.CreateAlloca(returnType);
 
@@ -462,10 +488,10 @@ struct CodeGenPass
         };
         gatherAllocas(*defn);
 
-        toBlock(*defn, *defn->basicBlocks().front(), fun->body, entryBlock, nullptr);
-        if ( llvm::verifyFunction(*fun->body, &llvm::errs()) ) {
+        toBlock(*defn, *defn->basicBlocks().front(), fun->defn, entryBlock, nullptr);
+        if ( llvm::verifyFunction(*fun->defn, &llvm::errs()) ) {
 #ifndef NDEBUG
-            fun->body->dump();
+            fun->defn->dump();
 #endif
             die("verify failure");
         }
@@ -622,6 +648,9 @@ struct CodeGenPass
     {
         if ( auto defn = decl.definition() ) {
             for ( auto c : defn->childDeclarations() )
+                dispatch(*c);
+
+            for ( auto c : defn->childLambdas() )
                 dispatch(*c);
         }
     }
@@ -880,7 +909,7 @@ private:
 
             if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
                 auto pdata = customData(*proc);
-                return builder.CreateCall(pdata->body);
+                return builder.CreateCall(pdata->defn);
             }
 
             die("unhandled identifier");
@@ -915,7 +944,7 @@ private:
                 }
             }
 
-            return builder.CreateCall(customData(*proc)->body, params);
+                return builder.CreateCall(customData(*proc)->defn, args);
         }
 
         if ( auto assign = expr.as<ast::AssignExpression>() ) {
@@ -927,6 +956,10 @@ private:
             builder.CreateStore(toValue(builder, vdata->inst->getAllocatedType(), assign->right()),
                                 vdata->inst);
             return builder.CreateLoad(vdata->inst);
+
+        if ( auto l = expr.as<ast::LambdaExpression>() ) {
+            auto pdata = customData(l->procedure());
+            return pdata->defn;
         }
 
         return nullptr;
@@ -1189,6 +1222,9 @@ struct LLVMGenerator::LLVMState
         for ( auto d : module.scope()->childDeclarations() )
             init(*d);
 
+        for ( auto d : module.scope()->childLambdas() )
+            init(*d);
+
         for ( auto d : module.templateInstantiations() )
             init(*d);
 
@@ -1200,6 +1236,8 @@ struct LLVMGenerator::LLVMState
         for ( auto d : module.templateInstantiations() )
             gen(*d);
         for ( auto d : module.scope()->childDeclarations() )
+            gen(*d);
+        for ( auto d : module.scope()->childLambdas() )
             gen(*d);
     }
 
@@ -1306,6 +1344,9 @@ struct LLVMGenerator::LLVMState
     void registerTypes(ast::Module const& m, ast::DeclarationScope const& scope)
     {
         for ( auto d : scope.childDeclarations() )
+            registerTypes(m, *d);
+
+        for ( auto d : scope.childLambdas() )
             registerTypes(m, *d);
     }
 

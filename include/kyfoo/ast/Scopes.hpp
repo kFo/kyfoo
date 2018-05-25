@@ -209,6 +209,8 @@ public:
     void setDeclaration(Declaration* declaration);
     void append(std::unique_ptr<Declaration> declaration);
     void append(std::unique_ptr<DeclarationScope> definition);
+    void appendLambda(std::unique_ptr<ProcedureDeclaration> proc,
+                      std::unique_ptr<ProcedureScope> defn);
     void import(Module& module);
     void merge(DeclarationScope& rhs);
 
@@ -235,8 +237,8 @@ public:
     DeclarationScope const* parent() const;
 
     Slice<Declaration const*> childDeclarations() const;
-
     Slice<DeclarationScope const*> childDefinitions() const;
+    Slice<ProcedureDeclaration const*> childLambdas() const;
 
     template <typename T> T* as();
     template <typename T> T const* as() const;
@@ -248,6 +250,7 @@ protected:
     DeclarationScope* myParent = nullptr;
     std::vector<std::unique_ptr<Declaration>> myDeclarations;
     std::vector<std::unique_ptr<DeclarationScope>> myDefinitions;
+    std::vector<std::unique_ptr<ProcedureDeclaration>> myLambdas;
 
     mutable std::vector<SymbolSpace> mySymbols;
     mutable std::map<std::string, ImportDeclaration*> myImports;
@@ -337,6 +340,9 @@ private:
 
 class ProcedureScope : public DeclarationScope
 {
+public:
+    using declaration_t = ProcedureDeclaration;
+
 public:
     ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration);

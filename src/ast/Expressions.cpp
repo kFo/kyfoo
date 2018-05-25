@@ -1400,13 +1400,11 @@ Expression& AssignExpression::right()
 //
 // LambdaExpression
 
-LambdaExpression::LambdaExpression(std::unique_ptr<Expression> params,
-                                   std::unique_ptr<Expression> returnType,
-                                   std::unique_ptr<Expression> body)
+LambdaExpression::LambdaExpression(lexer::Token const& yieldToken,
+                                   ProcedureDeclaration* proc)
     : Expression(Kind::Lambda)
-    , myParams(std::move(params))
-    , myReturnType(std::move(returnType))
-    , myBody(std::move(body))
+    , myYieldToken(yieldToken)
+    , myProc(proc)
 {
 }
 
@@ -1427,83 +1425,45 @@ void LambdaExpression::swap(LambdaExpression& rhs)
 {
     Expression::swap(rhs);
     using std::swap;
-    swap(myParams, rhs.myParams);
-    swap(myReturnType, rhs.myReturnType);
-    swap(myBody, rhs.myBody);
+    swap(myProc, rhs.myProc);
 }
 
-void LambdaExpression::io(IStream& stream) const
+void LambdaExpression::io(IStream&) const
 {
-    stream.next("param", myParams);
-    stream.next("returnType", myReturnType);
-    stream.next("body", myBody);
+    // todo
 }
 
 IMPL_CLONE_BEGIN(LambdaExpression, Expression, Expression)
-IMPL_CLONE_CHILD(myParams)
-IMPL_CLONE_CHILD(myReturnType)
-IMPL_CLONE_CHILD(myBody)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(LambdaExpression, Expression)
 IMPL_CLONE_REMAP(myProc)
-IMPL_CLONE_REMAP(myParams)
-IMPL_CLONE_REMAP(myReturnType)
-IMPL_CLONE_REMAP(myBody)
 IMPL_CLONE_REMAP_END
 
-SymRes LambdaExpression::resolveSymbols(Context& ctx)
+SymRes LambdaExpression::resolveSymbols(Context& /*ctx*/)
 {
-    if ( myProc )
-        return SymRes::Success;
+    if ( !myProc->definition() )
+        throw std::runtime_error("lambda missing body");
 
-    auto ret = ctx.resolveExpression(myParams);
-    if ( !ret )
-        return ret;
-
-    ret = ctx.resolveExpression(myBody);
-    if ( !ret )
-        return ret;
-
-    if ( !myReturnType ) {
-        ctx.error(*myReturnType) << "return type deduction not implemented";
+    myType = myProc->type();
+    if ( !myType )
         return SymRes::Fail;
-    }
-    ret = ctx.resolveExpression(myReturnType);
-    if ( !ret )
-        return ret;
 
-    // todo: create and resolve to ProcedureDeclaration
-    return SymRes::Fail;
+    return SymRes::Success;
 }
 
-Expression const& LambdaExpression::parameters() const
+lexer::Token const& LambdaExpression::yieldToken() const
 {
-    return *myParams;
+    return myYieldToken;
 }
 
-Expression const& LambdaExpression::returnType() const
+ProcedureDeclaration const& LambdaExpression::procedure() const
 {
-    return *myReturnType;
+    return *myProc;
 }
 
-Expression const& LambdaExpression::body() const
+ProcedureDeclaration& LambdaExpression::procedure()
 {
-    return *myBody;
-}
-
-Expression& LambdaExpression::parameters()
-{
-    return *myParams;
-}
-
-Expression& LambdaExpression::returnType()
-{
-    return *myReturnType;
-}
-
-Expression& LambdaExpression::body()
-{
-    return *myBody;
+    return *myProc;
 }
 
 //
@@ -1755,6 +1715,17 @@ std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr_
 Expression const* getRefType(Expression const& expr)
 {
     return std::get<1>(getRef(expr));
+}
+
+ProcedureDeclaration const* getProcedure(Expression const& expr)
+{
+    if ( auto decl = getDeclaration(expr) )
+        return decl->as<ProcedureDeclaration>();
+
+    if ( auto l = expr.as<LambdaExpression>() )
+        return &l->procedure();
+
+    return nullptr;
 }
 
     } // namespace ast

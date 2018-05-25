@@ -33,76 +33,88 @@ class ProcedureScopeParser;
 class DeclarationScopeParser
 {
 public:
-    DeclarationScopeParser(ast::DeclarationScope* scope);
+    DeclarationScopeParser(Diagnostics& dgn,
+                           lexer::Scanner& scanner,
+                           ast::DeclarationScope& scope);
     virtual ~DeclarationScopeParser();
 
 public:
-    std::unique_ptr<DeclarationScopeParser> next(Diagnostics& dgn, lexer::Scanner& scanner);
+    std::unique_ptr<DeclarationScopeParser> next();
 
-    std::unique_ptr<DataSumScopeParser> parseDataSumDefinition(Diagnostics& dgn,
-                                                               lexer::Scanner& scanner,
-                                                               ast::DataSumDeclaration& declaration);
-    std::unique_ptr<DataProductScopeParser> parseDataProductDefinition(Diagnostics& dgn,
-                                                                       lexer::Scanner& scanner,
-                                                                       ast::DataProductDeclaration& declaration);
-    std::unique_ptr<ProcedureScopeParser> parseProcedureDefinition(Diagnostics& dgn,
-                                                                   lexer::Scanner& scanner,
-                                                                   ast::ProcedureDeclaration& declaration);
+    std::unique_ptr<DataSumScopeParser> parseDataSumDefinition(ast::DataSumDeclaration& declaration);
+    std::unique_ptr<DataProductScopeParser> parseDataProductDefinition(ast::DataProductDeclaration& declaration);
+    std::unique_ptr<ProcedureScopeParser> parseProcedureDefinition(ast::ProcedureDeclaration& declaration);
 
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner);
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseProcedural(Diagnostics& dgn, lexer::Scanner& scanner);
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNonProcedural();
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseProcedural();
+
+    std::vector<std::unique_ptr<ast::Expression>> parameterContext() const;
 
 protected:
     void append(std::unique_ptr<ast::Declaration> decl);
-    void parseAttributes(Diagnostics& dgn, lexer::Scanner& scanner);
-    virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner);
+    void parseAttributes();
+    virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext();
 
-private:
-    ast::DeclarationScope* scope();
+public:
+    Diagnostics& diagnostics();
+    Diagnostics const& diagnostics() const;
+
+    lexer::Scanner& scanner();
+    lexer::Scanner const& scanner() const;
+
+    ast::DeclarationScope& scope();
+    ast::DeclarationScope const& scope() const;
 
 protected:
+    Diagnostics* myDiagnostics = nullptr;
+    lexer::Scanner* myScanner = nullptr;
     ast::DeclarationScope* myScope = nullptr;
     std::vector<std::unique_ptr<ast::Expression>> myAttributes;
+    std::vector<std::unique_ptr<ast::Expression>> myParameterContext;
 };
 
 class DataSumScopeParser : public DeclarationScopeParser
 {
 public:
-    explicit DataSumScopeParser(ast::DataSumScope* scope);
+    DataSumScopeParser(Diagnostics& dgn,
+                       lexer::Scanner& scanner,
+                       ast::DataSumScope& scope);
     ~DataSumScopeParser() override;
 
 protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
-
-private:
-    ast::DataSumScope* scope();
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext() override;
 };
 
 class DataProductScopeParser : public DeclarationScopeParser
 {
 public:
-    explicit DataProductScopeParser(ast::DataProductScope* scope);
+    DataProductScopeParser(Diagnostics& dgn,
+                           lexer::Scanner& scanner,
+                           ast::DataProductScope& scope);
     ~DataProductScopeParser();
 
 protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
-
-private:
-    ast::DataProductScope* scope();
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext() override;
 };
 
 class ProcedureScopeParser : public DeclarationScopeParser
 {
 public:
-    explicit ProcedureScopeParser(ast::ProcedureScope* scope);
-    explicit ProcedureScopeParser(ast::ProcedureScope* scope, bool isLoop);
+    ProcedureScopeParser(Diagnostics& dgn,
+                         lexer::Scanner& scanner,
+                         ast::ProcedureScope& scope);
+    ProcedureScopeParser(Diagnostics& dgn,
+                         lexer::Scanner& scanner,
+                         ast::ProcedureScope& scope,
+                         bool isLoop);
     ~ProcedureScopeParser() override;
 
-protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext(Diagnostics& dgn, lexer::Scanner& scanner) override;
+public:
+    ast::ProcedureScope& scope();
+    ast::ProcedureScope const& scope() const;
 
-private:
-    ast::ProcedureScope* scope();
+protected:
+    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext() override;
 
 private:
     bool myIsLoop = false;
@@ -112,22 +124,20 @@ template <typename T>
 std::size_t parse(lexer::Scanner& scanner, T& production)
 {
     std::size_t matches = 0;
-    if ( production.match(scanner, matches) ) {
-        return true;
-    }
-
-    return false;
+    return production.match(scanner, matches);
 }
 
 template <typename P>
-auto parse(lexer::Scanner& scanner)
+auto parse(DeclarationScopeParser& parser)
 {
     P production;
-    if ( parse(scanner, production) )
-        return production.make();
+    if ( parse(parser.scanner(), production) )
+        return production.make(parser);
 
-    return decltype(production.make())();
+    return decltype(production.make(parser))();
 }
+
+void parseScope(std::unique_ptr<DeclarationScopeParser> parser);
 
     } // namespace parser
 } // namespace kyfoo

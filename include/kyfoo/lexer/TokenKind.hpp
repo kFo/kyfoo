@@ -40,6 +40,9 @@ namespace kyfoo {
     X(ColonOpenAngle, "colonOpenAngle") \
     X(ColonQuestion , "colonQuestion" ) \
     X(ColonSlash    , "colonSlash"    ) \
+    X(ColonPlus     , "colonPlus"     ) \
+    X(ColonMinus    , "colonMinus"    ) \
+    X(ColonDot      , "colonDot"      ) \
     \
     X(Yield, "yield") \
     X(Arrow, "arrow") \
@@ -49,9 +52,6 @@ namespace kyfoo {
     \
     X(_keywordStart, "keyword start") \
     X(_import      , "import"       ) \
-    X(_return      , "return"       ) \
-    X(_loop        , "loop"         ) \
-    X(_break       , "break"        ) \
     X(_keywordEnd  , "keyword end"  )
 
 #define X(A,B) A,

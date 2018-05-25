@@ -185,59 +185,10 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
 {
     lexer::Scanner scanner(stream);
 
-    using lexer::TokenKind;
-
     if ( !myScope )
         myScope = std::make_unique<ast::DeclarationScope>(*this);
-    
-    std::vector<std::unique_ptr<parser::DeclarationScopeParser>> scopeStack;
-    scopeStack.emplace_back(std::make_unique<parser::DeclarationScopeParser>(myScope.get()));
 
-    while ( scanner ) {
-        auto nextScope = scopeStack.back()->next(dgn, scanner);
-        if ( nextScope ) {
-            scopeStack.push_back(std::move(nextScope));
-        }
-        else {
-            switch (scanner.peek().kind()) {
-            case TokenKind::EndOfFile:
-                if ( !scopeStack.empty() )
-                    scopeStack.resize(1);
-
-            case TokenKind::IndentLT:
-                break;
-
-            case TokenKind::IndentGT:
-            {
-                dgn.error(myScope->module(), scanner.peek()) << "unexpected scope opening";
-                dgn.die();
-                return;
-            }
-
-            default:
-                dgn.error(myScope->module(), scanner.peek()) << "expected end of scope";
-                dgn.die();
-            }
-
-            while ( scanner.peek().kind() == TokenKind::IndentLT ) {
-                if ( scopeStack.empty() ) {
-                    dgn.error(*this, scanner.peek()) << "indentation doesn't match an existing scope";
-                    dgn.die();
-                }
-
-                scopeStack.pop_back();
-                scanner.next();
-            }
-        }
-    }
-
-    if ( scanner.hasError() ) {
-        dgn.error(*this, scanner.peek()) << "lexical error";
-        dgn.die();
-    }
-
-    if ( scopeStack.size() != 1 )
-        throw std::runtime_error("parser scope imbalance");
+    parseScope(std::make_unique<parser::DeclarationScopeParser>(dgn, scanner, *myScope));
 }
 
 void Module::resolveImports(Diagnostics& dgn)

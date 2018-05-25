@@ -9,6 +9,9 @@
 #include <kyfoo/lexer/TokenKind.hpp>
 
 namespace kyfoo {
+    namespace parser {
+        class DeclarationScopeParser;
+    }
     namespace ast {
         class LiteralExpression;
     }
@@ -39,7 +42,12 @@ public:
         return myCapture;
     }
 
-    kyfoo::lexer::Token const& make() const
+    kyfoo::lexer::Token& token()
+    {
+        return myCapture;
+    }
+
+    kyfoo::lexer::Token const& make(kyfoo::parser::DeclarationScopeParser&) const
     {
         return token();
     }
@@ -96,6 +104,12 @@ public:
         return std::get<N>(myFactors);
     }
 
+    template <std::size_t N>
+    auto& factor()
+    {
+        return std::get<N>(myFactors);
+    }
+
 private:
     template <std::size_t N>
     bool subMatch(kyfoo::lexer::ScanPoint& scan,
@@ -126,22 +140,22 @@ private:
 template <typename T, template <typename...> class G, typename... Branches>
 struct MonomorphicMaker
 {
-    static T make(G<Branches...> const& rhs)
+    static T make(kyfoo::parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
-        return make<0>(rhs);
+        return make<0>(parser, rhs);
     }
 
     template <std::size_t N>
-    static T make(G<Branches...> const& rhs)
+    static T make(kyfoo::parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
         if ( rhs.index() == N )
-            return rhs.term<N>().make();
+            return rhs.term<N>().make(parser);
 
-        return make<N+1>(rhs);
+        return make<N+1>(parser, rhs);
     }
 
     template <>
-    static T make<sizeof...(Branches)>(G<Branches...> const&)
+    static T make<sizeof...(Branches)>(kyfoo::parser::DeclarationScopeParser&, G<Branches...>&)
     {
         throw std::runtime_error("invalid or make");
     }
@@ -209,16 +223,22 @@ public:
         return std::get<N>(myTerms);
     }
 
-    template <typename AST>
-    AST monoMake() const
+    template <std::size_t N>
+    auto& term()
     {
-        return MonomorphicMaker<AST, g::Or, T...>::make<0>(*this);
+        return std::get<N>(myTerms);
     }
 
     template <typename AST>
-    std::unique_ptr<AST> monoMakePtr() const
+    AST monoMake(kyfoo::parser::DeclarationScopeParser& parser)
     {
-        return MonomorphicMaker<std::unique_ptr<AST>, g::Or, T...>::make<0>(*this);
+        return MonomorphicMaker<AST, g::Or, T...>::make<0>(parser, *this);
+    }
+
+    template <typename AST>
+    std::unique_ptr<AST> monoMakePtr(kyfoo::parser::DeclarationScopeParser& parser)
+    {
+        return MonomorphicMaker<std::unique_ptr<AST>, g::Or, T...>::make<0>(parser, *this);
     }
 
 private:
@@ -313,6 +333,12 @@ public:
         return std::get<N>(myTerms);
     }
 
+    template <std::size_t N>
+    auto& term()
+    {
+        return std::get<N>(myTerms);
+    }
+
 private:
     template <int N>
     void subMatch(kyfoo::lexer::ScanPoint& scan,
@@ -388,12 +414,17 @@ public:
         return true;
     }
 
-    T const* capture() const
+    T* capture()
     {
         if ( myCapture )
             return &myRhs;
 
         return nullptr;
+    }
+
+    T const* capture() const
+    {
+        return const_cast<Opt*>(this)->capture();
     }
 
 private:
@@ -471,6 +502,11 @@ public:
         return myCaptures;
     }
 
+    std::vector<U>& captures()
+    {
+        return myCaptures;
+    }
+
 private:
     std::vector<U> myCaptures;
 };
@@ -504,6 +540,11 @@ public:
     }
 
     CaptureVector const& captures() const
+    {
+        return myCaptures;
+    }
+
+    CaptureVector& captures()
     {
         return myCaptures;
     }
@@ -553,8 +594,58 @@ public:
         return myCaptures;
     }
 
+    CaptureVector& captures()
+    {
+        return myCaptures;
+    }
+
 private:
     CaptureVector myCaptures;
+};
+
+template <kyfoo::lexer::TokenKind Open, kyfoo::lexer::TokenKind Close>
+class Nest
+{
+public:
+    explicit Nest() = default;
+
+public:
+    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    {
+        if ( scan.peek().kind() != Open )
+            return false;
+
+        myCaptures.emplace_back(scan.next());
+        ++matches;
+        for ( int nest = 1; nest; ) {
+            myCaptures.emplace_back(scan.next());
+            ++matches;
+            switch (myCaptures.back().kind()) {
+            case Open:
+                ++nest;
+                break;
+
+            case Close:
+                --nest;
+                break;
+            }
+        }
+
+        return scan.commit();
+    }
+
+    std::deque<kyfoo::lexer::Token> const& captures() const
+    {
+        return myCaptures;
+    }
+
+    std::deque<kyfoo::lexer::Token>& captures()
+    {
+        return myCaptures;
+    }
+
+private:
+    std::deque<kyfoo::lexer::Token> myCaptures;
 };
 
 template <typename... U, typename... V>

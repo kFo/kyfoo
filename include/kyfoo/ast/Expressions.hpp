@@ -545,9 +545,8 @@ private:
 class LambdaExpression : public Expression
 {
 public:
-    LambdaExpression(std::unique_ptr<Expression> params,
-                     std::unique_ptr<Expression> returnType,
-                     std::unique_ptr<Expression> body);
+    LambdaExpression(lexer::Token const& yieldToken,
+                     ProcedureDeclaration* proc);
 
 protected:
     LambdaExpression(LambdaExpression const& rhs);
@@ -568,19 +567,14 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    Expression const& parameters() const;
-    Expression const& returnType() const;
-    Expression const& body() const;
+    lexer::Token const& yieldToken() const;
 
-    Expression& parameters();
-    Expression& returnType();
-    Expression& body();
+    ProcedureDeclaration const& procedure() const;
+    ProcedureDeclaration& procedure();
 
 private:
-    ProcedureDeclaration const* myProc = nullptr;
-    std::unique_ptr<Expression> myParams;
-    std::unique_ptr<Expression> myReturnType;
-    std::unique_ptr<Expression> myBody;
+    lexer::Token myYieldToken;
+    ProcedureDeclaration* myProc = nullptr;
 };
 
 class ArrowExpression : public Expression
@@ -670,6 +664,7 @@ Declaration const* getDeclaration(Expression const* expr);
 std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr);
 std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr);
 Expression const* getRefType(Expression const& expr);
+ProcedureDeclaration const* getProcedure(Expression const& expr);
 
     } // namespace ast
 } // namespace kyfoo

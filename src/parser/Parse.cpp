@@ -24,110 +24,108 @@ namespace kyfoo {
 //
 // DeclarationScopeParser
 
-DeclarationScopeParser::DeclarationScopeParser(ast::DeclarationScope* scope)
-    : myScope(scope)
+DeclarationScopeParser::DeclarationScopeParser(Diagnostics& dgn,
+                                               lexer::Scanner& scanner,
+                                               ast::DeclarationScope& scope)
+    : myDiagnostics(&dgn)
+    , myScanner(&scanner)
+    , myScope(&scope)
 {
 }
 
 DeclarationScopeParser::~DeclarationScopeParser() = default;
 
 std::unique_ptr<DataSumScopeParser>
-DeclarationScopeParser::parseDataSumDefinition(Diagnostics& /*dgn*/,
-                                               lexer::Scanner& scanner,
-                                               ast::DataSumDeclaration& declaration)
+DeclarationScopeParser::parseDataSumDefinition(ast::DataSumDeclaration& declaration)
 {
     // Check if type definition follows
-    if ( scanner.peek().kind() != lexer::TokenKind::IndentGT )
+    if ( scanner().peek().kind() != lexer::TokenKind::IndentGT )
         return nullptr;
 
-    scanner.next();
+    scanner().next();
 
     auto dsDefn = std::make_unique<ast::DataSumScope>(*myScope, declaration);
-    declaration.define(dsDefn.get());
-    scope()->append(std::move(dsDefn));
-    return std::make_unique<DataSumScopeParser>(declaration.definition());
+    declaration.define(*dsDefn);
+    scope().append(std::move(dsDefn));
+    return std::make_unique<DataSumScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
 
 std::unique_ptr<DataProductScopeParser>
-DeclarationScopeParser::parseDataProductDefinition(Diagnostics& /*dgn*/,
-                                                   lexer::Scanner& scanner,
-                                                   ast::DataProductDeclaration& declaration)
+DeclarationScopeParser::parseDataProductDefinition(ast::DataProductDeclaration& declaration)
 {
     // Check if type definition follows
-    if ( scanner.peek().kind() != lexer::TokenKind::IndentGT )
+    if ( scanner().peek().kind() != lexer::TokenKind::IndentGT )
         return nullptr;
 
-    scanner.next();
+    scanner().next();
 
     auto dpDefn = std::make_unique<ast::DataProductScope>(*myScope, declaration);
-    declaration.define(dpDefn.get());
-    scope()->append(std::move(dpDefn));
-    return std::make_unique<DataProductScopeParser>(declaration.definition());
+    declaration.define(*dpDefn);
+    scope().append(std::move(dpDefn));
+    return std::make_unique<DataProductScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
 
 std::unique_ptr<ProcedureScopeParser>
-DeclarationScopeParser::parseProcedureDefinition(Diagnostics& dgn,
-                                                 lexer::Scanner& scanner,
-                                                 ast::ProcedureDeclaration& declaration)
+DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& declaration)
 {
     // Check if a procedure definition follows
-    if ( scanner.peek().kind() == lexer::TokenKind::Yield ) {
-        scanner.next(); // yield
+    if ( scanner().peek().kind() == lexer::TokenKind::Yield ) {
+        scanner().next(); // yield
         auto p = std::make_unique<ast::ProcedureScope>(*myScope, declaration);
-        declaration.define(p.get());
-        scope()->append(std::move(p));
-        if ( !isIndent(scanner.peek().kind()) ) {
-            auto expr = parse<Expression>(scanner);
+        declaration.define(*p);
+        scope().append(std::move(p));
+        if ( !isIndent(scanner().peek().kind()) ) {
+            auto expr = parse<Expression>(*this);
             if ( !expr ) {
-                dgn.error(myScope->module(), scanner.peek()) << "expected expression following procedure declaration";
-                dgn.die();
+                diagnostics().error(myScope->module(), scanner().peek()) << "expected expression following procedure declaration";
+                diagnostics().die();
             }
 
             declaration.definition()->append(std::move(expr));
             return nullptr;
         }
 
-        auto indent = scanner.next();
+        auto indent = scanner().next();
         if ( indent.kind() != lexer::TokenKind::IndentGT ) {
-            dgn.error(myScope->module(), scanner.peek()) << "expected new scope for procedure definition";
-            dgn.die();
+            diagnostics().error(myScope->module(), scanner().peek()) << "expected new scope for procedure definition";
+            diagnostics().die();
         }
 
-        return std::make_unique<ProcedureScopeParser>(declaration.definition());
+        return std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *declaration.definition());
     }
 
     return nullptr;
 }
 
 std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>>
-parseImplicitTemplateProcedureDeclaration(lexer::Scanner& scanner)
+parseImplicitTemplateProcedureDeclaration(DeclarationScopeParser& parser)
 {
     ImplicitProcedureTemplateDeclaration grammar;
-    if ( parse(scanner, grammar) )
-        return grammar.make();
+    if ( parse(parser.scanner(), grammar) )
+        return grammar.make(parser);
 
     return std::make_tuple(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "")), nullptr);
 }
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
+DeclarationScopeParser::parseNonProcedural()
 {
-    if ( auto importDecl = parse<ImportDeclaration>(scanner) ) {
+    if ( auto importDecl = parse<ImportDeclaration>(*this) ) {
         append(std::move(importDecl));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto symDecl = parse<SymbolDeclaration>(scanner) ) {
+    else if ( auto symDecl = parse<SymbolDeclaration>(*this) ) {
         append(std::move(symDecl));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto dsDecl = parse<DataSumDeclaration>(scanner) ) {
-        auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
+    else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
+        auto newScopeParser = parseDataSumDefinition(*dsDecl);
         append(std::move(dsDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
-    else if ( auto dpDecl = parse<DataProductDeclaration>(scanner) ) {
-        auto newScopeParser = parseDataProductDefinition(dgn, scanner, *dpDecl);
+    else if ( auto dpDecl = parse<DataProductDeclaration>(*this) ) {
+        auto newScopeParser = parseDataProductDefinition(*dpDecl);
         append(std::move(dpDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
@@ -137,24 +135,24 @@ DeclarationScopeParser::parseNonProcedural(Diagnostics& dgn, lexer::Scanner& sca
 }
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanner)
+DeclarationScopeParser::parseProcedural()
 {
-    if ( auto procDecl = parse<ProcedureDeclaration>(scanner) ) {
-        auto newScopeParser = parseProcedureDefinition(dgn, scanner, *procDecl);
+    if ( auto procDecl = parse<ProcedureDeclaration>(*this) ) {
+        auto newScopeParser = parseProcedureDefinition(*procDecl);
         append(std::move(procDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
 
-    auto templProcDecl = parseImplicitTemplateProcedureDeclaration(scanner);
+    auto templProcDecl = parseImplicitTemplateProcedureDeclaration(*this);
     if ( std::get<1>(templProcDecl) ) {
         std::get<1>(templProcDecl)->setAttributes(std::move(myAttributes));
         auto templDecl = std::make_unique<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
         auto templDefn = std::make_unique<ast::TemplateScope>(*myScope, *templDecl);
-        templDecl->define(templDefn.get());
-        scope()->append(std::move(templDefn));
+        templDecl->define(*templDefn);
+        scope().append(std::move(templDefn));
 
-        auto newScopeParser = parseProcedureDefinition(dgn, scanner, *std::get<1>(templProcDecl));
+        auto newScopeParser = parseProcedureDefinition(*std::get<1>(templProcDecl));
         templDecl->definition()->append(std::move(std::get<1>(templProcDecl)));
 
         append(std::move(templDecl));
@@ -164,62 +162,92 @@ DeclarationScopeParser::parseProcedural(Diagnostics& dgn, lexer::Scanner& scanne
     return std::make_tuple(false, nullptr);
 }
 
+std::vector<std::unique_ptr<ast::Expression>> DeclarationScopeParser::parameterContext() const
+{
+    return ast::clone(myParameterContext);
+}
+
 void DeclarationScopeParser::append(std::unique_ptr<ast::Declaration> decl)
 {
     decl->setAttributes(std::move(myAttributes));
     myScope->append(std::move(decl));
 }
 
-void DeclarationScopeParser::parseAttributes(Diagnostics& dgn, lexer::Scanner& scanner)
+void DeclarationScopeParser::parseAttributes()
 {
-    while ( auto attr = parse<Attribute>(scanner) ) {
+    while ( auto attr = parse<Attribute>(*this) ) {
         myAttributes.emplace_back(std::move(attr));
-        if ( scanner.peek().kind() != lexer::TokenKind::IndentEQ ) {
-            dgn.error(myScope->module(), scanner.peek()) << "expected declaration to follow attribute";
+        if ( scanner().peek().kind() != lexer::TokenKind::IndentEQ ) {
+            diagnostics().error(myScope->module(), scanner().peek()) << "expected declaration to follow attribute";
             return;
         }
-        scanner.next();
+        scanner().next();
     }
 }
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DeclarationScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+DeclarationScopeParser::parseNext()
 {
-    parseAttributes(dgn, scanner);
-    if ( dgn.errorCount() )
+    parseAttributes();
+    if ( diagnostics().errorCount() )
         return std::make_tuple(false, nullptr);
 
-    auto ret = parseNonProcedural(dgn, scanner);
+    auto ret = parseNonProcedural();
     if ( std::get<0>(ret) )
         return ret;
 
-    return parseProcedural(dgn, scanner);
+    return parseProcedural();
 }
 
-ast::DeclarationScope* DeclarationScopeParser::scope()
+Diagnostics& DeclarationScopeParser::diagnostics()
 {
-    return myScope;
+    return *myDiagnostics;
 }
 
-std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics& dgn, lexer::Scanner& scanner)
+Diagnostics const& DeclarationScopeParser::diagnostics() const
 {
-    while ( scanner ) {
+    return *myDiagnostics;
+}
+
+lexer::Scanner& DeclarationScopeParser::scanner()
+{
+    return *myScanner;
+}
+
+lexer::Scanner const& DeclarationScopeParser::scanner() const
+{
+    return *myScanner;
+}
+
+ast::DeclarationScope& DeclarationScopeParser::scope()
+{
+    return *myScope;
+}
+
+ast::DeclarationScope const& DeclarationScopeParser::scope() const
+{
+    return *myScope;
+}
+
+std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next()
+{
+    while ( scanner() ) {
         bool success;
         std::unique_ptr<DeclarationScopeParser> newScopeParser;
-        std::tie(success, newScopeParser) = parseNext(dgn, scanner);
+        std::tie(success, newScopeParser) = parseNext();
 
         if ( !success ) {
-            dgn.error(myScope->module(), scanner.peek()) << "grammar at this point is not recognized";
-            dgn.die();
+            diagnostics().error(myScope->module(), scanner().peek()) << "grammar at this point is not recognized";
+            diagnostics().die();
         }
         
         if ( newScopeParser )
             return newScopeParser;
 
-        if ( scanner.peek().kind() != lexer::TokenKind::IndentEQ )
+        if ( scanner().peek().kind() != lexer::TokenKind::IndentEQ )
             return nullptr;
 
-        scanner.next();
+        scanner().next();
     }
 
     return nullptr;
@@ -228,18 +256,20 @@ std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next(Diagnostics
 //
 // DataSumScopeParser
 
-DataSumScopeParser::DataSumScopeParser(ast::DataSumScope* scope)
-    : DeclarationScopeParser(scope)
+DataSumScopeParser::DataSumScopeParser(Diagnostics& dgn,
+                                       lexer::Scanner& scanner,
+                                       ast::DataSumScope& scope)
+    : DeclarationScopeParser(dgn, scanner, scope)
 {
 }
 
 DataSumScopeParser::~DataSumScopeParser() = default;
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DataSumScopeParser::parseNext(Diagnostics& /*dgn*/, lexer::Scanner& scanner)
+DataSumScopeParser::parseNext()
 {
-    if ( auto dsCtor = parse<DataSumConstructor>(scanner) ) {
-        dsCtor->setParent(scope()->declaration()->as<ast::DataSumDeclaration>());
+    if ( auto dsCtor = parse<DataSumConstructor>(*this) ) {
+        dsCtor->setParent(scope().declaration()->as<ast::DataSumDeclaration>());
         myScope->append(std::move(dsCtor));
         return std::make_tuple(true, nullptr);
     }
@@ -247,87 +277,93 @@ DataSumScopeParser::parseNext(Diagnostics& /*dgn*/, lexer::Scanner& scanner)
     return std::make_tuple(false, nullptr);
 }
 
-ast::DataSumScope* DataSumScopeParser::scope()
-{
-    return static_cast<ast::DataSumScope*>(myScope);
-}
-
 //
 // DataProductScopeParser
 
-DataProductScopeParser::DataProductScopeParser(ast::DataProductScope* scope)
-    : DeclarationScopeParser(scope)
+DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
+                                               lexer::Scanner& scanner,
+                                               ast::DataProductScope& scope)
+    : DeclarationScopeParser(dgn, scanner, scope)
 {
 }
 
 DataProductScopeParser::~DataProductScopeParser() = default;
 
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-DataProductScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+DataProductScopeParser::parseNext()
 {
-    if ( auto field = parse<DataProductDeclarationField>(scanner) ) {
-        field->setParent(scope()->declaration()->as<ast::DataProductDeclaration>());
+    if ( auto field = parse<DataProductDeclarationField>(*this) ) {
+        field->setParent(scope().declaration()->as<ast::DataProductDeclaration>());
         myScope->append(std::move(field));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto dsDecl = parse<DataSumDeclaration>(scanner) ) {
-        auto newScopeParser = parseDataSumDefinition(dgn, scanner, *dsDecl);
+    else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
+        auto newScopeParser = parseDataSumDefinition(*dsDecl);
         myScope->append(std::move(dsDecl));
 
         return std::make_tuple(true, std::move(newScopeParser));
     }
 
-    return DeclarationScopeParser::parseNext(dgn, scanner);
-}
-
-ast::DataProductScope* DataProductScopeParser::scope()
-{
-    return static_cast<ast::DataProductScope*>(myScope);
+    return DeclarationScopeParser::parseNext();
 }
 
 //
 // ProcedureScopeParser
 
-ProcedureScopeParser::ProcedureScopeParser(ast::ProcedureScope* scope)
-    : ProcedureScopeParser(scope, false)
+ProcedureScopeParser::ProcedureScopeParser(Diagnostics& dgn,
+                                           lexer::Scanner& scanner,
+                                           ast::ProcedureScope& scope)
+    : ProcedureScopeParser(dgn, scanner, scope, false)
 {
 }
 
-ProcedureScopeParser::ProcedureScopeParser(ast::ProcedureScope* scope,
+ProcedureScopeParser::ProcedureScopeParser(Diagnostics& dgn,
+                                           lexer::Scanner& scanner,
+                                           ast::ProcedureScope& scope,
                                            bool isLoop)
-    : DeclarationScopeParser(scope)
+    : DeclarationScopeParser(dgn, scanner, scope)
     , myIsLoop(isLoop)
 {
 }
 
 ProcedureScopeParser::~ProcedureScopeParser()
 {
-    auto bb = scope()->basicBlocks().back();
+    auto bb = scope().basicBlocks().back();
     if ( !bb->junction() ) {
         if ( myIsLoop )
-            bb->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, scope()->basicBlocks().front()));
-        else if ( auto m = scope()->mergeBlock() )
+            bb->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, scope().basicBlocks().front()));
+        else if ( auto m = scope().mergeBlock() )
             bb->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, m));
     }
 }
 
+ast::ProcedureScope& ProcedureScopeParser::scope()
+{
+    return static_cast<ast::ProcedureScope&>(*myScope);
+}
+
+ast::ProcedureScope const& ProcedureScopeParser::scope() const
+{
+    return static_cast<ast::ProcedureScope const&>(*myScope);
+}
+
 std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
-ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
+ProcedureScopeParser::parseNext()
 {
     // Allow declarations
     {
-        auto declParse = DeclarationScopeParser::parseNonProcedural(dgn, scanner);
+        auto declParse = DeclarationScopeParser::parseNonProcedural();
         if ( std::get<0>(declParse) )
             return declParse;
     }
 
     {
         BlockDeclaration grammar;
-        if ( parse(scanner, grammar) ) {
-            auto bdecl = grammar.make();
-            auto b = scope()->basicBlocks().back();
-            auto m = scope()->createBasicBlock();
-            auto s = scope()->createChildScope(m, bdecl.open, bdecl.id);
+        if ( parse(scanner(), grammar) ) {
+            auto bdecl = grammar.make(*this);
+            auto b = scope().basicBlocks().back();
+            auto m = scope().createBasicBlock();
+            auto s = scope().createChildScope(m, bdecl.open, bdecl.id);
             b->setJunction(std::make_unique<ast::JumpJunction>(
                 ast::JumpJunction::JumpKind::Break, s->basicBlocks().front()));
 
@@ -340,18 +376,19 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
                 s->basicBlocks().front()->setJunction(std::move(br));
             }
 
-            if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
-                scanner.next();
-                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s, isLoop));
+            if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
+                scanner().next();
+                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s, isLoop));
             }
 
             return std::make_tuple(false, nullptr);
         }
     }
 
-    auto lastBranch = [s = scope(), &dgn](ast::Junction& j) -> ast::BranchJunction* {
-        if ( s->basicBlocks().size() >= 2 ) {
-            auto lastJunc = s->basicBlocks()[s->basicBlocks().size() - 2]->junction();
+    auto lastBranch = [this](ast::Junction& j) -> ast::BranchJunction* {
+        auto& s = scope();
+        if ( s.basicBlocks().size() >= 2 ) {
+            auto lastJunc = s.basicBlocks()[s.basicBlocks().size() - 2]->junction();
             if ( lastJunc ) {
                 auto ret = lastJunc->as<ast::BranchJunction>();
                 if ( ret )
@@ -359,84 +396,84 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
             }
         }
 
-        dgn.error(s->module(), j) << "expected preceding branch-statement";
+        diagnostics().error(s.module(), j) << "expected preceding branch-statement";
         return nullptr;
     };
 
-    if ( auto elseJunc = parse<BranchElseJunction>(scanner) ) {
+    if ( auto elseJunc = parse<BranchElseJunction>(*this) ) {
         auto br = lastBranch(*elseJunc);
         if ( !br )
             return std::make_tuple(false, nullptr);
 
         // todo: lifetime of transient parse objects in diagnostics
         if ( !br->branch(0) ) {
-            dgn.error(scope()->module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
+            diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
             return std::make_tuple(false, nullptr);
         }
 
         while ( br->branch(1) ) {
             if ( !br->branch(1)->junction() ) {
-                dgn.error(scope()->module(), *elseJunc) << "is missing preceding branch-statement";
+                diagnostics().error(scope().module(), *elseJunc) << "is missing preceding branch-statement";
                 return std::make_tuple(false, nullptr);
             }
 
             br = br->branch(1)->junction()->as<ast::BranchJunction>();
             if ( !br || !br->branch(0) ) {
-                dgn.error(scope()->module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
+                diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
                 return std::make_tuple(false, nullptr);
             }
         }
 
         if ( br->branch(1) ) {
-            dgn.error(scope()->module(), *elseJunc) << "preceding branch-statement already has an else-branch-statement";
+            diagnostics().error(scope().module(), *elseJunc) << "preceding branch-statement already has an else-branch-statement";
             return std::make_tuple(false, nullptr);
         }
 
-        if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
-            scanner.next();
-            auto m = scope()->basicBlocks().back();
-            auto s = scope()->createChildScope(m);
+        if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner().next();
+            auto m = scope().basicBlocks().back();
+            auto s = scope().createChildScope(m);
             br->setBranch(1, s->basicBlocks().front());
             if ( elseJunc->condition() ) {
                 auto ss = s->createChildScope(m);
                 elseJunc->setBranch(0, ss->basicBlocks().front());
                 s->basicBlocks().front()->setJunction(std::move(elseJunc));
-                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(ss));
+                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *ss));
             }
 
-            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s));
+            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s));
         }
 
         return std::make_tuple(false, nullptr);
     }
 
-    if ( auto branchJunc = parse<BranchJunction>(scanner) ) {
+    if ( auto branchJunc = parse<BranchJunction>(*this) ) {
         auto br = branchJunc.get();
-        scope()->basicBlocks().back()->setJunction(std::move(branchJunc));
+        scope().basicBlocks().back()->setJunction(std::move(branchJunc));
 
-        if ( scanner.peek().kind() == lexer::TokenKind::IndentGT ) {
-            scanner.next();
-            auto m = scope()->createBasicBlock();
-            auto s = scope()->createChildScope(m);
+        if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner().next();
+            auto m = scope().createBasicBlock();
+            auto s = scope().createChildScope(m);
             br->setBranch(0, s->basicBlocks().front());
-            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(s));
+            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s));
         }
 
         return std::make_tuple(false, nullptr);
     }
-    else if ( auto retJunc = parse<ReturnJunction>(scanner) ) {
-        auto b = scope()->basicBlocks().back();
+    else if ( auto retJunc = parse<ReturnJunction>(*this) ) {
+        auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
-            dgn.error(scope()->module(), *retJunc) << "statement is unreachable";
+            diagnostics().error(scope().module(), *retJunc) << "statement is unreachable";
             return std::make_tuple(false, nullptr);
         }
         b->setJunction(std::move(retJunc));
         return std::make_tuple(true, nullptr);
     }
-    else if ( auto jmpJunc = parse<JumpJunction>(scanner) ) {
-        auto b = scope()->basicBlocks().back();
+    else if ( auto jmpJunc = parse<JumpJunction>(*this) ) {
+        auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
-            dgn.error(scope()->module(), *jmpJunc) << "statement is unreachable";
+            diagnostics().error(scope().module(), *jmpJunc) << "statement is unreachable";
             return std::make_tuple(false, nullptr);
         }
         b->setJunction(std::move(jmpJunc));
@@ -445,21 +482,21 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
 
     {
         VariableDeclaration varGrammar;
-        if ( parse(scanner, varGrammar) ) {
-            auto v = varGrammar.make();
+        if ( parse(scanner(), varGrammar) ) {
+            auto v = varGrammar.make(*this);
             auto var = std::make_unique<ast::VariableDeclaration>(ast::Symbol(v.token),
-                                                                  *scope(),
+                                                                  scope(),
                                                                   std::move(v.constraints));
-            static_cast<ast::DeclarationScope*>(scope())->append(std::move(var));
+            static_cast<ast::DeclarationScope&>(scope()).append(std::move(var));
             if ( v.initializer ) {
-                auto p = std::make_unique<ast::IdentifierExpression>(v.token, *scope()->childDeclarations().back());
+                auto p = std::make_unique<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
                 auto expr = std::make_unique<ast::AssignExpression>(std::move(p), std::move(v.initializer));
-                scope()->append(std::move(expr));
+                scope().append(std::move(expr));
             }
             return std::make_tuple(true, nullptr);
         }
-        else if ( auto expr = parse<Expression>(scanner) ) {
-            scope()->append(std::move(expr));
+        else if ( auto expr = parse<Expression>(*this) ) {
+            scope().append(std::move(expr));
             return std::make_tuple(true, nullptr);
         }
     }
@@ -467,9 +504,63 @@ ProcedureScopeParser::parseNext(Diagnostics& dgn, lexer::Scanner& scanner)
     return std::make_tuple(false, nullptr);
 }
 
-ast::ProcedureScope* ProcedureScopeParser::scope()
+void parseScope(std::unique_ptr<DeclarationScopeParser> parser)
 {
-    return static_cast<ast::ProcedureScope*>(myScope);
+    auto& dgn = parser->diagnostics();
+    auto& scanner = parser->scanner();
+    auto const& mod = parser->scope().module();
+
+    std::vector<std::unique_ptr<parser::DeclarationScopeParser>> scopeStack;
+    scopeStack.emplace_back(std::move(parser));
+
+    while ( scanner ) {
+        if ( scanner.peek().kind() == lexer::TokenKind::IndentEQ )
+            scanner.next();
+
+        auto nextScope = scopeStack.back()->next();
+        if ( nextScope ) {
+            scopeStack.push_back(std::move(nextScope));
+        }
+        else {
+            switch (scanner.peek().kind()) {
+            case lexer::TokenKind::EndOfFile:
+                if ( !scopeStack.empty() )
+                    scopeStack.resize(1);
+
+            case lexer::TokenKind::IndentLT:
+                break;
+
+            case lexer::TokenKind::IndentGT:
+            {
+                dgn.error(mod, scanner.peek()) << "unexpected scope opening";
+                dgn.die();
+                return;
+            }
+
+            default:
+                dgn.error(mod, scanner.peek()) << "expected end of scope";
+                dgn.die();
+            }
+
+            while ( scanner.peek().kind() == lexer::TokenKind::IndentLT ) {
+                if ( scopeStack.empty() ) {
+                    dgn.error(mod, scanner.peek()) << "indentation doesn't match an existing scope";
+                    dgn.die();
+                }
+
+                scopeStack.pop_back();
+                scanner.next();
+            }
+        }
+    }
+
+    if ( scanner.hasError() ) {
+        dgn.error(mod, scanner.peek()) << "lexical error";
+        dgn.die();
+    }
+
+    if ( scopeStack.size() != 1 )
+        throw std::runtime_error("parser scope imbalance");
 }
 
     } // namespace parser
