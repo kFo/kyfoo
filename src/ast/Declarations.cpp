@@ -1338,8 +1338,8 @@ struct DeclarationPrinter
             print(stream, templ->symbol());
 
         auto sink = [this](Expression const& e) {
-            if ( auto id = e.as<IdentifierExpression>() ) {
-                if ( auto param = id->declaration()->as<ProcedureParameter>() ) {
+            if ( auto decl = getDeclaration(e) ) {
+                if ( auto param = decl->as<ProcedureParameter>() ) {
                     declProcedureParameter(*param);
                     return;
                 }

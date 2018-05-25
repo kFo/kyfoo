@@ -572,8 +572,11 @@ VarianceResult variance(Context& ctx,
 
     if ( auto targetArrow = t->as<ArrowExpression>() ) {
         auto queryArrow = q->as<ArrowExpression>();
-        if ( !queryArrow )
-            return Invariant;
+        if ( !queryArrow ) {
+            queryArrow = queryType->as<ArrowExpression>();
+            if ( !queryArrow )
+                return Invariant;
+        }
 
         auto inputVariance = variance(ctx, targetArrow->from(), queryArrow->from());
         auto outputVariance = variance(ctx, targetArrow->to(), queryArrow->to());
@@ -609,7 +612,7 @@ VarianceResult variance(Context& ctx,
             return Contravariant;
     }
 
-    return Invariant;
+    return variance(ctx, *targetType, *queryType);
 }
 
 VarianceResult variance(Context& ctx,

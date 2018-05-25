@@ -37,12 +37,8 @@ public:
     {
     }
 
-    template <typename U>
-    typename operator_t::result_t operator()(U&) = delete;
-
     // Expressions
 
-    template<>
     typename operator_t::result_t operator()(Expression const& expr)
     {
 #define X(a,b) if ( auto e = expr.as<b>() ) return myOperator.expr##a(*e);
@@ -52,7 +48,6 @@ public:
         throw std::runtime_error("invalid expression kind");
     }
 
-    template<>
     typename operator_t::result_t operator()(Expression& expr)
     {
 #define X(a,b) if ( auto e = expr.as<b>() ) return myOperator.expr##a(*e);
@@ -64,7 +59,6 @@ public:
 
     // Statements
 
-    template<>
     typename operator_t::result_t operator()(Statement const& stmt)
     {
 #define X(a,b) if ( auto e = stmt.as<b>() ) return myOperator.stmt##a(*e);
@@ -74,7 +68,6 @@ public:
         throw std::runtime_error("invalid statement kind");
     }
 
-    template<>
     typename operator_t::result_t operator()(Statement& stmt)
     {
 #define X(a,b) if ( auto e = stmt.as<b>() ) return myOperator.stmt##a(*e);
@@ -84,9 +77,8 @@ public:
         throw std::runtime_error("invalid statement kind");
     }
 
-    // ControlJunctions
+    // Junctions
 
-    template<>
     typename operator_t::result_t operator()(Junction const& junc)
     {
 #define X(a,b) if ( auto e = junc.as<b>() ) return myOperator.junc##a(*e);
@@ -96,7 +88,6 @@ public:
         throw std::runtime_error("invalid control-junction kind");
     }
 
-    template<>
     typename operator_t::result_t operator()(Junction& junc)
     {
 #define X(a,b) if ( auto e = junc.as<b>() ) return myOperator.junc##a(*e);
@@ -108,7 +99,6 @@ public:
 
     // Declarations
 
-    template <>
     typename operator_t::result_t operator()(Declaration& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
@@ -118,7 +108,6 @@ public:
         throw std::runtime_error("invalid declaration kind");
     }
 
-    template <>
     typename operator_t::result_t operator()(Declaration const& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
