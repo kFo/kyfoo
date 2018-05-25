@@ -8,6 +8,8 @@
 template <template<typename> class>
 struct deducto_syntacto_impl {};
 
+#define KYFOO_LABEL_CAT(a,b) a##b
+
 template <typename F>
 struct ycombinator {
     F f;
@@ -58,7 +60,8 @@ CheckPoint<T> operator*(deducto_syntacto_impl<CheckPoint>, T& rhs) noexcept
     return CheckPoint<T>(rhs);
 }
 
-#define check_point auto check_point_ ## __COUNTER__ = deducto_syntacto_impl<CheckPoint>{} *
+#define KYFOO_LABEL_CHECKPOINT(a) KYFOO_LABEL_CAT(check_point_, a)
+#define check_point auto KYFOO_LABEL_CHECKPOINT(__COUNTER__) = deducto_syntacto_impl<CheckPoint>{} *
 
 template <typename F>
 struct ScopeExit
@@ -83,4 +86,5 @@ ScopeExit<F> operator*(deducto_syntacto_impl<ScopeExit>, F&& f)
     return ScopeExit<F>(std::forward<F>(f));
 }
 
-#define scope_exit auto scope_exit_ ## __COUNTER__ = deducto_syntacto_impl<ScopeExit>{} * [&]
+#define KYFOO_LABEL_SCOPEEXIT(a) KYFOO_LABEL_SCOPEEXIT(scope_exit_, a)
+#define scope_exit auto KYFOO_LABEL_SCOPEEXIT(__COUNTER__) = deducto_syntacto_impl<ScopeExit>{} * [&]

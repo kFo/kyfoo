@@ -272,10 +272,9 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         ctx.error(token()) << "is missing first branch";
         return SymRes::Fail;
     }
-    else if ( !branch(1) ) {
-        ctx.error(token()) << "is missing second branch";
-        return SymRes::Fail;
-    }
+
+    if ( !branch(1) )
+        setBranch(1, branch(0)->scope()->mergeBlock());
 
     branch(0)->appendIncoming(bb);
     branch(1)->appendIncoming(bb);
@@ -438,6 +437,7 @@ JumpJunction::JumpJunction(JumpJunction const& rhs)
     , myToken(rhs.myToken)
     , myJumpKind(rhs.myJumpKind)
     , myTargetLabel(rhs.myTargetLabel)
+    , myTargetBlock(rhs.myTargetBlock)
 {
 }
 
@@ -586,7 +586,7 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
 {
     SymRes ret = SymRes::Success;
     for ( auto& stmt : myStatements )
-        ctx.resolveStatement(*stmt);
+        ret |= ctx.resolveStatement(*stmt);
 
     if ( !junction() ) {
         ctx.error(*scope()->declaration()) << "expected terminating junction";
@@ -594,8 +594,6 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
     }
 
     ret |= junction()->resolveSymbols(ctx, *this);
-    if ( !ret )
-        return ret;
 
     return ret;
 }
@@ -830,19 +828,22 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
     }
 
     for ( auto b : topo ) {
-        bool allWrite = !b->pred.empty();
-        for ( auto p : b->pred ) {
-            if ( p->out != Provision::Defines && p->out != Provision::Refers )
-            {
-                allWrite = false;
-                break;
-            }
-        }
-
         if ( b->in == Requirement::Defined ) {
-            if ( !allWrite ) {
-                ctx.error(*b->uses[0].expr) << "is not defined on all paths";
-                return SymRes::Fail;
+            for ( auto p : b->pred ) {
+                if ( p->out != Provision::Defines && p->out != Provision::Refers ) {
+                    if ( p == b ) {
+                        if ( p->out == Provision::Moves ) {
+                            ctx.error(*p->uses.back().expr) << "is not defined on all loop iterations";
+                            return SymRes::Fail;
+                        }
+
+                        continue;
+                    }
+
+                    (ctx.error(*b->uses[0].expr) << "is not defined on all incoming paths")
+                        .see(*p->bb->scope(), *p->uses[0].expr);
+                    return SymRes::Fail;
+                }
             }
         }
 
@@ -871,7 +872,7 @@ FlowTracer::Shape FlowTracer::advanceBlock()
 {
     auto bb = myPath.back();
     if ( auto br = bb->junction()->as<BranchJunction>() ) {
-        myPath.push_back(br->branch(0) ? br->branch(0) : br->branch(1));
+        myPath.push_back(br->branch(0));
         return checkLoop();
     }
     else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {

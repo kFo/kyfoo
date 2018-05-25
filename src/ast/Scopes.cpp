@@ -837,6 +837,7 @@ struct Sequencer
     extent_set_t& extents;
     BasicBlock const& basicBlock;
     bool refCtx = false;
+    bool writeCtx = false;
 
     Sequencer(Dispatcher& dispatch,
               Context& ctx,
@@ -855,9 +856,15 @@ struct Sequencer
             dispatch(*e);
     }
 
-    Extent::Usage::Kind asRead()
+    Extent::Usage::Kind currentUsage()
     {
-        return refCtx ? Extent::Usage::Ref : Extent::Usage::Read;
+        if ( writeCtx )
+            return Extent::Usage::Write;
+
+        if ( refCtx )
+            return Extent::Usage::Ref;
+        
+        return Extent::Usage::Read;
     }
 
     result_t exprLiteral(LiteralExpression const&)
@@ -870,7 +877,7 @@ struct Sequencer
         if ( auto d = id.declaration() ) {
             auto ext = extents.find(*d);
             if ( ext != extents.end() )
-                (*ext)->appendUsage(basicBlock, id, asRead());
+                (*ext)->appendUsage(basicBlock, id, currentUsage());
         }
     }
 
@@ -881,19 +888,22 @@ struct Sequencer
 
     result_t exprApply(ApplyExpression const& a)
     {
-        dispatch(*a.subject());
-        auto decl = getDeclaration(a.subject());
-        auto declExt = extents.find(*decl);
-        if ( declExt != end(extents) )
-            (*declExt)->appendUsage(basicBlock, a, Extent::Usage::Ref);
+        check_point writeCtx;
+        writeCtx = false;
+
+        {
+            check_point refCtx;
+            refCtx = true;
+            dispatch(*a.subject());
+        }
 
         auto args = a.arguments();
-        if ( auto proc = decl->as<ProcedureDeclaration>() ) {
+        if ( auto proc = a.procedure() ) {
             auto o = proc->ordinals();
             auto p = proc->parameters();
+            check_point refCtx;
             for ( std::size_t i = 0; i < args.size(); ++i ) {
-                check_point refCtx;
-                refCtx = o[i] >= 0 && isReference(ctx, *p[o[i]]->type());
+                refCtx = o[i] >= 0 && isReference(*p[o[i]]->type());
                 dispatch(*args[i]);
             }
 
@@ -905,47 +915,51 @@ struct Sequencer
 
     result_t exprSymbol(SymbolExpression const& s)
     {
+        check_point refCtx;
+        check_point writeCtx;
+        refCtx = writeCtx = false;
+
         recurse(s.expressions());
         exprIdentifier(s);
     }
 
     result_t exprDot(DotExpression const& d)
     {
-        recurse(d.expressions());
+        {
+            check_point writeCtx;
+            writeCtx = false;
+
+            check_point refCtx;
+            refCtx = true;
+            for ( auto m : d.expressions()(0, d.expressions().size() - 1) )
+                dispatch(*m);
+        }
+
+        dispatch(*d.expressions().back());
     }
 
     result_t exprAssign(AssignExpression const& v)
     {
-        if ( auto d = getDeclaration(v.right()) ) {
-            auto ext = extents.find(*d);
-            if ( ext != end(extents) ) {
-                // todo: movable types
-                //(*ext)->appendUsage(basicBlock, v, Extent::Usage::Move);
-                (*ext)->appendUsage(basicBlock, v, Extent::Usage::Read);
-            }
-        }
-        else {
-            dispatch(v.right());
-        }
+        check_point writeCtx;
+        check_point refCtx;
 
-        if ( auto d = getDeclaration(v.left()) ) {
-            auto ext = extents.find(*d);
-            if ( ext != end(extents) )
-                (*ext)->appendUsage(basicBlock, v, Extent::Usage::Write);
-        }
-        else {
-            dispatch(v.left());
-        }
+        dispatch(v.right());
+        
+        writeCtx = true;
+        dispatch(v.left());
     }
 
-    result_t exprLambda(LambdaExpression const& l)
+    result_t exprLambda(LambdaExpression const&)
     {
-        dispatch(l.parameters());
-        dispatch(l.body());
+        // nop
     }
 
     result_t exprArrow(ArrowExpression const& a)
     {
+        check_point writeCtx;
+        check_point refCtx;
+        refCtx = writeCtx = false;
+
         dispatch(a.from());
         dispatch(a.to());
     }
@@ -963,8 +977,9 @@ SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
     if ( myBasicBlocks.empty() )
         return SymRes::Success;
 
-    for ( auto sym : declaration()->symbol().prototype().symbolVariables() )
-        myExtents.emplace_back(*sym);
+    // todo: crawl over declarations searching for uses
+    /*for ( auto sym : declaration()->symbol().prototype().symbolVariables() )
+        myExtents.emplace_back(*sym);*/
 
     for ( auto param : declaration()->parameters() )
         myExtents.emplace_back(*param);
