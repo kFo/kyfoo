@@ -26,7 +26,7 @@ class LookupHit;
 class Module;
 class SymRes;
 
-class IResolver
+class Resolver
 {
 public:
     enum Options
@@ -39,37 +39,25 @@ public:
     using options_t = Options;
 
 public:
-    virtual ~IResolver() = default;
+    explicit Resolver(DeclarationScope& scope, Options opts = None);
+    explicit Resolver(DeclarationScope const& scope, Options opts = None);
 
-    virtual DeclarationScope const& scope() const = 0;
+    Resolver(Resolver&& rhs);
+    Resolver& operator = (Resolver&& rhs);
 
-    virtual LookupHit matchEquivalent(SymbolReference const& symbol) const = 0;
-    virtual LookupHit matchOverload(Module& endModule,
-                                    Diagnostics& dgn,
-                                    SymbolReference const& symbol) = 0;
-};
+    ~Resolver();
 
-class ScopeResolver : public IResolver
-{
-public:
-    explicit ScopeResolver(DeclarationScope& scope, Options opts = None);
-    explicit ScopeResolver(DeclarationScope const& scope, Options opts = None);
+    void swap(Resolver& rhs);
 
-    ScopeResolver(ScopeResolver&& rhs);
-    ScopeResolver& operator = (ScopeResolver&& rhs);
-
-    ~ScopeResolver();
-
-    void swap(ScopeResolver& rhs);
-
-    // IResolver
+    // Resolver
 public:
     DeclarationScope const& scope() const;
+    DeclarationScope& scope();
 
-    LookupHit matchEquivalent(SymbolReference const& symbol) const override;
+    LookupHit matchEquivalent(SymbolReference const& symbol) const;
     LookupHit matchOverload(Module& endModule,
                             Diagnostics& dgn,
-                            SymbolReference const& symbol) override;
+                            SymbolReference const& symbol);
 
 public:
     void addSupplementaryPrototype(PatternsPrototype& proto);
@@ -92,8 +80,8 @@ public:
     using options_t = std::uint32_t;
 
 public:
-    Context(Module& module, Diagnostics& dgn, IResolver& resolver, options_t options);
-    Context(Module& module, Diagnostics& dgn, IResolver& resolver);
+    Context(Module& module, Diagnostics& dgn, Resolver& resolver, options_t options);
+    Context(Module& module, Diagnostics& dgn, Resolver& resolver);
     ~Context();
 
 public:
@@ -104,8 +92,8 @@ public:
     Diagnostics& diagnostics();
     Diagnostics const& diagnostics() const;
 
-    IResolver& resolver();
-    IResolver const& resolver() const;
+    Resolver& resolver();
+    Resolver const& resolver() const;
 
     Statement& statement();
     Statement const& statement() const;
@@ -118,7 +106,7 @@ public:
 
     LookupHit matchOverload(SymbolReference const& sym) const;
 
-    IResolver* changeResolver(IResolver& resolver);
+    Resolver* changeResolver(Resolver& resolver);
     Statement* changeStatement(Statement* statement);
 
     SymRes rewrite(std::unique_ptr<Expression> expr);
@@ -142,7 +130,7 @@ public:
 private:
     Module* myModule = nullptr;
     Diagnostics* myDiagnostics = nullptr;
-    IResolver* myResolver = nullptr;
+    Resolver* myResolver = nullptr;
     options_t myOptions = 0;
     Statement* myStatement = nullptr;
     std::unique_ptr<Expression> myRewrite;

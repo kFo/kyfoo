@@ -116,7 +116,7 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 
     tracker.sortPasses();
 
-    ScopeResolver resolver(*this);
+    Resolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
     SymRes ret = SymRes::Success;
 
@@ -150,7 +150,7 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 
 void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
 {
-    ScopeResolver resolver(*this);
+    Resolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
     for ( auto& d : myDeclarations )
         d->resolveAttributes(ctx);
@@ -443,7 +443,7 @@ SymRes DataProductScope::resolveConstructors(Module& endModule, Diagnostics& dgn
 {
     // todo: only make default ctor when no other ctor/dtor defined
 
-    ScopeResolver resolver(*this);
+    Resolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
 
     SymRes ret;
@@ -548,14 +548,14 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
         return;
     }
 
-    ScopeResolver narrowResolver(*templ->definition(), IResolver::Narrow);
+    Resolver narrowResolver(*templ->definition(), Resolver::Narrow);
     Context ctx(endModule, dgn, narrowResolver);
     decl = ctx.matchOverload("").decl();
     if ( !decl ) {
         auto proc = createDefaultDestructor();
         auto p = proc.get();
         templ->definition()->append(std::move(proc));
-        ScopeResolver resolver(*templ->definition());
+        Resolver resolver(*templ->definition());
         ctx.changeResolver(resolver);
         ctx.resolveDeclaration(*p);
         templ->definition()->addSymbol(dgn, p->symbol(), *p);
@@ -709,7 +709,7 @@ SymRes ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
     auto ret = DeclarationScope::resolveSymbols(endModule, dgn);
 
     // Resolve expressions
-    ScopeResolver resolver(*this);
+    Resolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
     for ( auto& bb : myBasicBlocks )
         ret |= bb->resolveSymbols(ctx);

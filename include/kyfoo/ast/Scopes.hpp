@@ -167,7 +167,7 @@ public:
     };
 
     friend class Context;
-    friend class ScopeResolver;
+    friend class Resolver;
     friend class DataProductScope;
 
 protected:

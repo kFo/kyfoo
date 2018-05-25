@@ -422,7 +422,7 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
         return SymRes::Fail;
     }
 
-    ScopeResolver resolver(*defn, IResolver::Narrow);
+    Resolver resolver(*defn, Resolver::Narrow);
     Context templateCtx(ctx.module(), ctx.diagnostics(), resolver);
     auto proc = templateCtx.matchOverload("").as<ProcedureDeclaration>();
     if ( !proc ) {
@@ -1177,7 +1177,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
-    ScopeResolver resolver(*ctx.module().scope());
+    Resolver resolver(*ctx.module().scope());
     if ( isModuleScope() )
         ctx.changeResolver(resolver);
 

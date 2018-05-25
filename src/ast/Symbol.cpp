@@ -98,7 +98,7 @@ void PatternsPrototype::resolveVariables(DeclarationScope const& scope)
 
 SymRes PatternsPrototype::resolveSymbols(Context& ctx)
 {
-    ScopeResolver resolver(ctx.resolver().scope());
+    Resolver resolver(ctx.resolver().scope());
     resolver.addSupplementaryPrototype(*this);
     auto save = ctx.changeResolver(resolver);
     auto ret = ctx.resolveExpressions(myPattern);
@@ -428,7 +428,7 @@ Declaration* SymbolSpace::findEquivalent(const_pattern_t paramlist)
 CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist)
 {
     CandidateSet ret;
-    ScopeResolver resolver(*myScope);
+    Resolver resolver(*myScope);
     Context ctx(endModule, dgn, resolver);
 
     Diagnostics sfinaeDgn;
@@ -463,7 +463,7 @@ SymbolSpace::findOverload(Module& endModule,
                           Diagnostics& dgn,
                           const_pattern_t paramlist)
 {
-    ScopeResolver resolver(*myScope);
+    Resolver resolver(*myScope);
     Context ctx(endModule, dgn, resolver);
     
     auto cset = findCandidates(endModule, dgn, paramlist);

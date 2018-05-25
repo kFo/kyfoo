@@ -509,7 +509,7 @@ IMPL_CLONE_REMAP_END
 
 SymRes DataProductDeclaration::Field::resolveSymbols(Context& ctx)
 {
-    ScopeResolver resolver(*myParent->definition());
+    Resolver resolver(*myParent->definition());
     ctx.changeResolver(resolver);
     
     auto ret = Binder::resolveSymbols(ctx);
@@ -587,7 +587,7 @@ SymRes SymbolDeclaration::resolveSymbols(Context& ctx)
 {
     auto ret = Declaration::resolveSymbols(ctx);
 
-    ScopeResolver resolver(scope());
+    Resolver resolver(scope());
     resolver.addSupplementaryPrototype(symbol().prototype());
 
     ctx.changeResolver(resolver);
@@ -823,7 +823,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
     SymRes ret;
     {
-        ScopeResolver resolver(ctx.resolver().scope());
+        Resolver resolver(ctx.resolver().scope());
         resolver.addSupplementaryPrototype(mySymbol->prototype());
         auto save = ctx.changeResolver(resolver);
         for ( auto& p : myParameters )
@@ -838,7 +838,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    ScopeResolver resolver(scope());
+    Resolver resolver(scope());
     resolver.addSupplementaryPrototype(mySymbol->prototype());
     ctx.changeResolver(resolver);
 

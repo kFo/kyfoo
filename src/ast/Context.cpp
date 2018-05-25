@@ -9,48 +9,53 @@ namespace kyfoo {
     namespace ast {
 
 //
-// ScopeResolver
+// Resolver
 
-ScopeResolver::ScopeResolver(DeclarationScope& scope, Options opts)
+Resolver::Resolver(DeclarationScope& scope, Options opts)
     : myScope(&scope)
     , myOptions(opts)
 {
 }
 
-ScopeResolver::ScopeResolver(DeclarationScope const& scope, Options opts)
+Resolver::Resolver(DeclarationScope const& scope, Options opts)
     : myScope(const_cast<DeclarationScope*>(&scope))
     , myOptions(opts)
 {
 }
 
-ScopeResolver::ScopeResolver(ScopeResolver&& rhs)
+Resolver::Resolver(Resolver&& rhs)
     : myScope(rhs.myScope)
     , mySupplementaryPrototypes(std::move(rhs.mySupplementaryPrototypes))
 {
     rhs.myScope = nullptr;
 }
 
-ScopeResolver& ScopeResolver::operator = (ScopeResolver&& rhs)
+Resolver& Resolver::operator = (Resolver&& rhs)
 {
-    ScopeResolver(std::move(rhs)).swap(*this);
+    Resolver(std::move(rhs)).swap(*this);
     return *this;
 }
 
-ScopeResolver::~ScopeResolver() = default;
+Resolver::~Resolver() = default;
 
-void ScopeResolver::swap(ScopeResolver& rhs)
+void Resolver::swap(Resolver& rhs)
 {
     using std::swap;
     swap(myScope, rhs.myScope);
     swap(mySupplementaryPrototypes, rhs.mySupplementaryPrototypes);
 }
 
-DeclarationScope const& ScopeResolver::scope() const
+DeclarationScope const& Resolver::scope() const
 {
     return *myScope;
 }
 
-LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
+DeclarationScope& Resolver::scope()
+{
+    return *myScope;
+}
+
+LookupHit Resolver::matchEquivalent(SymbolReference const& symbol) const
 {
     LookupHit hit = matchSupplementary(symbol);
     if ( hit )
@@ -78,9 +83,9 @@ LookupHit ScopeResolver::matchEquivalent(SymbolReference const& symbol) const
     return hit;
 }
 
-LookupHit ScopeResolver::matchOverload(Module& endModule,
-                                       Diagnostics& dgn,
-                                       SymbolReference const& symbol)
+LookupHit Resolver::matchOverload(Module& endModule,
+                                  Diagnostics& dgn,
+                                  SymbolReference const& symbol)
 {
     LookupHit hit = matchSupplementary(symbol);
 
@@ -115,12 +120,12 @@ LookupHit ScopeResolver::matchOverload(Module& endModule,
     return hit;
 }
 
-void ScopeResolver::addSupplementaryPrototype(PatternsPrototype& proto)
+void Resolver::addSupplementaryPrototype(PatternsPrototype& proto)
 {
     mySupplementaryPrototypes.push_back(&proto);
 }
 
-LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
+LookupHit Resolver::matchSupplementary(SymbolReference const& symbol) const
 {
     LookupHit hit;
     if ( symbol.pattern().empty() )
@@ -134,7 +139,7 @@ LookupHit ScopeResolver::matchSupplementary(SymbolReference const& symbol) const
 //
 // Context
 
-Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver, options_t options)
+Context::Context(Module& module, Diagnostics& dgn, Resolver& resolver, options_t options)
     : myModule(&module)
     , myDiagnostics(&dgn)
     , myResolver(&resolver)
@@ -142,7 +147,7 @@ Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver, options_
 {
 }
 
-Context::Context(Module& module, Diagnostics& dgn, IResolver& resolver)
+Context::Context(Module& module, Diagnostics& dgn, Resolver& resolver)
     : Context(module, dgn, resolver, 0)
 {
 }
@@ -174,12 +179,12 @@ Diagnostics const& Context::diagnostics() const
     return *myDiagnostics;
 }
 
-IResolver& Context::resolver()
+Resolver& Context::resolver()
 {
     return *myResolver;
 }
 
-IResolver const& Context::resolver() const
+Resolver const& Context::resolver() const
 {
     return *myResolver;
 }
@@ -227,7 +232,7 @@ LookupHit Context::matchOverload(SymbolReference const& sym) const
     return hit;
 }
 
-IResolver* Context::changeResolver(IResolver& resolver)
+Resolver* Context::changeResolver(Resolver& resolver)
 {
     auto ret = myResolver;
     myResolver = &resolver;
@@ -255,7 +260,7 @@ SymRes Context::rewrite(std::function<std::unique_ptr<Expression>(std::unique_pt
 
 SymRes Context::resolveDeclaration(Declaration& declaration)
 {
-    ScopeResolver resolver(declaration.scope());
+    Resolver resolver(declaration.scope());
     auto oldResolver = changeResolver(resolver);
     auto ret = declaration.resolveSymbols(*this);
     if ( oldResolver )

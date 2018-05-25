@@ -21,7 +21,7 @@ namespace kyfoo {
 class Context;
 class Declaration;
 class DeclarationScope;
-class IResolver;
+class Resolver;
 class Expression;
 class Module;
 class LiteralExpression;
