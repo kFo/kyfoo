@@ -333,7 +333,7 @@ Symbols (``symbol``) are parameterized names given to declarations. Every identi
 Attributes (``attrib``) are meta data that precede the declaration to which they are attributed. They are typed expressions and may be queried statically.
 
 Symbol Variable
-```````````````
++++++++++++++++
 
 Symbol variables (``sym-var``) are pattern-match variables used in symbol parameters. They are deduced from ``sym-expr`` and ``apply-expr`` expression call sites and used to instantiate a new instance of their associated declaration on-the-fly as a form of ad-hoc polymorphism.
 
