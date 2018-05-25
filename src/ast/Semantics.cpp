@@ -1401,10 +1401,23 @@ struct PrintOperator
 
     result_t exprAssign(AssignExpression const& v)
     {
+        if ( auto decl = getDeclaration(v.left()) ) {
+            if ( auto var = decl->as<VariableDeclaration>() )
+                if ( var->symbol().token().lexeme().empty() )
+                    return dispatch(v.right());
+        }
+
+        if ( nest )
+            stream << "(";
+
         dispatch(v.left());
         stream << " = ";
+        dispatch(v.right());
 
-        return dispatch(v.right());
+        if ( nest )
+            stream << ")";
+
+        return stream;
     }
 
     result_t exprLambda(LambdaExpression const& l)

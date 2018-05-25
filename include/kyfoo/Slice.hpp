@@ -74,9 +74,9 @@ public:
     {
     }
 
-    Slice& operator = (Slice s)
+    Slice& operator = (Slice const& s)
     {
-        s.swap(*this);
+        Slice(s).swap(*this);
         return *this;
     }
 
@@ -85,6 +85,20 @@ public:
         using std::swap;
         swap(myData, s.myData);
         swap(myLength, s.myLength);
+    }
+
+    Slice(Slice&& rhs)
+        : myData(rhs.myData)
+        , myLength(rhs.myLength)
+    {
+        rhs.clear();
+    }
+
+    Slice& operator = (Slice&& rhs)
+    {
+        new (this) Slice(std::move(rhs));
+        rhs.clear();
+        return *this;
     }
 
 public:
@@ -106,6 +120,11 @@ public:
     Slice operator () (size_type start, size_type end) const
     {
         return Slice(myData + start, end - start);
+    }
+
+    explicit operator bool () const
+    {
+        return !empty();
     }
 
 public:
@@ -131,6 +150,12 @@ public:
 
     void popFront() { ++myData; --myLength; }
     void popBack() { --myLength; }
+
+    void clear()
+    {
+        myData = nullptr;
+        myLength = 0;
+    }
 
 private:
     pointer myData = nullptr;
@@ -195,6 +220,24 @@ template <typename T>
 Slice<T> slice(Slice<T> s, std::size_t start)
 {
     return s(start, s.size());
+}
+
+template <typename T>
+Slice<T> slice(T& rhs)
+{
+    return Slice<T>(&rhs, 1);
+}
+
+template <typename T>
+Slice<T const> slice(T const& rhs)
+{
+    return Slice<T const>(&rhs, 1);
+}
+
+template <typename T>
+Slice<T const*> sliceunq(std::unique_ptr<T> const& rhs)
+{
+    return Slice<T const*>(reinterpret_cast<T const* const*>(reinterpret_cast<void const* const*>(&rhs)), 1);
 }
 
 template <typename T>

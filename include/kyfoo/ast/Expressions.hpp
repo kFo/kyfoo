@@ -655,6 +655,19 @@ EXPRESSION_KINDS(X)
 EXPRESSION_KINDS(X)
 #undef X
 
+std::ostream& operator << (std::ostream& stream, Expression const& expr);
+std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs);
+std::ostream& operator << (std::ostream& stream, Slice<Expression*> exprs);
+
+struct get_types {
+    Slice<Expression const*> exprs;
+
+    explicit get_types(Slice<Expression const*> rhs) : exprs(rhs) {}
+    explicit get_types(Slice<Expression*> rhs) : exprs(rhs) {}
+};
+
+std::ostream& operator << (std::ostream& stream, get_types&& types);
+
 Expression const* createInferredType(Expression& expr, Declaration const& decl);
 IdentifierExpression* identify(Expression& expr);
 IdentifierExpression const* identify(Expression const& expr);

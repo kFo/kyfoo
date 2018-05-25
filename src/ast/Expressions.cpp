@@ -1532,19 +1532,29 @@ Expression const& ArrowExpression::from() const
     return *myFrom;
 }
 
-Expression const& ArrowExpression::to() const
-{
-    return *myTo;
-}
-
 Expression& ArrowExpression::from()
 {
     return *myFrom;
 }
 
+Slice<Expression const*> ArrowExpression::sliceFrom() const
+{
+    return sliceunq(myFrom);
+}
+
+Expression const& ArrowExpression::to() const
+{
+    return *myTo;
+}
+
 Expression& ArrowExpression::to()
 {
     return *myTo;
+}
+
+Slice<Expression const*> ArrowExpression::sliceTo() const
+{
+    return sliceunq(myTo);
 }
 
 //
@@ -1601,6 +1611,42 @@ UniverseExpression::natural_t UniverseExpression::level() const
 
 //
 // Utilities
+
+std::ostream& operator << (std::ostream& stream, Expression const& expr)
+{
+    return print(stream, expr);
+}
+
+std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs)
+{
+    if ( exprs )
+        print(stream, *exprs.front());
+
+    for ( auto e : exprs(1, exprs.size()) ) {
+        stream << ", ";
+        print(stream, *e);
+    }
+
+    return stream;
+}
+
+std::ostream& operator << (std::ostream& stream, Slice<Expression*> exprs)
+{
+    return operator << (stream, static_cast<Slice<Expression const*>>(exprs));
+}
+
+std::ostream& operator << (std::ostream& stream, get_types&& types)
+{
+    if ( types.exprs )
+        print(stream, *types.exprs.front()->type());
+
+    for ( auto e : types.exprs(1, types.exprs.size()) ) {
+        stream << ", ";
+        print(stream, *e->type());
+    }
+
+    return stream;
+}
 
 Expression const* createInferredType(Expression& expr, Declaration const& decl)
 {

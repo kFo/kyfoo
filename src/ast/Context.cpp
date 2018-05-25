@@ -311,6 +311,9 @@ SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
             myLazyRewrite = nullptr;
         }
 
+        if ( expression && myDiagnostics->errorCount() )
+            myDiagnostics->bunkExpression(std::move(expression));
+
         expression = std::move(myRewrite);
         expression->addConstraints(std::move(c));
         myResolver = originalResolver;

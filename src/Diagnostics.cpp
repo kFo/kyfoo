@@ -65,14 +65,63 @@ Error::Code Error::code() const
     return myCode;
 }
 
-std::vector<ast::Declaration const*> const& Error::references() const
+Slice<ContextReference const> Error::references() const
 {
     return myReferences;
 }
 
-void Error::see(ast::Declaration const& declaration)
+Error& Error::see(ast::Declaration const& declaration)
 {
-    myReferences.push_back(&declaration);
+    myReferences.emplace_back(declaration);
+    return *this;
+}
+
+Error& Error::see(ast::DeclarationScope const& scope,
+                  ast::Expression const& expression)
+{
+    myReferences.emplace_back(ContextReference::ExpressionContextBase::Value, scope, expression);
+    return *this;
+}
+
+Error& Error::expected(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+{
+    myReferences.emplace_back(ContextReference::MismatchExpected,
+                              ContextReference::ExpressionContextBase::Value,
+                              scope,
+                              exprs);
+    return *this;
+}
+
+Error& Error::expectedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+{
+    myReferences.emplace_back(ContextReference::MismatchExpected,
+                              ContextReference::ExpressionContextBase::Type,
+                              scope,
+                              exprs);
+    return *this;
+}
+
+Error& Error::received(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+{
+    myReferences.emplace_back(ContextReference::MismatchReceived,
+                              ContextReference::ExpressionContextBase::Value,
+                              scope,
+                              exprs);
+    return *this;
+}
+
+Error& Error::receivedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+{
+    myReferences.emplace_back(ContextReference::MismatchReceived,
+                              ContextReference::ExpressionContextBase::Type,
+                              scope,
+                              exprs);
+    return *this;
+}
+
+std::ostream& Error::stream()
+{
+    return myInfo;
 }
 
 Error& Error::operator << (lexer::Token const& token)
@@ -90,7 +139,12 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
             sink << mod.name();
     };
     startLine(err.module());
-    sink << "(" << err.token().line() << ", " << err.token().column() << "): error: ";
+
+    auto startPos = [&](lexer::Token const& tok) {
+        sink << "(" << tok.line() << ", " << tok.column() << "): ";
+    };
+    startPos(err.token());
+    sink << "error: ";
 
     switch (err.code()) {
     case Error::General:
@@ -114,12 +168,45 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
         throw std::runtime_error("unknown error");
     }
 
-    for ( auto&& e : err.references() ) {
-        startLine(e->scope().module());
-        auto const& id = e->token();
-        sink << "(" << id.line() << ", " << id.column() << "):     see '";
-        print(sink, *e);
-        sink << "' declared as " << to_string(e->kind()) << std::endl;
+    for ( auto const& r : err.references() ) {
+        if ( auto decl = r.seeDecl() ) {
+            startLine(decl->scope().module());
+            auto const& id = decl->token();
+            startPos(id);
+            sink << "    see '";
+            print(sink, *decl);
+            sink << "' declared as " << to_string(decl->kind()) << std::endl;
+        }
+        else if ( auto exprCtx = r.seeExpr() ) {
+            startLine(exprCtx.scope->module());
+            auto const& id = front(*exprCtx.expr);
+            startPos(id);
+            sink << "    see '";
+            print(sink, *exprCtx.expr);
+            sink << "'" << std::endl;
+        }
+        else if ( auto expected = r.expected() ) {
+            startLine(expected.scope->module());
+            auto const& id = front(*expected.exprs.front());
+            startPos(id);
+            sink << "    expected: ";
+            if ( expected.isValue() )
+                sink << ast::get_types(expected.exprs);
+            else
+                sink << expected.exprs;
+            sink << std::endl;
+        }
+        else if ( auto received = r.received() ) {
+            startLine(received.scope->module());
+            auto const& id = front(*received.exprs.front());
+            startPos(id);
+            sink << "    received: ";
+            if ( received.isValue() )
+                sink << ast::get_types(received.exprs);
+            else
+                sink << received.exprs;
+            sink << std::endl;
+        }
     }
 
     return sink;
@@ -181,6 +268,11 @@ void Diagnostics::dumpErrors(std::ostream& stream)
 std::size_t Diagnostics::errorCount() const
 {
     return myErrors.size();
+}
+
+void Diagnostics::bunkExpression(std::unique_ptr<ast::Expression> expr)
+{
+    myBunkedExpressions.emplace_back(std::move(expr));
 }
 
 } // namespace kyfoo
