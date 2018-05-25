@@ -518,16 +518,23 @@ SymbolSpace::instantiate(Context& ctx,
 
     // create new instantiation
     clone_map_t cloneMap;
-    auto instance = ast::clone(proto.proto.decl, cloneMap);
-    auto instProto = reinterpret_cast<PatternsPrototype*>(cloneMap[proto.proto.params]);
-    instProto->bindVariables(substs);
+    proto.ownDeclarations.emplace_back(ast::clone(proto.proto.decl, cloneMap));
+    auto instanceDecl = proto.ownDeclarations.back().get();
+    instanceDecl->symbol().prototype().bindVariables(substs);
+    ctx.resolveDeclaration(*instanceDecl);
 
-    // todo: remove notion of "unresolve"
-    myBunkSubsts.emplace_back(std::move(substs));
-    ctx.resolveDeclaration(*instance);
+    if ( auto defn = getDefinition(*proto.proto.decl) ) {
+        if ( instanceDecl->symbol().prototype().isConcrete() ) {
+            proto.ownDefinitions.emplace_back(ast::clone(defn, cloneMap));
+            auto instanceDefn = proto.ownDefinitions.back().get();
+            instanceDecl->remapReferences(cloneMap);
 
-    proto.instances.emplace_back(PatternsDecl{instProto, instance.get()});
-    myScope->append(std::move(instance));
+            if ( !instanceDefn->resolveSymbols(ctx.module(), ctx.diagnostics()) )
+                return { nullptr, nullptr };
+        }
+    }
+
+    proto.instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
     return { proto.proto.decl, proto.instances.back().decl };
 }
 

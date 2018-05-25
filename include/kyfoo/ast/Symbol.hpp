@@ -159,6 +159,9 @@ struct PatternsDecl {
 struct Prototype {
     PatternsDecl proto;
     std::vector<PatternsDecl> instances;
+
+    std::vector<std::unique_ptr<Declaration>> ownDeclarations;
+    std::vector<std::unique_ptr<DeclarationScope>> ownDefinitions;
 };
 
 struct Candidate
@@ -232,8 +235,6 @@ private:
     DeclarationScope* myScope = nullptr;
     std::string myName;
     std::vector<Prototype> myPrototypes;
-
-    std::vector<Substitutions> myBunkSubsts;
 };
 
 std::ostream& print(std::ostream& stream, Symbol const& sym);

@@ -74,6 +74,7 @@ void DeclarationScope::swap(DeclarationScope& rhs)
     swap(myDeclaration, rhs.myDeclaration);
     swap(myParent, rhs.myParent);
     swap(myDeclarations, rhs.myDeclarations);
+    swap(myDefinitions, rhs.myDefinitions);
     swap(myLambdas, rhs.myLambdas);
     swap(mySymbols, rhs.mySymbols);
     swap(myImports, rhs.myImports);
@@ -86,6 +87,7 @@ void DeclarationScope::io(IStream& stream) const
 
 IMPL_CLONE_NOBASE_BEGIN(DeclarationScope, DeclarationScope)
 IMPL_CLONE_CHILD(myDeclarations)
+IMPL_CLONE_CHILD(myDefinitions)
 IMPL_CLONE_CHILD(myLambdas)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(DeclarationScope)
@@ -93,6 +95,7 @@ IMPL_CLONE_REMAP(myModule)
 IMPL_CLONE_REMAP(myDeclaration)
 IMPL_CLONE_REMAP(myParent)
 IMPL_CLONE_REMAP(myDeclarations)
+IMPL_CLONE_REMAP(myDefinitions)
 IMPL_CLONE_REMAP(myLambdas)
 IMPL_CLONE_REMAP_END
 
@@ -103,6 +106,9 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
             module().import(dgn, d->token());
         }
     }
+
+    for ( auto& defn : myDefinitions )
+        defn->resolveImports(dgn);
 }
 
 SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
@@ -145,7 +151,10 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
         }
     }
 
-    return ret;
+    if ( dgn.errorCount() )
+        return ret;
+
+    return SymRes::Success;
 }
 
 void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
@@ -422,7 +431,6 @@ void DataProductScope::io(IStream& stream) const
 IMPL_CLONE_BEGIN(DataProductScope, DeclarationScope, DeclarationScope)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataProductScope, DeclarationScope)
-IMPL_CLONE_REMAP(myFields)
 IMPL_CLONE_REMAP_END
 
 SymRes DataProductScope::resolveSymbols(Module& endModule, Diagnostics& dgn)

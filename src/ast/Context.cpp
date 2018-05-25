@@ -226,7 +226,7 @@ LookupHit Context::matchOverload(SymbolReference const& sym) const
 {
     auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, sym);
     if ( !(myOptions & DisableCacheTemplateInstantiations) )
-        if ( hit.decl() && hit.decl()->symbol().prototypeParent() )
+        if ( hit.decl() && hit.decl()->symbol().prototypeParent() && hasSubstitutions(hit.decl()->symbol()) )
             myModule->appendTemplateInstance(hit.decl());
 
     return hit;

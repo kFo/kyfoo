@@ -115,10 +115,75 @@ protected:
     mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
 };
 
+class DefinableDeclaration : public Declaration
+{
+public:
+    explicit DefinableDeclaration(DeclKind kind, Symbol&& symbol);
+
+protected:
+    DefinableDeclaration(DefinableDeclaration const& rhs);
+    void operator = (DefinableDeclaration const& rhs);
+
+public:
+    DefinableDeclaration(DefinableDeclaration&&) = delete;
+
+    ~DefinableDeclaration();
+
+    void swap(DefinableDeclaration& rhs);
+
+    // IIO
+public:
+    void io(IStream& stream) const override;
+
+    // Declaration
+public:
+    DECL_CLONE_ALL(Declaration)
+
+protected:
+    SymRes resolveSymbols(Context& ctx) override;
+
+public:
+    DeclarationScope* definition();
+    DeclarationScope const* definition() const;
+
+protected:
+    DeclarationScope* myDefinition = nullptr;
+};
+
+template <typename T>
+class DefinableMixin : public DefinableDeclaration
+{
+protected:
+    using DefinableDeclaration::DefinableDeclaration;
+
+public:
+    void define(T& scope)
+    {
+        if ( myDefinition )
+            throw std::runtime_error("type declaration defined more than once");
+
+        myDefinition = &scope;
+        myDefinition->setDeclaration(this);
+    }
+
+    T* definition()
+    {
+        return static_cast<T*>(myDefinition);
+    }
+
+    T const* definition() const
+    {
+        return static_cast<T const*>(myDefinition);
+    }
+};
+
 class VariableDeclaration;
 
-class DataSumDeclaration : public Declaration
+class DataSumDeclaration : public DefinableMixin<DataSumScope>
 {
+public:
+    using base_t = DefinableMixin;
+
 public:
     class Constructor : public Declaration
     {
@@ -182,14 +247,6 @@ public:
 
 protected:
     SymRes resolveSymbols(Context& ctx) override;
-
-public:
-    void define(DataSumScope* scope);
-    DataSumScope* definition();
-    DataSumScope const* definition() const;
-
-private:
-    DataSumScope* myDefinition = nullptr;
 };
 
 class Binder : public Declaration
@@ -240,8 +297,11 @@ private:
     Expression const* myType = nullptr;
 };
 
-class DataProductDeclaration : public Declaration
+class DataProductDeclaration : public DefinableMixin<DataProductScope>
 {
+public:
+    using base_t = DefinableMixin;
+
 public:
     class Field : public Binder
     {
@@ -306,14 +366,6 @@ public:
 
 protected:
     SymRes resolveSymbols(Context& ctx) override;
-
-public:
-    void define(DataProductScope* scope);
-    DataProductScope* definition();
-    DataProductScope const* definition() const;
-
-private:
-    DataProductScope* myDefinition = nullptr;
 };
 
 class SymbolDeclaration : public Declaration
@@ -424,8 +476,11 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 };
 
-class ProcedureDeclaration : public Declaration
+class ProcedureDeclaration : public DefinableMixin<ProcedureScope>
 {
+public:
+    using base_t = DefinableMixin;
+
 public:
     ProcedureDeclaration(Symbol&& symbol,
                          std::unique_ptr<Expression> returnExpression);
@@ -453,10 +508,6 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    ProcedureScope* definition();
-    ProcedureScope const* definition() const;
-    void define(ProcedureScope* definition);
-
     ArrowExpression const* type() const;
 
     Expression* returnType();
@@ -480,8 +531,6 @@ private:
     std::vector<int> myOrdinals;
 
     std::unique_ptr<ProcedureParameter> myResult;
-
-    ProcedureScope* myDefinition = nullptr;
 };
 
 class ImportDeclaration : public Declaration
@@ -562,8 +611,11 @@ private:
     Expression const* myBoundExpression = nullptr;
 };
 
-class TemplateDeclaration : public Declaration
+class TemplateDeclaration : public DefinableMixin<TemplateScope>
 {
+public:
+    using base_t = DefinableMixin;
+
 public:
     explicit TemplateDeclaration(Symbol&& sym);
 
@@ -590,14 +642,7 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    TemplateScope* definition();
-    TemplateScope const* definition() const;
-    void define(TemplateScope* definition);
-
     void merge(TemplateDeclaration& rhs);
-
-private:
-    TemplateScope* myDefinition = nullptr;
 };
 
 // sugar to avoid switching on DeclKind
@@ -619,6 +664,10 @@ bool hasIndirection(Expression const& expr);
 TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc);
 bool isCtor(ProcedureDeclaration const& proc);
 bool isDtor(ProcedureDeclaration const& proc);
+bool isDefinableDeclaration(DeclKind kind);
+DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl);
+DeclarationScope const* getDefinition(Declaration const& decl);
+void define(Declaration& decl, DeclarationScope& defn);
 
 std::ostream& print(std::ostream& stream, Declaration const& decl);
 

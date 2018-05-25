@@ -362,6 +362,9 @@ struct CodeGenPass
 
     result_t declDataProduct(ast::DataProductDeclaration const& decl)
     {
+        if ( !decl.symbol().prototype().isConcrete() )
+            return;
+
         // todo
         if ( auto defn = decl.definition() ) {
             for ( auto c : defn->childDeclarations() )
@@ -646,6 +649,9 @@ struct CodeGenPass
 
     result_t declTemplate(ast::TemplateDeclaration const& decl)
     {
+        if ( !decl.symbol().prototype().isConcrete() )
+            return;
+
         if ( auto defn = decl.definition() ) {
             for ( auto c : defn->childDeclarations() )
                 dispatch(*c);

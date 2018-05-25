@@ -10,6 +10,34 @@
 namespace kyfoo {
     namespace ast {
 
+Substitutions::Substitutions() = default;
+
+Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Item> items)
+{
+    auto symVars = target.symbol().prototype().symbolVariables();
+    auto const symVarCount = symVars.size();
+    if ( symVarCount != items.size() )
+        throw std::runtime_error("substitution mismatch");
+
+    for ( std::size_t i = 0; i < symVarCount; ++i ) {
+        if ( !bind(*items[i].symVar, *items[i].expr) )
+            throw std::runtime_error("substituion mismatch");
+    }
+}
+
+Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Expression const*> exprs)
+{
+    auto symVars = target.symbol().prototype().symbolVariables();
+    auto const symVarCount = symVars.size();
+    if ( symVarCount != exprs.size() )
+        throw std::runtime_error("substitution mismatch");
+
+    for ( std::size_t i = 0; i < symVarCount; ++i ) {
+        if ( !bind(*symVars[i], *exprs[i]) )
+            throw std::runtime_error("substituion mismatch");
+    }
+}
+
 /**
  * Determines suitable substitutions for any meta-variables in \a target
  *

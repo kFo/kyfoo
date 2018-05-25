@@ -786,6 +786,18 @@ bool needsSubstitution(Declaration const& decl)
     return hasIndirection(decl.kind()) && lookThrough(&decl) == nullptr;
 }
 
+bool hasSubstitutions(Symbol const& sym)
+{
+    if ( sym.prototype().symbolVariables().empty() )
+        return false;
+
+    for ( auto& v : sym.prototype().symbolVariables() )
+        if ( !v->boundExpression() )
+            return false;
+
+    return true;
+}
+
 Symbol const* rootTemplate(Symbol const& symbol)
 {
     auto ret = &symbol;

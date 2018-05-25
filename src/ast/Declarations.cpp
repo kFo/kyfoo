@@ -68,8 +68,8 @@ void Declaration::cloneChildren(Declaration& c, clone_map_t& map) const
 }
 
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Declaration)
-IMPL_CLONE_REMAP(myScope)
 IMPL_CLONE_REMAP(mySymbol)
+IMPL_CLONE_REMAP(myScope)
 IMPL_CLONE_REMAP_END
 
 SymRes Declaration::resolveSymbols(Context& ctx)
@@ -164,15 +164,64 @@ void Declaration::setCodegenData(std::unique_ptr<codegen::CustomData> data) cons
 }
 
 //
+// DefinableDeclaration
+
+DefinableDeclaration::DefinableDeclaration(DeclKind kind, Symbol&& symbol)
+    : Declaration(kind, std::forward<Symbol&&>(symbol), nullptr)
+{
+}
+
+DefinableDeclaration::DefinableDeclaration(DefinableDeclaration const& rhs)
+    : Declaration(rhs)
+    , myDefinition(rhs.myDefinition)
+{
+}
+
+DefinableDeclaration::~DefinableDeclaration() = default;
+
+void DefinableDeclaration::swap(DefinableDeclaration& rhs)
+{
+    Declaration::swap(rhs);
+    using std::swap;
+    swap(myDefinition, rhs.myDefinition);
+}
+
+void DefinableDeclaration::io(IStream& stream) const
+{
+    Declaration::io(stream);
+}
+
+IMPL_CLONE_BEGIN(DefinableDeclaration, Declaration, Declaration)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DefinableDeclaration, Declaration)
+IMPL_CLONE_REMAP(myDefinition)
+IMPL_CLONE_REMAP_END
+
+SymRes DefinableDeclaration::resolveSymbols(Context& ctx)
+{
+    return Declaration::resolveSymbols(ctx);
+}
+
+DeclarationScope* DefinableDeclaration::definition()
+{
+    return myDefinition;
+}
+
+DeclarationScope const* DefinableDeclaration::definition() const
+{
+    return myDefinition;
+}
+
+//
 // DataSumDeclaration
 
 DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
-    : Declaration(DeclKind::DataSum, std::move(symbol), nullptr)
+    : base_t(DeclKind::DataSum, std::move(symbol))
 {
 }
 
 DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const& rhs)
-    : Declaration(rhs)
+    : base_t(rhs)
 {
 }
 
@@ -180,44 +229,22 @@ DataSumDeclaration::~DataSumDeclaration() = default;
 
 void DataSumDeclaration::swap(DataSumDeclaration& rhs)
 {
-    Declaration::swap(rhs);
-    using std::swap;
-    swap(myDefinition, rhs.myDefinition);
+    base_t::swap(rhs);
 }
 
 void DataSumDeclaration::io(IStream& stream) const
 {
-    Declaration::io(stream);
+    base_t::io(stream);
 }
 
-IMPL_CLONE_BEGIN(DataSumDeclaration, Declaration, Declaration)
+IMPL_CLONE_BEGIN(DataSumDeclaration, base_t, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, Declaration)
-IMPL_CLONE_REMAP(myDefinition)
+IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, base_t)
 IMPL_CLONE_REMAP_END
 
 SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
 {
-    return Declaration::resolveSymbols(ctx);
-}
-
-void DataSumDeclaration::define(DataSumScope* scope)
-{
-    if ( myDefinition )
-        throw std::runtime_error("type declaration defined more than once");
-
-    myDefinition = scope;
-    myDefinition->setDeclaration(this);
-}
-
-DataSumScope* DataSumDeclaration::definition()
-{
-    return myDefinition;
-}
-
-DataSumScope const* DataSumDeclaration::definition() const
-{
-    return myDefinition;
+    return base_t::resolveSymbols(ctx);
 }
 
 //
@@ -406,12 +433,12 @@ Expression const* Binder::type() const
 // DataProductDeclaration
 
 DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
-    : Declaration(DeclKind::DataProduct, std::move(symbol), nullptr)
+    : base_t(DeclKind::DataProduct, std::move(symbol))
 {
 }
 
 DataProductDeclaration::DataProductDeclaration(DataProductDeclaration const& rhs)
-    : Declaration(rhs)
+    : base_t(rhs)
 {
 }
 
@@ -419,46 +446,27 @@ DataProductDeclaration::~DataProductDeclaration() = default;
 
 void DataProductDeclaration::swap(DataProductDeclaration& rhs)
 {
-    Declaration::swap(rhs);
+    base_t::swap(rhs);
     using std::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
 void DataProductDeclaration::io(IStream& stream) const
 {
-    Declaration::io(stream);
+    base_t::io(stream);
     if ( definition() )
         definition()->io(stream);
 }
 
-IMPL_CLONE_BEGIN(DataProductDeclaration, Declaration, Declaration)
+IMPL_CLONE_BEGIN(DataProductDeclaration, base_t, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, Declaration)
+IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, base_t)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
 SymRes DataProductDeclaration::resolveSymbols(Context& ctx)
 {
-    return Declaration::resolveSymbols(ctx);
-}
-
-void DataProductDeclaration::define(DataProductScope* scope)
-{
-    if ( myDefinition )
-        throw std::runtime_error("type declaration defined more than once");
-
-    myDefinition = scope;
-    myDefinition->setDeclaration(this);
-}
-
-DataProductScope* DataProductDeclaration::definition()
-{
-    return myDefinition;
-}
-
-DataProductScope const* DataProductDeclaration::definition() const
-{
-    return myDefinition;
+    return base_t::resolveSymbols(ctx);
 }
 
 //
@@ -710,13 +718,13 @@ SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
                                            std::unique_ptr<Expression> returnExpression)
-    : Declaration(DeclKind::Procedure, std::move(symbol), nullptr)
+    : base_t(DeclKind::Procedure, std::move(symbol))
     , myReturnExpression(std::move(returnExpression))
 {
 }
 
 ProcedureDeclaration::ProcedureDeclaration(ProcedureDeclaration const& rhs)
-    : Declaration(rhs)
+    : base_t(rhs)
     , myOrdinals(rhs.myOrdinals)
 {
 }
@@ -731,7 +739,7 @@ ProcedureDeclaration::~ProcedureDeclaration() = default;
 
 void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
 {
-    Declaration::swap(rhs);
+    base_t::swap(rhs);
     using std::swap;
     swap(myReturnExpression, rhs.myReturnExpression);
     swap(myParameters, rhs.myParameters);
@@ -750,13 +758,13 @@ void ProcedureDeclaration::io(IStream& stream) const
         stream.next("definition", myDefinition);
 }
 
-IMPL_CLONE_BEGIN(ProcedureDeclaration, Declaration, Declaration)
+IMPL_CLONE_BEGIN(ProcedureDeclaration, base_t, Declaration)
 IMPL_CLONE_CHILD(myType)
 IMPL_CLONE_CHILD(myReturnExpression)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Declaration)
+IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, base_t)
 IMPL_CLONE_REMAP(myType)
 IMPL_CLONE_REMAP(myReturnExpression)
 IMPL_CLONE_REMAP(myParameters)
@@ -879,25 +887,6 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     ret |= ctx.resolveExpression(*myType);
 
     return ret;
-}
-
-ProcedureScope* ProcedureDeclaration::definition()
-{
-    return myDefinition;
-}
-
-ProcedureScope const* ProcedureDeclaration::definition() const
-{
-    return myDefinition;
-}
-
-void ProcedureDeclaration::define(ProcedureScope* definition)
-{
-    if ( myDefinition )
-        throw std::runtime_error("procedure " + mySymbol->token().lexeme() + " is already defined");
-
-    myDefinition = definition;
-    myDefinition->setDeclaration(this);
 }
 
 ArrowExpression const* ProcedureDeclaration::type() const
@@ -1094,12 +1083,12 @@ PatternsPrototype const& SymbolVariable::prototype() const
 // TemplateDeclaration
 
 TemplateDeclaration::TemplateDeclaration(Symbol&& sym)
-    : Declaration(DeclKind::Template, std::move(sym), nullptr)
+    : base_t(DeclKind::Template, std::move(sym))
 {
 }
 
 TemplateDeclaration::TemplateDeclaration(TemplateDeclaration const& rhs)
-    : Declaration(rhs)
+    : base_t(rhs)
 {
 }
 
@@ -1113,46 +1102,27 @@ TemplateDeclaration::~TemplateDeclaration() = default;
 
 void TemplateDeclaration::swap(TemplateDeclaration& rhs)
 {
-    Declaration::swap(rhs);
+    base_t::swap(rhs);
     using std::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
 void TemplateDeclaration::io(IStream& stream) const
 {
-    Declaration::io(stream);
+    base_t::io(stream);
     if ( myDefinition )
         stream.next("definition", myDefinition);
 }
 
-IMPL_CLONE_BEGIN(TemplateDeclaration, Declaration, Declaration)
+IMPL_CLONE_BEGIN(TemplateDeclaration, base_t, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, Declaration)
+IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, base_t)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
 SymRes TemplateDeclaration::resolveSymbols(Context& ctx)
 {
     return Declaration::resolveSymbols(ctx);
-}
-
-TemplateScope* TemplateDeclaration::definition()
-{
-    return myDefinition;
-}
-
-TemplateScope const* TemplateDeclaration::definition() const
-{
-    return myDefinition;
-}
-
-void TemplateDeclaration::define(TemplateScope* definition)
-{
-    if ( myDefinition )
-        throw std::runtime_error("template " + mySymbol->token().lexeme() + " is already defined");
-
-    myDefinition = definition;
-    myDefinition->setDeclaration(this);
 }
 
 void TemplateDeclaration::merge(TemplateDeclaration& rhs)
@@ -1292,6 +1262,57 @@ bool isDtor(ProcedureDeclaration const& proc)
         return false;
 
     return templ->symbol().token().lexeme() == "dtor";
+}
+
+bool isDefinableDeclaration(DeclKind kind)
+{
+    switch (kind)
+    {
+    case DeclKind::DataSum:
+    case DeclKind::DataProduct:
+    case DeclKind::Procedure:
+    case DeclKind::Template:
+        return true;
+    }
+
+    return false;
+}
+
+DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl)
+{
+    if ( !isDefinableDeclaration(decl.kind()) )
+        return nullptr;
+
+    return static_cast<DefinableDeclaration const*>(&decl);
+}
+
+DeclarationScope const* getDefinition(Declaration const& decl)
+{
+    if ( auto d = getDefinableDeclaration(decl) )
+        return d->definition();
+
+    return nullptr;
+}
+
+void define(Declaration& decl, DeclarationScope& defn)
+{
+    if ( auto ds = decl.as<DataSumDeclaration>() )
+        if ( auto dsDefn = defn.as<DataSumScope>() )
+            return ds->define(*dsDefn);
+
+    if ( auto dp = decl.as<DataProductDeclaration>() )
+        if ( auto dpDefn = defn.as<DataProductScope>() )
+            return dp->define(*dpDefn);
+
+    if ( auto proc = decl.as<ProcedureDeclaration>() )
+        if ( auto procDefn = defn.as<ProcedureScope>() )
+            return proc->define(*procDefn);
+
+    if ( auto templ = decl.as<TemplateDeclaration>() )
+        if ( auto templDefn = defn.as<TemplateScope>() )
+            return templ->define(*templDefn);
+
+    throw std::runtime_error("declaration/definition mismatch");
 }
 
 template <typename Dispatch>

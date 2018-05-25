@@ -24,8 +24,19 @@ public:
 
     using state_t = std::uint32_t;
 
+    struct Item
+    {
+        SymbolVariable const* symVar;
+        Expression const* expr;
+    };
+
+    struct BYOS {};
+
 public:
-    Substitutions() = default;
+    Substitutions();
+
+    Substitutions(BYOS, Declaration const& target, Slice<Item> items);
+    Substitutions(BYOS, Declaration const& target, Slice<Expression const*> exprs);
 
     Substitutions(Declaration const& target, Slice<Expression const*> query);
     Substitutions(Slice<Expression const*> lhs, Slice<Expression const*> rhs);

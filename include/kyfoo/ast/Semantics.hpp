@@ -310,6 +310,7 @@ Declaration const* resolveIndirections(Declaration const* decl);
 Expression const* resolveIndirections(Expression const* expr);
 bool needsSubstitution(Expression const& expr);
 bool needsSubstitution(Declaration const& decl);
+bool hasSubstitutions(Symbol const& sym);
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 bool isReference(Context const& ctx, Declaration const& decl);
