@@ -1104,9 +1104,10 @@ private:
 
 #define X(ID,LLVMSUFFIX)                                                                             \
         else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::ID)->symbol(), proc->symbol()) ) { \
-            auto type = toType(*exprs[1]->type());                                                   \
-            auto p1 = toValue(builder, type, *exprs[1]);                                             \
-            auto p2 = toValue(builder, type, *exprs[2]);                                             \
+            auto t1 = toType(*proc->parameters()[0]->type());                                        \
+            auto t2 = toType(*proc->parameters()[1]->type());                                        \
+            auto p1 = toValue(builder, t1, *exprs[1]);                                               \
+            auto p2 = toValue(builder, t2, *exprs[2]);                                               \
             return builder.Create##LLVMSUFFIX(p1, p2);                                               \
         }
 
