@@ -130,6 +130,14 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
     auto l = resolveIndirections(&target);
     auto r = resolveIndirections(&query);
 
+    auto tryImplicitRef = [&]() {
+        if ( auto rr = r->as<SymbolExpression>() )
+            if ( rr->token().lexeme() == "ref" )
+                return deduce(*l, rr->expressions());
+
+        return false;
+    };
+
     if ( auto targetId = l->as<IdentifierExpression>() ) {
         if ( auto targetDecl = resolveIndirections(targetId->declaration()) ) {
             if ( auto param = targetDecl->as<ProcedureParameter>() ) {
@@ -144,7 +152,7 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
                 return bind(*symVar, *r);
         }
 
-        return false;
+        return tryImplicitRef();
     }
 
     if ( auto lit = l->as<LiteralExpression>() ) {
@@ -167,7 +175,7 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
         if ( ll->token().lexeme() == "ref" )
             return deduce(ll->expressions(), *r);
 
-        return false;
+        return tryImplicitRef();
     }
 
     if ( auto a = l->as<ApplyExpression>() ) {
@@ -181,7 +189,7 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
                 if ( subject->token().lexeme() == "ref" )
                     return deduce(a->arguments(), *r);
 
-                return false;
+                return tryImplicitRef();
             }
 
             return deduce(a->expressions()(1, a->expressions().size()), s->expressions());
@@ -194,7 +202,7 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
                 if ( id->token().lexeme() == "ref" )
                     return deduce(a->arguments(), *r);
 
-            return false;
+            return tryImplicitRef();
         }
 
         return deduce(a->expressions(), aa->expressions());

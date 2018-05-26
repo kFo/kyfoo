@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 
@@ -58,6 +59,12 @@ inline std::unique_ptr<TupleExpression>
 createEmptyExpression()
 {
     return std::make_unique<TupleExpression>(TupleKind::Open, std::vector<std::unique_ptr<Expression>>());
+}
+
+inline std::unique_ptr<IdentifierExpression>
+createIdentifier(lexer::Token const& tok)
+{
+    return std::make_unique<IdentifierExpression>(tok);
 }
 
 inline std::unique_ptr<IdentifierExpression>
@@ -128,6 +135,14 @@ createMemberCall(ProcedureDeclaration const& proc,
                                   std::forward<Args>(exprs)...));
 }
 
+template <typename... Args>
+std::unique_ptr<ApplyExpression>
+createApply(Args&&... exprs)
+{
+    return std::make_unique<ApplyExpression>(
+        createPtrList<Expression>(std::forward<Args>(exprs)...));
+}
+
 inline std::unique_ptr<TupleExpression>
 createTuple(std::vector<std::unique_ptr<Expression>>&& exprs)
 {
@@ -138,6 +153,29 @@ inline std::unique_ptr<TupleExpression>
 createTuple(Slice<Expression const*> exprs)
 {
     return createTuple(ast::clone(exprs));
+}
+
+inline std::unique_ptr<ReturnJunction>
+createReturn(std::size_t line,
+             std::size_t column,
+             std::unique_ptr<Expression> expr)
+{
+    return std::make_unique<ReturnJunction>(makeToken("", line, column),
+                                            createEmptyExpression());
+}
+
+inline std::unique_ptr<ReturnJunction>
+createReturn(std::unique_ptr<Expression> expr)
+{
+    return createReturn(0, 0, std::move(expr));
+}
+
+inline std::unique_ptr<SymbolExpression>
+createRefType(std::size_t line, std::size_t col, std::unique_ptr<Expression> expr)
+{
+    return std::make_unique<ast::SymbolExpression>(
+        ast::makeToken("ref", line, col),
+        ast::createPtrList<ast::Expression>(std::move(expr)));
 }
 
     } // namespace ast

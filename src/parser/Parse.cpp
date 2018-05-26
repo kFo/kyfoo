@@ -285,6 +285,14 @@ DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
                                                ast::DataProductScope& scope)
     : DeclarationScopeParser(dgn, scanner, scope)
 {
+    std::size_t const line = 0;
+    std::size_t const col = 0;
+    myParameterContext.emplace_back(ast::createIdentifier(ast::makeToken("this", line, col)));
+    myParameterContext.back()->addConstraint(
+        createRefType(line, col,
+            ast::createIdentifier(
+                lexer::Token(lexer::TokenKind::Identifier, line, col, scope.declaration()->symbol().token().lexeme()),
+                *scope.declaration())));
 }
 
 DataProductScopeParser::~DataProductScopeParser() = default;

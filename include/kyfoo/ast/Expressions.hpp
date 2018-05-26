@@ -409,8 +409,10 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    SymRes lowerToApplicable(Context& ctx, IdentifierExpression& id);
-    SymRes elaborateSpecial(Context& ctx);
+    SymRes lowerToApplicable(Context& ctx);
+    SymRes lowerToStaticCall(Context& ctx);
+    SymRes lowerToConstruction(Context& ctx);
+    SymRes elaborateTuple(Context& ctx);
     void flatten();
     void flatten(std::vector<std::unique_ptr<Expression>>::iterator first);
 
@@ -424,9 +426,12 @@ public:
     Slice<Expression*> arguments();
     Slice<Expression const*> arguments() const;
 
+    ProcedureDeclaration const* procedure() const;
+
 private:
     // AST state
     std::vector<std::unique_ptr<Expression>> myExpressions;
+    ProcedureDeclaration const* myProc = nullptr;
 };
 
 // todo: removeme
@@ -478,6 +483,9 @@ private:
 class DotExpression : public Expression
 {
 public:
+    friend ApplyExpression;
+
+public:
     DotExpression(bool modScope,
                   std::vector<std::unique_ptr<Expression>>&& exprs);
 
@@ -506,6 +514,9 @@ public:
     Expression const* top(std::size_t index = 0) const;
 
     bool isModuleScope() const;
+
+protected:
+    std::unique_ptr<Expression> takeTop(std::size_t index = 0);
 
 private:
     std::vector<std::unique_ptr<Expression>> myExpressions;

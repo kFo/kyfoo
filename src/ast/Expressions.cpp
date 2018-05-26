@@ -734,6 +734,7 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
+L_restart:
     auto tryLowerSingle = [this, &ctx]() -> SymRes {
         if ( myExpressions.empty() )
             return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
@@ -768,38 +769,64 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
         return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
 
     if ( auto id = subject()->as<IdentifierExpression>() ) {
-        auto hit = ctx.matchOverload(id->token().lexeme());
-        if ( !hit )
-            return ctx.rewrite(std::make_unique<SymbolExpression>(std::move(myExpressions)));
+        if ( !id->token().lexeme().empty() ) {
+            auto hit = ctx.matchOverload(id->token().lexeme());
+            if ( !hit )
+                return ctx.rewrite(std::make_unique<SymbolExpression>(std::move(myExpressions)));
+        }
     }
 
     ret |= ctx.resolveExpression(myExpressions.front());
     if ( !ret )
         return ret;
 
-    if ( myExpressions.front()->type()->kind() != Kind::Arrow ) {
-        if ( auto id = identify(*myExpressions.front()) ) {
-            auto decl = id->declaration();
-            if ( auto binder = getBinder(*decl) )
-                return elaborateSpecial(ctx);
-
-            ret |= lowerToApplicable(ctx, *id);
-            if ( !ret )
-                return ret;
-        }
-        else {
-            return elaborateSpecial(ctx);
+    if ( auto dot = subject()->as<DotExpression>() ) {
+        auto decl = getDeclaration(dot->top());
+        if ( decl && (decl->kind() == DeclKind::Procedure || decl->kind() == DeclKind::Template) ) {
+            auto thisDecl = getDeclaration(dot->top(1));
+            if ( !thisDecl || !isDefinableDeclaration(thisDecl->kind()) ) {
+                myExpressions.emplace(begin(myExpressions), dot->takeTop());
+                goto L_restart;
+            }
         }
     }
 
-    auto arrow = subject()->type()->as<ArrowExpression>();
-    if ( !arrow ) {
-        ctx.error(*subject()) << "subject of an apply-expression must have an applicable type";
-        return SymRes::Fail;
+    auto const subjType = myExpressions.front()->type();
+    switch ( subjType->kind() ) {
+    case Kind::Tuple:
+        return elaborateTuple(ctx);
+
+    case Kind::Arrow:
+        myProc = getProcedure(*myExpressions.front());
+        break;
+
+    case Kind::Universe:
+        if ( subjType->as<UniverseExpression>()->level() == 0 )
+            ret |= lowerToStaticCall(ctx);
+        else
+            ret |= lowerToConstruction(ctx);
+        break;
+
+    default:
+        ret |= lowerToApplicable(ctx);
     }
+
+    if ( !ret ) {
+        ctx.error(*myExpressions.front()) << "is not applicable";
+        return ret;
+    }
+
+    auto arrow = subjType->as<ArrowExpression>();
+    if ( myProc )
+        arrow = myProc->type();
+
+    if ( !arrow )
+        throw std::runtime_error("proc is not typed");
 
     if ( !variance(ctx, arrow->from(), arguments()) ) {
-        ctx.error(*this) << "types do not agree";
+        (ctx.error(*this) << "types do not agree")
+            .expectedTypes(ctx.resolver().scope(), arrow->sliceFrom())
+            .received(ctx.resolver().scope(), arguments());
         return SymRes::Fail;
     }
 
@@ -808,96 +835,162 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
     if ( !ctx.isTopLevel() ) {
         return ctx.rewrite([&ctx](std::unique_ptr<Expression>& expr) {
             // todo: explicit proc scope knowledge
-            auto const& procScope = static_cast<ProcedureScope const&>(ctx.resolver().scope());
-            return ctx.statement().appendUnnamedExpression(const_cast<ProcedureScope&>(procScope), std::move(expr));
+            auto& procScope = static_cast<ProcedureScope&>(ctx.resolver().scope());
+            return ctx.statement().appendUnnamedExpression(procScope, std::move(expr));
         });
     }
 
     return ret;
 }
 
-SymRes ApplyExpression::lowerToApplicable(Context& ctx, IdentifierExpression& id)
+SymRes ApplyExpression::lowerToApplicable(Context& ctx)
 {
-    auto applicable = id.declaration();
-
-    if ( auto d = applicable->as<DataSumDeclaration>() ) {
-        auto& err = ctx.error(*myExpressions.front()) << "cannot be the subject of an apply-expression";
-        err.see(*d);
+    auto const& subj = *subject();
+    auto applicable = resolveIndirections(getDeclaration(subj.type()));
+    if ( !applicable ) {
+        ctx.error(subj) << "does not have an applicable type";
         return SymRes::Fail;
     }
 
-    if ( auto d = applicable->as<DataProductDeclaration>() ) {
-        auto defn = d->definition();
+    while ( auto ds = applicable->as<DataSumDeclaration>() ) {
+        if ( isReference(*ds) ) {
+            applicable = resolveIndirections(getDeclaration(ds->symbol().prototype().pattern().front()));
+            if ( !applicable ) {
+                ctx.error(subj) << "does not refer to an applicable type";
+                return SymRes::Fail;
+            }
+        }
+    }
+
+    auto dp = applicable->as<DataProductDeclaration>();
+    if ( !dp ) {
+        ctx.error(subj) << "only data-product types can be applied";
+        return SymRes::Fail;
+    }
+
+    auto defn = dp->definition();
+    if ( !defn ) {
+        (ctx.error(subj) << "missing definition")
+            .see(*dp);
+        return SymRes::Fail;
+    }
+
+    Resolver resolver(*defn, Resolver::Narrow);
+    Context dpCtx(ctx.module(), ctx.diagnostics(), resolver);
+    auto hit = dpCtx.matchOverload(SymbolReference("", expressions()));
+    if ( !hit ) {
+        (ctx.error(subj) << "no suitable apply overload found")
+            .see(*dp);
+        return SymRes::Fail;
+    }
+
+    auto proc = hit.as<ProcedureDeclaration>();
+    if ( !proc ) {
+        (ctx.error(subj) << "is not a procedure")
+            .see(*hit.decl())
+            .see(*dp);
+        return SymRes::Fail;
+    }
+
+    myProc = proc;
+    myExpressions.emplace(begin(myExpressions), createIdentifier(*myProc));
+
+    return SymRes::Success;
+}
+
+SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
+{
+    auto const& subj = *subject();
+    auto decl = resolveIndirections(getDeclaration(subj));
+    if ( !decl ) {
+        ctx.error(subj) << "does not refer to a declaration";
+        return SymRes::Fail;
+    }
+
+    auto templ = decl->as<TemplateDeclaration>();
+    if ( !templ ) {
+        (ctx.error(subj) << "does not refer to a template-declaration")
+            .see(*decl);
+        return SymRes::Fail;
+    }
+
+    auto defn = templ->definition();
+    if ( !defn ) {
+        ctx.error(*templ) << "missing definition";
+        return SymRes::Fail;
+    }
+
+    Resolver resolver(*defn, Resolver::Narrow);
+    Context templCtx(ctx.module(), ctx.diagnostics(), resolver);
+    auto hit = templCtx.matchOverload(SymbolReference("", arguments()));
+    auto proc = hit.as<ProcedureDeclaration>();
+    if ( !proc ) {
+        auto& err = ctx.error(*this) << "does not match any procedure overload";
+        if ( hit.symSpace() ) {
+            for ( auto const& p : hit.symSpace()->prototypes() )
+                err.see(*p.proto.decl);
+        }
+        return SymRes::Fail;
+    }
+
+    myProc = proc;
+    return SymRes::Success;
+}
+
+SymRes ApplyExpression::lowerToConstruction(Context& ctx)
+{
+    auto const& subj = *subject();
+    auto decl = resolveIndirections(getDeclaration(subj));
+    if ( !decl ) {
+        ctx.error(subj) << "does not refer to a declaration";
+        return SymRes::Fail;
+    }
+
+    if ( auto dp = decl->as<DataProductDeclaration>() ) {
+        auto defn = dp->definition();
         if ( !defn ) {
-            ctx.error(*d) << "missing definition";
+            (ctx.error(subj) << "missing data-product definition")
+                .see(*dp);
             return SymRes::Fail;
         }
 
-        ScopeResolver resolver(*defn, IResolver::Narrow);
+        Resolver resolver(*defn, Resolver::Narrow);
         Context dpCtx(ctx.module(), ctx.diagnostics(), resolver);
         auto hit = dpCtx.matchOverload("ctor");
         if ( !hit ) {
-            ctx.error(*d) << "is not constructible";
+            (ctx.error(subj) << "data-product is not constructible")
+                .see(*dp);
             return SymRes::Fail;
         }
 
-        auto decl = hit.as<TemplateDeclaration>();
-        if ( !decl )
+        auto ctorTemplDecl = hit.as<TemplateDeclaration>();
+        if ( !ctorTemplDecl )
             throw std::runtime_error("ctor is not a template");
 
-        ScopeResolver templScope(*decl->definition(), IResolver::Narrow);
+        Resolver templScope(*ctorTemplDecl->definition(), Resolver::Narrow);
         dpCtx.changeResolver(templScope);
         hit = dpCtx.matchOverload(SymbolReference("", arguments()));
         auto proc = hit.as<ProcedureDeclaration>();
         if ( !proc )
             throw std::runtime_error("ctor is not a procedure");
 
-        id.setDeclaration(*proc);
+        myProc = proc;
         return SymRes::Success;
     }
 
-    if ( auto d = applicable->as<TemplateDeclaration>() ) {
-        auto defn = d->definition();
-        if ( !defn ) {
-            ctx.error(*d) << "missing definition";
-            return SymRes::Fail;
-        }
-
-        ScopeResolver resolver(*defn, IResolver::Narrow);
-        Context templCtx(ctx.module(), ctx.diagnostics(), resolver);
-        auto hit = templCtx.matchOverload(SymbolReference("", arguments()));
-        auto proc = hit.as<ProcedureDeclaration>();
-        if ( !proc ) {
-            auto& err = ctx.error(*this) << "does not match any procedure overload";
-            if ( hit.symSpace() ) {
-                for ( auto const& p : hit.symSpace()->prototypes() )
-                    err.see(*p.proto.decl);
-            }
-            return SymRes::Fail;
-        }
-
-        id.setDeclaration(*proc);
-        return SymRes::Success;
-    }
-
-    if ( auto d = applicable->as<DataSumDeclaration::Constructor>() ) {
+    if ( auto dsCtor = decl->as<DataSumDeclaration::Constructor>() ) {
         ctx.error(*myExpressions.front()) << "ds ctor not implemented";
-        return SymRes::Fail;
-    }
-
-    if ( auto d = applicable->as<ImportDeclaration>() ) {
-        ctx.error(*myExpressions.front()) << "cannot use import-declaration in apply-expression";
         return SymRes::Fail;
     }
 
     return SymRes::Success;
 }
 
-SymRes ApplyExpression::elaborateSpecial(Context& ctx)
+SymRes ApplyExpression::elaborateTuple(Context& ctx)
 {
-    auto subjectType = myExpressions.front()->type()->as<TupleExpression>();
+    auto subjectType = resolveIndirections(*myExpressions.front())->type()->as<TupleExpression>();
     if ( !subjectType ) {
-        ctx.error(*myExpressions.front()) << "is not applicable";
+        ctx.error(*myExpressions.front()) << "is not a tuple";
         return SymRes::Fail;
     }
 
@@ -926,6 +1019,27 @@ SymRes ApplyExpression::elaborateSpecial(Context& ctx)
     }
 
     auto argType = myExpressions[1]->type();
+    auto elementType = subjectType->expressions().front();
+
+    if ( auto arrow = argType->as<ArrowExpression>() ) {
+        std::unique_ptr<IdentifierExpression> refStorage;
+        auto refElementType = elementType;
+        if ( !isReference(*refElementType) ) {
+            refStorage = createIdentifier(*ctx.matchOverload(SymbolReference("ref", slice(elementType))).decl());
+            refElementType = refStorage.get();
+        }
+
+        if ( !variance(ctx, arrow->from(), *refElementType) ) {
+            (ctx.error(*myExpressions[1]) << "cannot be applied to " << *myExpressions[0])
+                .expectedTypes(ctx.resolver().scope(), subjectType->expressions()(0, 1))
+                .receivedTypes(ctx.resolver().scope(), arrow->sliceFrom());
+            return SymRes::Fail;
+        }
+
+        myType = elementType;
+        return SymRes::Success;
+    }
+
     auto indexType = createIdentifier(*ctx.axioms().intrinsic(size_t));
     if ( !variance(ctx, *indexType, *argType) ) {
         ctx.error(*myExpressions[1]) << "cannot be converted to size_t";
@@ -997,6 +1111,11 @@ Slice<Expression*> ApplyExpression::arguments()
 Slice<Expression const*> ApplyExpression::arguments() const
 {
     return slice(myExpressions, 1);
+}
+
+ProcedureDeclaration const* ApplyExpression::procedure() const
+{
+    return myProc;
 }
 
 //
@@ -1190,11 +1309,13 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
 
     auto updateContext = [&ctx, &resolver](Expression const& expr)
     {
-        if ( auto decl = getDeclaration(expr) ) {
-            if ( auto scope = memberScope(*resolveIndirections(decl)) ) {
-                resolver = ScopeResolver(*scope);
-                ctx.changeResolver(resolver);
-            }
+        auto decl = resolveIndirections(getDeclaration(expr));
+        if ( !decl )
+            return;
+
+        if ( auto scope = memberScope(*decl) ) {
+            resolver = Resolver(*scope);
+            ctx.changeResolver(resolver);
         }
     };
 
@@ -1205,7 +1326,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
         if ( !ret )
             return ret;
 
-        auto e = myExpressions[i].get();
+        auto e = resolveIndirections(myExpressions[i].get());
 
         if ( auto lit = e->as<LiteralExpression>() ) {
             if ( lit->token().kind() != lexer::TokenKind::Integer ) {
@@ -1219,7 +1340,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
                 return SymRes::Fail;
             }
 
-            auto composite = resolveIndirections(myExpressions[i - 1].get());
+            auto const* composite = resolveIndirections(myExpressions[i - 1].get());
             bool binder = false;
             if ( auto decl = getDeclaration(*composite) ) {
                 if ( auto b = getBinder(*decl) ) {
@@ -1276,7 +1397,13 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
         updateContext(*myExpressions[i]);
     }
 
+    if ( myExpressions.empty() )
+        return ctx.rewrite(createEmptyExpression());
+    else if ( myExpressions.size() == 1 )
+        return ctx.rewrite(std::move(myExpressions.front()));
+
     setType(myExpressions.back()->type());
+
     return SymRes::Success;
 }
 
@@ -1301,6 +1428,19 @@ Expression const* DotExpression::top(std::size_t index) const
 bool DotExpression::isModuleScope() const
 {
     return myModScope;
+}
+
+std::unique_ptr<Expression> DotExpression::takeTop(std::size_t index)
+{
+    auto const takeIndex = myExpressions.size() - 1 - index;
+    auto m = begin(myExpressions) + takeIndex;
+    auto ret = std::move(*m);
+    move(next(m), end(myExpressions), m);
+    myExpressions.pop_back();
+
+    myType = nullptr;
+
+    return ret;
 }
 
 //
@@ -1363,7 +1503,7 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
-    auto ret = ctx.resolveExpression(*myLeft);
+    auto ret = ctx.resolveExpression(myLeft);
     if ( !ret )
         return ret;
 
@@ -1371,7 +1511,13 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    if ( !variance(ctx, *myLeft, *myRight) ) {
+    VarianceResult result = Invariant;
+    if ( isReference(*myLeft->type()) )
+        result = variance(ctx, getDeclaration(myLeft->type())->symbol().prototype().pattern(), *myRight->type());
+    else
+        result = variance(ctx, *myLeft, *myRight);
+
+    if ( !result ) {
         ctx.error(*this) << "assignment expression type does not match variable type";
         return SymRes::Fail;
     }

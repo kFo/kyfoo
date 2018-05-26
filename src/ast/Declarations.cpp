@@ -780,16 +780,6 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     // deduce parameters
     auto const& id = symbol().token();
     if ( myParameters.empty() ) {
-        if ( auto thisType = outerDataDeclaration(*this) ) {
-            auto thisToken = lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this");
-            myParameters.emplace_back(
-                std::make_unique<ProcedureParameter>(
-                    Symbol(thisToken),
-                    *this,
-                    createPtrList<Expression>(std::make_unique<IdentifierExpression>(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "this_t"),
-                                                                                     *thisType))));
-        }
-
         auto canBeParam = [&ctx](Expression const& e) {
             auto p = e.as<IdentifierExpression>();
             if ( !p || p->token().kind() != lexer::TokenKind::Identifier )

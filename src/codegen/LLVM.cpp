@@ -152,8 +152,25 @@ llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
         return elementType;
     }
 
-    if ( auto a = e->as<ast::ArrowExpression>() )
-        return nullptr; // todo
+    if ( auto a = e->as<ast::ArrowExpression>() ) {
+        enum { NotVarArg = false };
+        std::vector<llvm::Type*> params;
+        if ( auto tup = a->from().as<ast::TupleExpression>() ) {
+            if ( tup->expressions().empty() )
+                return llvm::PointerType::getUnqual(llvm::FunctionType::get(toType(context, a->to()), NotVarArg));
+
+            if ( tup->kind() == ast::TupleKind::Open ) {
+                params.reserve(tup->expressions().size());
+                for ( auto texpr : tup->expressions() )
+                    params.push_back(toType(context, *texpr));
+            }
+        }
+
+        if ( params.empty() )
+            params.push_back(toType(context, a->from()));
+
+        return llvm::PointerType::getUnqual(llvm::FunctionType::get(toType(context, a->to()), params, NotVarArg));
+    }
 
     return nullptr;
 }
@@ -582,8 +599,9 @@ struct CodeGenPass
 
         if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
             if ( retJunc->expression() ) {
-                builder.CreateStore(toValue(builder, fdata->returnInst->getAllocatedType(), *retJunc->expression()),
-                                    fdata->returnInst);
+                auto retVal = toValue(builder, fdata->type->getReturnType(), *retJunc->expression());
+                if ( fdata->returnInst )
+                    builder.CreateStore(retVal, fdata->returnInst);
             }
 
             /*createCleanupBlock(retJunc->token(), true);
@@ -693,55 +711,6 @@ private:
         dgn.die();
     }
 
-    llvm::Value* getThis(llvm::IRBuilder<>& builder,
-                              ast::ProcedureDeclaration const& proc,
-                              ast::ApplyExpression const& a)
-    {
-        if ( !methodType(proc) ) {
-            error(proc) << "is not a method";
-            die();
-        }
-
-        auto const arity = proc.symbol().prototype().pattern().size();
-        auto const argCount = a.expressions().size() - 1;
-
-        llvm::Value* val = nullptr;
-        if ( arity == argCount ) {
-            // this param is inferred
-            auto subject = a.expressions()[0];
-            if ( auto d = subject->as<ast::DotExpression>() ) {
-                // member access via dot-expression
-                auto instance = d->expressions()[d->expressions().size() - 2];
-                if ( auto decl = getDeclaration(*instance) ) {
-                    if ( auto var = decl->as<ast::VariableDeclaration>() )
-                        val = customData(*var)->inst;
-
-                    if ( auto param = decl->as<ast::ProcedureParameter>() )
-                        val = customData(*param)->arg;
-                }
-            }
-            else {
-                error(a) << "cannot determine this param";
-                die();
-            }
-        }
-        else if ( arity == argCount + 1 ) {
-            val = toValue(builder, nullptr, *a.expressions()[1]);
-        }
-        
-        if ( !val ) {
-            error(a) << "cannot determine this param";
-            die();
-        }
-
-        if ( !val->getType()->isPointerTy() ) {
-            error(a) << "this parameter must be a pointer";
-            die();
-        }
-
-        return val;
-    }
-
     llvm::Type* toType(ast::Expression const& expr)
     {
         return codegen::toType(module->getContext(), expr);
@@ -805,7 +774,7 @@ private:
 
                     if ( auto field = decl->as<ast::DataProductDeclaration::Field>() ) {
                         auto fdata = customData(*field);
-                        ret = builder.CreateStructGEP(ret->getType(), ret, fdata->index);
+                        ret = builder.CreateStructGEP(nullptr, ret, fdata->index);
                         continue;
                     }
                 }
@@ -853,6 +822,16 @@ private:
 
     llvm::Value* toValue(llvm::IRBuilder<>& builder, llvm::Type* destType, ast::Expression const& expression)
     {
+        auto ret = toValue_impl(builder, destType, expression);
+        if ( ret && ret->getType()->isPointerTy() && ret->getType()->getPointerElementType() == destType )
+            return builder.CreateLoad(ret);
+
+        return ret;
+    }
+
+    // todo: removeme
+    llvm::Value* toValue_impl(llvm::IRBuilder<>& builder, llvm::Type* destType, ast::Expression const& expression)
+    {
         auto const& axioms = sourceModule.axioms();
         auto const& expr = *resolveIndirections(&expression);
         if ( auto intrin = intrinsicInstruction(builder, destType, expr) )
@@ -869,7 +848,10 @@ private:
                     if ( auto field = decl->as<ast::DataProductDeclaration::Field>() ) {
                         assert(ret && "expected field comes after another value");
                         auto fieldData = customData(*field);
-                        ret = builder.CreateExtractValue(ret, fieldData->index);
+                        if ( ret->getType()->isPointerTy() )
+                            ret = builder.CreateLoad(builder.CreateStructGEP(nullptr, ret, fieldData->index));
+                        else
+                            ret = builder.CreateExtractValue(ret, fieldData->index);
                         continue;
                     }
                 }
@@ -878,7 +860,10 @@ private:
                         die("bad index");
 
                     auto index = static_cast<unsigned>(std::atoi(lit->token().lexeme().c_str()));
-                    ret = builder.CreateExtractValue(ret, index);
+                    if ( ret->getType()->isPointerTy() )
+                        ret = builder.CreateLoad(builder.CreateStructGEP(nullptr, ret, index));
+                    else
+                        ret = builder.CreateExtractValue(ret, index);
                     continue;
                 }
 
@@ -910,6 +895,10 @@ private:
 
             if ( auto var = decl->as<ast::VariableDeclaration>() ) {
                 auto vdata = customData(*var);
+                // todo: removeme
+                if ( destType && destType->isPointerTy() )
+                    return vdata->inst;
+
                 return builder.CreateLoad(vdata->inst);
             }
 
@@ -922,46 +911,62 @@ private:
         }
 
         if ( auto a = expr.as<ast::ApplyExpression>() ) {
-            auto proc = getDeclaration(a->subject())->as<ast::ProcedureDeclaration>();
+            auto const& exprs = a->expressions();
+            auto proc = a->procedure();
+            llvm::Value* fptr = nullptr;
             if ( !proc ) {
-                error(*a) << "expected apply-expression to refer to procedure-declaration";
-                die();
+                proc = getProcedure(*a->subject());
+                if ( !proc )
+                    fptr = toValue(builder, nullptr, *exprs[0]);
             }
 
-            auto const& exprs = a->expressions();
-            std::vector<llvm::Value*> params;
-            params.reserve(exprs.size());
-
-            auto const isMethod = methodType(*proc) ? 1 : 0;
-            if ( isMethod )
-                params.push_back(getThis(builder, *proc, *a));
-
-            if ( exprs.size() > 1 ) {
-                for ( std::size_t i = 1; i < exprs.size(); ++i ) {
-                    auto const paramOrdinal = proc->ordinals()[i - 1];
-                    if ( paramOrdinal < isMethod )
-                        continue;
-
-                    auto paramType = toType(*proc->parameters()[paramOrdinal]->type());
-                    auto val = toValue(builder, paramType, *exprs[i]);
-                    if ( !val )
-                        die("cannot determine arg");
-                    params.push_back(val);
+            ast::ArrowExpression const* arrow = nullptr;
+            if ( proc ) {
+                arrow = proc->type();
+            }
+            else {
+                if ( auto decl = getDeclaration(resolveIndirections(*exprs[0])) ) {
+                    if ( auto binder = getBinder(*decl) )
+                        arrow = binder->type()->as<ast::ArrowExpression>();
                 }
             }
 
+            assert(arrow);
+
+            auto formalParams = slice(&arrow->from());
+            if ( auto tup = arrow->from().as<ast::TupleExpression>() )
+                if ( tup->kind() == ast::TupleKind::Open )
+                    formalParams = tup->expressions();
+
+            std::vector<llvm::Value*> args;
+            args.reserve(exprs.size());
+
+            for ( std::size_t i = 1; i < exprs.size(); ++i ) {
+                auto paramType = toType(*formalParams[i - 1]);
+                auto val = toValue(builder, paramType, *exprs[i]);
+                if ( !val )
+                    die("cannot determine arg");
+                args.push_back(val);
+            }
+
+            if ( proc )
                 return builder.CreateCall(customData(*proc)->defn, args);
+
+            return builder.CreateCall(fptr, args);
         }
 
         if ( auto assign = expr.as<ast::AssignExpression>() ) {
-            auto ref = getRef(assign->left());
-            auto var = std::get<0>(ref)->as<ast::VariableDeclaration>();
-            if ( !var )
-                die("assignment is not a variable");
-            auto vdata = customData(*var);
-            builder.CreateStore(toValue(builder, vdata->inst->getAllocatedType(), assign->right()),
-                                vdata->inst);
-            return builder.CreateLoad(vdata->inst);
+            auto ref = toRef(builder, assign->left());
+            if ( !ref ) {
+                ref = toValue(builder, nullptr, assign->left());
+                if ( !ref )
+                    die("cannot determine reference");
+            }
+
+            builder.CreateStore(toValue(builder, ref->getType()->getPointerElementType(), assign->right()),
+                                ref);
+            return builder.CreateLoad(ref);
+        }
 
         if ( auto l = expr.as<ast::LambdaExpression>() ) {
             auto pdata = customData(l->procedure());
@@ -990,7 +995,55 @@ private:
         if ( !a )
             return nullptr;
 
-        auto const proc = getDeclaration(resolveIndirections(a->subject()))->as<ast::ProcedureDeclaration>();
+        auto subj = resolveIndirections(a->subject());
+        if ( auto tup = subj->type()->as<ast::TupleExpression>() ) {
+            if ( a->arguments().size() != 1 )
+                die("expected one argument");
+
+            auto proc = getProcedure(*a->arguments()[0]);
+            if ( !proc )
+                die("expected procedure argument");
+
+            if ( tup->elementsCount() <= 1 )
+                die("apply is not implemented for tuples");
+
+            auto arr = toRef(builder, *subj);
+            auto idxPtr = llvm::IRBuilder<>(&builder.GetInsertBlock()->getParent()->getEntryBlock()).CreateAlloca(builder.getInt64Ty());
+            auto const zero = llvm::ConstantInt::get(builder.getInt64Ty(), 0);
+            auto const one = llvm::ConstantInt::get(builder.getInt64Ty(), 1);
+            auto const size = llvm::ConstantInt::get(builder.getInt64Ty(), tup->elementsCount());
+
+            builder.CreateStore(zero, idxPtr);
+            auto condBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
+            builder.CreateBr(condBlock);
+
+            builder.SetInsertPoint(condBlock);
+            auto idx = builder.CreateLoad(idxPtr);
+            auto cond = builder.CreateICmpNE(idx, size);
+            auto loopBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
+            auto mergeBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
+            builder.CreateCondBr(cond, loopBlock, mergeBlock);
+
+            builder.SetInsertPoint(loopBlock);
+            llvm::Value* idxList[] = {
+                llvm::ConstantInt::get(idxPtr->getAllocatedType(), 0),
+                idx,
+            };
+            auto elemPtr = builder.CreateGEP(arr, idxList);
+            llvm::Value* args[] = { elemPtr };
+            builder.CreateCall(customData(*proc)->defn, args);
+
+            auto next = builder.CreateAdd(idx, one);
+            builder.CreateStore(next, idxPtr);
+
+            builder.CreateBr(condBlock);
+
+            builder.SetInsertPoint(mergeBlock);
+
+            return toRef(builder, *subj);
+        }
+
+        auto const proc = a->procedure();
         if ( !proc )
             return nullptr;
 
@@ -998,8 +1051,7 @@ private:
         auto const& exprs = a->expressions();
 
         if ( proc == axioms.intrinsic(ast::Sliceu8_dtor) ) {
-            auto v = getThis(builder, *proc, *a);
-            return v;
+            return toValue(builder, destType, *exprs[1]);
         }
 
         // todo: hash lookup
@@ -1235,8 +1287,9 @@ struct LLVMGenerator::LLVMState
             init(*d);
 
         registerTypes(module, *module.scope());
-        for ( auto d : module.templateInstantiations() )
-            registerTypes(module, *d);
+        // todo: HACK needs dependency analysis
+        for ( auto i = module.templateInstantiations().size() - 1; ~i; --i )
+            registerTypes(module, *module.templateInstantiations()[i]);
 
         ast::ShallowApply<CodeGenPass> gen(dgn, mdata->module.get(), module);
         for ( auto d : module.templateInstantiations() )
@@ -1278,7 +1331,9 @@ struct LLVMGenerator::LLVMState
             else if ( ds == axioms().intrinsic(ast::i128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
 
             auto const& sym = ds->symbol();
-            if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate)->symbol() ) {
+            if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate)->symbol()
+              || rootTemplate(sym) == &axioms().intrinsic(ast::ReferenceTemplate)->symbol() )
+            {
                 auto t = toType(*sym.prototype().pattern()[0]);
                 if ( t->isVoidTy() )
                     dsData->type = llvm::Type::getInt8PtrTy(*context);

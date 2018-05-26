@@ -527,15 +527,28 @@ VarianceResult variance(Context& ctx,
     }
 
     if ( auto targetDecl = getDeclaration(*t) ) {
-        if ( isReference(ctx, *targetDecl) ) {
+        if ( isReference(*targetDecl) ) {
             if ( auto queryRef = getRefType(*q) )
                 return variance(ctx, targetDecl->symbol().prototype().pattern(), *queryRef);
 
-            if ( auto queryDecl = getDeclaration(*q) )
-                if ( isReference(ctx, *queryDecl) )
+            if ( auto queryDecl = getDeclaration(*q) ) {
+                if ( isReference(*queryDecl) )
                     return variance(ctx, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
 
+                if ( auto queryBinder = getBinder(*queryDecl) )
+                    return variance(ctx, *t, *queryType);
+            }
+
+            // todo: hack
+            if ( auto app = q->as<AssignExpression>() )
+                return variance(ctx, *t, *queryType);
+
             return Invariant;
+        }
+        else if ( auto queryDecl = getDeclaration(*q) ) {
+            if ( isReference(*queryDecl) )
+                if ( variance(ctx, *t, queryDecl->symbol().prototype().pattern()) )
+                    return Covariant;
         }
 
         if ( auto targetBinder = getBinder(*targetDecl) ) {
@@ -750,6 +763,11 @@ Declaration const* resolveIndirections(Declaration const* decl)
     return nullptr;
 }
 
+Declaration const* resolveIndirections(Declaration const& decl)
+{
+    return resolveIndirections(&decl);
+}
+
 Expression const* resolveIndirections(Expression const* expr)
 {
     while ( expr ) {
@@ -774,6 +792,16 @@ Expression const* resolveIndirections(Expression const* expr)
     }
 
     return nullptr;
+}
+
+Expression* resolveIndirections(Expression* expr)
+{
+    return const_cast<Expression*>(resolveIndirections(const_cast<Expression const*>(expr)));
+}
+
+Expression const* resolveIndirections(Expression const& expr)
+{
+    return resolveIndirections(&expr);
 }
 
 bool needsSubstitution(Expression const& expr)
@@ -820,9 +848,9 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
     return false;
 }
 
-bool isReference(Context const& ctx, Declaration const& decl)
+bool isReference(Declaration const& decl)
 {
-    return isReference(ctx, decl.symbol());
+    return descendsFromTemplate(decl.scope().module().axioms().intrinsic(ReferenceTemplate)->symbol(), decl.symbol());
 }
 
 bool isReference(Context const& ctx, Symbol const& sym)
@@ -830,17 +858,18 @@ bool isReference(Context const& ctx, Symbol const& sym)
     return descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), sym);
 }
 
-bool isReference(Context const& ctx, Expression const& expr)
+bool isReference(Expression const& expr)
 {
     if ( auto d = getDeclaration(expr) )
-        return isReference(ctx, *d);
+        return isReference(*d);
 
     return false;
 }
 
-DeclarationScope const* memberScope(Declaration const& decl)
+DeclarationScope const* memberScope(Declaration const& decl_)
 {
-    if ( auto b = getBinder(decl) ) {
+    auto decl = resolveIndirections(decl_);
+    if ( auto b = getBinder(*decl) ) {
         auto d = resolveIndirections(getDeclaration(b->type()));
         if ( !d )
             return nullptr;
@@ -848,14 +877,25 @@ DeclarationScope const* memberScope(Declaration const& decl)
         return memberScope(*d);
     }
 
-    if ( auto ds = decl.as<DataSumDeclaration>() )
+    while ( isReference(*decl) )
+        decl = resolveIndirections(getDeclaration(decl->symbol().prototype().pattern().front()));
+
+    if ( auto ds = decl->as<DataSumDeclaration>() )
         return ds->definition();
 
-    if ( auto dp = decl.as<DataProductDeclaration>() )
+    if ( auto dp = decl->as<DataProductDeclaration>() )
         return dp->definition();
 
     // todo: imports
     return nullptr;
+}
+
+TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc)
+{
+    if ( !proc.scope().declaration() )
+        return nullptr;
+
+    return proc.scope().declaration()->as<TemplateDeclaration>();
 }
 
 Declaration const* outerDataDeclaration(Declaration const& decl)

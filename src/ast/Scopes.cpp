@@ -505,17 +505,17 @@ TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const&
                                                             createPtrList<Expression>(createIdentifier(*declaration())));
             auto v = v_.get();
             static_cast<DeclarationScope&>(*procDefn).append(std::move(v_));
-            procDefn->append(createMemberCall(*procCtor, *v, createTuple(proc->symbol().prototype().pattern())));
+            procDefn->append(createApply(createIdentifier(*procCtor), createTuple(proc->symbol().prototype().pattern())));
             procDefn->basicBlocks().back()->setJunction(
                 std::make_unique<ReturnJunction>(makeToken("return"), createIdentifier(*v)));
             
-            proc->define(procDefn.get());
+            proc->define(*procDefn);
             builderDefn->append(std::move(procDefn));
             builderDefn->append(std::move(proc));
         }
     }
 
-    builder->define(builderDefn.get());
+    builder->define(*builderDefn);
     module().scope()->append(std::move(builderDefn));
 
     auto ret = builder.get();
@@ -532,7 +532,7 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
                                 declaration()->symbol().token().column(),
                                 "dtor")));
         auto templDefn = std::make_unique<TemplateScope>(*this, *templ);
-        templ->define(templDefn.get());
+        templ->define(*templDefn);
         append(std::move(templDefn));
         append(std::move(templ));
         addSymbol(dgn, myDeclarations.back()->symbol(), *myDeclarations.back());
@@ -558,7 +558,8 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 
     Resolver narrowResolver(*templ->definition(), Resolver::Narrow);
     Context ctx(endModule, dgn, narrowResolver);
-    decl = ctx.matchOverload("").decl();
+    std::unique_ptr<Expression> thisType = createIdentifier(*declaration());
+    decl = ctx.matchOverload(SymbolReference("", sliceunq(thisType))).decl();
     if ( !decl ) {
         auto proc = createDefaultDestructor();
         auto p = proc.get();
@@ -583,21 +584,22 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 
 std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
 {
+    auto const line = declaration()->symbol().token().line();
+    auto const column = declaration()->symbol().token().column();
+    auto thisParam = createIdentifier(makeToken("this", 0, 0));
+    thisParam->addConstraint(createIdentifier(*declaration()));
     auto proc = std::make_unique<ProcedureDeclaration>(
-        Symbol(lexer::Token(lexer::TokenKind::Identifier,
-                            declaration()->symbol().token().line(),
-                            declaration()->symbol().token().column(),
-                            "")),
+        makeSym(makeToken("", line, column), createPtrList<Expression>(std::move(thisParam))),
         nullptr);
 
     auto ps = std::make_unique<ProcedureScope>(*this, *proc);
 
     for ( auto f = myFields.rbegin(); f != myFields.rend(); ++f ) {
-        auto id = identify(*(*f)->type());
-        if ( !id )
+        auto decl = getDeclaration((*f)->type());
+        if ( !decl )
             continue;
 
-        auto dp = id->declaration()->as<DataProductDeclaration>();
+        auto dp = decl->as<DataProductDeclaration>();
         if ( !dp )
             continue;
 
@@ -605,7 +607,13 @@ std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultDestructor(
             ps->append(createMemberCall(*dtor, **f));
     }
 
-    proc->define(ps.get());
+    auto bb = ps->basicBlocks().back();
+    if ( bb->statements().empty() )
+        bb->append(createIdentifier(makeToken("this", line, column)));
+
+    bb->setJunction(createReturn(line, column, createEmptyExpression()));
+
+    proc->define(*ps);
     append(std::move(ps));
     return proc;
 }
