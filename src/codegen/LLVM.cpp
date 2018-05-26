@@ -1050,7 +1050,18 @@ private:
         const auto& axioms = sourceModule.axioms();
         auto const& exprs = a->expressions();
 
-        if ( proc == axioms.intrinsic(ast::Sliceu8_dtor) ) {
+        if ( proc == axioms.intrinsic(ast::Array_idx)
+          || proc == axioms.intrinsic(ast::Sliceu8_idx)
+          || descendsFromTemplate(axioms.intrinsic(ast::Slice_idx)->symbol(), proc->symbol()) )
+        {
+            auto arr = toRef(builder, *a->expressions()[1]);
+            auto basePtr = builder.CreateStructGEP(nullptr, arr, 0);
+            auto baseVal = builder.CreateLoad(basePtr);
+            auto idx = toValue(builder, toType(*proc->parameters()[1]->type()), *exprs[2]);
+            return builder.CreateGEP(baseVal, idx);
+        }
+        else if ( proc == axioms.intrinsic(ast::Sliceu8_dtor) )
+        {
             return toValue(builder, destType, *exprs[1]);
         }
 

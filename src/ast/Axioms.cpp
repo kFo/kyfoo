@@ -34,15 +34,37 @@ ascii := slice<u8>
     base : ptr T
     card : size_t
 
+    @"intrininst" "Array_idx"
+    (i : size_t) -> ref T
+
 @"intrininst" "SliceTemplate"
 :& slice<\T>
     base : ptr T
     card : size_t
 
+    // todo: removeme
+    ctor(p : ptr T, c : size_t) =>
+        this.base = p
+        this.card = c
+        :.
+
+    @"intrininst" "Slice_idx"
+    (i : size_t) -> ref T
+
+    (f : (ref T) -> ()) -> () =>
+        := i : size_t = 0
+        :<> lt i this.card
+            f (this i)
+            i = add i 1
+        :.
+
 @"intrininst" "Sliceu8"
 :& slice<u8>
     base : ptr u8
     card : size_t
+
+    @"intrininst" "Sliceu8_idx"
+    (i : size_t) -> ref u8
 
     @"intrininst" "Sliceu8_dtor"
     dtor()

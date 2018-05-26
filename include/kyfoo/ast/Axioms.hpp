@@ -60,6 +60,9 @@ enum DataProductIntrinsics
 };
 
 #define INTRINSIC_INSTRUCTIONS(X) \
+    X(Array_idx   ) \
+    X(Slice_idx   ) \
+    X(Sliceu8_idx ) \
     X(Sliceu8_dtor) \
                     \
     X(Addu        ) \
