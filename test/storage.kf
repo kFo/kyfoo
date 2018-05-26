@@ -4,6 +4,90 @@
     South
     East
 
+:| Natural
+    0
+    Succ<\x : Natural>
+
++(0, 0)        => 0
++(0, \b)       => b
++(\a, 0)       => a
++(\a, Succ \b) => + (Succ a) b
+
+-(0, 0)  => 0
+-(\x, 0) => -x
+-(0, \y) => y
+-(Succ \x, Succ \y) => -(x, y)
+
+f (n : Natural) -> ()
+f (0)
+f (Succ 0)
+f (Succ (Succ 0))
+f (Succ North) // error
+
+:| MySpecialNumbers : Natural
+    1
+    8
+    16
+    32
+    64
+    128
+
+:| V
+    variant1 i32
+    variant2 String
+
+:| FileOpenResult : V
+    variant1 _
+    
+    variant2 "not"
+    variant2 ".."
+
+f (n : MySpecialNumbers) -> ()
+    := i : MySpecialNumbers = 
+f (0) // error
+f (1) // works
+
+:| Or<\a, \b>
+    Left a
+    Right b
+
+:| False
+
+:| Not<\a>
+    NotLeft<a -> False>
+
+:| GreaterEqual<\N : Natural, \M : Natural>
+    ReflGE<\x : Natural> : GreaterEqual<x, x>
+    SuccGE<\x : Natural, \y : Natural, GreaterEqual<x,y>> : GreaterEqual<Succ<x>, y>
+
+>= <a:Natural, b:Natural> -> Or < GreaterEqual<a,b>, Not< GreaterEqual<a,b> > >
+
+>= (\a, \a) => ReflGE a
+>= (0, \b) => NotLeft 
+>= (Succ \a, \b) => >= a b
+
+g (n : Natural, GreaterEqual<10, n>) -> () =>
+
+main() =>
+    @volatile
+    := x : Natural
+    
+    match >= 10 x
+    Left \a =>
+        g (x, a) // ok
+    _ =>
+        // nop
+    
+    @volatile
+    := i : Natural
+    
+    :! GreaterEqual 10 i
+        print "error"
+        return
+    
+    :? GreaterEqual 10 i
+        g (i) // error
+
 ptr<\T> = pointer<T>
 
 :| Tree<\T>

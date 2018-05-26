@@ -1,0 +1,10 @@
+let
+    a => 42
+    b => 60
+
+main(arguments : array<string>) => card
+
+main(arguments : array<string>)=>card
+
+main( arguments : array<string> ) =>
+   card

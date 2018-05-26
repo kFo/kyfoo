@@ -1,0 +1,47 @@
+foo(x) =>
+    :? x
+        return bar x
+    :/
+        return foo (sub x 1)
+
+bar(x) =>
+    :? mod x 2
+        return 1
+    :/
+        return foo (mul x 3)
+
+concat(x : List \T, y : List T) -> List<T>
+singleton(x : \T) -> List<T>
+
+foo(x : i32) -> %1 =
+    if x > 1 then
+        return concat(bar(x), foo(x - 1))
+    else
+        return singleton(x)
+
+// concat(x : List<\T>, y : List<T>) -> List<T>
+// %2 <: List<%2.1>
+// T = %2.1
+// %1 = List<%1.1>
+// %1.1 <: %2.1
+//-
+// %1 <: List<%2.1>
+
+// singleton(x : i32) -> List<i32>
+//-
+// %1 <: List<i32>
+
+// List<%2.1> List<i32>
+// => %2.1 <: i32
+
+bar(x) -> %2 =
+    if x % 2 then
+        return concat(foo(x / 2), foo(x - 1))
+    else
+        return concat(foo(x - 1), foo(x - 2))
+
+// concat(x : List<>, y : List<>) -> List<>
+//-
+// %2 <: List<>
+//-
+// %2 <: List<>

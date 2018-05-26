@@ -1,0 +1,31 @@
+int    = integer<32>
+float  = real<32>
+char   = integer<32>
+string = vector<char>
+
+main (args : vector<string>) =>
+   stdout.print("What is the deal with peanuts?"); f(g) -> g.f
+
+   i32 = int
+   f32 = float
+   c32 = char
+
+   var buffer : vector<char, 10> = ()
+            n                    = i32 42
+
+   vector<char, 20> otherBuffer
+
+   type buffer -> vector
+
+   msg = utf32 "Pick a number between 1 and 100"
+   var v : (i32, i32, i32) = (1, 2, 3)
+       y : i32[3]          = [1, 2, 3]
+
+   if
+      v[0].gt 0:
+         dosomething
+         somesomethingelse
+         there is no value
+      v[0].eq 0:
+         something else
+      else

@@ -1,28 +1,158 @@
-ExitProcess(uExitCode : u32) : ()
-GetStdHandle(nStdHandle : HANDLE) : HANDLE
+ExitProcess(uExitCode : u32) -> ()
+
+GetStdHandle(nStdHandle : HANDLE) -> HANDLE
 WriteFile(
- hFile                  : u32,
- lpBuffer               : pointer u8,
- nNumberOfBytesToWrite  : u32,
- lpNumberOfBytesWritten : pointer u32,
- lpOverlapped           : pointer<()>
+/*_In_       */ hFile                  : HANDLE       ,
+/*_In_       */ lpBuffer               : LPCVOID      ,
+/*_In_       */ nNumberOfBytesToWrite  : DWORD        ,
+/*_Out_opt_  */ lpNumberOfBytesWritten : LPDWORD      ,
+/*_Inout_opt_*/ lpOverlapped           : LPOVERLAPPED
+ ) -> BOOL
+ReadFile(
+/*_In_        */ hFile                : HANDLE       ,
+/*_Out_       */ lpBuffer             : LPVOID       ,
+/*_In_        */ nNumberOfBytesToRead : DWORD        ,
+/*_Out_opt_   */ lpNumberOfBytesRead  : LPDWORD      ,
+/*_Inout_opt_ */ lpOverlapped         : LPOVERLAPPED 
  ) -> BOOL
 
-HANDLE = u32
-BOOL = u32
+GetProcessHeap() -> HANDLE
+HeapAlloc(
+/*_In_*/ hHeap   : HANDLE ,
+/*_In_*/ dwFlags : DWORD  ,
+/*_In_*/ dwBytes : SIZE_T
+ ) -> LPVOID
+HeapFree(
+/*_In_*/ hHeap   : HANDLE ,
+/*_In_*/ dwFlags : DWORD  ,
+/*_In_*/ lpMem   : LPVOID 
+ ) -> BOOL
 
-STD_INPUT_HANDLE  = 4294967286 // -10
-STD_OUTPUT_HANDLE = 4294967285 // -11
-STD_ERROR_HANDLE  = 4294967284 // -12
+HANDLE       := u32
+LPVOID       := ptr u8
+LPCVOID      := ptr u8
+DWORD        := u32
+LPDWORD      := ptr u32
+LPOVERLAPPED := ptr<()>
+BOOL         := u32
+SIZE_T       := ULONG_PTR
+ULONG_PTR    := size_t
 
-WriteWrapper(str : ascii) : () =>
+STD_INPUT_HANDLE  := 4294967286 // -10
+STD_OUTPUT_HANDLE := 4294967285 // -11
+STD_ERROR_HANDLE  := 4294967284 // -12
+
+HEAP_GENERATE_EXCEPTIONS := 4 // 0x00000004
+HEAP_NO_SERIALIZE        := 1 // 0x00000001
+HEAP_ZERO_MEMORY         := 8 // 0x00000008
+
+NULL := null
+
+put(c : u8) -> () =>
+    := a : u8 = c
+    WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL
+    :.
+
+put(n : u32) -> () =>
+    := digits : ascii = "0123456789"
+    := i : u32 = n
+    :<> neq i 0
+        := digit : u32 = rem i 10
+        put (digits digit)
+        i = div i 10
+    :.
+
+put(s : ascii) -> () =>
+    WriteFile(GetStdHandle STD_OUTPUT_HANDLE, s.base, trunc<u32> s.card, NULL, NULL)
+    :.
+
+putLine() -> () =>
+    put("\n")
+    :.
+
+swap(a b : ref \T) -> () =>
+    // todo: tuple syntax
+    := tmp : T = a
+    a = b
+    b = tmp
+    :.
+
+bubble(arr : ref slice<\T>) -> u32 =>
+    := ret : u32 = 0
+    := i : size_t = 0
+    :<> lt(i, sub arr.card 1)
+        :? lt(arr i, arr (add i 1))
+            swap(arr i, arr (add i 1))
+            ret = add ret 1
+        i = add i 1
+        
+    :. ret
+
+@"WriteWrapper"
+WriteWrapper(str : ascii) -> () =>
     := written : u32 = 0
-    WriteFile(GetStdHandle STD_OUTPUT_HANDLE, str.base, trunc<u32> str.card, addr written, null)
+    WriteFile(GetStdHandle STD_OUTPUT_HANDLE, str.base, trunc<u32> str.card, addr written, NULL)
+    WriteFile (GetStdHandle STD_OUTPUT_HANDLE) str.base (trunc<u32> str.card) (addr written) NULL
+    :.
 
-ftest(x : i32, y : i32) : i32 =>
-    WriteWrapper(ascii "hello world!\n")
-    add (add x y) y
+ftest (x y : i32) -> i32 =>
+    WriteWrapper("hello world!\n")
+    :? add (add x y) y
+        WriteWrapper("branch 1\n")
+        :. 42
+    :/ add x y
+        WriteWrapper("branch 2\n")
+        :. 99
+    :/
+        WriteWrapper("branch 3\n")
+    
+    WriteWrapper("end\n")
+    :. 55
 
-start() : () =>
-    ftest(1, 2)
+gtest(n : i32) -> () =>
+    := p : LPVOID = HeapAlloc GetProcessHeap 0 512
+    := bytes : DWORD = 0
+    := arr : u8..256
+    ReadFile (GetStdHandle STD_INPUT_HANDLE) (addr (arr bytes)) 256 (addr bytes) NULL
+    WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr arr.0) bytes NULL NULL
+    :<outer>
+        := i : i32 = 0
+        :<> lt i n
+            WriteWrapper("wut\n")
+            i = add i 1
+        
+        WriteWrapper("rawr")
+    
+    arr (c : ref u8) -> () => :. WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr c) 1 NULL NULL
+    
+    HeapFree GetProcessHeap 0 p
+    :.
+    
+htest() -> () =>
+    //:= arr : u32..6 = [1, 2, 3, 4, 5, 6]
+    //:= arr : u32..6
+    := four : size_t = 4
+    := p : ptr u32 = cast<ptr u32>(HeapAlloc GetProcessHeap 0 (mul four 6))
+    := arr : slice u32
+    arr.ctor<> p 6
+    := i : u32 = 0
+    :<> neq i 6
+        arr i = sub 6 i
+        i = add i 1
+    
+    arr (c : ref u32) -> () => :. put(c)
+    putLine
+    put(bubble arr)
+    arr (c : ref u32) -> () => :. put c
+    
+    HeapFree GetProcessHeap 0 (cast<LPVOID> p)
+    :.
+
+start() -> () =>
+    ftest 1 2
+    ftest 0 0
+    gtest 5
+    putLine
+    htest
     ExitProcess 42
+    :.
