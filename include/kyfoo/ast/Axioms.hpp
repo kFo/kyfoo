@@ -125,7 +125,8 @@ enum DataProductIntrinsics
     X(Trunci32i128) \
     X(Trunci64i128) \
                     \
-    X(Addr        )
+    X(Addr        ) \
+    X(Cast        )
 
 enum InstructionIntrinsics
 {

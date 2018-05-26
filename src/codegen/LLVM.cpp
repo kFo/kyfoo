@@ -1165,6 +1165,11 @@ private:
             return ret;
         }
 
+        if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Cast)->symbol() ) {
+            auto templ = procTemplate(*proc);
+            return builder.CreatePointerCast(toValue(builder, nullptr, *resolveIndirections(exprs[1])), toType(*templ->symbol().prototype().pattern()[0]));
+        }
+
         return nullptr;
     }
 };

@@ -199,6 +199,9 @@ trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) -> signed<unsigned<64>>
 @"intrininst" "Addr"
 addr(p : ref \T) -> ptr T
 
+@"intrininst" "Cast"
+cast<ptr \T>(p : ptr \U) -> ptr T
+
 )axioms";
 
 #include <kyfoo/ast/Axioms.hpp>
