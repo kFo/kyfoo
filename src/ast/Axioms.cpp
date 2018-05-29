@@ -214,8 +214,7 @@ cast<ptr \T>(p : ptr \U) -> ptr T
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 //
 // AxiomsModule
@@ -463,5 +462,4 @@ void AxiomsModule::buildMetaData()
     myIntegerMetaData[10] = IntegerMetaData{ intrinsic(i128), -128 };
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

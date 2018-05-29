@@ -15,8 +15,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Context.hpp>
 
-namespace kyfoo {
-namespace ast {
+namespace kyfoo::ast {
 
 //
 // DeclarationScope
@@ -1114,5 +1113,4 @@ TemplateDeclaration* TemplateScope::declaration()
     return static_cast<TemplateDeclaration*>(myDeclaration);
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

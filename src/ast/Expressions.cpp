@@ -15,8 +15,7 @@
 
 #include <kyfoo/codegen/Codegen.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 //
 // Strata
@@ -1864,7 +1863,7 @@ std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expr
     return ret;
 }
 
-std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr_)
+DeclRef getRef(Expression const& expr_)
 {
     auto expr = resolveIndirections(&expr_);
     if ( auto dot = expr->as<DotExpression>() ) {
@@ -1909,7 +1908,7 @@ std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr_
 
 Expression const* getRefType(Expression const& expr)
 {
-    return std::get<1>(getRef(expr));
+    return getRef(expr).type;
 }
 
 ProcedureDeclaration const* getProcedure(Expression const& expr)
@@ -1923,5 +1922,4 @@ ProcedureDeclaration const* getProcedure(Expression const& expr)
     return nullptr;
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

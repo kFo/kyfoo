@@ -1,7 +1,7 @@
 #pragma once
 
+#include <filesystem>
 #include <memory>
-#include <experimental/filesystem>
 
 namespace kyfoo {
 
@@ -23,9 +23,9 @@ public:
 public:
     void generate(ast::Module const& module);
     void write(ast::Module const& module,
-               std::experimental::filesystem::path const& path);
+               std::filesystem::path const& path);
     void writeIR(ast::Module const& module,
-                 std::experimental::filesystem::path const& path);
+                 std::filesystem::path const& path);
 
 private:
     struct LLVMState;

@@ -15,8 +15,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 class BasicBlock;
 class Declaration;
@@ -455,5 +454,4 @@ SCOPE_KINDS(X)
 SCOPE_KINDS(X)
 #undef X
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

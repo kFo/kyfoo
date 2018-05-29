@@ -5,8 +5,7 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 //
 // Resolver
@@ -377,5 +376,4 @@ bool Context::isTopLevel() const
     return myExpressionDepth == 0;
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

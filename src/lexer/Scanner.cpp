@@ -7,8 +7,7 @@
 
 #include <map>
 
-namespace kyfoo {
-    namespace lexer {
+namespace kyfoo::lexer {
 
 namespace
 {
@@ -560,5 +559,4 @@ Token Scanner::readNext()
 #undef TOK
 }
 
-    } // namespace lexer
-} // namespace kyfoo
+} // namespace kyfoo::lexer

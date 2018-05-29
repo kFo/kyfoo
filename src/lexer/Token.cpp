@@ -1,7 +1,6 @@
 #include <kyfoo/lexer/Token.hpp>
 
-namespace kyfoo {
-    namespace lexer {
+namespace kyfoo::lexer {
 
 Token::Token() = default;
 
@@ -85,5 +84,4 @@ std::string const& Token::lexeme() const
     return myLexeme;
 }
 
-    } // namespace lexer
-} // namespace kyfoo
+} // namespace kyfoo::lexer

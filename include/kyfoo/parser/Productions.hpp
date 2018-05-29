@@ -14,8 +14,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
-namespace kyfoo {
-    namespace parser {
+namespace kyfoo::parser {
 
 using id       = g::Terminal<lexer::TokenKind::Identifier>;
 using meta     = g::Terminal<lexer::TokenKind::MetaVariable>;
@@ -433,7 +432,7 @@ struct ImplicitProcedureTemplateDeclaration :
 {
     std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>> make(DeclarationScopeParser& parser)
     {
-        return std::make_tuple(factor<0>().make(parser), factor<1>().make(parser));
+        return {factor<0>().make(parser), factor<1>().make(parser)};
     }
 };
 
@@ -672,5 +671,4 @@ std::unique_ptr<ast::Expression> Defer<T>::make(DeclarationScopeParser& parser)
     return myGrammar->make(parser);
 }
 
-    } // namespace parser
-} // namespace kyfoo
+} // namespace kyfoo::parser

@@ -16,10 +16,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
-namespace fs = std::experimental::filesystem;
-
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 //
 // ModuleSet
@@ -57,7 +54,7 @@ Module* ModuleSet::create(std::string const& name)
     return m;
 }
 
-Module* ModuleSet::create(fs::path const& path)
+Module* ModuleSet::create(std::filesystem::path const& path)
 {
     auto m = find(path);
     if ( m )
@@ -92,7 +89,7 @@ Module* ModuleSet::find(std::string const& name)
     return nullptr;
 }
 
-Module* ModuleSet::find(std::experimental::filesystem::path const& path)
+Module* ModuleSet::find(std::filesystem::path const& path)
 {
     auto normalPath = canonical(path).make_preferred();
     for ( auto& m : myModules )
@@ -143,7 +140,7 @@ Module::Module(ModuleSet* moduleSet,
 }
 
 Module::Module(ModuleSet* moduleSet,
-               fs::path const& path)
+               std::filesystem::path const& path)
     : myModuleSet(moduleSet)
     , myPath(canonical(path).make_preferred())
 {
@@ -165,7 +162,7 @@ std::string const& Module::name() const
     return myName;
 }
 
-fs::path const& Module::path() const
+std::filesystem::path const& Module::path() const
 {
     return myPath;
 }
@@ -216,7 +213,7 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
 {
     auto mod = myModuleSet->create(token.lexeme());
     if ( !mod ) {
-        fs::path importPath = myPath;
+        std::filesystem::path importPath = myPath;
         importPath.replace_filename(token.lexeme());
         importPath.replace_extension(".kf");
 
@@ -381,5 +378,4 @@ void Module::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
     myCodegenData = std::move(data);
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

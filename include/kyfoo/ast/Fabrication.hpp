@@ -8,8 +8,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 inline lexer::Token
 makeToken(const char* id, std::size_t line = 0, std::size_t column = 0)
@@ -178,5 +177,4 @@ createRefType(std::size_t line, std::size_t col, std::unique_ptr<Expression> exp
         ast::createPtrList<ast::Expression>(std::move(expr)));
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

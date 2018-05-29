@@ -1,9 +1,8 @@
 #pragma once
 
-#include <experimental/filesystem>
+#include <filesystem>
 
-namespace kyfoo {
-    namespace codegen {
+namespace kyfoo::codegen {
 
 const char* const EXTENSION_OBJECTFILE = ".o";
 
@@ -12,11 +11,10 @@ struct CustomData
     virtual ~CustomData() = default;
 };
 
-inline std::experimental::filesystem::path toObjectFilepath(std::experimental::filesystem::path const& rhs)
+inline std::filesystem::path toObjectFilepath(std::filesystem::path const& rhs)
 {
     auto ret = rhs;
     return ret.replace_extension(EXTENSION_OBJECTFILE);
 }
 
-    } // namespace codegen
-} // namespace kyfoo
+} // namespace kyfoo::codegen

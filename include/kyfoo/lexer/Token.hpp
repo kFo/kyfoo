@@ -4,8 +4,7 @@
 
 #include "TokenKind.hpp"
 
-namespace kyfoo {
-    namespace lexer {
+namespace kyfoo::lexer {
 
 using line_index_t = std::size_t;
 using column_index_t = std::size_t;
@@ -45,5 +44,4 @@ public:
     std::string const& lexeme() const;
 };
 
-    } // namespace lexer
-} // namespace kyfoo
+} // namespace kyfoo::lexer

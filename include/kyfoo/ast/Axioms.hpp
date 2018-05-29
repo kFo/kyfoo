@@ -5,8 +5,7 @@
 
 #include <kyfoo/ast/Module.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 class DataSumDeclaration;
 class DataProductDeclaration;
@@ -199,5 +198,4 @@ private:
     std::array<IntegerMetaData, i128 - u1 + 1> myIntegerMetaData;
 };
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

@@ -7,8 +7,7 @@
 
 #include <kyfoo/codegen/Codegen.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 class BasicBlock;
 class Context;
@@ -428,5 +427,4 @@ JUNCTION_KINDS(X)
 JUNCTION_KINDS(X)
 #undef X
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

@@ -7,8 +7,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 Substitutions::Substitutions() = default;
 
@@ -261,5 +260,4 @@ void Substitutions::setMismatch()
     myState |= Mismatch;
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

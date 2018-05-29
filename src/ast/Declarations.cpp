@@ -11,8 +11,7 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 //
 // Declaration
@@ -1422,5 +1421,4 @@ std::ostream& print(std::ostream& stream, Declaration const& decl)
     return op(decl);
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

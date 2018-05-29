@@ -697,7 +697,14 @@ bool hasDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const* expr);
 std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr);
-std::tuple<Declaration const*, Expression const*> getRef(Expression const& expr);
+
+struct DeclRef
+{
+    Declaration const* decl;
+    Expression const* type;
+};
+
+DeclRef getRef(Expression const& expr);
 Expression const* getRefType(Expression const& expr);
 ProcedureDeclaration const* getProcedure(Expression const& expr);
 

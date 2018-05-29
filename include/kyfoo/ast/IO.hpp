@@ -11,8 +11,7 @@
 
 #include <kyfoo/lexer/Token.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 #define PRIMITIVE_TYPES(X) \
     X(char              ) \
@@ -205,5 +204,4 @@ private:
     }
 };
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

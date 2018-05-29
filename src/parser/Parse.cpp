@@ -16,10 +16,7 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
-namespace fs = std::experimental::filesystem;
-
-namespace kyfoo {
-    namespace parser {
+namespace kyfoo::parser {
 
 //
 // DeclarationScopeParser
@@ -104,44 +101,44 @@ parseImplicitTemplateProcedureDeclaration(DeclarationScopeParser& parser)
     if ( parse(parser.scanner(), grammar) )
         return grammar.make(parser);
 
-    return std::make_tuple(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "")), nullptr);
+    return {ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "")), nullptr};
 }
 
-std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::ParseResult
 DeclarationScopeParser::parseNonProcedural()
 {
     if ( auto importDecl = parse<ImportDeclaration>(*this) ) {
         append(std::move(importDecl));
-        return std::make_tuple(true, nullptr);
+        return {true, nullptr};
     }
     else if ( auto symDecl = parse<SymbolDeclaration>(*this) ) {
         append(std::move(symDecl));
-        return std::make_tuple(true, nullptr);
+        return {true, nullptr};
     }
     else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
         auto newScopeParser = parseDataSumDefinition(*dsDecl);
         append(std::move(dsDecl));
 
-        return std::make_tuple(true, std::move(newScopeParser));
+        return {true, std::move(newScopeParser)};
     }
     else if ( auto dpDecl = parse<DataProductDeclaration>(*this) ) {
         auto newScopeParser = parseDataProductDefinition(*dpDecl);
         append(std::move(dpDecl));
 
-        return std::make_tuple(true, std::move(newScopeParser));
+        return {true, std::move(newScopeParser)};
     }
 
-    return std::make_tuple(false, nullptr);
+    return {false, nullptr};
 }
 
-std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::ParseResult
 DeclarationScopeParser::parseProcedural()
 {
     if ( auto procDecl = parse<ProcedureDeclaration>(*this) ) {
         auto newScopeParser = parseProcedureDefinition(*procDecl);
         append(std::move(procDecl));
 
-        return std::make_tuple(true, std::move(newScopeParser));
+        return {true, std::move(newScopeParser)};
     }
 
     auto templProcDecl = parseImplicitTemplateProcedureDeclaration(*this);
@@ -156,10 +153,10 @@ DeclarationScopeParser::parseProcedural()
         templDecl->definition()->append(std::move(std::get<1>(templProcDecl)));
 
         append(std::move(templDecl));
-        return std::make_tuple(true, std::move(newScopeParser));
+        return {true, std::move(newScopeParser)};
     }
 
-    return std::make_tuple(false, nullptr);
+    return {false, nullptr};
 }
 
 std::vector<std::unique_ptr<ast::Expression>> DeclarationScopeParser::parameterContext() const
@@ -185,15 +182,15 @@ void DeclarationScopeParser::parseAttributes()
     }
 }
 
-std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::ParseResult
 DeclarationScopeParser::parseNext()
 {
     parseAttributes();
     if ( diagnostics().errorCount() )
-        return std::make_tuple(false, nullptr);
+        return {false, nullptr};
 
     auto ret = parseNonProcedural();
-    if ( std::get<0>(ret) )
+    if ( ret.success )
         return ret;
 
     return parseProcedural();
@@ -232,9 +229,7 @@ ast::DeclarationScope const& DeclarationScopeParser::scope() const
 std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next()
 {
     while ( scanner() ) {
-        bool success;
-        std::unique_ptr<DeclarationScopeParser> newScopeParser;
-        std::tie(success, newScopeParser) = parseNext();
+        auto [success, newScopeParser] = parseNext();
 
         if ( !success ) {
             diagnostics().error(myScope->module(), scanner().peek()) << "grammar at this point is not recognized";
@@ -265,16 +260,16 @@ DataSumScopeParser::DataSumScopeParser(Diagnostics& dgn,
 
 DataSumScopeParser::~DataSumScopeParser() = default;
 
-std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::ParseResult
 DataSumScopeParser::parseNext()
 {
     if ( auto dsCtor = parse<DataSumConstructor>(*this) ) {
         dsCtor->setParent(scope().declaration()->as<ast::DataSumDeclaration>());
         myScope->append(std::move(dsCtor));
-        return std::make_tuple(true, nullptr);
+        return {true, nullptr};
     }
 
-    return std::make_tuple(false, nullptr);
+    return {false, nullptr};
 }
 
 //
@@ -297,19 +292,19 @@ DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
 
 DataProductScopeParser::~DataProductScopeParser() = default;
 
-std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::ParseResult
 DataProductScopeParser::parseNext()
 {
     if ( auto field = parse<DataProductDeclarationField>(*this) ) {
         field->setParent(scope().declaration()->as<ast::DataProductDeclaration>());
         myScope->append(std::move(field));
-        return std::make_tuple(true, nullptr);
+        return {true, nullptr};
     }
     else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
         auto newScopeParser = parseDataSumDefinition(*dsDecl);
         myScope->append(std::move(dsDecl));
 
-        return std::make_tuple(true, std::move(newScopeParser));
+        return {true, std::move(newScopeParser)};
     }
 
     return DeclarationScopeParser::parseNext();
@@ -355,13 +350,13 @@ ast::ProcedureScope const& ProcedureScopeParser::scope() const
     return static_cast<ast::ProcedureScope const&>(*myScope);
 }
 
-std::tuple<bool, std::unique_ptr<DeclarationScopeParser>>
+DeclarationScopeParser::ParseResult
 ProcedureScopeParser::parseNext()
 {
     // Allow declarations
     {
         auto declParse = DeclarationScopeParser::parseNonProcedural();
-        if ( std::get<0>(declParse) )
+        if ( declParse.success )
             return declParse;
     }
 
@@ -386,10 +381,10 @@ ProcedureScopeParser::parseNext()
 
             if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
                 scanner().next();
-                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s, isLoop));
+                return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s, isLoop)};
             }
 
-            return std::make_tuple(false, nullptr);
+            return {false, nullptr};
         }
     }
 
@@ -411,30 +406,30 @@ ProcedureScopeParser::parseNext()
     if ( auto elseJunc = parse<BranchElseJunction>(*this) ) {
         auto br = lastBranch(*elseJunc);
         if ( !br )
-            return std::make_tuple(false, nullptr);
+            return {false, nullptr};
 
         // todo: lifetime of transient parse objects in diagnostics
         if ( !br->branch(0) ) {
             diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
-            return std::make_tuple(false, nullptr);
+            return {false, nullptr};
         }
 
         while ( br->branch(1) ) {
             if ( !br->branch(1)->junction() ) {
                 diagnostics().error(scope().module(), *elseJunc) << "is missing preceding branch-statement";
-                return std::make_tuple(false, nullptr);
+                return {false, nullptr};
             }
 
             br = br->branch(1)->junction()->as<ast::BranchJunction>();
             if ( !br || !br->branch(0) ) {
                 diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
-                return std::make_tuple(false, nullptr);
+                return {false, nullptr};
             }
         }
 
         if ( br->branch(1) ) {
             diagnostics().error(scope().module(), *elseJunc) << "preceding branch-statement already has an else-branch-statement";
-            return std::make_tuple(false, nullptr);
+            return {false, nullptr};
         }
 
         if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
@@ -446,13 +441,13 @@ ProcedureScopeParser::parseNext()
                 auto ss = s->createChildScope(m);
                 elseJunc->setBranch(0, ss->basicBlocks().front());
                 s->basicBlocks().front()->setJunction(std::move(elseJunc));
-                return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *ss));
+                return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *ss)};
             }
 
-            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s));
+            return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
         }
 
-        return std::make_tuple(false, nullptr);
+        return {false, nullptr};
     }
 
     if ( auto branchJunc = parse<BranchJunction>(*this) ) {
@@ -464,28 +459,28 @@ ProcedureScopeParser::parseNext()
             auto m = scope().createBasicBlock();
             auto s = scope().createChildScope(m);
             br->setBranch(0, s->basicBlocks().front());
-            return std::make_tuple(true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s));
+            return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
         }
 
-        return std::make_tuple(false, nullptr);
+        return {false, nullptr};
     }
     else if ( auto retJunc = parse<ReturnJunction>(*this) ) {
         auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
             diagnostics().error(scope().module(), *retJunc) << "statement is unreachable";
-            return std::make_tuple(false, nullptr);
+            return {false, nullptr};
         }
         b->setJunction(std::move(retJunc));
-        return std::make_tuple(true, nullptr);
+        return {true, nullptr};
     }
     else if ( auto jmpJunc = parse<JumpJunction>(*this) ) {
         auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
             diagnostics().error(scope().module(), *jmpJunc) << "statement is unreachable";
-            return std::make_tuple(false, nullptr);
+            return {false, nullptr};
         }
         b->setJunction(std::move(jmpJunc));
-        return std::make_tuple(true, nullptr);
+        return {true, nullptr};
     }
 
     {
@@ -501,15 +496,15 @@ ProcedureScopeParser::parseNext()
                 auto expr = std::make_unique<ast::AssignExpression>(std::move(p), std::move(v.initializer));
                 scope().append(std::move(expr));
             }
-            return std::make_tuple(true, nullptr);
+            return {true, nullptr};
         }
         else if ( auto expr = parse<Expression>(*this) ) {
             scope().append(std::move(expr));
-            return std::make_tuple(true, nullptr);
+            return {true, nullptr};
         }
     }
 
-    return std::make_tuple(false, nullptr);
+    return {false, nullptr};
 }
 
 void parseScope(std::unique_ptr<DeclarationScopeParser> parser)
@@ -571,5 +566,4 @@ void parseScope(std::unique_ptr<DeclarationScopeParser> parser)
         throw std::runtime_error("parser scope imbalance");
 }
 
-    } // namespace parser
-} // namespace kyfoo
+} // namespace kyfoo::parser

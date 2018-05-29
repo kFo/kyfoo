@@ -12,8 +12,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Substitutions.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 //
 // PatternsPrototype
@@ -559,5 +558,4 @@ std::ostream& print(std::ostream& stream, Symbol const& sym)
     return stream;
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

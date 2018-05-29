@@ -2,8 +2,7 @@
 
 #include <kyfoo/lexer/TokenKind.hpp>
 
-namespace kyfoo {
-    namespace lexer {
+namespace kyfoo::lexer {
 
 #define X(A,B) B,
 const char* g_tokenKindStringTable[] =
@@ -17,5 +16,4 @@ const char* to_string(TokenKind kind)
     return g_tokenKindStringTable[static_cast<int>(kind)];
 }
 
-    } // namespace lexer
-} // namespace kyfoo
+} // namespace kyfoo::lexer

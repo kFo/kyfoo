@@ -4,8 +4,7 @@
 
 #include <kyfoo/lexer/TokenKind.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 #define TUPLE_KINDS(X) \
     X(Open) \
@@ -27,5 +26,4 @@ const char* presentTupleOpen(TupleKind kind);
 const char* presentTupleClose(TupleKind kind);
 const char* presentTupleWeave(TupleKind kind);
 
-    } // namesapce ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

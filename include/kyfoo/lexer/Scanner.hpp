@@ -5,8 +5,7 @@
 
 #include "Token.hpp"
 
-namespace kyfoo {
-    namespace lexer {
+namespace kyfoo::lexer {
 
 using indent_width_t = std::size_t;
 
@@ -126,5 +125,4 @@ private:
     bool myOpen = false;
 };
 
-    } // namespace lexer
-} // namespace kyfoo
+} // namespace kyfoo::lexer

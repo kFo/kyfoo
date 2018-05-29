@@ -69,8 +69,7 @@
 #define IMPL_CLONE_REMAP_NONE(type) \
     void type::remapReferences(clone_map_t const&) {}
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 class INode : public IIO
 {
@@ -197,5 +196,4 @@ void remap(T*& rhs, clone_map_t const& map)
         rhs = (T*)e->second;
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

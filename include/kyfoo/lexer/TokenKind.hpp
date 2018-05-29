@@ -1,7 +1,6 @@
 #pragma once
 
-namespace kyfoo {
-    namespace lexer {
+namespace kyfoo::lexer {
 
 #define TOKEN_DEFINITIONS(X) \
     X(Undefined, "undefined") \
@@ -127,5 +126,4 @@ inline bool isLiteral(TokenKind kind)
     return false;
 }
 
-    } // namespace lexer
-} // namespace kyfoo
+} // namespace kyfoo::lexer

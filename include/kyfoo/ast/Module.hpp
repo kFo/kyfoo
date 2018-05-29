@@ -33,12 +33,12 @@ public:
     bool init(Diagnostics& dgn);
 
     Module* create(std::string const& name);
-    Module* create(std::experimental::filesystem::path const& path);
+    Module* create(std::filesystem::path const& path);
 
     Module* createImplied(std::string const& name);
 
     Module* find(std::string const& name);
-    Module* find(std::experimental::filesystem::path const& path);
+    Module* find(std::filesystem::path const& path);
 
     AxiomsModule& axioms();
     AxiomsModule const& axioms() const;
@@ -61,7 +61,7 @@ public:
     Module(ModuleSet* moduleSet,
            std::string const& name);
     Module(ModuleSet* moduleSet,
-           std::experimental::filesystem::path const& path);
+           std::filesystem::path const& path);
     ~Module();
 
     // IIO
@@ -70,7 +70,7 @@ public:
 
 public:
     std::string const& name() const;
-    std::experimental::filesystem::path const& path() const;
+    std::filesystem::path const& path() const;
 
 public:
     void parse(Diagnostics& dgn);
@@ -105,7 +105,7 @@ public:
 
 protected:
     ModuleSet* myModuleSet = nullptr;
-    std::experimental::filesystem::path myPath;
+    std::filesystem::path myPath;
     std::string myName;
     std::unique_ptr<DeclarationScope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;

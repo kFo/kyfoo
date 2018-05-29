@@ -1,6 +1,6 @@
 #include <kyfoo/codegen/LLVM.hpp>
 
-#include <experimental/filesystem>
+#include <filesystem>
 
 #pragma warning(push, 0)
 #include <llvm/ADT/APFloat.h>
@@ -40,8 +40,7 @@
 
 #include <kyfoo/codegen/Codegen.hpp>
 
-namespace kyfoo {
-    namespace codegen {
+namespace kyfoo::codegen {
 
 template <typename T>
 struct LLVMCustomData : public CustomData
@@ -439,20 +438,24 @@ struct CodeGenPass
 
         fun->type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
+        std::string name;
         if ( decl.scope().declaration() )
-            fun->defn = llvm::Function::Create(fun->type,
-                                               llvm::Function::ExternalLinkage,
-                                               decl.scope().declaration()->symbol().token().lexeme(),
-                                               module);
-        else
-            fun->defn = llvm::Function::Create(fun->type,
-                                               llvm::Function::InternalLinkage,
-                                               "",
-                                               module);
+            name = decl.scope().declaration()->symbol().token().lexeme();
 
         auto defn = decl.definition();
-        if ( !defn )
+        if ( !defn ) {
+            fun->defn = llvm::Function::Create(fun->type,
+                                               llvm::Function::ExternalLinkage,
+                                               name,
+                                               module);
             return;
+        }
+
+        auto linkage = llvm::Function::InternalLinkage;
+        if ( !name.empty() )
+            linkage = llvm::Function::ExternalLinkage;
+
+        fun->defn = llvm::Function::Create(fun->type, linkage, name, module);
 
         for ( auto d : defn->childDeclarations() )
             dispatch(*d);
@@ -1204,7 +1207,7 @@ struct LLVMGenerator::LLVMState
         return moduleSet.axioms();
     }
 
-    void write(ast::Module const& module, std::experimental::filesystem::path const& path)
+    void write(ast::Module const& module, std::filesystem::path const& path)
     {
         /*
         InitializeAllTargetInfos();
@@ -1268,7 +1271,7 @@ struct LLVMGenerator::LLVMState
         outFile.flush();
     }
 
-    void writeIR(ast::Module const& module, std::experimental::filesystem::path const& path)
+    void writeIR(ast::Module const& module, std::filesystem::path const& path)
     {
         auto sourcePath = module.path();
         if ( sourcePath.empty() ) {
@@ -1315,6 +1318,13 @@ struct LLVMGenerator::LLVMState
             gen(*d);
         for ( auto d : module.scope()->childLambdas() )
             gen(*d);
+
+        if ( verifyModule(*mdata->module, &llvm::errs()) ) {
+#ifndef NDEBUG
+            mdata->module->dump();
+#endif
+            dgn.die();
+        }
     }
 
     llvm::Type* toType(ast::Expression const& expr)
@@ -1466,15 +1476,14 @@ void LLVMGenerator::generate(ast::Module const& module)
     myImpl->generate(module);
 }
 
-void LLVMGenerator::write(ast::Module const& module, std::experimental::filesystem::path const& path)
+void LLVMGenerator::write(ast::Module const& module, std::filesystem::path const& path)
 {
     myImpl->write(module, path);
 }
 
-void LLVMGenerator::writeIR(ast::Module const& module, std::experimental::filesystem::path const& path)
+void LLVMGenerator::writeIR(ast::Module const& module, std::filesystem::path const& path)
 {
     myImpl->writeIR(module, path);
 }
 
-    } // namespace codegen
-} // namespace kyfoo
+} // namespace kyfoo::codegen

@@ -6,8 +6,7 @@
 
 #include <kyfoo/Slice.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
 class Declaration;
 class Expression;
@@ -75,5 +74,4 @@ private:
     std::vector<Expression const*> myContexts;
 };
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

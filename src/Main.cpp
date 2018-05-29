@@ -18,9 +18,7 @@
 #include <kyfoo/codegen/Codegen.hpp>
 #include <kyfoo/codegen/LLVM.hpp>
 
-namespace fs = std::experimental::filesystem;
-
-int runScannerDump(fs::path const& file)
+int runScannerDump(std::filesystem::path const& file)
 {
     std::ifstream fin(file);
     kyfoo::lexer::Scanner scanner(fin);
@@ -62,7 +60,7 @@ int runScannerDump(fs::path const& file)
     return EXIT_SUCCESS;
 }
 
-int runParserTest(fs::path const& filepath)
+int runParserTest(std::filesystem::path const& filepath)
 {
     kyfoo::Diagnostics dgn;
     kyfoo::ast::ModuleSet moduleSet;
@@ -127,7 +125,7 @@ int codegenModule(kyfoo::Diagnostics& dgn,
 {
     kyfoo::StopWatch sw;
 
-    auto IRFilepath = [](std::experimental::filesystem::path p) {
+    auto IRFilepath = [](std::filesystem::path p) {
         return p.replace_extension(".ll");
     };
 
@@ -164,7 +162,7 @@ enum Options
     IR            = 1 << 2,
 };
 
-int compile(std::vector<fs::path> const& files, std::uint32_t options)
+int compile(std::vector<std::filesystem::path> const& files, std::uint32_t options)
 {
     auto ret = EXIT_SUCCESS;
     kyfoo::ast::ModuleSet moduleSet;
@@ -291,7 +289,7 @@ int compile(std::vector<fs::path> const& files, std::uint32_t options)
     return ret;
 }
 
-void printHelp(fs::path const& arg0)
+void printHelp(std::filesystem::path const& arg0)
 {
     auto cmd = arg0.filename().string();
 
@@ -301,9 +299,10 @@ void printHelp(fs::path const& arg0)
         "COMMAND:\n"
         "  scan, lexer, lex    Prints the lexer output of the module\n"
         "  parse, grammar      Prints the parse tree as JSON\n"
-        "  semantics, sem      Checks the module for semantic errors"
-        "  semdump             Checks semantics and prints tree"
-        "  c, compile          Compiles the module"
+        "  semantics, sem      Checks the module for semantic errors\n"
+        "  semdump             Checks semantics and prints tree\n"
+        "  c, compile          Compiles the module\n"
+        "  ir                  Generates LLVM IR code"
         << std::endl;
 }
 
@@ -335,7 +334,7 @@ int main(int argc, char* argv[])
             return runParserTest(file);
         }
         else if ( command == "semantics" || command == "sem" || command == "semdump" ) {
-            std::vector<fs::path> files;
+            std::vector<std::filesystem::path> files;
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 
@@ -346,7 +345,7 @@ int main(int argc, char* argv[])
             return compile(files, options);
         }
         else if ( command == "compile" || command == "c" || command == "ir" ) {
-            std::vector<fs::path> files;
+            std::vector<std::filesystem::path> files;
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 

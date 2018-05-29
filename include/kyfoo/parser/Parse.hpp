@@ -45,15 +45,21 @@ public:
     std::unique_ptr<DataProductScopeParser> parseDataProductDefinition(ast::DataProductDeclaration& declaration);
     std::unique_ptr<ProcedureScopeParser> parseProcedureDefinition(ast::ProcedureDeclaration& declaration);
 
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNonProcedural();
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseProcedural();
+    struct ParseResult
+    {
+        bool success;
+        std::unique_ptr<DeclarationScopeParser> scope;
+    };
+
+    ParseResult parseNonProcedural();
+    ParseResult parseProcedural();
 
     std::vector<std::unique_ptr<ast::Expression>> parameterContext() const;
 
 protected:
     void append(std::unique_ptr<ast::Declaration> decl);
     void parseAttributes();
-    virtual std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext();
+    virtual ParseResult parseNext();
 
 public:
     Diagnostics& diagnostics();
@@ -82,7 +88,7 @@ public:
     ~DataSumScopeParser() override;
 
 protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext() override;
+    ParseResult parseNext() override;
 };
 
 class DataProductScopeParser : public DeclarationScopeParser
@@ -94,7 +100,7 @@ public:
     ~DataProductScopeParser();
 
 protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext() override;
+    ParseResult parseNext() override;
 };
 
 class ProcedureScopeParser : public DeclarationScopeParser
@@ -114,7 +120,7 @@ public:
     ast::ProcedureScope const& scope() const;
 
 protected:
-    std::tuple<bool, std::unique_ptr<DeclarationScopeParser>> parseNext() override;
+    ParseResult parseNext() override;
 
 private:
     bool myIsLoop = false;

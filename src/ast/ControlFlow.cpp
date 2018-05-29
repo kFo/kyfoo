@@ -7,8 +7,7 @@
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
-namespace kyfoo {
-    namespace ast {
+namespace kyfoo::ast {
 
     namespace {
         const char* to_string(Statement::Kind kind)
@@ -919,5 +918,4 @@ FlowTracer::Shape FlowTracer::checkLoop()
     return Forward;
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

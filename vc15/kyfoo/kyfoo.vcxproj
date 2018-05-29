@@ -128,8 +128,8 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\include;$(BOOST_INCLUDE_PATH);..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp14</LanguageStandard>
       <MinimalRebuild>true</MinimalRebuild>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(LLVM_LIB_PATH);$(BOOST_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -142,9 +142,9 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\include;$(BOOST_INCLUDE_PATH);..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp14</LanguageStandard>
       <PreprocessorDefinitions>_NO_DEBUG_HEAP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>..\..\..\llvm\llvm-5.0.0.src\build\Debug\lib;$(BOOST_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -157,8 +157,8 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\include;$(BOOST_INCLUDE_PATH);..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp14</LanguageStandard>
       <MinimalRebuild>true</MinimalRebuild>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(LLVM_LIB_PATH);$(BOOST_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -171,9 +171,9 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\include;$(BOOST_INCLUDE_PATH);..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp14</LanguageStandard>
       <PreprocessorDefinitions>_NO_DEBUG_HEAP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>..\..\..\llvm\llvm-5.0.0.src\build\Debug\lib;$(BOOST_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -188,9 +188,9 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\include;$(BOOST_INCLUDE_PATH);..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp14</LanguageStandard>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -207,9 +207,9 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\include;$(BOOST_INCLUDE_PATH);..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp14</LanguageStandard>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -258,30 +258,48 @@
     <ClCompile Include="..\..\src\ast\Scopes.cpp" />
     <ClCompile Include="..\..\src\ast\Semantics.cpp" />
     <ClCompile Include="..\..\src\codegen\LLVM.cpp">
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdcpp14</LanguageStandard>
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">stdcpp14</LanguageStandard>
-      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</SDLCheck>
-      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">false</SDLCheck>
-      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</SDLCheck>
-      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">false</SDLCheck>
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">stdcpp14</LanguageStandard>
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">stdcpp14</LanguageStandard>
-      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</SDLCheck>
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">stdcpp14</LanguageStandard>
-      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</SDLCheck>
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdcpp14</LanguageStandard>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_CRT_NONSTDC_NO_WARNINGS;_SCL_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;__STDC_CONSTANT_MACROS;__STDC_FORMAT_MACROS;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_CRT_NONSTDC_NO_WARNINGS;_SCL_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;__STDC_CONSTANT_MACROS;__STDC_FORMAT_MACROS;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_CRT_NONSTDC_NO_WARNINGS;_SCL_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;__STDC_CONSTANT_MACROS;__STDC_FORMAT_MACROS;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_CRT_NONSTDC_NO_WARNINGS;_SCL_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;__STDC_CONSTANT_MACROS;__STDC_FORMAT_MACROS;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_CRT_NONSTDC_NO_WARNINGS;_SCL_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;__STDC_CONSTANT_MACROS;__STDC_FORMAT_MACROS;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_CRT_SECURE_NO_DEPRECATE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_CRT_NONSTDC_NO_WARNINGS;_SCL_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_WARNINGS;__STDC_CONSTANT_MACROS;__STDC_FORMAT_MACROS;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">
+      </DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+      </DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">
+      </DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </DisableSpecificWarnings>
+      <TreatSpecificWarningsAsErrors Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">
+      </TreatSpecificWarningsAsErrors>
+      <TreatSpecificWarningsAsErrors Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">
+      </TreatSpecificWarningsAsErrors>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">
+      </AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+      </AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">
+      </AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </AdditionalOptions>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+      </DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </DisableSpecificWarnings>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</SDLCheck>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">false</SDLCheck>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</SDLCheck>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</SDLCheck>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">false</SDLCheck>
+      <SDLCheck Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</SDLCheck>
     </ClCompile>
     <ClCompile Include="..\..\src\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\lexer\Scanner.cpp" />
