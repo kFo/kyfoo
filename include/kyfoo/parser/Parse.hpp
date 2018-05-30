@@ -1,8 +1,9 @@
 #pragma once
 
-#include <memory>
 #include <tuple>
 #include <vector>
+
+#include <kyfoo/Types.hpp>
 
 namespace kyfoo {
     class Diagnostics;
@@ -39,25 +40,25 @@ public:
     virtual ~DeclarationScopeParser();
 
 public:
-    std::unique_ptr<DeclarationScopeParser> next();
+    Box<DeclarationScopeParser> next();
 
-    std::unique_ptr<DataSumScopeParser> parseDataSumDefinition(ast::DataSumDeclaration& declaration);
-    std::unique_ptr<DataProductScopeParser> parseDataProductDefinition(ast::DataProductDeclaration& declaration);
-    std::unique_ptr<ProcedureScopeParser> parseProcedureDefinition(ast::ProcedureDeclaration& declaration);
+    Box<DataSumScopeParser> parseDataSumDefinition(ast::DataSumDeclaration& declaration);
+    Box<DataProductScopeParser> parseDataProductDefinition(ast::DataProductDeclaration& declaration);
+    Box<ProcedureScopeParser> parseProcedureDefinition(ast::ProcedureDeclaration& declaration);
 
     struct ParseResult
     {
         bool success;
-        std::unique_ptr<DeclarationScopeParser> scope;
+        Box<DeclarationScopeParser> scope;
     };
 
     ParseResult parseNonProcedural();
     ParseResult parseProcedural();
 
-    std::vector<std::unique_ptr<ast::Expression>> parameterContext() const;
+    std::vector<Box<ast::Expression>> parameterContext() const;
 
 protected:
-    void append(std::unique_ptr<ast::Declaration> decl);
+    void append(Box<ast::Declaration> decl);
     void parseAttributes();
     virtual ParseResult parseNext();
 
@@ -75,8 +76,8 @@ protected:
     Diagnostics* myDiagnostics = nullptr;
     lexer::Scanner* myScanner = nullptr;
     ast::DeclarationScope* myScope = nullptr;
-    std::vector<std::unique_ptr<ast::Expression>> myAttributes;
-    std::vector<std::unique_ptr<ast::Expression>> myParameterContext;
+    std::vector<Box<ast::Expression>> myAttributes;
+    std::vector<Box<ast::Expression>> myParameterContext;
 };
 
 class DataSumScopeParser : public DeclarationScopeParser
@@ -127,9 +128,9 @@ private:
 };
 
 template <typename T>
-std::size_t parse(lexer::Scanner& scanner, T& production)
+uz parse(lexer::Scanner& scanner, T& production)
 {
-    std::size_t matches = 0;
+    uz matches = 0;
     return production.match(scanner, matches);
 }
 
@@ -143,7 +144,7 @@ auto parse(DeclarationScopeParser& parser)
     return decltype(production.make(parser))();
 }
 
-void parseScope(std::unique_ptr<DeclarationScopeParser> parser);
+void parseScope(Box<DeclarationScopeParser> parser);
 
     } // namespace parser
 } // namespace kyfoo

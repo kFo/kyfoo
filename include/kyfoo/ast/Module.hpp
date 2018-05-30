@@ -1,10 +1,11 @@
 #pragma once
 
 #include <filesystem>
-#include <memory>
 #include <string>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Types.hpp>
+#include <kyfoo/Utilities.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/codegen/Codegen.hpp>
 
@@ -32,12 +33,12 @@ public:
 public:
     bool init(Diagnostics& dgn);
 
-    Module* create(std::string const& name);
+    Module* create(std::string name);
     Module* create(std::filesystem::path const& path);
 
-    Module* createImplied(std::string const& name);
+    Module* createImplied(std::string name);
 
-    Module* find(std::string const& name);
+    Module* find(std::string_view name);
     Module* find(std::filesystem::path const& path);
 
     AxiomsModule& axioms();
@@ -51,7 +52,7 @@ public:
 
 private:
     AxiomsModule* myAxioms;
-    std::vector<std::unique_ptr<Module>> myModules;
+    std::vector<Box<Module>> myModules;
     std::vector<Module*> myImpliedImports;
 };
 
@@ -59,7 +60,7 @@ class Module : public INode
 {
 public:
     Module(ModuleSet* moduleSet,
-           std::string const& name);
+           std::string name);
     Module(ModuleSet* moduleSet,
            std::filesystem::path const& path);
     ~Module();
@@ -69,7 +70,7 @@ public:
     void io(IStream& stream) const override;
 
 public:
-    std::string const& name() const;
+    std::string_view name() const;
     std::filesystem::path const& path() const;
 
 public:
@@ -97,23 +98,23 @@ public:
     bool imports(Module* module) const;
     bool parsed() const;
 
-    std::string const& interpretString(Diagnostics& dgn, lexer::Token const& token) const;
+    std::string_view interpretString(Diagnostics& dgn, lexer::Token const& token) const;
     Slice<Declaration const*> templateInstantiations() const;
 
     codegen::CustomData* codegenData() const;
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
+    void setCodegenData(Box<codegen::CustomData> data) const;
 
 protected:
     ModuleSet* myModuleSet = nullptr;
     std::filesystem::path myPath;
     std::string myName;
-    std::unique_ptr<DeclarationScope> myScope;
+    Box<DeclarationScope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;
 
     mutable std::vector<Module*> myImports;
-    mutable std::map<std::string, std::string> myStrings; // todo: shared
+    mutable std::map<std::string, std::string, StringComp> myStrings; // todo: shared
 
-    mutable std::unique_ptr<codegen::CustomData> myCodegenData;
+    mutable Box<codegen::CustomData> myCodegenData;
 };
 
     } // namespace ast

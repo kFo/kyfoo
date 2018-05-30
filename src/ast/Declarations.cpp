@@ -24,7 +24,7 @@ const char* to_string(DeclKind kind)
 #undef X
     };
 
-    return s[static_cast<std::size_t>(kind)];
+    return s[static_cast<uz>(kind)];
 }
 
 Declaration::Declaration(DeclKind kind,
@@ -32,7 +32,7 @@ Declaration::Declaration(DeclKind kind,
                          DeclarationScope* scope)
     : myScope(scope)
     , myKind(kind)
-    , mySymbol(std::make_unique<Symbol>(std::move(symbol)))
+    , mySymbol(mk<Symbol>(std::move(symbol)))
 {
 }
 
@@ -121,7 +121,7 @@ void Declaration::setScope(DeclarationScope& scope)
     myScope = &scope;
 }
 
-void Declaration::setAttributes(std::vector<std::unique_ptr<Expression>>&& exprs)
+void Declaration::setAttributes(std::vector<Box<Expression>>&& exprs)
 {
     for ( auto& e : exprs )
         myAttributes.emplace_back(std::move(e));
@@ -149,7 +149,7 @@ codegen::CustomData* Declaration::codegenData() const
     return myCodeGenData.get();
 }
 
-void Declaration::setCodegenData(std::unique_ptr<codegen::CustomData> data)
+void Declaration::setCodegenData(Box<codegen::CustomData> data)
 {
     if ( codegenData() )
         throw std::runtime_error("codegen data can only be set once");
@@ -157,7 +157,7 @@ void Declaration::setCodegenData(std::unique_ptr<codegen::CustomData> data)
     myCodeGenData = std::move(data);
 }
 
-void Declaration::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+void Declaration::setCodegenData(Box<codegen::CustomData> data) const
 {
     return const_cast<Declaration*>(this)->setCodegenData(std::move(data));
 }
@@ -250,7 +250,7 @@ SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
 // DataSumDeclaration::Constructor
 
 DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
-                                             std::vector<std::unique_ptr<VariableDeclaration>>&& pattern)
+                                             std::vector<Box<VariableDeclaration>>&& pattern)
     : Declaration(DeclKind::DataSumCtor, std::move(symbol), nullptr)
     , myPattern(std::move(pattern))
 {
@@ -330,7 +330,7 @@ DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
 Binder::Binder(DeclKind kind,
                Symbol&& symbol,
                DeclarationScope* scope,
-               std::vector<std::unique_ptr<Expression>> constraints)
+               std::vector<Box<Expression>> constraints)
     : Declaration(kind, std::move(symbol), scope)
     , myConstraints(std::move(constraints))
 {
@@ -403,12 +403,12 @@ SymRes Binder::resolveSymbols(Context& ctx)
     return ret;
 }
 
-void Binder::addConstraint(std::unique_ptr<Expression> c)
+void Binder::addConstraint(Box<Expression> c)
 {
     myConstraints.emplace_back(std::move(c));
 }
 
-void Binder::addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs)
+void Binder::addConstraints(std::vector<Box<Expression>>&& exprs)
 {
     move(begin(exprs), end(exprs), back_inserter(myConstraints));
 }
@@ -472,8 +472,8 @@ SymRes DataProductDeclaration::resolveSymbols(Context& ctx)
 // DataProductDeclaration::Field
 
 DataProductDeclaration::Field::Field(Symbol&& symbol,
-                                     std::vector<std::unique_ptr<Expression>> constraints,
-                                     std::unique_ptr<Expression> init)
+                                     std::vector<Box<Expression>> constraints,
+                                     Box<Expression> init)
     : Binder(DeclKind::Field, std::move(symbol), nullptr, std::move(constraints))
     , myInitializer(std::move(init))
 {
@@ -551,7 +551,7 @@ DataProductDeclaration const* DataProductDeclaration::Field::parent() const
 // SymbolDeclaration
 
 SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
-                                     std::unique_ptr<Expression> expression)
+                                     Box<Expression> expression)
     : Declaration(DeclKind::Symbol, std::move(symbol), nullptr)
     , myExpression(std::move(expression))
 {
@@ -617,7 +617,7 @@ Expression const* SymbolDeclaration::expression() const
 
 VariableDeclaration::VariableDeclaration(Symbol&& symbol,
                                          ProcedureScope& scope,
-                                         std::vector<std::unique_ptr<Expression>> constraints)
+                                         std::vector<Box<Expression>> constraints)
     : Binder(DeclKind::Variable, std::move(symbol), &scope, std::move(constraints))
 {
 }
@@ -667,7 +667,7 @@ SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 
 ProcedureParameter::ProcedureParameter(Symbol&& symbol,
                                        ProcedureDeclaration& proc,
-                                       std::vector<std::unique_ptr<Expression>>&& constraints)
+                                       std::vector<Box<Expression>>&& constraints)
     : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), std::move(constraints))
 {
 }
@@ -716,7 +716,7 @@ SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 // ProcedureDeclaration
 
 ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
-                                           std::unique_ptr<Expression> returnExpression)
+                                           Box<Expression> returnExpression)
     : base_t(DeclKind::Procedure, std::move(symbol))
     , myReturnExpression(std::move(returnExpression))
 {
@@ -790,12 +790,12 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
             return true;
         };
 
-        for ( std::size_t i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
+        for ( uz i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
             if ( auto app = mySymbol->prototype().pattern()[i]->as<ApplyExpression>() ) {
                 auto& protoPattern = mySymbol->prototype().myPattern;
-                auto a = std::move(reinterpret_cast<std::unique_ptr<ApplyExpression>&>(protoPattern[i]));
+                auto a = std::move(reinterpret_cast<Box<ApplyExpression>&>(protoPattern[i]));
                 protoPattern[i] = std::move(a->myExpressions[0]);
-                for ( std::size_t j = 1; j < a->myExpressions.size(); ++j ) {
+                for ( uz j = 1; j < a->myExpressions.size(); ++j ) {
                     protoPattern.emplace(begin(protoPattern) + i + j, std::move(a->myExpressions[j]));
                     protoPattern[i + j]->addConstraints(ast::clone(a->constraints()));
                 }
@@ -807,7 +807,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
                 auto p = e.as<IdentifierExpression>();
                 myOrdinals.push_back(static_cast<int>(myParameters.size()));
                 myParameters.emplace_back(
-                    std::make_unique<ProcedureParameter>(Symbol(p->token()),
+                    mk<ProcedureParameter>(Symbol(p->token()),
                                                          *this,
                                                          e.takeConstraints()));
                 p->setDeclaration(*myParameters.back());
@@ -857,7 +857,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
     ret |= ctx.resolveExpression(myReturnExpression);
 
-    myResult = std::make_unique<ProcedureParameter>(
+    myResult = mk<ProcedureParameter>(
         Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")),
         *this,
         flattenConstraints(ast::clone(myReturnExpression)));
@@ -866,12 +866,12 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    std::vector<std::unique_ptr<Expression>> paramTypes;
+    std::vector<Box<Expression>> paramTypes;
     paramTypes.reserve(myParameters.size());
     for ( auto const& p : myParameters )
         paramTypes.emplace_back(ast::clone(p->type()));
 
-    myType = std::make_unique<ArrowExpression>(std::make_unique<TupleExpression>(TupleKind::Open, std::move(paramTypes)),
+    myType = mk<ArrowExpression>(mk<TupleExpression>(TupleKind::Open, std::move(paramTypes)),
                                                ast::clone(myResult->type()));
     ret |= ctx.resolveExpression(*myType);
 
@@ -918,7 +918,7 @@ Slice<int const> ProcedureDeclaration::ordinals() const
     return myOrdinals;
 }
 
-ProcedureParameter* ProcedureDeclaration::findParameter(std::string const& token)
+ProcedureParameter* ProcedureDeclaration::findParameter(std::string_view token)
 {
     for ( auto const& p : myParameters )
         if ( p->symbol().token().lexeme() == token )
@@ -927,7 +927,7 @@ ProcedureParameter* ProcedureDeclaration::findParameter(std::string const& token
     return nullptr;
 }
 
-ProcedureParameter const* ProcedureDeclaration::findParameter(std::string const& token) const
+ProcedureParameter const* ProcedureDeclaration::findParameter(std::string_view token) const
 {
     return const_cast<ProcedureDeclaration*>(this)->findParameter(token);
 }

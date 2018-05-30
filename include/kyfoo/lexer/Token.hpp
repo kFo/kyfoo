@@ -2,12 +2,13 @@
 
 #include <string>
 
-#include "TokenKind.hpp"
+#include <kyfoo/Types.hpp>
+#include <kyfoo/lexer/TokenKind.hpp>
 
 namespace kyfoo::lexer {
 
-using line_index_t = std::size_t;
-using column_index_t = std::size_t;
+using line_index_t = uz;
+using column_index_t = uz;
 
 class Token
 {
@@ -21,7 +22,7 @@ public:
     Token(TokenKind kind,
           line_index_t line,
           column_index_t column,
-          std::string const& lexeme);
+          std::string lexeme);
 
 public:
     Token(Token const&);
@@ -41,7 +42,7 @@ public:
     TokenKind kind() const;
     line_index_t line() const;
     column_index_t column() const;
-    std::string const& lexeme() const;
+    std::string_view lexeme() const;
 };
 
 } // namespace kyfoo::lexer

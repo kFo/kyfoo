@@ -1,11 +1,11 @@
 #pragma once
 
 #include <chrono>
-#include <memory>
 #include <sstream>
 #include <vector>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Types.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
 
@@ -245,13 +245,13 @@ public:
 
     void dumpErrors(std::ostream& stream);
 
-    std::size_t errorCount() const;
+    uz errorCount() const;
 
-    void bunkExpression(std::unique_ptr<ast::Expression> expr);
+    void bunkExpression(Box<ast::Expression> expr);
 
 private:
-    std::vector<std::unique_ptr<Error>> myErrors;
-    std::vector<std::unique_ptr<ast::Expression>> myBunkedExpressions;
+    std::vector<Box<Error>> myErrors;
+    std::vector<Box<ast::Expression>> myBunkedExpressions;
 };
 
 } // namespace kyfoo

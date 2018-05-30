@@ -34,7 +34,7 @@ namespace kyfoo::ast {
         {
             auto s = bb.scope();
             auto blocks = s->basicBlocks();
-            for ( std::size_t i = 0; i < blocks.size() - 1; ++i )
+            for ( uz i = 0; i < blocks.size() - 1; ++i )
                 if ( blocks[i] == &bb )
                     return blocks[i + 1];
 
@@ -46,7 +46,7 @@ namespace kyfoo::ast {
             auto s = bb.scope();
             auto blocks = s->basicBlocks();
             if ( blocks.front() != &bb )
-                for ( std::size_t i = 1; i < blocks.size(); ++i )
+                for ( uz i = 1; i < blocks.size(); ++i )
                     if ( blocks[i] == &bb )
                         return blocks[i - 1];
 
@@ -57,12 +57,12 @@ namespace kyfoo::ast {
 //
 // Statement
 
-Statement::Statement(std::unique_ptr<Expression> expr)
+Statement::Statement(Box<Expression> expr)
     : Statement(Kind::Expression, std::move(expr))
 {
 }
 
-Statement::Statement(Kind kind, std::unique_ptr<Expression> expr)
+Statement::Statement(Kind kind, Box<Expression> expr)
     : myKind(kind)
     , myExpression(std::move(expr))
 {
@@ -157,15 +157,15 @@ Slice<AssignExpression const*> Statement::assignExpressions() const
 VariableDeclaration const* Statement::createUnnamedVariable(ProcedureScope& scope,
                                                             Expression const& type)
 {
-    myUnnamedVariables.emplace_back(std::make_unique<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
+    myUnnamedVariables.emplace_back(mk<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
     return myUnnamedVariables.back().get();
 }
 
-std::unique_ptr<AssignExpression> Statement::appendUnnamedExpression(ProcedureScope& scope,
-                                                                     std::unique_ptr<Expression> expr)
+Box<AssignExpression> Statement::appendUnnamedExpression(ProcedureScope& scope,
+                                                                     Box<Expression> expr)
 {
     auto var = createUnnamedVariable(scope, *expr->type());
-    auto ret = std::make_unique<AssignExpression>(*var, std::move(expr));
+    auto ret = mk<AssignExpression>(*var, std::move(expr));
     myAssignExpressions.push_back(ret.get());
     return ret;
 }
@@ -215,10 +215,10 @@ Junction::Kind Junction::kind() const
 // BranchJunction
 
 BranchJunction::BranchJunction(lexer::Token const& token,
-                                 std::unique_ptr<Expression> condition)
+                                 Box<Expression> condition)
     : Junction(Kind::Branch)
     , myToken(token)
-    , myCondition(std::make_unique<Statement>(std::move(condition)))
+    , myCondition(mk<Statement>(std::move(condition)))
 {
 }
 
@@ -312,17 +312,17 @@ Expression* BranchJunction::condition()
     return nullptr;
 }
 
-BasicBlock* BranchJunction::branch(std::size_t index)
+BasicBlock* BranchJunction::branch(uz index)
 {
     return myBranch[index];
 }
 
-BasicBlock const* BranchJunction::branch(std::size_t index) const
+BasicBlock const* BranchJunction::branch(uz index) const
 {
     return myBranch[index];
 }
 
-void BranchJunction::setBranch(std::size_t index, BasicBlock* bb)
+void BranchJunction::setBranch(uz index, BasicBlock* bb)
 {
     myBranch[index] = bb;
 }
@@ -331,12 +331,12 @@ void BranchJunction::setBranch(std::size_t index, BasicBlock* bb)
 // ReturnJunction
 
 ReturnJunction::ReturnJunction(lexer::Token const& token,
-                               std::unique_ptr<Expression> expression)
+                               Box<Expression> expression)
     : Junction(Kind::Return)
     , myToken(token)
 {
     if ( expression )
-        myExpression = std::make_unique<Statement>(std::move(expression));
+        myExpression = mk<Statement>(std::move(expression));
 }
 
 ReturnJunction::ReturnJunction(ReturnJunction const& rhs)
@@ -650,12 +650,12 @@ void BasicBlock::appendIncoming(BasicBlock& from)
         myIncoming.push_back(&from);
 }
 
-void BasicBlock::append(std::unique_ptr<Expression> expr)
+void BasicBlock::append(Box<Expression> expr)
 {
-    myStatements.emplace_back(std::make_unique<Statement>(std::move(expr)));
+    myStatements.emplace_back(mk<Statement>(std::move(expr)));
 }
 
-void BasicBlock::setJunction(std::unique_ptr<Junction> junction)
+void BasicBlock::setJunction(Box<Junction> junction)
 {
     myJunction = std::move(junction);
 }
@@ -670,7 +670,7 @@ codegen::CustomData* BasicBlock::codegenData() const
     return myCodeGenData.get();
 }
 
-void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data)
+void BasicBlock::setCodegenData(Box<codegen::CustomData> data)
 {
     if ( codegenData() )
         throw std::runtime_error("codegen data can only be set once");
@@ -678,7 +678,7 @@ void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data)
     myCodeGenData = std::move(data);
 }
 
-void BasicBlock::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+void BasicBlock::setCodegenData(Box<codegen::CustomData> data) const
 {
     return const_cast<BasicBlock*>(this)->setCodegenData(std::move(data));
 }
@@ -708,7 +708,7 @@ Slice<Extent::Block*> Extent::blocks()
 
 void Extent::appendBlock(BasicBlock const& bb)
 {
-    myBlocks.emplace_back(std::make_unique<Block>(Block{&bb, {}, {}}));
+    myBlocks.emplace_back(mk<Block>(Block{&bb, {}, {}}));
 }
 
 void Extent::appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind)
@@ -765,7 +765,7 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
 
         bool hasValue = true;
         auto provision = Provision::None;
-        for ( std::size_t i = 1; i < b->uses.size(); ++i ) {
+        for ( uz i = 1; i < b->uses.size(); ++i ) {
             auto const& u = b->uses[i];
             switch (u.kind) {
             case Usage::Read:
@@ -814,7 +814,7 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
             b->in = Requirement::None;
     }
 
-    for ( std::size_t i = 0, len = topo.size(); i != len; ++i ) {
+    for ( uz i = 0, len = topo.size(); i != len; ++i ) {
         for ( auto s : topo[i]->succ ) {
             auto iter = visited.lower_bound(s);
             if ( iter == end(visited) || *iter != s ) {

@@ -4,6 +4,8 @@
 #include <type_traits>
 #include <utility>
 
+namespace kyfoo {
+
 // todo: cpp17 replace with deduction guides
 template <template<typename> class>
 struct deducto_syntacto_impl {};
@@ -88,3 +90,43 @@ ScopeExit<F> operator*(deducto_syntacto_impl<ScopeExit>, F&& f)
 
 #define KYFOO_LABEL_SCOPEEXIT(a) KYFOO_LABEL_SCOPEEXIT(scope_exit_, a)
 #define scope_exit auto KYFOO_LABEL_SCOPEEXIT(__COUNTER__) = deducto_syntacto_impl<ScopeExit>{} * [&]
+
+struct StringComp {
+    struct is_transparent;
+
+    bool operator()(std::string const& lhs, std::string const& rhs) const {
+        return lhs < rhs;
+    }
+
+    bool operator()(std::string const& lhs, std::string_view rhs) const {
+        return lhs < rhs;
+    }
+
+    bool operator()(std::string_view lhs, std::string const& rhs) const {
+        return lhs < rhs;
+    }
+
+    bool operator()(std::string_view lhs, std::string_view rhs) const {
+        return lhs < rhs;
+    }
+
+    bool equiv(std::string const& lhs, std::string const& rhs) const {
+        return lhs == rhs;
+    }
+
+    bool equiv(std::string const& lhs, std::string_view rhs) const {
+        return lhs == rhs;
+    }
+
+    bool equiv(std::string_view lhs, std::string const& rhs) const {
+        return lhs == rhs;
+    }
+
+    bool equiv(std::string_view lhs, std::string_view rhs) const {
+        return lhs == rhs;
+    }
+};
+
+int stoi(std::string_view s);
+
+} // namespace kyfoo

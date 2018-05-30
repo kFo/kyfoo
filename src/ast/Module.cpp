@@ -39,13 +39,13 @@ bool ModuleSet::init(Diagnostics& dgn)
     return false;
 }
 
-Module* ModuleSet::create(std::string const& name)
+Module* ModuleSet::create(std::string name)
 {
-    auto m = find(name);
+    auto m = find(std::string_view(name));
     if ( m )
         return m;
 
-    myModules.emplace_back(std::make_unique<Module>(this, name));
+    myModules.emplace_back(mk<Module>(this, std::move(name)));
     m = myModules.back().get();
 
     for ( auto& i : myImpliedImports )
@@ -60,7 +60,7 @@ Module* ModuleSet::create(std::filesystem::path const& path)
     if ( m )
         return m;
 
-    myModules.emplace_back(std::make_unique<Module>(this, path));
+    myModules.emplace_back(mk<Module>(this, path));
     m = myModules.back().get();
 
     for ( auto& i : myImpliedImports )
@@ -69,18 +69,18 @@ Module* ModuleSet::create(std::filesystem::path const& path)
     return m;
 }
 
-Module* ModuleSet::createImplied(std::string const& name)
+Module* ModuleSet::createImplied(std::string name)
 {
-    auto m = find(name);
+    auto m = find(std::string_view(name));
     if ( m )
         return m;
 
-    myModules.emplace_back(std::make_unique<Module>(this, name));
+    myModules.emplace_back(mk<Module>(this, std::move(name)));
     myImpliedImports.push_back(myModules.back().get());
     return myImpliedImports.back();
 }
 
-Module* ModuleSet::find(std::string const& name)
+Module* ModuleSet::find(std::string_view name)
 {
     for ( auto& m : myModules )
         if ( m->name() == name )
@@ -133,9 +133,9 @@ Slice<Module const*> ModuleSet::impliedImports() const
 // Module
 
 Module::Module(ModuleSet* moduleSet,
-               std::string const& name)
+               std::string name)
     : myModuleSet(moduleSet)
-    , myName(name)
+    , myName(std::move(name))
 {
 }
 
@@ -157,7 +157,7 @@ void Module::io(IStream& stream) const
     stream.closeGroup();
 }
 
-std::string const& Module::name() const
+std::string_view Module::name() const
 {
     return myName;
 }
@@ -183,9 +183,9 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
     lexer::Scanner scanner(stream);
 
     if ( !myScope )
-        myScope = std::make_unique<ast::DeclarationScope>(*this);
+        myScope = mk<ast::DeclarationScope>(*this);
 
-    parseScope(std::make_unique<parser::DeclarationScopeParser>(dgn, scanner, *myScope));
+    parseScope(mk<parser::DeclarationScopeParser>(dgn, scanner, *myScope));
 }
 
 void Module::resolveImports(Diagnostics& dgn)
@@ -282,10 +282,10 @@ bool Module::parsed() const
     return myScope.get() != nullptr;
 }
 
-std::string const& Module::interpretString(Diagnostics& dgn, lexer::Token const& token) const
+std::string_view Module::interpretString(Diagnostics& dgn, lexer::Token const& token) const
 {
-    auto e = myStrings.find(token.lexeme());
-    if ( e != end(myStrings) )
+    auto e = myStrings.lower_bound(token.lexeme());
+    if ( e != end(myStrings) && e->first == token.lexeme() )
         return e->second;
 
     auto toHex = [](char c) {
@@ -299,48 +299,48 @@ std::string const& Module::interpretString(Diagnostics& dgn, lexer::Token const&
         return -1;
     };
 
-    std::string ret;
-    auto const& s = token.lexeme();
-    ret.reserve(s.size());
+    auto const& in = token.lexeme();
+    std::string out;
+    out.reserve(in.size());
 
-    if ( s[0] == '"' ) {
-        for ( std::size_t i = 1; i < s.size() - 1; ++i ) {
-            if ( s[i] != '\\' ) {
-                ret.push_back(s[i]);
+    if ( in[0] == '"' ) {
+        for ( uz i = 1; i < in.size() - 1; ++i ) {
+            if ( in[i] != '\\' ) {
+                out.push_back(in[i]);
             }
             else {
                 ++i;
-                if ( i == s.size() - 1 ) {
+                if ( i == in.size() - 1 ) {
                     dgn.error(*this, token) << "lone escape character at " << i;
                     return token.lexeme();
                 }
 
-                switch ( s[i] ) {
-                case  '0': ret.push_back(0x00); break;
-                case  'a': ret.push_back(0x07); break;
-                case  'b': ret.push_back(0x08); break;
-                case  't': ret.push_back(0x09); break;
-                case  'n': ret.push_back(0x0a); break;
-                case  'v': ret.push_back(0x0b); break;
-                case  'f': ret.push_back(0x0c); break;
-                case  'r': ret.push_back(0x0d); break;
-                case  '"': ret.push_back(0x22); break;
-                case '\'': ret.push_back(0x27); break;
-                case  '?': ret.push_back(0x3f); break;
-                case '\\': ret.push_back(0x5c); break;
+                switch ( in[i] ) {
+                case  '0': out.push_back(0x00); break;
+                case  'a': out.push_back(0x07); break;
+                case  'b': out.push_back(0x08); break;
+                case  't': out.push_back(0x09); break;
+                case  'n': out.push_back(0x0a); break;
+                case  'v': out.push_back(0x0b); break;
+                case  'f': out.push_back(0x0c); break;
+                case  'r': out.push_back(0x0d); break;
+                case  '"': out.push_back(0x22); break;
+                case '\'': out.push_back(0x27); break;
+                case  '?': out.push_back(0x3f); break;
+                case '\\': out.push_back(0x5c); break;
                 case 'x': {
-                    if ( i + 2 >= s.size() - 1 ) {
+                    if ( i + 2 >= in.size() - 1 ) {
                         dgn.error(*this, token) << "not enough hex characters for escape sequence at " << i;
                         return token.lexeme();
                     }
 
-                    int digit[2] = { toHex(s[i + 1]), toHex(s[i + 2]) };
+                    int digit[2] = { toHex(in[i + 1]), toHex(in[i + 2]) };
                     if ( digit[0] < 0 || digit[1] < 0 ) {
                         dgn.error(*this, token) << "invalid hex escape sequence at " << i;
                         return token.lexeme();
                     }
 
-                    ret.push_back(static_cast<char>(digit[0] * 16 + digit[1]));
+                    out.push_back(static_cast<char>(digit[0] * 16 + digit[1]));
                     break;
                 }
 
@@ -360,7 +360,7 @@ std::string const& Module::interpretString(Diagnostics& dgn, lexer::Token const&
         throw std::runtime_error("unhandled string kind");
     }
 
-    return myStrings[s] = ret;
+    return myStrings.insert_or_assign(e, std::string(in), std::move(out))->second;
 }
 
 Slice<Declaration const*> Module::templateInstantiations() const
@@ -373,7 +373,7 @@ codegen::CustomData* Module::codegenData() const
     return myCodegenData.get();
 }
 
-void Module::setCodegenData(std::unique_ptr<codegen::CustomData> data) const
+void Module::setCodegenData(Box<codegen::CustomData> data) const
 {
     myCodegenData = std::move(data);
 }

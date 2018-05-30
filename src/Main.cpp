@@ -93,7 +93,7 @@ int analyzeModule(kyfoo::ast::Module& m, bool treeDump)
     try {
         m.semantics(dgn);
         if ( treeDump ) {
-            std::ofstream fout(m.name() + ".astdump.json");
+            std::ofstream fout(std::string(m.name()) + ".astdump.json");
             if ( fout ) {
                 kyfoo::ast::JsonOutput out(fout);
                 m.io(out);
@@ -162,7 +162,7 @@ enum Options
     IR            = 1 << 2,
 };
 
-int compile(std::vector<std::filesystem::path> const& files, std::uint32_t options)
+int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
 {
     auto ret = EXIT_SUCCESS;
     kyfoo::ast::ModuleSet moduleSet;
@@ -338,7 +338,7 @@ int main(int argc, char* argv[])
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 
-            std::uint32_t options = SemanticsOnly;
+            kyfoo::u32 options = SemanticsOnly;
             if ( command == "semdump" )
                 options |= TreeDump;
 

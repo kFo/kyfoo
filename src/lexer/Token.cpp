@@ -7,11 +7,11 @@ Token::Token() = default;
 Token::Token(TokenKind kind,
              line_index_t line,
              column_index_t column,
-             std::string const& lexeme)
+             std::string lexeme)
     : myKind(kind)
     , myLine(line)
     , myColumn(column)
-    , myLexeme(lexeme)
+    , myLexeme(std::move(lexeme))
 {
 }
 
@@ -79,7 +79,7 @@ column_index_t Token::column() const
     return myColumn;
 }
 
-std::string const& Token::lexeme() const
+std::string_view Token::lexeme() const
 {
     return myLexeme;
 }

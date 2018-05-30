@@ -3,6 +3,7 @@
 #include <memory>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Types.hpp>
 #include <kyfoo/ast/Node.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
@@ -33,10 +34,10 @@ public:
     friend class Context;
 
 public:
-    explicit Statement(std::unique_ptr<Expression> expr);
+    explicit Statement(Box<Expression> expr);
 
 protected:
-    Statement(Kind kind, std::unique_ptr<Expression> expr);
+    Statement(Kind kind, Box<Expression> expr);
     Statement(Statement const& rhs);
     Statement& operator = (Statement const& rhs);
 
@@ -73,13 +74,13 @@ public:
 
     VariableDeclaration const* createUnnamedVariable(ProcedureScope& scope,
                                                      Expression const& type);
-    std::unique_ptr<AssignExpression> appendUnnamedExpression(ProcedureScope& scope,
-                                                              std::unique_ptr<Expression> expr);
+    Box<AssignExpression> appendUnnamedExpression(ProcedureScope& scope,
+                                                              Box<Expression> expr);
 
 private:
     Kind myKind;
-    std::unique_ptr<Expression> myExpression;
-    std::vector<std::unique_ptr<VariableDeclaration>> myUnnamedVariables;
+    Box<Expression> myExpression;
+    std::vector<Box<VariableDeclaration>> myUnnamedVariables;
     std::vector<AssignExpression const*> myAssignExpressions;
 };
 
@@ -131,7 +132,7 @@ class BranchJunction : public Junction
 {
 public:
     BranchJunction(lexer::Token const& token,
-                   std::unique_ptr<Expression> condition);
+                   Box<Expression> condition);
 
 protected:
     BranchJunction(BranchJunction const& rhs);
@@ -161,13 +162,13 @@ public:
     Expression const* condition() const;
     Expression* condition();
 
-    BasicBlock* branch(std::size_t index);
-    BasicBlock const* branch(std::size_t index) const;
-    void setBranch(std::size_t index, BasicBlock* bb);
+    BasicBlock* branch(uz index);
+    BasicBlock const* branch(uz index) const;
+    void setBranch(uz index, BasicBlock* bb);
 
 private:
     lexer::Token myToken;
-    std::unique_ptr<Statement> myCondition;
+    Box<Statement> myCondition;
     BasicBlock* myBranch[2]{ nullptr };
 };
 
@@ -175,7 +176,7 @@ class ReturnJunction : public Junction
 {
 public:
     ReturnJunction(lexer::Token const& token,
-                   std::unique_ptr<Expression> expression);
+                   Box<Expression> expression);
 
 protected:
     ReturnJunction(ReturnJunction const& rhs);
@@ -207,7 +208,7 @@ public:
 
 private:
     lexer::Token myToken;
-    std::unique_ptr<Statement> myExpression;
+    Box<Statement> myExpression;
 };
 
 class JumpJunction : public Junction
@@ -296,23 +297,23 @@ public:
 
     void appendIncoming(BasicBlock& from);
 
-    void append(std::unique_ptr<Expression> expr);
+    void append(Box<Expression> expr);
 
-    void setJunction(std::unique_ptr<Junction> junction);
+    void setJunction(Box<Junction> junction);
     
     codegen::CustomData* codegenData();
     codegen::CustomData* codegenData() const;
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data);
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
+    void setCodegenData(Box<codegen::CustomData> data);
+    void setCodegenData(Box<codegen::CustomData> data) const;
 
 private:
     ProcedureScope* myScope = nullptr;
 
     std::vector<BasicBlock*> myIncoming;
-    std::vector<std::unique_ptr<Statement>> myStatements;
-    std::unique_ptr<Junction> myJunction;
+    std::vector<Box<Statement>> myStatements;
+    Box<Junction> myJunction;
 
-    mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
+    mutable Box<codegen::CustomData> myCodeGenData;
 };
 
 class Extent
@@ -366,7 +367,7 @@ public:
 
 private:
     Declaration const* myDeclaration = nullptr;
-    std::vector<std::unique_ptr<Block>> myBlocks;
+    std::vector<Box<Block>> myBlocks;
 };
 
 class FlowTracer

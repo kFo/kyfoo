@@ -35,7 +35,7 @@ Expression const* Strata::getType(Expression const& expr)
             return &universe(1);
 
         std::vector<Expression const*> types(exprs.size());
-        for ( std::size_t i = 0; i < types.size(); ++i )
+        for ( uz i = 0; i < types.size(); ++i )
             types[i] = exprs[i]->type();
         return &tuple(types);
     }
@@ -43,11 +43,11 @@ Expression const* Strata::getType(Expression const& expr)
     return nullptr;
 }
 
-UniverseExpression const& Strata::universe(std::size_t level)
+UniverseExpression const& Strata::universe(uz level)
 {
     while ( myUniverses.size() <= level ) {
         auto u = new UniverseExpression(myUniverses.size());
-        myUniverses.emplace_back(std::unique_ptr<UniverseExpression>(u));
+        myUniverses.emplace_back(Box<UniverseExpression>(u));
     }
 
     return *myUniverses[level];
@@ -55,7 +55,7 @@ UniverseExpression const& Strata::universe(std::size_t level)
 
 TupleExpression const& Strata::tuple(Slice<Expression const*> exprs)
 {
-    myTuples.emplace_back(std::make_unique<TupleExpression>(TupleKind::Open,
+    myTuples.emplace_back(mk<TupleExpression>(TupleKind::Open,
                                                             ast::clone(exprs)));
     return *myTuples.back();
 }
@@ -65,7 +65,7 @@ TupleExpression const& Strata::tuple(Slice<Expression const*> exprs)
 
 Strata Expression::g_strata;
 
-UniverseExpression const& Expression::universe(std::size_t level)
+UniverseExpression const& Expression::universe(uz level)
 {
     return g_strata.universe(level);
 }
@@ -118,12 +118,12 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myType)
 IMPL_CLONE_REMAP_END
 
-void Expression::addConstraint(std::unique_ptr<Expression> expr)
+void Expression::addConstraint(Box<Expression> expr)
 {
     myConstraints.emplace_back(std::move(expr));
 }
 
-void Expression::addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs)
+void Expression::addConstraints(std::vector<Box<Expression>>&& exprs)
 {
     move(begin(exprs), end(exprs), back_inserter(myConstraints));
 }
@@ -151,7 +151,7 @@ void Expression::setType(Expression const* type)
     myType = type;
 }
 
-void Expression::setType(std::unique_ptr<Expression> type)
+void Expression::setType(Box<Expression> type)
 {
     auto ptr = type.get();
     addConstraint(std::move(type));
@@ -178,7 +178,7 @@ Slice<Expression const*> Expression::constraints() const
     return myConstraints;
 }
 
-std::vector<std::unique_ptr<Expression>>&& Expression::takeConstraints()
+std::vector<Box<Expression>>&& Expression::takeConstraints()
 {
     return std::move(myConstraints);
 }
@@ -521,7 +521,7 @@ const char* presentTupleWeave(TupleKind)
 }
 
 TupleExpression::TupleExpression(TupleKind kind,
-                                 std::vector<std::unique_ptr<Expression>>&& expressions)
+                                 std::vector<Box<Expression>>&& expressions)
     : Expression(Expression::Kind::Tuple)
     , myKind(kind)
     , myExpressions(std::move(expressions))
@@ -530,7 +530,7 @@ TupleExpression::TupleExpression(TupleKind kind,
 
 TupleExpression::TupleExpression(lexer::Token const& open,
                                  lexer::Token const& close,
-                                 std::vector<std::unique_ptr<Expression>>&& expressions)
+                                 std::vector<Box<Expression>>&& expressions)
     : Expression(Expression::Kind::Tuple)
     , myKind(toTupleKind(open.kind(), close.kind()))
     , myExpressions(std::move(expressions))
@@ -539,8 +539,8 @@ TupleExpression::TupleExpression(lexer::Token const& open,
 {
 }
 
-TupleExpression::TupleExpression(std::vector<std::unique_ptr<Expression>>&& expressions,
-                                 std::unique_ptr<Expression> cardExpression)
+TupleExpression::TupleExpression(std::vector<Box<Expression>>&& expressions,
+                                 Box<Expression> cardExpression)
     : Expression(Expression::Kind::Tuple)
     , myKind(TupleKind::Closed)
     , myExpressions(std::move(expressions))
@@ -603,13 +603,13 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
             return SymRes::Fail;
         }
 
-        auto n = std::atoi(lit->token().lexeme().c_str());
+        auto n = stoi(lit->token().lexeme());
         if ( n < 0 ) {
             ctx.error(*myCardExpression) << "array cardinality cannot be negative";
             return SymRes::Fail;
         }
 
-        myCard = static_cast<std::size_t>(n);
+        myCard = static_cast<uz>(n);
     }
     else {
         myCard = 1;
@@ -656,7 +656,7 @@ ExpressionArray TupleExpression::elements() const
     return ExpressionArray(myExpressions, elementsCount());
 }
 
-std::size_t TupleExpression::elementsCount() const
+uz TupleExpression::elementsCount() const
 {
     return myCard;
 }
@@ -689,7 +689,7 @@ void TupleExpression::flattenOpenTuples()
 //
 // ApplyExpression
 
-ApplyExpression::ApplyExpression(std::vector<std::unique_ptr<Expression>>&& expressions)
+ApplyExpression::ApplyExpression(std::vector<Box<Expression>>&& expressions)
     : Expression(Expression::Kind::Apply)
     , myExpressions(std::move(expressions))
 {
@@ -736,7 +736,7 @@ SymRes ApplyExpression::resolveSymbols(Context& ctx)
 L_restart:
     auto tryLowerSingle = [this, &ctx]() -> SymRes {
         if ( myExpressions.empty() )
-            return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
+            return ctx.rewrite(mk<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
         else if ( myExpressions.size() == 1 )
             return ctx.rewrite(std::move(myExpressions.front()));
 
@@ -765,13 +765,13 @@ L_restart:
     }
 
     if ( auto lit = subject()->as<LiteralExpression>() )
-        return ctx.rewrite(std::make_unique<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
+        return ctx.rewrite(mk<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
 
     if ( auto id = subject()->as<IdentifierExpression>() ) {
         if ( !id->token().lexeme().empty() ) {
             auto hit = ctx.matchOverload(id->token().lexeme());
             if ( !hit )
-                return ctx.rewrite(std::make_unique<SymbolExpression>(std::move(myExpressions)));
+                return ctx.rewrite(mk<SymbolExpression>(std::move(myExpressions)));
         }
     }
 
@@ -832,7 +832,7 @@ L_restart:
     myType = &arrow->to();
 
     if ( !ctx.isTopLevel() ) {
-        return ctx.rewrite([&ctx](std::unique_ptr<Expression>& expr) {
+        return ctx.rewrite([&ctx](Box<Expression>& expr) {
             // todo: explicit proc scope knowledge
             auto& procScope = static_cast<ProcedureScope&>(ctx.resolver().scope());
             return ctx.statement().appendUnnamedExpression(procScope, std::move(expr));
@@ -1009,7 +1009,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
             return SymRes::Fail;
         }
 
-        return ctx.rewrite(std::make_unique<DotExpression>(false, std::move(myExpressions)));
+        return ctx.rewrite(mk<DotExpression>(false, std::move(myExpressions)));
     }
 
     if ( subjectType->elementsCount() <= 1 ) {
@@ -1021,7 +1021,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
     auto elementType = subjectType->expressions().front();
 
     if ( auto arrow = argType->as<ArrowExpression>() ) {
-        std::unique_ptr<IdentifierExpression> refStorage;
+        Box<IdentifierExpression> refStorage;
         auto refElementType = elementType;
         if ( !isReference(*refElementType) ) {
             refStorage = createIdentifier(*ctx.matchOverload(SymbolReference("ref", slice(elementType))).decl());
@@ -1061,7 +1061,7 @@ void ApplyExpression::flatten()
     return flatten(begin(myExpressions));
 }
 
-void ApplyExpression::flatten(std::vector<std::unique_ptr<Expression>>::iterator first)
+void ApplyExpression::flatten(std::vector<Box<Expression>>::iterator first)
 {
     for ( auto i = first; i != end(myExpressions); ) {
         if ( auto tuple = (*i)->as<TupleExpression>() ) {
@@ -1121,13 +1121,13 @@ ProcedureDeclaration const* ApplyExpression::procedure() const
 // SymbolExpression
 
 SymbolExpression::SymbolExpression(lexer::Token const& token,
-                                   std::vector<std::unique_ptr<Expression>>&& expressions)
+                                   std::vector<Box<Expression>>&& expressions)
     : IdentifierExpression(Expression::Kind::Symbol, token, nullptr)
     , myExpressions(std::move(expressions))
 {
 }
 
-SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& expressions)
+SymbolExpression::SymbolExpression(std::vector<Box<Expression>>&& expressions)
     : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
 {
@@ -1135,7 +1135,7 @@ SymbolExpression::SymbolExpression(std::vector<std::unique_ptr<Expression>>&& ex
 
 SymbolExpression::SymbolExpression(lexer::Token const& open,
                                    lexer::Token const& close,
-                                   std::vector<std::unique_ptr<Expression>>&& expressions)
+                                   std::vector<Box<Expression>>&& expressions)
     : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
     , myOpenToken(open)
@@ -1241,7 +1241,7 @@ lexer::Token const& SymbolExpression::closeToken() const
     return myCloseToken;
 }
 
-std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions()
+std::vector<Box<Expression>>& SymbolExpression::internalExpressions()
 {
     return myExpressions;
 }
@@ -1250,7 +1250,7 @@ std::vector<std::unique_ptr<Expression>>& SymbolExpression::internalExpressions(
 // DotExpression
 
 DotExpression::DotExpression(bool modScope,
-                             std::vector<std::unique_ptr<Expression>>&& exprs)
+                             std::vector<Box<Expression>>&& exprs)
     : Expression(Kind::Dot)
     , myExpressions(std::move(exprs))
     , myModScope(modScope)
@@ -1320,7 +1320,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
 
     updateContext(*myExpressions.front());
 
-    for ( std::size_t i = 1; i < myExpressions.size(); ++i ) {
+    for ( uz i = 1; i < myExpressions.size(); ++i ) {
         ret = ctx.resolveExpression(myExpressions[i]);
         if ( !ret )
             return ret;
@@ -1333,7 +1333,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
                 return SymRes::Fail;
             }
 
-            int index = std::atoi(lit->token().lexeme().c_str());
+            int index = stoi(lit->token().lexeme());
             if ( index < 0 ) {
                 ctx.error(*e) << "field accessor cannot be negative";
                 return SymRes::Fail;
@@ -1370,7 +1370,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
                 }
 
                 auto const tok = lit->token();
-                myExpressions[i] = createIdentifier(makeToken(tok.lexeme().c_str(),
+                myExpressions[i] = createIdentifier(makeToken(tok.lexeme(),
                                                               tok.line(),
                                                               tok.column()),
                                                     *defn->fields()[index]);
@@ -1416,7 +1416,7 @@ Slice<Expression const*> DotExpression::expressions() const
     return myExpressions;
 }
 
-Expression const* DotExpression::top(std::size_t index) const
+Expression const* DotExpression::top(uz index) const
 {
     if ( index >= myExpressions.size() )
         return nullptr;
@@ -1429,7 +1429,7 @@ bool DotExpression::isModuleScope() const
     return myModScope;
 }
 
-std::unique_ptr<Expression> DotExpression::takeTop(std::size_t index)
+Box<Expression> DotExpression::takeTop(uz index)
 {
     auto const takeIndex = myExpressions.size() - 1 - index;
     auto m = begin(myExpressions) + takeIndex;
@@ -1445,8 +1445,8 @@ std::unique_ptr<Expression> DotExpression::takeTop(std::size_t index)
 //
 // AssignExpression
 
-AssignExpression::AssignExpression(std::unique_ptr<Expression> lhs,
-                                   std::unique_ptr<Expression> rhs)
+AssignExpression::AssignExpression(Box<Expression> lhs,
+                                   Box<Expression> rhs)
     : Expression(Kind::Assign)
     , myLeft(std::move(lhs))
     , myRight(std::move(rhs))
@@ -1454,7 +1454,7 @@ AssignExpression::AssignExpression(std::unique_ptr<Expression> lhs,
 }
 
 AssignExpression::AssignExpression(VariableDeclaration const& var,
-                                   std::unique_ptr<Expression> expression)
+                                   Box<Expression> expression)
     : Expression(Kind::Assign)
     , myLeft(createIdentifier(var))
     , myRight(std::move(expression))
@@ -1617,8 +1617,8 @@ ProcedureDeclaration& LambdaExpression::procedure()
 //
 // ArrowExpression
 
-ArrowExpression::ArrowExpression(std::unique_ptr<Expression> from,
-                                 std::unique_ptr<Expression> to)
+ArrowExpression::ArrowExpression(Box<Expression> from,
+                                 Box<Expression> to)
     : Expression(Kind::Arrow)
     , myFrom(std::move(from))
     , myTo(std::move(to))
@@ -1851,10 +1851,10 @@ Declaration const* getDeclaration(Expression const* expr)
     return nullptr;
 }
 
-std::vector<std::unique_ptr<Expression>> flattenConstraints(std::unique_ptr<Expression> expr)
+std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr)
 {
     auto ret = createPtrList<Expression>(std::move(expr));
-    for ( std::size_t i = 0; i != ret.size(); ++i ) {
+    for ( uz i = 0; i != ret.size(); ++i ) {
         std::move(begin(ret[i]->myConstraints), end(ret[i]->myConstraints),
                   std::back_inserter(ret));
         ret[i]->myConstraints.resize(0);
@@ -1867,7 +1867,7 @@ DeclRef getRef(Expression const& expr_)
 {
     auto expr = resolveIndirections(&expr_);
     if ( auto dot = expr->as<DotExpression>() ) {
-        std::size_t i = 0;
+        uz i = 0;
         auto e = resolveIndirections(dot->top(i));
         for ( ; e; e = resolveIndirections(dot->top(++i)) ) {
             if ( auto decl = getDeclaration(e) ) {

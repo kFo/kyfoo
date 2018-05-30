@@ -32,7 +32,7 @@ DeclarationScopeParser::DeclarationScopeParser(Diagnostics& dgn,
 
 DeclarationScopeParser::~DeclarationScopeParser() = default;
 
-std::unique_ptr<DataSumScopeParser>
+Box<DataSumScopeParser>
 DeclarationScopeParser::parseDataSumDefinition(ast::DataSumDeclaration& declaration)
 {
     // Check if type definition follows
@@ -41,13 +41,13 @@ DeclarationScopeParser::parseDataSumDefinition(ast::DataSumDeclaration& declarat
 
     scanner().next();
 
-    auto dsDefn = std::make_unique<ast::DataSumScope>(*myScope, declaration);
+    auto dsDefn = mk<ast::DataSumScope>(*myScope, declaration);
     declaration.define(*dsDefn);
     scope().append(std::move(dsDefn));
-    return std::make_unique<DataSumScopeParser>(diagnostics(), scanner(), *declaration.definition());
+    return mk<DataSumScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
 
-std::unique_ptr<DataProductScopeParser>
+Box<DataProductScopeParser>
 DeclarationScopeParser::parseDataProductDefinition(ast::DataProductDeclaration& declaration)
 {
     // Check if type definition follows
@@ -56,19 +56,19 @@ DeclarationScopeParser::parseDataProductDefinition(ast::DataProductDeclaration& 
 
     scanner().next();
 
-    auto dpDefn = std::make_unique<ast::DataProductScope>(*myScope, declaration);
+    auto dpDefn = mk<ast::DataProductScope>(*myScope, declaration);
     declaration.define(*dpDefn);
     scope().append(std::move(dpDefn));
-    return std::make_unique<DataProductScopeParser>(diagnostics(), scanner(), *declaration.definition());
+    return mk<DataProductScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
 
-std::unique_ptr<ProcedureScopeParser>
+Box<ProcedureScopeParser>
 DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& declaration)
 {
     // Check if a procedure definition follows
     if ( scanner().peek().kind() == lexer::TokenKind::Yield ) {
         scanner().next(); // yield
-        auto p = std::make_unique<ast::ProcedureScope>(*myScope, declaration);
+        auto p = mk<ast::ProcedureScope>(*myScope, declaration);
         declaration.define(*p);
         scope().append(std::move(p));
         if ( !isIndent(scanner().peek().kind()) ) {
@@ -88,13 +88,13 @@ DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& decl
             diagnostics().die();
         }
 
-        return std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *declaration.definition());
+        return mk<ProcedureScopeParser>(diagnostics(), scanner(), *declaration.definition());
     }
 
     return nullptr;
 }
 
-std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>>
+std::tuple<ast::Symbol, Box<ast::ProcedureDeclaration>>
 parseImplicitTemplateProcedureDeclaration(DeclarationScopeParser& parser)
 {
     ImplicitProcedureTemplateDeclaration grammar;
@@ -144,8 +144,8 @@ DeclarationScopeParser::parseProcedural()
     auto templProcDecl = parseImplicitTemplateProcedureDeclaration(*this);
     if ( std::get<1>(templProcDecl) ) {
         std::get<1>(templProcDecl)->setAttributes(std::move(myAttributes));
-        auto templDecl = std::make_unique<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
-        auto templDefn = std::make_unique<ast::TemplateScope>(*myScope, *templDecl);
+        auto templDecl = mk<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
+        auto templDefn = mk<ast::TemplateScope>(*myScope, *templDecl);
         templDecl->define(*templDefn);
         scope().append(std::move(templDefn));
 
@@ -159,12 +159,12 @@ DeclarationScopeParser::parseProcedural()
     return {false, nullptr};
 }
 
-std::vector<std::unique_ptr<ast::Expression>> DeclarationScopeParser::parameterContext() const
+std::vector<Box<ast::Expression>> DeclarationScopeParser::parameterContext() const
 {
     return ast::clone(myParameterContext);
 }
 
-void DeclarationScopeParser::append(std::unique_ptr<ast::Declaration> decl)
+void DeclarationScopeParser::append(Box<ast::Declaration> decl)
 {
     decl->setAttributes(std::move(myAttributes));
     myScope->append(std::move(decl));
@@ -226,7 +226,7 @@ ast::DeclarationScope const& DeclarationScopeParser::scope() const
     return *myScope;
 }
 
-std::unique_ptr<DeclarationScopeParser> DeclarationScopeParser::next()
+Box<DeclarationScopeParser> DeclarationScopeParser::next()
 {
     while ( scanner() ) {
         auto [success, newScopeParser] = parseNext();
@@ -280,13 +280,13 @@ DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
                                                ast::DataProductScope& scope)
     : DeclarationScopeParser(dgn, scanner, scope)
 {
-    std::size_t const line = 0;
-    std::size_t const col = 0;
+    uz const line = 0;
+    uz const col = 0;
     myParameterContext.emplace_back(ast::createIdentifier(ast::makeToken("this", line, col)));
     myParameterContext.back()->addConstraint(
         createRefType(line, col,
             ast::createIdentifier(
-                lexer::Token(lexer::TokenKind::Identifier, line, col, scope.declaration()->symbol().token().lexeme()),
+                lexer::Token(lexer::TokenKind::Identifier, line, col, std::string(scope.declaration()->symbol().token().lexeme())),
                 *scope.declaration())));
 }
 
@@ -334,9 +334,9 @@ ProcedureScopeParser::~ProcedureScopeParser()
     auto bb = scope().basicBlocks().back();
     if ( !bb->junction() ) {
         if ( myIsLoop )
-            bb->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, scope().basicBlocks().front()));
+            bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, scope().basicBlocks().front()));
         else if ( auto m = scope().mergeBlock() )
-            bb->setJunction(std::make_unique<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, m));
+            bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, m));
     }
 }
 
@@ -367,13 +367,13 @@ ProcedureScopeParser::parseNext()
             auto b = scope().basicBlocks().back();
             auto m = scope().createBasicBlock();
             auto s = scope().createChildScope(m, bdecl.open, bdecl.id);
-            b->setJunction(std::make_unique<ast::JumpJunction>(
+            b->setJunction(mk<ast::JumpJunction>(
                 ast::JumpJunction::JumpKind::Break, s->basicBlocks().front()));
 
             bool isLoop = false;
             if ( bdecl.expr ) {
                 isLoop = true;
-                auto br = std::make_unique<ast::BranchJunction>(bdecl.open, std::move(bdecl.expr));
+                auto br = mk<ast::BranchJunction>(bdecl.open, std::move(bdecl.expr));
                 br->setBranch(0, s->createBasicBlock());
                 br->setBranch(1, m);
                 s->basicBlocks().front()->setJunction(std::move(br));
@@ -381,7 +381,7 @@ ProcedureScopeParser::parseNext()
 
             if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
                 scanner().next();
-                return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s, isLoop)};
+                return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s, isLoop)};
             }
 
             return {false, nullptr};
@@ -441,10 +441,10 @@ ProcedureScopeParser::parseNext()
                 auto ss = s->createChildScope(m);
                 elseJunc->setBranch(0, ss->basicBlocks().front());
                 s->basicBlocks().front()->setJunction(std::move(elseJunc));
-                return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *ss)};
+                return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *ss)};
             }
 
-            return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
+            return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
         }
 
         return {false, nullptr};
@@ -459,7 +459,7 @@ ProcedureScopeParser::parseNext()
             auto m = scope().createBasicBlock();
             auto s = scope().createChildScope(m);
             br->setBranch(0, s->basicBlocks().front());
-            return {true, std::make_unique<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
+            return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
         }
 
         return {false, nullptr};
@@ -487,13 +487,13 @@ ProcedureScopeParser::parseNext()
         VariableDeclaration varGrammar;
         if ( parse(scanner(), varGrammar) ) {
             auto v = varGrammar.make(*this);
-            auto var = std::make_unique<ast::VariableDeclaration>(ast::Symbol(v.token),
+            auto var = mk<ast::VariableDeclaration>(ast::Symbol(v.token),
                                                                   scope(),
                                                                   std::move(v.constraints));
             static_cast<ast::DeclarationScope&>(scope()).append(std::move(var));
             if ( v.initializer ) {
-                auto p = std::make_unique<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
-                auto expr = std::make_unique<ast::AssignExpression>(std::move(p), std::move(v.initializer));
+                auto p = mk<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
+                auto expr = mk<ast::AssignExpression>(std::move(p), std::move(v.initializer));
                 scope().append(std::move(expr));
             }
             return {true, nullptr};
@@ -507,13 +507,13 @@ ProcedureScopeParser::parseNext()
     return {false, nullptr};
 }
 
-void parseScope(std::unique_ptr<DeclarationScopeParser> parser)
+void parseScope(Box<DeclarationScopeParser> parser)
 {
     auto& dgn = parser->diagnostics();
     auto& scanner = parser->scanner();
     auto const& mod = parser->scope().module();
 
-    std::vector<std::unique_ptr<parser::DeclarationScopeParser>> scopeStack;
+    std::vector<Box<parser::DeclarationScopeParser>> scopeStack;
     scopeStack.emplace_back(std::move(parser));
 
     while ( scanner ) {

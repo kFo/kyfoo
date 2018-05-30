@@ -111,7 +111,13 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\Utility.hpp">
+    <ClInclude Include="..\..\include\kyfoo\Types.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Box.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Utilities.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
   </ItemGroup>
@@ -166,6 +172,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ast\Substitutions.cpp">
       <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Utilities.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

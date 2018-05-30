@@ -96,10 +96,10 @@ namespace
         return c == '\\';
     }
 
-    TokenKind identifierKind(std::string const& lexeme)
+    TokenKind identifierKind(std::string_view lexeme)
     {
-        static std::map<std::string, TokenKind> map;
-        static struct _init_map { _init_map(std::map<std::string, TokenKind>& map) {
+        static std::map<std::string_view, TokenKind> map;
+        static struct _init_map { _init_map(std::map<std::string_view, TokenKind>& map) {
             for ( int i = (int)TokenKind::_keywordStart + 1; i != (int)TokenKind::_keywordEnd; ++i )
                 map[to_string((TokenKind)i)] = (TokenKind)i;
         } } init_map(map);
@@ -148,7 +148,7 @@ Token Scanner::next()
     return readNext();
 }
 
-Token Scanner::peek(std::size_t lookAhead)
+Token Scanner::peek(uz lookAhead)
 {
     auto const peekTarget = myState.readIndex + lookAhead;
     if ( peekTarget < myBuffer.size() )

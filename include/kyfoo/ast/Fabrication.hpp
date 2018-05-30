@@ -1,9 +1,9 @@
 #pragma once
 
-#include <memory>
 #include <utility>
 #include <vector>
 
+#include <kyfoo/Types.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
@@ -11,13 +11,13 @@
 namespace kyfoo::ast {
 
 inline lexer::Token
-makeToken(const char* id, std::size_t line = 0, std::size_t column = 0)
+makeToken(std::string_view id, uz line = 0, uz column = 0)
 {
-    return lexer::Token(lexer::TokenKind::Identifier, line, column, id);
+    return lexer::Token(lexer::TokenKind::Identifier, line, column, std::string(id));
 }
 
 inline Symbol
-makeSym(lexer::Token const& token, std::vector<std::unique_ptr<Expression>>&& exprs)
+makeSym(lexer::Token const& token, std::vector<Box<Expression>>&& exprs)
 {
     return Symbol(token, PatternsPrototype(std::move(exprs)));
 }
@@ -37,12 +37,12 @@ makeSym(Symbol const& sym)
 inline Symbol
 copyProcSym(Symbol const& s)
 {
-    std::vector<std::unique_ptr<Expression>> exprs;
+    std::vector<Box<Expression>> exprs;
     exprs.reserve(s.prototype().pattern().size());
     for ( auto const& p : s.prototype().pattern() ) {
         if ( auto decl = getDeclaration(*p) ) {
             if ( auto param = decl->as<ProcedureParameter>() ) {
-                exprs.emplace_back(std::make_unique<IdentifierExpression>(param->symbol().token()));
+                exprs.emplace_back(mk<IdentifierExpression>(param->symbol().token()));
                 exprs.back()->addConstraints(ast::clone(param->constraints()));
                 continue;
             }
@@ -54,25 +54,25 @@ copyProcSym(Symbol const& s)
     return makeSym(s.token(), std::move(exprs));
 }
 
-inline std::unique_ptr<TupleExpression>
+inline Box<TupleExpression>
 createEmptyExpression()
 {
-    return std::make_unique<TupleExpression>(TupleKind::Open, std::vector<std::unique_ptr<Expression>>());
+    return mk<TupleExpression>(TupleKind::Open, std::vector<Box<Expression>>());
 }
 
-inline std::unique_ptr<IdentifierExpression>
+inline Box<IdentifierExpression>
 createIdentifier(lexer::Token const& tok)
 {
-    return std::make_unique<IdentifierExpression>(tok);
+    return mk<IdentifierExpression>(tok);
 }
 
-inline std::unique_ptr<IdentifierExpression>
+inline Box<IdentifierExpression>
 createIdentifier(lexer::Token const& tok, Declaration const& decl)
 {
-    return std::make_unique<IdentifierExpression>(tok, decl);
+    return mk<IdentifierExpression>(tok, decl);
 }
 
-inline std::unique_ptr<IdentifierExpression>
+inline Box<IdentifierExpression>
 createIdentifier(Declaration const& decl)
 {
     return createIdentifier(lexer::Token(), decl);
@@ -105,74 +105,74 @@ createList(Args&&... args)
 }
 
 template <typename T, typename... Args>
-std::vector<std::unique_ptr<T>>
+std::vector<Box<T>>
 createPtrList(Args&&... args)
 {
-    return createList<std::unique_ptr<T>>(std::forward<Args>(args)...);
+    return createList<Box<T>>(std::forward<Args>(args)...);
 }
 
 template <typename... Decls>
-std::unique_ptr<DotExpression>
+Box<DotExpression>
 createMemberAccess(Decls&&... decls)
 {
-    std::vector<std::unique_ptr<Expression>> members;
+    std::vector<Box<Expression>> members;
     members.reserve(sizeof...(Decls));
 
-    std::unique_ptr<IdentifierExpression> (*f)(Declaration const&) = &createIdentifier;
+    Box<IdentifierExpression> (*f)(Declaration const&) = &createIdentifier;
     appendExprList_impl(members, f, std::forward<Decls>(decls)...);
-    return std::make_unique<DotExpression>(false, std::move(members));
+    return mk<DotExpression>(false, std::move(members));
 }
 
 template <typename... Args>
-std::unique_ptr<ApplyExpression>
+Box<ApplyExpression>
 createMemberCall(ProcedureDeclaration const& proc,
                  Declaration const& thisParam,
                  Args&&... exprs)
 {
-    return std::make_unique<ApplyExpression>(
+    return mk<ApplyExpression>(
         createPtrList<Expression>(createMemberAccess(thisParam, proc),
                                   std::forward<Args>(exprs)...));
 }
 
 template <typename... Args>
-std::unique_ptr<ApplyExpression>
+Box<ApplyExpression>
 createApply(Args&&... exprs)
 {
-    return std::make_unique<ApplyExpression>(
+    return mk<ApplyExpression>(
         createPtrList<Expression>(std::forward<Args>(exprs)...));
 }
 
-inline std::unique_ptr<TupleExpression>
-createTuple(std::vector<std::unique_ptr<Expression>>&& exprs)
+inline Box<TupleExpression>
+createTuple(std::vector<Box<Expression>>&& exprs)
 {
-    return std::make_unique<TupleExpression>(TupleKind::Open, std::move(exprs));
+    return mk<TupleExpression>(TupleKind::Open, std::move(exprs));
 }
 
-inline std::unique_ptr<TupleExpression>
+inline Box<TupleExpression>
 createTuple(Slice<Expression const*> exprs)
 {
     return createTuple(ast::clone(exprs));
 }
 
-inline std::unique_ptr<ReturnJunction>
-createReturn(std::size_t line,
-             std::size_t column,
-             std::unique_ptr<Expression> expr)
+inline Box<ReturnJunction>
+createReturn(uz line,
+             uz column,
+             Box<Expression> expr)
 {
-    return std::make_unique<ReturnJunction>(makeToken("", line, column),
+    return mk<ReturnJunction>(makeToken("", line, column),
                                             createEmptyExpression());
 }
 
-inline std::unique_ptr<ReturnJunction>
-createReturn(std::unique_ptr<Expression> expr)
+inline Box<ReturnJunction>
+createReturn(Box<Expression> expr)
 {
     return createReturn(0, 0, std::move(expr));
 }
 
-inline std::unique_ptr<SymbolExpression>
-createRefType(std::size_t line, std::size_t col, std::unique_ptr<Expression> expr)
+inline Box<SymbolExpression>
+createRefType(uz line, uz col, Box<Expression> expr)
 {
-    return std::make_unique<ast::SymbolExpression>(
+    return mk<ast::SymbolExpression>(
         ast::makeToken("ref", line, col),
         ast::createPtrList<ast::Expression>(std::move(expr)));
 }

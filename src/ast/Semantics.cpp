@@ -45,7 +45,7 @@ namespace {
             return true;
 
         auto const size = lhs.size();
-        for ( std::size_t i = 0; i < size; ++i )
+        for ( uz i = 0; i < size; ++i )
             if ( !op(*lhs[i], *rhs[i]) )
                 return false;
 
@@ -72,19 +72,19 @@ SymbolDependencyTracker::SymbolDependencyTracker(Module& mod, Diagnostics& dgn)
 {
 }
 
-SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::create(std::string const& name, std::size_t arity)
+SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::create(std::string name, uz arity)
 {
-    groups.emplace_back(std::make_unique<SymGroup>(name, arity));
+    groups.emplace_back(mk<SymGroup>(std::move(name), arity));
     return groups.back().get();
 }
 
-SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::string const& name, std::size_t arity)
+SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::string_view name, uz arity)
 {
     for ( auto const& e : groups)
         if ( e->name == name && e->arity == arity )
             return e.get();
 
-    return create(name, arity);
+    return create(std::string(name), arity);
 }
 
 void SymbolDependencyTracker::add(Declaration& decl)
@@ -94,8 +94,8 @@ void SymbolDependencyTracker::add(Declaration& decl)
 }
 
 void SymbolDependencyTracker::addDependency(Declaration& decl,
-                                            std::string const& name,
-                                            std::size_t arity)
+                                            std::string_view name,
+                                            uz arity)
 {
     auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().size());
     auto dependency = findOrCreate(name, arity);
@@ -435,7 +435,8 @@ VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token co
         if ( query.kind() != lexer::TokenKind::Integer )
             return Invariant; // todo: diagnostics
 
-        cpp_int const n(query.lexeme());
+        std::string s(query.lexeme());
+        cpp_int const n(s);
         bounds_t const bounds = bitsToBounds(intMeta->bits);
 
         if ( !in(n, bounds) )
@@ -654,7 +655,7 @@ VarianceResult variance(Context& ctx,
         return Invariant;
 
     auto ret = Exact;
-    for ( std::size_t i = 0; i < size; ++i ) {
+    for ( uz i = 0; i < size; ++i ) {
         auto v = variance(ctx, *lhs[i], *rhs[i]);
         if ( !v )
             return v;
@@ -1059,7 +1060,7 @@ struct MetaVariableVisitor
         if ( b.condition() )
             dispatch(*b.condition());
 
-        for ( std::size_t i = 0; i < 2; ++i )
+        for ( uz i = 0; i < 2; ++i )
             if ( b.branch(i) )
                 dispatch.procScope(*b.branch(i)->scope());
     }
@@ -1567,7 +1568,7 @@ std::ostream& print(std::ostream& stream, Junction const& junc)
 template <typename Dispatcher>
 struct LevelFinder
 {
-    using result_t = std::size_t;
+    using result_t = uz;
 
     Dispatcher& dispatch;
 
@@ -1643,7 +1644,7 @@ struct LevelFinder
     }
 };
 
-std::size_t level(Expression const& expr)
+uz level(Expression const& expr)
 {
     ShallowApply<LevelFinder> op;
     return op(expr);

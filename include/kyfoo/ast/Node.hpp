@@ -80,32 +80,32 @@ public:
 using clone_map_t = std::map<void const*, void*>;
 
 template <typename T, typename D>
-std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>, T>> clone(T const& rhs, D& map)
+Box<std::enable_if_t<!std::is_pointer_v<T>, T>> clone(T const& rhs, D& map)
 {
-    std::unique_ptr<T> ret(rhs.clone(map));
+    Box<T> ret(rhs.clone(map));
     ret->remapReferences(map);
     return ret;
 }
 
 template <typename T, typename D>
-std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs, D& dict)
+Box<T> clone(Box<T> const& rhs, D& dict)
 {
     if ( !rhs )
         return nullptr;
 
-    return std::unique_ptr<T>(rhs->clone(dict));
+    return Box<T>(rhs->clone(dict));
 }
 
 template <typename T>
-std::unique_ptr<T> clone(std::unique_ptr<T> const& rhs)
+Box<T> clone(Box<T> const& rhs)
 {
     return clone(rhs.get());
 }
 
 template <typename T, typename D>
-std::vector<std::unique_ptr<std::remove_const_t<T>>> clone(Slice<T*> rhs, D& dict)
+std::vector<Box<std::remove_const_t<T>>> clone(Slice<T*> rhs, D& dict)
 {
-    std::vector<std::unique_ptr<std::remove_const_t<T>>> ret;
+    std::vector<Box<std::remove_const_t<T>>> ret;
     ret.reserve(rhs.size());
     for ( auto e : rhs )
         ret.emplace_back(clone(e, dict));
@@ -114,14 +114,14 @@ std::vector<std::unique_ptr<std::remove_const_t<T>>> clone(Slice<T*> rhs, D& dic
 }
 
 template <typename T>
-std::vector<std::unique_ptr<std::remove_const_t<T>>> clone(Slice<T*> rhs)
+std::vector<Box<std::remove_const_t<T>>> clone(Slice<T*> rhs)
 {
     clone_map_t map;
     return clone(rhs, map);
 }
 
 template <typename T>
-std::unique_ptr<std::enable_if_t<!std::is_pointer_v<T>
+Box<std::enable_if_t<!std::is_pointer_v<T>
                               && !is_slice_v<T>, T>>
 clone(T const& rhs)
 {
@@ -130,7 +130,7 @@ clone(T const& rhs)
 }
 
 template <typename T, typename D>
-std::unique_ptr<T> clone(T const* rhs, D& dict)
+Box<T> clone(T const* rhs, D& dict)
 {
     if ( !rhs )
         return nullptr;
@@ -139,7 +139,7 @@ std::unique_ptr<T> clone(T const* rhs, D& dict)
 }
 
 template <typename T>
-std::unique_ptr<T> clone(T const* rhs)
+Box<T> clone(T const* rhs)
 {
     if ( !rhs )
         return nullptr;
@@ -148,25 +148,25 @@ std::unique_ptr<T> clone(T const* rhs)
 }
 
 template <typename T, typename D>
-std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs,
+std::vector<Box<T>> clone(std::vector<Box<T>> const& rhs,
                                       D& dict)
 {
-    std::vector<std::unique_ptr<T>> ret;
+    std::vector<Box<T>> ret;
     ret.reserve(rhs.size());
     for ( auto const& e : rhs )
-        ret.emplace_back(std::unique_ptr<T>(e->clone(dict)));
+        ret.emplace_back(Box<T>(e->clone(dict)));
 
     return ret;
 }
 
 template <typename T>
-std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs)
+std::vector<Box<T>> clone(std::vector<Box<T>> const& rhs)
 {
     clone_map_t map;
-    std::vector<std::unique_ptr<T>> ret;
+    std::vector<Box<T>> ret;
     ret.reserve(rhs.size());
     for ( auto const& e : rhs )
-        ret.emplace_back(std::unique_ptr<T>(e->clone(map)));
+        ret.emplace_back(Box<T>(e->clone(map)));
 
     for ( auto& e : ret )
         e->remapReferences(map);
@@ -175,7 +175,7 @@ std::vector<std::unique_ptr<T>> clone(std::vector<std::unique_ptr<T>> const& rhs
 }
 
 template <typename T>
-void remap(std::unique_ptr<T>& rhs, clone_map_t const& map)
+void remap(Box<T>& rhs, clone_map_t const& map)
 {
     if ( rhs )
         rhs->remapReferences(map);

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 #include <vector>
 
 #include <kyfoo/Slice.hpp>
@@ -21,7 +19,7 @@ public:
         Mismatch = 1 << 0,
     };
 
-    using state_t = std::uint32_t;
+    using state_t = kyfoo::u32;
 
     struct Item
     {
@@ -55,17 +53,17 @@ public:
     bool deduce(Expression const& lhs, Expression const& rhs);
 
     bool empty() const;
-    std::size_t size() const;
+    uz size() const;
 
-    SymbolVariable const& var(std::size_t index) const;
-    Expression const& expr(std::size_t index) const;
+    SymbolVariable const& var(uz index) const;
+    Expression const& expr(uz index) const;
 
     bool bind(SymbolVariable const& symVar, Expression const& expr);
 
     explicit operator bool() const;
 
 private:
-    std::size_t findVarIndex(SymbolVariable const& symVar);
+    uz findVarIndex(SymbolVariable const& symVar);
     void setMismatch();
 
 private:

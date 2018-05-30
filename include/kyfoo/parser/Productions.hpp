@@ -4,8 +4,6 @@
 
 #include <kyfoo/lexer/Token.hpp>
 
-//#include <kyfoo/parser/Parse.hpp>
-
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
@@ -22,9 +20,9 @@ using integer  = g::Terminal<lexer::TokenKind::Integer>;
 using rational = g::Terminal<lexer::TokenKind::Rational>;
 using string   = g::Terminal<lexer::TokenKind::String>;
 
-using equal = g::Terminal<lexer::TokenKind::Equal>;
-using comma = g::Terminal<lexer::TokenKind::Comma>;
-using dot   = g::Terminal<lexer::TokenKind::Dot>;
+using equal  = g::Terminal<lexer::TokenKind::Equal>;
+using comma  = g::Terminal<lexer::TokenKind::Comma>;
+using dot    = g::Terminal<lexer::TokenKind::Dot>;
 using dotdot = g::Terminal<lexer::TokenKind::DotDot>;
 
 using colon          = g::Terminal<lexer::TokenKind::Colon>;
@@ -58,25 +56,25 @@ class DeclarationScopeParser;
 struct Literal :
     g::Or<integer, rational, string>
 {
-    std::unique_ptr<ast::LiteralExpression> make(DeclarationScopeParser& parser)
+    Box<ast::LiteralExpression> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::LiteralExpression>(monoMake<lexer::Token>(parser));
+        return mk<ast::LiteralExpression>(monoMake<lexer::Token>(parser));
     }
 };
 
 struct Identifier :
     g::Or<id, meta>
 {
-    std::unique_ptr<ast::IdentifierExpression> make(DeclarationScopeParser& parser)
+    Box<ast::IdentifierExpression> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::IdentifierExpression>(monoMake<lexer::Token>(parser));
+        return mk<ast::IdentifierExpression>(monoMake<lexer::Token>(parser));
     }
 };
 
 struct Primary :
     g::Or<Identifier, Literal>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         return monoMakePtr<ast::Expression>(parser);
     }
@@ -99,11 +97,11 @@ public:
     void swap(Defer& rhs);
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches);
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser);
+    bool match(kyfoo::lexer::ScanPoint scan, uz& matches);
+    Box<ast::Expression> make(DeclarationScopeParser& parser);
 
 private:
-    std::unique_ptr<T> myGrammar;
+    Box<T> myGrammar;
 };
 
 template <typename T>
@@ -111,35 +109,35 @@ struct AssignExpression;
 struct Lambda;
 using Expression = Defer<AssignExpression<Lambda>>;
 
-inline std::vector<std::unique_ptr<ast::Expression>>
+inline std::vector<Box<ast::Expression>>
 expressions(DeclarationScopeParser& parser, std::vector<Expression>& rhs)
 {
-    std::vector<std::unique_ptr<ast::Expression>> ret;
+    std::vector<Box<ast::Expression>> ret;
     for ( auto& e : rhs )
         ret.emplace_back(e.make(parser));
 
     return ret;
 }
 
-inline std::unique_ptr<ast::TupleExpression>
+inline Box<ast::TupleExpression>
 createTuple(ast::TupleKind kind,
-            std::vector<std::unique_ptr<ast::Expression>>&& expressions)
+            std::vector<Box<ast::Expression>>&& expressions)
 {
-    return std::make_unique<ast::TupleExpression>(kind, std::move(expressions));
+    return mk<ast::TupleExpression>(kind, std::move(expressions));
 }
 
-inline std::unique_ptr<ast::TupleExpression>
+inline Box<ast::TupleExpression>
 createTuple(lexer::Token& open,
             lexer::Token& close,
-            std::vector<std::unique_ptr<ast::Expression>>&& expressions)
+            std::vector<Box<ast::Expression>>&& expressions)
 {
-    return std::make_unique<ast::TupleExpression>(open, close, std::move(expressions));
+    return mk<ast::TupleExpression>(open, close, std::move(expressions));
 }
 
 struct TupleOpen :
     g::And<openParen, g::Repeat2<Expression, comma>, closeParen>
 {
-    std::unique_ptr<ast::TupleExpression> make(DeclarationScopeParser& parser)
+    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
     {
         return createTuple(factor<0>().token(),
                            factor<2>().token(),
@@ -149,7 +147,7 @@ struct TupleOpen :
 
 using NonLambdaExpression = Defer<AssignExpression<TupleOpen>>;
 
-std::unique_ptr<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& parser,
+Box<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& parser,
                                                     lexer::Token& start,
                                                     std::vector<Expression>& paramExprs,
                                                     NonLambdaExpression* returnExpr)
@@ -158,11 +156,11 @@ std::unique_ptr<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& pars
     for ( auto& e : paramExprs )
         pattern.emplace_back(e.make(parser));
 
-    std::unique_ptr<ast::Expression> returnTypeExpression;
+    Box<ast::Expression> returnTypeExpression;
     if ( returnExpr )
         returnTypeExpression = returnExpr->make(parser);
 
-    return std::make_unique<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, start.line(), start.column(), ""), std::move(pattern)),
+    return mk<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, start.line(), start.column(), ""), std::move(pattern)),
                                                         std::move(returnTypeExpression));
 }
 
@@ -173,7 +171,7 @@ struct ProcedureDeclaration :
         closeParen,
         g::Opt<g::And<arrow, NonLambdaExpression>>>
 {
-    std::unique_ptr<ast::ProcedureDeclaration> make(DeclarationScopeParser& parser)
+    Box<ast::ProcedureDeclaration> make(DeclarationScopeParser& parser)
     {
         return makeProc(parser,
                         factor<0>().token(),
@@ -186,11 +184,11 @@ template <typename T>
 struct Scope :
     g::Nest<lexer::TokenKind::IndentGT, lexer::TokenKind::IndentLT>
 {
-    std::unique_ptr<T> make(DeclarationScopeParser& parser, typename T::declaration_t& decl)
+    Box<T> make(DeclarationScopeParser& parser, typename T::declaration_t& decl)
     {
         lexer::Scanner scanner(std::move(captures()));
-        auto scope = std::make_unique<T>(parser.scope(), decl);
-        parseScope(std::make_unique<DeclarationScopeParser>(parser.diagnostics(), scanner, *scope));
+        auto scope = mk<T>(parser.scope(), decl);
+        parseScope(mk<DeclarationScopeParser>(parser.diagnostics(), scanner, *scope));
         return scope;
     }
 };
@@ -202,7 +200,7 @@ struct Lambda :
          , g::Opt<g::And<arrow, NonLambdaExpression>>
          , g::Opt<g::And<yield, g::Or<g::And<g::Opt<colonDot>, Expression>, Scope<ast::ProcedureScope>>>>>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto arrow = factor<3>().capture();
         auto yield = factor<4>().capture();
@@ -212,9 +210,9 @@ struct Lambda :
                                      factor<1>().captures(),
                                      arrow ? &arrow->factor<1>() : nullptr);
 
-            std::unique_ptr<ast::ProcedureScope> procScope;
+            Box<ast::ProcedureScope> procScope;
             if ( yield->factor<1>().index() == 0 ) {
-                procScope = std::make_unique<ast::ProcedureScope>(parser.scope(), *procDecl);
+                procScope = mk<ast::ProcedureScope>(parser.scope(), *procDecl);
                 auto expr = yield->factor<1>().term<0>().factor<1>().make(parser);
                 lexer::Token tok;
                 if ( auto retTok = yield->factor<1>().term<0>().factor<0>().capture() )
@@ -222,7 +220,7 @@ struct Lambda :
                 else
                     tok = front(*expr);
 
-                procScope->basicBlocks().back()->setJunction(std::make_unique<ast::ReturnJunction>(tok, std::move(expr)));
+                procScope->basicBlocks().back()->setJunction(mk<ast::ReturnJunction>(tok, std::move(expr)));
             }
             else {
                 procScope = yield->factor<1>().term<1>().make(parser, *procDecl);
@@ -232,14 +230,14 @@ struct Lambda :
 
             auto proc = procDecl.get();
             parser.scope().appendLambda(std::move(procDecl), std::move(procScope));
-            return std::make_unique<ast::LambdaExpression>(yield->factor<0>().token(), proc);
+            return mk<ast::LambdaExpression>(yield->factor<0>().token(), proc);
         }
 
         auto tuple = createTuple(factor<0>().token(),
                                  factor<2>().token(),
                                  expressions(parser, factor<1>().captures()));
         if ( arrow )
-            return std::make_unique<ast::ArrowExpression>(std::move(tuple),
+            return mk<ast::ArrowExpression>(std::move(tuple),
                                                           arrow->factor<1>().make(parser));
 
         return std::move(tuple);
@@ -249,7 +247,7 @@ struct Lambda :
 struct TupleOpenRight :
     g::And<openBracket, g::Repeat2<Expression, comma>, closeParen>
 {
-    std::unique_ptr<ast::TupleExpression> make(DeclarationScopeParser& parser)
+    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
     {
         return createTuple(factor<0>().token(),
                            factor<2>().token(),
@@ -260,7 +258,7 @@ struct TupleOpenRight :
 struct TupleOpenLeft :
     g::And<openParen, g::Repeat2<Expression, comma>, closeBracket>
 {
-    std::unique_ptr<ast::TupleExpression> make(DeclarationScopeParser& parser)
+    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
     {
         return createTuple(factor<0>().token(),
                            factor<2>().token(),
@@ -271,7 +269,7 @@ struct TupleOpenLeft :
 struct TupleClosed :
     g::And<openBracket, g::Repeat2<Expression, comma>, closeBracket>
 {
-    std::unique_ptr<ast::TupleExpression> make(DeclarationScopeParser& parser)
+    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
     {
         return createTuple(factor<0>().token(),
                            factor<2>().token(),
@@ -282,9 +280,9 @@ struct TupleClosed :
 struct SymbolExpression :
     g::And<id, openAngle, g::Repeat2<Expression, comma>, closeAngle>
 {
-    std::unique_ptr<ast::SymbolExpression> make(DeclarationScopeParser& parser)
+    Box<ast::SymbolExpression> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::SymbolExpression>(factor<0>().token(),
+        return mk<ast::SymbolExpression>(factor<0>().token(),
                                                        expressions(parser, factor<2>().captures()));
     }
 };
@@ -292,7 +290,7 @@ struct SymbolExpression :
 struct Tuple :
     g::Or<TupleOpenLeft, TupleOpenRight, TupleClosed, SymbolExpression>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         return monoMakePtr<ast::Expression>(parser);
     }
@@ -302,7 +300,7 @@ template <typename T>
 struct BasicExpression :
     g::Or<T, Tuple, Primary>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         return monoMakePtr<ast::Expression>(parser);
     }
@@ -312,18 +310,18 @@ template <typename T>
 struct DotExpression :
     g::And<g::Opt<dot>, g::OneOrMore2<BasicExpression<T>, dot>>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         bool global = factor<0>().capture() != nullptr;
         auto& list = factor<1>().captures();
-        std::vector<std::unique_ptr<ast::Expression>> exprs;
+        std::vector<Box<ast::Expression>> exprs;
         for ( auto& be : list )
             exprs.emplace_back(be.make(parser));
 
         if ( !global && exprs.size() == 1 )
             return std::move(exprs.front());
 
-        return std::make_unique<ast::DotExpression>(global, std::move(exprs));
+        return mk<ast::DotExpression>(global, std::move(exprs));
     }
 };
 
@@ -335,35 +333,35 @@ struct RangeExpression :
       , dotdot
     >
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         if ( index() == 0 ) {
             auto& c = term<0>().factor<0>().captures();
-            std::unique_ptr<ast::Expression> from = c[0].make(parser);
-            for ( std::size_t i = 1; i < c.size(); ++i )
-                from = std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+            Box<ast::Expression> from = c[0].make(parser);
+            for ( uz i = 1; i < c.size(); ++i )
+                from = mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               c[i].make(parser));
 
             if ( auto cc = term<0>().factor<1>().capture() )
-                return std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                return mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               nullptr);
 
             return std::move(from);
         }
         else if ( index() == 1 ) {
-            std::unique_ptr<ast::Expression> from;
+            Box<ast::Expression> from;
             for ( auto& c : term<1>().factor<1>().captures() )
-                from = std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                from = mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               c.make(parser));
 
             if ( auto c = term<1>().factor<2>().capture() )
-                return std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
+                return mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               nullptr);
 
             return std::move(from);
         }
 
-        return std::make_unique<ast::TupleExpression>(ast::createPtrList<ast::Expression>(), nullptr);
+        return mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(), nullptr);
     }
 };
 
@@ -371,17 +369,17 @@ template <typename T>
 struct ApplyExpression :
     g::OneOrMore<RangeExpression<T>>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         if ( captures().size() == 1 )
             return captures().front().make(parser);
 
-        std::vector<std::unique_ptr<ast::Expression>> exprs;
+        std::vector<Box<ast::Expression>> exprs;
         exprs.reserve(captures().size());
         for ( auto& c : captures() )
             exprs.emplace_back(c.make(parser));
 
-        return std::make_unique<ast::ApplyExpression>(std::move(exprs));
+        return mk<ast::ApplyExpression>(std::move(exprs));
     }
 };
 
@@ -389,10 +387,10 @@ template <typename T>
 struct ConstraintExpression :
     g::OneOrMore2<ApplyExpression<T>, colon>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto ret = captures().front().make(parser);
-        for ( std::size_t i = 1; i < captures().size(); ++i )
+        for ( uz i = 1; i < captures().size(); ++i )
             ret->addConstraint(captures()[i].make(parser));
 
         return ret;
@@ -403,12 +401,12 @@ template <typename T>
 struct AssignExpression :
     g::OneOrMore2<ConstraintExpression<T>, equal>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto& c = captures();
-        std::unique_ptr<ast::Expression> ret = c.back().make(parser);
-        for ( std::size_t i = c.size() - 2; ~i; --i )
-            ret = std::make_unique<ast::AssignExpression>(c[i].make(parser),
+        Box<ast::Expression> ret = c.back().make(parser);
+        for ( uz i = c.size() - 2; ~i; --i )
+            ret = mk<ast::AssignExpression>(c[i].make(parser),
                                                           std::move(ret));
 
         return ret;
@@ -430,7 +428,7 @@ struct Symbol :
 struct ImplicitProcedureTemplateDeclaration :
     g::And<Symbol, ProcedureDeclaration>
 {
-    std::tuple<ast::Symbol, std::unique_ptr<ast::ProcedureDeclaration>> make(DeclarationScopeParser& parser)
+    std::tuple<ast::Symbol, Box<ast::ProcedureDeclaration>> make(DeclarationScopeParser& parser)
     {
         return {factor<0>().make(parser), factor<1>().make(parser)};
     }
@@ -439,8 +437,8 @@ struct ImplicitProcedureTemplateDeclaration :
 struct VarDecl
 {
     lexer::Token token;
-    std::vector<std::unique_ptr<ast::Expression>> constraints;
-    std::unique_ptr<ast::Expression> initializer;
+    std::vector<Box<ast::Expression>> constraints;
+    Box<ast::Expression> initializer;
 };
 
 struct VariableDeclaration :
@@ -451,11 +449,11 @@ struct VariableDeclaration :
 {
     VarDecl make(DeclarationScopeParser& parser)
     {
-        std::vector<std::unique_ptr<ast::Expression>> constraints;
+        std::vector<Box<ast::Expression>> constraints;
         if ( auto c = factor<2>().capture() )
             constraints = flattenConstraints(c->factor<1>().make(parser));
 
-        std::unique_ptr<ast::Expression> init;
+        Box<ast::Expression> init;
         if ( auto i = factor<3>().capture() )
             init = i->factor<1>().make(parser);
 
@@ -467,7 +465,7 @@ struct BlockDecl
 {
     lexer::Token open;
     lexer::Token id;
-    std::unique_ptr<ast::Expression> expr;
+    Box<ast::Expression> expr;
 };
 
 struct BlockDeclaration :
@@ -482,7 +480,7 @@ struct BlockDeclaration :
         if ( auto c = factor<1>().capture() )
             id = c->token();
 
-        std::unique_ptr<ast::Expression> expr;
+        Box<ast::Expression> expr;
         if ( auto c = factor<3>().capture() )
             expr = c->make(parser);
 
@@ -493,42 +491,42 @@ struct BlockDeclaration :
 struct BranchJunction :
     g::And<colonQuestion, Expression>
 {
-    std::unique_ptr<ast::BranchJunction> make(DeclarationScopeParser& parser)
+    Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::BranchJunction>(factor<0>().token(), factor<1>().make(parser));
+        return mk<ast::BranchJunction>(factor<0>().token(), factor<1>().make(parser));
     }
 };
 
 struct BranchElseJunction :
     g::And<colonSlash, g::Opt<Expression>>
 {
-    std::unique_ptr<ast::BranchJunction> make(DeclarationScopeParser& parser)
+    Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
     {
-        std::unique_ptr<ast::Expression> cond;
+        Box<ast::Expression> cond;
         if ( auto e = factor<1>().capture() )
             cond = e->make(parser);
 
-        return std::make_unique<ast::BranchJunction>(factor<0>().token(), std::move(cond));
+        return mk<ast::BranchJunction>(factor<0>().token(), std::move(cond));
     }
 };
 
 struct ReturnJunction :
     g::And<colonDot, g::Opt<Expression>>
 {
-    std::unique_ptr<ast::ReturnJunction> make(DeclarationScopeParser& parser)
+    Box<ast::ReturnJunction> make(DeclarationScopeParser& parser)
     {
-        std::unique_ptr<ast::Expression> expr;
+        Box<ast::Expression> expr;
         if ( auto c = factor<1>().capture() )
             expr = c->make(parser);
 
-        return std::make_unique<ast::ReturnJunction>(factor<0>().token(), std::move(expr));
+        return mk<ast::ReturnJunction>(factor<0>().token(), std::move(expr));
     }
 };
 
 struct JumpJunction :
     g::And<g::Or<colonPlus, colonMinus>, g::Opt<id>>
 {
-    std::unique_ptr<ast::JumpJunction> make(DeclarationScopeParser&)
+    Box<ast::JumpJunction> make(DeclarationScopeParser&)
     {
         lexer::Token label;
         if ( auto c = factor<1>().capture() )
@@ -536,45 +534,45 @@ struct JumpJunction :
 
         auto anchor = factor<0>().index() == 0 ? factor<0>().term<0>().token() : factor<0>().term<1>().token();
         auto kind = factor<0>().index() == 0 ? ast::JumpJunction::JumpKind::Loop : ast::JumpJunction::JumpKind::Break;
-        return std::make_unique<ast::JumpJunction>(anchor, kind, label);
+        return mk<ast::JumpJunction>(anchor, kind, label);
     }
 };
 
 struct SymbolDeclaration :
     g::And<Symbol, colonEqual, Expression>
 {
-    std::unique_ptr<ast::SymbolDeclaration> make(DeclarationScopeParser& parser)
+    Box<ast::SymbolDeclaration> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::SymbolDeclaration>(factor<0>().make(parser), factor<2>().make(parser));
+        return mk<ast::SymbolDeclaration>(factor<0>().make(parser), factor<2>().make(parser));
     }
 };
 
 struct ImportDeclaration :
     g::And<_import, g::OneOrMore2<id, dot>>
 {
-    std::unique_ptr<ast::ImportDeclaration> make(DeclarationScopeParser&)
+    Box<ast::ImportDeclaration> make(DeclarationScopeParser&)
     {
         std::vector<lexer::Token> modulePath;
         for ( auto& e : factor<1>().captures() )
             modulePath.emplace_back(e.token());
 
-        return std::make_unique<ast::ImportDeclaration>(std::move(modulePath));
+        return mk<ast::ImportDeclaration>(std::move(modulePath));
     }
 };
 
 struct DataSumDeclaration :
     g::And<colonPipe, Symbol>
 {
-    std::unique_ptr<ast::DataSumDeclaration> make(DeclarationScopeParser& parser)
+    Box<ast::DataSumDeclaration> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::DataSumDeclaration>(factor<1>().make(parser));
+        return mk<ast::DataSumDeclaration>(factor<1>().make(parser));
     }
 };
 
 struct DataSumConstructor :
     g::And<Symbol, g::Opt<g::And<openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
 {
-    std::unique_ptr<ast::DataSumDeclaration::Constructor> make(DeclarationScopeParser&)
+    Box<ast::DataSumDeclaration::Constructor> make(DeclarationScopeParser&)
     {
         throw std::runtime_error("not implemented");
     }
@@ -583,29 +581,29 @@ struct DataSumConstructor :
 struct DataProductDeclaration :
     g::And<colonAmpersand, Symbol>
 {
-    std::unique_ptr<ast::DataProductDeclaration> make(DeclarationScopeParser& parser)
+    Box<ast::DataProductDeclaration> make(DeclarationScopeParser& parser)
     {
-        return std::make_unique<ast::DataProductDeclaration>(factor<1>().make(parser));
+        return mk<ast::DataProductDeclaration>(factor<1>().make(parser));
     }
 };
 
 struct DataProductDeclarationField :
     g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
 {
-    std::unique_ptr<ast::DataProductDeclaration::Field> make(DeclarationScopeParser& parser)
+    Box<ast::DataProductDeclaration::Field> make(DeclarationScopeParser& parser)
     {
-        std::unique_ptr<ast::Expression> init;
+        Box<ast::Expression> init;
         if ( auto c = factor<3>().capture() )
             init = c->factor<1>().make(parser);
 
-        return std::make_unique<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), flattenConstraints(factor<2>().make(parser)), std::move(init));
+        return mk<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), flattenConstraints(factor<2>().make(parser)), std::move(init));
     }
 };
 
 struct Attribute :
     g::And<at, Expression>
 {
-    std::unique_ptr<ast::Expression> make(DeclarationScopeParser& parser)
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         return factor<1>().make(parser);
     }
@@ -619,7 +617,7 @@ Defer<T>::Defer() = default;
 
 template <typename T>
 Defer<T>::Defer(Defer const& rhs)
-    : myGrammar(rhs.myGrammar ? std::make_unique<T>(*rhs.myGrammar) : nullptr)
+    : myGrammar(rhs.myGrammar ? mk<T>(*rhs.myGrammar) : nullptr)
 {
 }
 
@@ -654,10 +652,10 @@ void Defer<T>::swap(Defer& rhs)
 }
 
 template <typename T>
-bool Defer<T>::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+bool Defer<T>::match(kyfoo::lexer::ScanPoint scan, uz& matches)
 {
     if ( !myGrammar )
-        myGrammar = std::make_unique<T>();
+        myGrammar = mk<T>();
 
     if ( myGrammar->match(scan, matches) )
         return scan.commit();
@@ -666,7 +664,7 @@ bool Defer<T>::match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
 }
 
 template <typename T>
-std::unique_ptr<ast::Expression> Defer<T>::make(DeclarationScopeParser& parser)
+Box<ast::Expression> Defer<T>::make(DeclarationScopeParser& parser)
 {
     return myGrammar->make(parser);
 }

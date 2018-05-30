@@ -21,7 +21,7 @@ PatternsPrototype::PatternsPrototype()
 {
 }
 
-PatternsPrototype::PatternsPrototype(std::vector<std::unique_ptr<Expression>>&& pattern)
+PatternsPrototype::PatternsPrototype(std::vector<Box<Expression>>&& pattern)
     : myPattern(std::move(pattern))
 {
 }
@@ -88,7 +88,7 @@ void PatternsPrototype::resolveVariables(DeclarationScope const& scope)
         for ( auto const& param : myPattern ) {
             auto fv = gatherMetaVariables(*param);
             for ( auto& p : fv ) {
-                myVariables.push_back(std::make_unique<SymbolVariable>(*p, const_cast<DeclarationScope*>(&scope), *this));
+                myVariables.push_back(mk<SymbolVariable>(*p, const_cast<DeclarationScope*>(&scope), *this));
                 p->setDeclaration(*myVariables.back());
             }
         }
@@ -126,7 +126,7 @@ void PatternsPrototype::bindVariables(Substitutions const& substs)
     if ( substs.size() != myVariables.size() )
         throw std::runtime_error("template parameter binding mismatch");
 
-    for ( std::size_t i = 0; i < substs.size(); ++i ) {
+    for ( uz i = 0; i < substs.size(); ++i ) {
         auto const& key = substs.var(i);
         auto const& value = substs.expr(i);
         auto var = findVariable(key.symbol().token().lexeme());
@@ -137,16 +137,16 @@ void PatternsPrototype::bindVariables(Substitutions const& substs)
     }
 }
 
-SymbolVariable* PatternsPrototype::findVariable(std::string const& token)
+SymbolVariable* PatternsPrototype::findVariable(std::string_view token)
 {
-    for ( std::size_t i = 0; i < myVariables.size(); ++i )
+    for ( uz i = 0; i < myVariables.size(); ++i )
         if ( myVariables[i]->token().lexeme() == token )
             return myVariables[i].get();
 
     return nullptr;
 }
 
-SymbolVariable const* PatternsPrototype::findVariable(std::string const& token) const
+SymbolVariable const* PatternsPrototype::findVariable(std::string_view token) const
 {
     return const_cast<PatternsPrototype*>(this)->findVariable(token);
 }
@@ -161,7 +161,7 @@ bool PatternsPrototype::isConcrete() const
     return true;
 }
 
-std::size_t PatternsPrototype::metaVariableCount() const
+uz PatternsPrototype::metaVariableCount() const
 {
     return myVariables.size();
 }
@@ -172,7 +172,7 @@ std::size_t PatternsPrototype::metaVariableCount() const
 Symbol::Symbol(lexer::Token const& token,
                PatternsPrototype&& params)
     : myToken(token)
-    , myPrototype(std::make_unique<PatternsPrototype>(std::move(params)))
+    , myPrototype(mk<PatternsPrototype>(std::move(params)))
 {
 }
 
@@ -181,9 +181,9 @@ Symbol::Symbol(lexer::Token const& token)
 {
 }
 
-Symbol::Symbol(std::unique_ptr<SymbolExpression> symExpr)
+Symbol::Symbol(Box<SymbolExpression> symExpr)
     : myToken(symExpr->token())
-    , myPrototype(std::make_unique<PatternsPrototype>(std::move(symExpr->internalExpressions())))
+    , myPrototype(mk<PatternsPrototype>(std::move(symExpr->internalExpressions())))
 {
 }
 
@@ -272,25 +272,25 @@ Symbol const* Symbol::prototypeParent() const
 //
 // SymbolReference
 
+SymbolReference::SymbolReference(std::string_view name, const_pattern_t pattern)
+    : myName(name)
+    , myPattern(pattern)
+{
+}
+
 SymbolReference::SymbolReference(const char* name, const_pattern_t pattern)
     : myName(name)
     , myPattern(pattern)
 {
 }
 
-SymbolReference::SymbolReference(std::string const& name, const_pattern_t pattern)
-    : myName(name.c_str())
-    , myPattern(pattern)
-{
-}
-
 SymbolReference::SymbolReference(Symbol const& sym)
-    : SymbolReference(sym.token().lexeme().c_str(), sym.prototype().pattern())
+    : SymbolReference(sym.token().lexeme(), sym.prototype().pattern())
 {
 }
 
-SymbolReference::SymbolReference(std::string const& name)
-    : SymbolReference(name.c_str(), pattern_t())
+SymbolReference::SymbolReference(std::string_view name)
+    : SymbolReference(name, pattern_t())
 {
 }
 
@@ -301,7 +301,7 @@ SymbolReference::SymbolReference(const char* name)
 
 SymbolReference::~SymbolReference() = default;
 
-const char* SymbolReference::name() const
+std::string_view SymbolReference::name() const
 {
     return myName;
 }
@@ -329,12 +329,12 @@ std::vector<Candidate>::const_iterator CandidateSet::end() const
     return myCandidates.end();
 }
 
-Candidate const& CandidateSet::operator[](std::size_t index) const
+Candidate const& CandidateSet::operator[](uz index) const
 {
     return myCandidates[index];
 }
 
-Candidate& CandidateSet::operator[](std::size_t index)
+Candidate& CandidateSet::operator[](uz index)
 {
     return myCandidates[index];
 }
@@ -362,9 +362,9 @@ void CandidateSet::append(VarianceResult const& v, Prototype& proto, Substitutio
 //
 // SymbolSpace
 
-SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string const& name)
+SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string name)
     : myScope(scope)
-    , myName(name)
+    , myName(std::move(name))
 {
 }
 
@@ -394,7 +394,7 @@ void SymbolSpace::swap(SymbolSpace& rhs)
     swap(myPrototypes, rhs.myPrototypes);
 }
 
-std::string const& SymbolSpace::name() const
+std::string_view SymbolSpace::name() const
 {
     return myName;
 }
@@ -485,20 +485,20 @@ SymbolSpace::instantiate(Context& ctx,
                          Prototype& proto,
                          Substitutions&& substs)
 {
-    for ( std::size_t i = 0; i < substs.size(); ++i ) {
+    for ( uz i = 0; i < substs.size(); ++i ) {
         if ( needsSubstitution(substs.expr(i)) )
             throw std::runtime_error("cannot instantiate template with unbound symbol variable");
     }
 
     // use existing instantiation if it exists
-    for ( std::size_t i = 0; i < proto.instances.size(); ++i ) {
+    for ( uz i = 0; i < proto.instances.size(); ++i ) {
         auto const& inst = proto.instances[i];
         auto const& instVars = inst.params->symbolVariables();
         if ( instVars.size() != substs.size() )
             throw std::runtime_error("invalid template instance");
 
         auto l = begin(instVars);
-        std::size_t r = 0;
+        uz r = 0;
         while ( l != end(instVars) ) {
             auto lhs = (*l)->boundExpression();
             if ( !lhs )

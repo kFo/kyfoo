@@ -1,8 +1,8 @@
 #pragma once
 
 #include <array>
-#include <memory>
 
+#include <kyfoo/Types.hpp>
 #include <kyfoo/ast/Module.hpp>
 
 namespace kyfoo::ast {
@@ -146,7 +146,7 @@ public:
 
 protected:
     friend class ModuleSet;
-    AxiomsModule(ModuleSet* moduleSet, std::string const& name);
+    AxiomsModule(ModuleSet* moduleSet, std::string name);
     
     bool init(Diagnostics& dgn);
 
@@ -185,7 +185,7 @@ public:
     IntegerMetaData const* integerMetaData(Declaration const& decl) const;
 
 private:
-    void setIntrinsic(std::string const& name, Declaration const* decl);
+    void setIntrinsic(std::string_view name, Declaration const* decl);
     void findIntrinsics(DeclarationScope const* s);
 
     DataSumDeclaration const* myDataSumDecls[DataSumIntrinsicsCount];

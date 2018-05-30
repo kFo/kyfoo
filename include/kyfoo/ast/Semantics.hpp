@@ -200,13 +200,13 @@ struct SymbolDependencyTracker
 {
     struct SymGroup {
         std::string name;
-        std::size_t arity;
+        uz arity;
         int pass = 0;
         std::vector<Declaration*> declarations;
         std::vector<SymGroup*> dependents;
 
-        SymGroup(std::string const& name, std::size_t arity)
-            : name(name)
+        SymGroup(std::string name, uz arity)
+            : name(std::move(name))
             , arity(arity)
         {
         }
@@ -250,17 +250,17 @@ struct SymbolDependencyTracker
 
     Module& mod;
     Diagnostics& dgn;
-    std::vector<std::unique_ptr<SymGroup>> groups;
+    std::vector<Box<SymGroup>> groups;
 
     SymbolDependencyTracker(Module& mod, Diagnostics& dgn);
 
-    SymGroup* create(std::string const& name, std::size_t arity);
-    SymGroup* findOrCreate(std::string const& name, std::size_t arity);
+    SymGroup* create(std::string name, uz arity);
+    SymGroup* findOrCreate(std::string_view name, uz arity);
 
     void add(Declaration& decl);
     void addDependency(Declaration& decl,
-                       std::string const& name,
-                       std::size_t arity);
+                       std::string_view name,
+                       uz arity);
 
     void sortPasses();
 };
@@ -342,7 +342,7 @@ std::ostream& print(std::ostream& stream, Expression const& expr);
 std::ostream& print(std::ostream& stream, Statement  const& stmt);
 std::ostream& print(std::ostream& stream, Junction   const& junc);
 
-std::size_t level(Expression const& expr);
+uz level(Expression const& expr);
 
     } // namespace ast
 } // namespace kyfoo

@@ -18,7 +18,7 @@ Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Item> items)
     if ( symVarCount != items.size() )
         throw std::runtime_error("substitution mismatch");
 
-    for ( std::size_t i = 0; i < symVarCount; ++i ) {
+    for ( uz i = 0; i < symVarCount; ++i ) {
         if ( !bind(*items[i].symVar, *items[i].expr) )
             throw std::runtime_error("substituion mismatch");
     }
@@ -31,7 +31,7 @@ Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Expression c
     if ( symVarCount != exprs.size() )
         throw std::runtime_error("substitution mismatch");
 
-    for ( std::size_t i = 0; i < symVarCount; ++i ) {
+    for ( uz i = 0; i < symVarCount; ++i ) {
         if ( !bind(*symVars[i], *exprs[i]) )
             throw std::runtime_error("substituion mismatch");
     }
@@ -59,7 +59,7 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression const*>
             return;
         }
 
-        for ( std::size_t i = 0; i < paramCount; ++i ) {
+        for ( uz i = 0; i < paramCount; ++i ) {
             auto const ordinal = proc->ordinals()[i];
             if ( ordinal == -1 ) {
                 if ( targetPattern[i]->type() )
@@ -94,7 +94,7 @@ bool Substitutions::deduce(Slice<Expression const*> target, Slice<Expression con
         return false;
 
     bool ret = true;
-    for ( std::size_t i = 0; i < n; ++i )
+    for ( uz i = 0; i < n; ++i )
         ret &= deduce(*target[i], *query[i]);
 
     return ret;
@@ -215,17 +215,17 @@ bool Substitutions::empty() const
     return myVariables.empty();
 }
 
-std::size_t Substitutions::size() const
+uz Substitutions::size() const
 {
     return myVariables.size();
 }
 
-SymbolVariable const& Substitutions::var(std::size_t index) const
+SymbolVariable const& Substitutions::var(uz index) const
 {
     return *myVariables[index];
 }
 
-Expression const& Substitutions::expr(std::size_t index) const
+Expression const& Substitutions::expr(uz index) const
 {
     return *myContexts[index];
 }
@@ -250,7 +250,7 @@ Substitutions::operator bool() const
     return myState == 0;
 }
 
-std::size_t Substitutions::findVarIndex(SymbolVariable const& symVar)
+uz Substitutions::findVarIndex(SymbolVariable const& symVar)
 {
     return distance(begin(myVariables), find(begin(myVariables), end(myVariables), &symVar));
 }

@@ -4,11 +4,11 @@
 
 #include <iomanip>
 #include <istream>
-#include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
 
+#include <kyfoo/Types.hpp>
 #include <kyfoo/lexer/Token.hpp>
 
 namespace kyfoo::ast {
@@ -51,22 +51,21 @@ public:
     PRIMITIVE_TYPES(X);
 #undef X
 
-    virtual void next(const char* name, std::string const& string) = 0;
-    virtual void next(const char* name, const char* string) = 0;
+    virtual void next(const char* name, std::string_view string) = 0;
     virtual void next(const char* name, IIO const& io) = 0;
     virtual void next(const char* name, IIO const* io) = 0;
     virtual void next(const char* name, lexer::Token const& token) = 0;
 
 public:
     template <typename T>
-    void next(const char* name, std::unique_ptr<T> const& p)
+    void next(const char* name, Box<T> const& p)
     {
         IIO* ptr = p.get();
         next(name, ptr);
     }
 
     template <typename T>
-    void next(const char* name, std::vector<std::unique_ptr<T>> const & v)
+    void next(const char* name, std::vector<Box<T>> const & v)
     {
         openArray(name);
         for ( auto&& e : v )
@@ -144,12 +143,7 @@ public:
     PRIMITIVE_TYPES(X)
 #undef X
 
-    void next(const char* name, std::string const& string) override
-    {
-        next(name, string.c_str());
-    }
-
-    void next(const char* name, const char* string) override
+    void next(const char* name, std::string_view string) override
     {
         newLine();
         key(name);

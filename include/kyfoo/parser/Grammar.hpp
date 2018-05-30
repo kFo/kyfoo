@@ -1,10 +1,10 @@
 #pragma once
 
-#include <memory>
 #include <tuple>
 #include <utility>
 #include <variant>
 
+#include <kyfoo/Types.hpp>
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
 
@@ -20,14 +20,16 @@ namespace kyfoo {
 // Keep out of kyfoo::parser namespace to reduce decorated name length
 namespace g {
 
-template <kyfoo::lexer::TokenKind K>
+using namespace kyfoo;
+
+template <lexer::TokenKind K>
 class Terminal
 {
 public:
     Terminal() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         if ( scan.peek().kind() != K )
             return false;
@@ -37,23 +39,23 @@ public:
         return scan.commit();
     }
 
-    kyfoo::lexer::Token const& token() const
+    lexer::Token const& token() const
     {
         return myCapture;
     }
 
-    kyfoo::lexer::Token& token()
+    lexer::Token& token()
     {
         return myCapture;
     }
 
-    kyfoo::lexer::Token const& make(kyfoo::parser::DeclarationScopeParser&) const
+    lexer::Token const& make(parser::DeclarationScopeParser&) const
     {
         return token();
     }
 
 private:
-    kyfoo::lexer::Token myCapture;
+    lexer::Token myCapture;
 };
 
 template <typename... T>
@@ -89,7 +91,7 @@ public:
     }
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         if ( subMatch<0>(scan, matches) ) {
             return scan.commit();
@@ -98,26 +100,26 @@ public:
         return false;
     }
 
-    template <std::size_t N>
+    template <uz N>
     auto const& factor() const
     {
         return std::get<N>(myFactors);
     }
 
-    template <std::size_t N>
+    template <uz N>
     auto& factor()
     {
         return std::get<N>(myFactors);
     }
 
 private:
-    template <std::size_t N>
-    bool subMatch(kyfoo::lexer::ScanPoint& scan,
-                  std::size_t& matches)
+    template <uz N>
+    bool subMatch(lexer::ScanPoint& scan,
+                  uz& matches)
     {
-        std::size_t m0 = 0;
+        uz m0 = 0;
         if ( std::get<N>(myFactors).match(scan, m0) ) {
-            std::size_t m1 = 0;
+            uz m1 = 0;
             if ( subMatch<N + 1>(scan, m1) ) {
                 matches += m0 + m1;
                 return true;
@@ -128,7 +130,7 @@ private:
     }
 
     template<>
-    bool subMatch<sizeof...(T)>(kyfoo::lexer::ScanPoint&, std::size_t&)
+    bool subMatch<sizeof...(T)>(lexer::ScanPoint&, uz&)
     {
         return true;
     }
@@ -140,13 +142,13 @@ private:
 template <typename T, template <typename...> class G, typename... Branches>
 struct MonomorphicMaker
 {
-    static T make(kyfoo::parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
+    static T make(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
         return make<0>(parser, rhs);
     }
 
-    template <std::size_t N>
-    static T make(kyfoo::parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
+    template <uz N>
+    static T make(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
         if ( rhs.index() == N )
             return rhs.term<N>().make(parser);
@@ -155,7 +157,7 @@ struct MonomorphicMaker
     }
 
     template <>
-    static T make<sizeof...(Branches)>(kyfoo::parser::DeclarationScopeParser&, G<Branches...>&)
+    static T make<sizeof...(Branches)>(parser::DeclarationScopeParser&, G<Branches...>&)
     {
         throw std::runtime_error("invalid or make");
     }
@@ -194,9 +196,9 @@ public:
     }
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m = 0;
+        uz m = 0;
         myTerms.emplace<0>();
         if ( std::get<0>(myTerms).match(scan, m) ) {
             matches += m;
@@ -212,42 +214,42 @@ public:
         return false;
     }
 
-    std::size_t index() const
+    uz index() const
     {
         return myTerms.index();
     }
 
-    template <std::size_t N>
+    template <uz N>
     auto const& term() const
     {
         return std::get<N>(myTerms);
     }
 
-    template <std::size_t N>
+    template <uz N>
     auto& term()
     {
         return std::get<N>(myTerms);
     }
 
     template <typename AST>
-    AST monoMake(kyfoo::parser::DeclarationScopeParser& parser)
+    AST monoMake(parser::DeclarationScopeParser& parser)
     {
         return MonomorphicMaker<AST, g::Or, T...>::make<0>(parser, *this);
     }
 
     template <typename AST>
-    std::unique_ptr<AST> monoMakePtr(kyfoo::parser::DeclarationScopeParser& parser)
+    Box<AST> monoMakePtr(parser::DeclarationScopeParser& parser)
     {
-        return MonomorphicMaker<std::unique_ptr<AST>, g::Or, T...>::make<0>(parser, *this);
+        return MonomorphicMaker<Box<AST>, g::Or, T...>::make<0>(parser, *this);
     }
 
 private:
     template <int N>
-    bool subMatch(kyfoo::lexer::ScanPoint& scan, std::size_t& matches)
+    bool subMatch(lexer::ScanPoint& scan, uz& matches)
     {
         scan.restart();
 
-        std::size_t m = 0;
+        uz m = 0;
         myTerms.emplace<N>();
         if ( std::get<N>(myTerms).match(scan, m) ) {
             matches += m;
@@ -258,7 +260,7 @@ private:
     }
 
     template <>
-    bool subMatch<sizeof...(T)>(kyfoo::lexer::ScanPoint&, std::size_t&)
+    bool subMatch<sizeof...(T)>(lexer::ScanPoint&, uz&)
     {
         return false;
     }
@@ -297,12 +299,12 @@ public:
     }
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t longest = 0;
-        std::size_t length = 0;
+        uz longest = 0;
+        uz length = 0;
 
-        std::size_t m = 0;
+        uz m = 0;
         if ( std::get<0>(myTerms).match(scan, m) ) {
             length = m;
         }
@@ -322,18 +324,18 @@ public:
         return scan.commit();
     }
 
-    std::size_t index() const
+    uz index() const
     {
         return myCapture;
     }
 
-    template <std::size_t N>
+    template <uz N>
     auto const& term() const
     {
         return std::get<N>(myTerms);
     }
 
-    template <std::size_t N>
+    template <uz N>
     auto& term()
     {
         return std::get<N>(myTerms);
@@ -341,13 +343,13 @@ public:
 
 private:
     template <int N>
-    void subMatch(kyfoo::lexer::ScanPoint& scan,
-                  std::size_t& longest,
-                  std::size_t& length)
+    void subMatch(lexer::ScanPoint& scan,
+                  uz& longest,
+                  uz& length)
     {
         scan.restart();
 
-        std::size_t m = 0;
+        uz m = 0;
         if ( std::get<N>(myTerms).match(scan, m) && m > length ) {
             longest = N;
             length = m;
@@ -357,24 +359,24 @@ private:
     }
 
     template <>
-    void subMatch<sizeof...(T)>(kyfoo::lexer::ScanPoint&,
-                                std::size_t&,
-                                std::size_t&)
+    void subMatch<sizeof...(T)>(lexer::ScanPoint&,
+                                uz&,
+                                uz&)
     {
         // nop
     }
 
-    bool match_nth(std::size_t index,
-                   kyfoo::lexer::ScanPoint& scan,
-                   std::size_t& matches)
+    bool match_nth(uz index,
+                   lexer::ScanPoint& scan,
+                   uz& matches)
     {
         return match_nth_impl<0>(index, scan, matches);
     }
 
-    template <std::size_t N>
-    bool match_nth_impl(std::size_t index,
-                        kyfoo::lexer::ScanPoint& scan,
-                        std::size_t& matches)
+    template <uz N>
+    bool match_nth_impl(uz index,
+                        lexer::ScanPoint& scan,
+                        uz& matches)
     {
         if ( N == index )
             return std::get<N>(myTerms).match(scan, matches);
@@ -383,16 +385,16 @@ private:
     }
 
     template <>
-    bool match_nth_impl<sizeof...(T)>(std::size_t,
-                                      kyfoo::lexer::ScanPoint&,
-                                      std::size_t&)
+    bool match_nth_impl<sizeof...(T)>(uz,
+                                      lexer::ScanPoint&,
+                                      uz&)
     {
         return false;
     }
 
 private:
     std::tuple<T...> myTerms;
-    std::size_t myCapture = 0;
+    uz myCapture = 0;
 };
 
 template <typename T>
@@ -402,7 +404,7 @@ public:
     Opt() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         if ( myRhs.match(scan, matches) ) {
             myCapture = true;
@@ -439,11 +441,11 @@ public:
     Repeat() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         myCaptures.clear();
 
-        std::size_t m = 0;
+        uz m = 0;
         T pattern
         while ( pattern.match(scan, m) ) {
             matches += m;
@@ -470,11 +472,11 @@ public:
     Repeat2() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         myCaptures.clear();
 
-        std::size_t m0 = 0;
+        uz m0 = 0;
         U pattern;
         if ( !pattern.match(scan, m0) )
             return scan.commit();
@@ -485,7 +487,7 @@ public:
 
         for (;;) {
             m0 = 0;
-            std::size_t m1 = 0;
+            uz m1 = 0;
             V weave;
             if ( !weave.match(scan, m0) || !pattern.match(scan, m1) ) 
                 break;
@@ -521,11 +523,11 @@ public:
     OneOrMore() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         myCaptures.clear();
 
-        std::size_t m = 0;
+        uz m = 0;
         T pattern;
         if ( !pattern.match(scan, m) )
             return false;
@@ -563,11 +565,11 @@ public:
     OneOrMore2() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         myCaptures.clear();
 
-        std::size_t m0 = 0;
+        uz m0 = 0;
         U pattern;
         if ( !pattern.match(scan, m0) )
             return false;
@@ -577,7 +579,7 @@ public:
 
         for (;;) {
             m0 = 0;
-            std::size_t m1 = 0;
+            uz m1 = 0;
             V weave;
             if ( !weave.match(scan, m0) || !pattern.match(scan, m1) )
                 break;
@@ -603,14 +605,14 @@ private:
     CaptureVector myCaptures;
 };
 
-template <kyfoo::lexer::TokenKind Open, kyfoo::lexer::TokenKind Close>
+template <lexer::TokenKind Open, lexer::TokenKind Close>
 class Nest
 {
 public:
     explicit Nest() = default;
 
 public:
-    bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    bool match(lexer::ScanPoint scan, uz& matches)
     {
         if ( scan.peek().kind() != Open )
             return false;
@@ -634,18 +636,18 @@ public:
         return scan.commit();
     }
 
-    std::deque<kyfoo::lexer::Token> const& captures() const
+    std::deque<lexer::Token> const& captures() const
     {
         return myCaptures;
     }
 
-    std::deque<kyfoo::lexer::Token>& captures()
+    std::deque<lexer::Token>& captures()
     {
         return myCaptures;
     }
 
 private:
-    std::deque<kyfoo::lexer::Token> myCaptures;
+    std::deque<lexer::Token> myCaptures;
 };
 
 template <typename... U, typename... V>

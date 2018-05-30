@@ -1,7 +1,8 @@
 #pragma once
 
 #include <filesystem>
-#include <memory>
+
+#include <kyfoo/Types.hpp>
 
 namespace kyfoo {
 
@@ -29,7 +30,7 @@ public:
 
 private:
     struct LLVMState;
-    std::unique_ptr<LLVMState> myImpl;
+    Box<LLVMState> myImpl;
 };
 
     } // namespace codegen

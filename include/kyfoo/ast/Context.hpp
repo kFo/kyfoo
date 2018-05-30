@@ -1,9 +1,9 @@
 #pragma once
 
 #include <functional>
-#include <memory>
 #include <vector>
 
+#include <kyfoo/Types.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
@@ -77,7 +77,7 @@ public:
         DisableCacheTemplateInstantiations = 1 << 0,
     };
 
-    using options_t = std::uint32_t;
+    using options_t = kyfoo::u32;
 
 public:
     Context(Module& module, Diagnostics& dgn, Resolver& resolver, options_t options);
@@ -102,23 +102,23 @@ public:
     Error& error(lexer::Token const& token);
     Error& error(Expression const& expr);
     Error& error(Declaration const& decl);
-    std::size_t errorCount() const;
+    uz errorCount() const;
 
     LookupHit matchOverload(SymbolReference const& sym) const;
 
     Resolver* changeResolver(Resolver& resolver);
     Statement* changeStatement(Statement* statement);
 
-    SymRes rewrite(std::unique_ptr<Expression> expr);
-    SymRes rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func);
+    SymRes rewrite(Box<Expression> expr);
+    SymRes rewrite(std::function<Box<Expression>(Box<Expression>&)> func);
 
     SymRes resolveDeclaration(Declaration& declaration);
 
     SymRes resolveExpression(Expression& expression);
-    SymRes resolveExpression(std::unique_ptr<Expression>& expression);
-    SymRes resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
-                              std::vector<std::unique_ptr<Expression>>::iterator right);
-    SymRes resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions);
+    SymRes resolveExpression(Box<Expression>& expression);
+    SymRes resolveExpressions(std::vector<Box<Expression>>::iterator left,
+                              std::vector<Box<Expression>>::iterator right);
+    SymRes resolveExpressions(std::vector<Box<Expression>>& expressions);
 
     SymRes resolveStatement(Statement& stmt);
     SymRes resolveStatements(std::vector<Statement>::iterator left,
@@ -133,8 +133,8 @@ private:
     Resolver* myResolver = nullptr;
     options_t myOptions = 0;
     Statement* myStatement = nullptr;
-    std::unique_ptr<Expression> myRewrite;
-    std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> myLazyRewrite;
+    Box<Expression> myRewrite;
+    std::function<Box<Expression>(Box<Expression>&)> myLazyRewrite;
     int myExpressionDepth = -1;
 };
 

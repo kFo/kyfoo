@@ -3,11 +3,11 @@
 #include <deque>
 #include <vector>
 
-#include "Token.hpp"
+#include <kyfoo/lexer/Token.hpp>
 
 namespace kyfoo::lexer {
 
-using indent_width_t = std::size_t;
+using indent_width_t = uz;
 
 class Scanner
 {
@@ -22,7 +22,7 @@ public:
 
 public:
     Token next();
-    Token peek(std::size_t = 0);
+    Token peek(uz = 0);
 
     void beginScan();
     void endScan();
@@ -53,7 +53,7 @@ private:
 
     struct InternalScanState
     {
-        std::size_t readIndex;
+        uz readIndex;
     };
     InternalScanState myState;
 
@@ -115,7 +115,7 @@ public:
         return myScanner.next();
     }
 
-    Token peek(std::size_t lookAhead = 0)
+    Token peek(uz lookAhead = 0)
     {
         return myScanner.peek(lookAhead);
     }

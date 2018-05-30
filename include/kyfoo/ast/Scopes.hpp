@@ -1,10 +1,10 @@
 #pragma once
 
 #include <map>
-#include <memory>
 #include <tuple>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Types.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
@@ -206,10 +206,10 @@ public:
 
 public:
     void setDeclaration(Declaration* declaration);
-    void append(std::unique_ptr<Declaration> declaration);
-    void append(std::unique_ptr<DeclarationScope> definition);
-    void appendLambda(std::unique_ptr<ProcedureDeclaration> proc,
-                      std::unique_ptr<ProcedureScope> defn);
+    void append(Box<Declaration> declaration);
+    void append(Box<DeclarationScope> definition);
+    void appendLambda(Box<ProcedureDeclaration> proc,
+                      Box<ProcedureScope> defn);
     void import(Module& module);
     void merge(DeclarationScope& rhs);
 
@@ -218,12 +218,12 @@ public:
 protected:
     LookupHit findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
 
-    SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string const& name);
+    SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string_view name);
     bool addSymbol(Diagnostics& dgn,
                    Symbol const& sym,
                    Declaration& decl);
 
-    SymbolSpace* findSymbolSpace(std::string const& name) const;
+    SymbolSpace* findSymbolSpace(std::string_view name) const;
 
 public:
     Module& module();
@@ -247,9 +247,9 @@ protected:
     Module* myModule = nullptr;
     Declaration* myDeclaration = nullptr;
     DeclarationScope* myParent = nullptr;
-    std::vector<std::unique_ptr<Declaration>> myDeclarations;
-    std::vector<std::unique_ptr<DeclarationScope>> myDefinitions;
-    std::vector<std::unique_ptr<ProcedureDeclaration>> myLambdas;
+    std::vector<Box<Declaration>> myDeclarations;
+    std::vector<Box<DeclarationScope>> myDefinitions;
+    std::vector<Box<ProcedureDeclaration>> myLambdas;
 
     mutable std::vector<SymbolSpace> mySymbols;
     mutable std::map<std::string, ImportDeclaration*> myImports;
@@ -319,11 +319,11 @@ public:
 
 public:
     SymRes resolveConstructors(Module& endModule, Diagnostics& dgn);
-    std::unique_ptr<ProcedureDeclaration> createDefaultConstructor();
+    Box<ProcedureDeclaration> createDefaultConstructor();
     TemplateDeclaration* reflectBuilder(TemplateDeclaration const& ctorTempl);
 
     void resolveDestructor(Module& endModule, Diagnostics& dgn);
-    std::unique_ptr<ProcedureDeclaration> createDefaultDestructor();
+    Box<ProcedureDeclaration> createDefaultDestructor();
 
     DataProductDeclaration* declaration();
 
@@ -394,7 +394,7 @@ public:
     Slice<BasicBlock const*> basicBlocks() const;
 
 public:
-    void append(std::unique_ptr<Expression> expr);
+    void append(Box<Expression> expr);
     BasicBlock* createBasicBlock();
     void popBasicBlock();
     ProcedureScope* createChildScope(BasicBlock* mergeBlock,
@@ -410,8 +410,8 @@ private:
     lexer::Token myOpenToken;
     lexer::Token myLabel;
 
-    std::vector<std::unique_ptr<ProcedureScope>> myChildScopes;
-    std::vector<std::unique_ptr<BasicBlock>> myBasicBlocks;
+    std::vector<Box<ProcedureScope>> myChildScopes;
+    std::vector<Box<BasicBlock>> myBasicBlocks;
 
     mutable std::vector<Extent> myExtents;
 };

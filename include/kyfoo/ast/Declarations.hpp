@@ -1,6 +1,6 @@
 #pragma once
 
-#include <memory>
+#include <kyfoo/Types.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
 
@@ -98,21 +98,21 @@ public:
     DeclarationScope const& scope() const;
     void setScope(DeclarationScope& parent);
 
-    void setAttributes(std::vector<std::unique_ptr<Expression>>&& exprs);
+    void setAttributes(std::vector<Box<Expression>>&& exprs);
     Slice<Statement const> attributes() const;
     Slice<Statement> attributes();
 
     codegen::CustomData* codegenData();
     codegen::CustomData* codegenData() const;
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data);
-    void setCodegenData(std::unique_ptr<codegen::CustomData> data) const;
+    void setCodegenData(Box<codegen::CustomData> data);
+    void setCodegenData(Box<codegen::CustomData> data) const;
 
 protected:
     DeclKind myKind;
-    std::unique_ptr<Symbol> mySymbol;
+    Box<Symbol> mySymbol;
     DeclarationScope* myScope = nullptr;
     std::vector<Statement> myAttributes;
-    mutable std::unique_ptr<codegen::CustomData> myCodeGenData;
+    mutable Box<codegen::CustomData> myCodeGenData;
 };
 
 class DefinableDeclaration : public Declaration
@@ -189,7 +189,7 @@ public:
     {
     public:
         Constructor(Symbol&& symbol,
-                    std::vector<std::unique_ptr<VariableDeclaration>>&& pattern);
+                    std::vector<Box<VariableDeclaration>>&& pattern);
 
     protected:
         Constructor(Constructor const& rhs);
@@ -220,7 +220,7 @@ public:
 
     private:
         DataSumDeclaration* myParent = nullptr;
-        std::vector<std::unique_ptr<VariableDeclaration>> myPattern;
+        std::vector<Box<VariableDeclaration>> myPattern;
     };
 
 public:
@@ -255,7 +255,7 @@ protected:
     Binder(DeclKind kind,
            Symbol&& symbol,
            DeclarationScope* scope,
-           std::vector<std::unique_ptr<Expression>> constraints);
+           std::vector<Box<Expression>> constraints);
 
     Binder(DeclKind kind,
            Symbol&& symbol,
@@ -284,8 +284,8 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    void addConstraint(std::unique_ptr<Expression> c);
-    void addConstraints(std::vector<std::unique_ptr<Expression>>&& exprs);
+    void addConstraint(Box<Expression> c);
+    void addConstraints(std::vector<Box<Expression>>&& exprs);
 
     Slice<Expression*> constraints();
     Slice<Expression const*> const constraints() const;
@@ -293,7 +293,7 @@ public:
     Expression const* type() const;
 
 private:
-    std::vector<std::unique_ptr<Expression>> myConstraints;
+    std::vector<Box<Expression>> myConstraints;
     Expression const* myType = nullptr;
 };
 
@@ -307,8 +307,8 @@ public:
     {
     public:
         Field(Symbol&& symbol,
-              std::vector<std::unique_ptr<Expression>> constraints,
-              std::unique_ptr<Expression> init);
+              std::vector<Box<Expression>> constraints,
+              Box<Expression> init);
 
     protected:
         Field(Field const& rhs);
@@ -339,7 +339,7 @@ public:
 
     private:
         DataProductDeclaration* myParent = nullptr;
-        std::unique_ptr<Expression> myInitializer;
+        Box<Expression> myInitializer;
     };
 
 public:
@@ -372,7 +372,7 @@ class SymbolDeclaration : public Declaration
 {
 public:
     SymbolDeclaration(Symbol&& symbol,
-                      std::unique_ptr<Expression> expression);
+                      Box<Expression> expression);
 
 protected:
     SymbolDeclaration(SymbolDeclaration const& rhs);
@@ -401,7 +401,7 @@ public:
     Expression const* expression() const;
 
 private:
-    std::unique_ptr<Expression> myExpression;
+    Box<Expression> myExpression;
 };
 
 class VariableDeclaration : public Binder
@@ -409,7 +409,7 @@ class VariableDeclaration : public Binder
 public:
     VariableDeclaration(Symbol&& symbol,
                         ProcedureScope& scope,
-                        std::vector<std::unique_ptr<Expression>> constraints);
+                        std::vector<Box<Expression>> constraints);
 
     VariableDeclaration(Symbol&& symbol,
                         ProcedureScope& scope,
@@ -447,7 +447,7 @@ public:
 public:
     ProcedureParameter(Symbol&& symbol,
                        ProcedureDeclaration& proc,
-                       std::vector<std::unique_ptr<Expression>>&& constraints);
+                       std::vector<Box<Expression>>&& constraints);
 
     ProcedureParameter(Symbol&& symbol,
                        ProcedureDeclaration& proc,
@@ -483,7 +483,7 @@ public:
 
 public:
     ProcedureDeclaration(Symbol&& symbol,
-                         std::unique_ptr<Expression> returnExpression);
+                         Box<Expression> returnExpression);
 
 protected:
     ProcedureDeclaration(ProcedureDeclaration const& rhs);
@@ -520,17 +520,17 @@ public:
     ProcedureParameter const* result() const;
 
     Slice<int const> ordinals() const;
-    ProcedureParameter* findParameter(std::string const& token);
-    ProcedureParameter const* findParameter(std::string const& token) const;
+    ProcedureParameter* findParameter(std::string_view token);
+    ProcedureParameter const* findParameter(std::string_view token) const;
 
 private:
-    std::unique_ptr<ArrowExpression> myType;
-    std::unique_ptr<Expression> myReturnExpression; // todo: merge with myResult
+    Box<ArrowExpression> myType;
+    Box<Expression> myReturnExpression; // todo: merge with myResult
 
-    std::vector<std::unique_ptr<ProcedureParameter>> myParameters;
+    std::vector<Box<ProcedureParameter>> myParameters;
     std::vector<int> myOrdinals;
 
-    std::unique_ptr<ProcedureParameter> myResult;
+    Box<ProcedureParameter> myResult;
 };
 
 class ImportDeclaration : public Declaration

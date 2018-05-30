@@ -222,19 +222,19 @@ void Diagnostics::die()
 
 Error& Diagnostics::error(ast::Module const& module)
 {
-    myErrors.emplace_back(std::make_unique<Error>(module));
+    myErrors.emplace_back(mk<Error>(module));
     return *myErrors.back();
 }
 
 Error& Diagnostics::error(ast::Module const& module, lexer::Token const& token)
 {
-    myErrors.emplace_back(std::make_unique<Error>(module, token));
+    myErrors.emplace_back(mk<Error>(module, token));
     return *myErrors.back();
 }
 
 Error& Diagnostics::error(ast::Module const& module, ast::Expression const& expr)
 {
-    myErrors.emplace_back(std::make_unique<Error>(module, expr, Error::Code::General));
+    myErrors.emplace_back(mk<Error>(module, expr, Error::Code::General));
     return *myErrors.back();
 }
 
@@ -255,7 +255,7 @@ Error& Diagnostics::error(ast::Module const& module, ast::Declaration const& dec
 
 Error& Diagnostics::undeclared(ast::Module const& module, lexer::Token const& token)
 {
-    myErrors.emplace_back(std::make_unique<Error>(module, token, Error::Undeclared));
+    myErrors.emplace_back(mk<Error>(module, token, Error::Undeclared));
     return *myErrors.back();
 }
 
@@ -265,12 +265,12 @@ void Diagnostics::dumpErrors(std::ostream& stream)
         stream << *e;
 }
 
-std::size_t Diagnostics::errorCount() const
+uz Diagnostics::errorCount() const
 {
     return myErrors.size();
 }
 
-void Diagnostics::bunkExpression(std::unique_ptr<ast::Expression> expr)
+void Diagnostics::bunkExpression(Box<ast::Expression> expr)
 {
     myBunkedExpressions.emplace_back(std::move(expr));
 }

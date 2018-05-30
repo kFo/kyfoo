@@ -4,7 +4,7 @@
 #include <functional>
 
 #include <kyfoo/Diagnostics.hpp>
-#include <kyfoo/Utility.hpp>
+#include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
@@ -196,20 +196,20 @@ void DeclarationScope::setDeclaration(Declaration* declaration)
     myDeclaration = declaration;
 }
 
-void DeclarationScope::append(std::unique_ptr<Declaration> declaration)
+void DeclarationScope::append(Box<Declaration> declaration)
 {
     myDeclarations.emplace_back(std::move(declaration));
     myDeclarations.back()->setScope(*this);
 }
 
-void DeclarationScope::append(std::unique_ptr<DeclarationScope> definition)
+void DeclarationScope::append(Box<DeclarationScope> definition)
 {
     myDefinitions.emplace_back(std::move(definition));
     myDefinitions.back()->myParent = this;
 }
 
-void DeclarationScope::appendLambda(std::unique_ptr<ProcedureDeclaration> proc,
-                                    std::unique_ptr<ProcedureScope> defn)
+void DeclarationScope::appendLambda(Box<ProcedureDeclaration> proc,
+                                    Box<ProcedureScope> defn)
 {
     myLambdas.emplace_back(std::move(proc));
     myLambdas.back()->setScope(*this);
@@ -218,7 +218,7 @@ void DeclarationScope::appendLambda(std::unique_ptr<ProcedureDeclaration> proc,
 
 void DeclarationScope::import(Module& module)
 {
-    append(std::make_unique<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, module.name()))));
+    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, std::string(module.name())))));
 }
 
 void DeclarationScope::merge(DeclarationScope& rhs)
@@ -232,14 +232,14 @@ void DeclarationScope::merge(DeclarationScope& rhs)
     rhs.myDeclarations.clear();
 }
 
-SymbolSpace* DeclarationScope::createSymbolSpace(Diagnostics&, std::string const& name)
+SymbolSpace* DeclarationScope::createSymbolSpace(Diagnostics&, std::string_view name)
 {
-    auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
+    auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
     auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( l != end(mySymbols) && l->name() == name )
         return &*l;
 
-    l = mySymbols.insert(l, SymbolSpace(this, name));
+    l = mySymbols.insert(l, SymbolSpace(this, std::string(name)));
     return &*l;
 }
 
@@ -272,9 +272,9 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
     return true;
 }
 
-SymbolSpace* DeclarationScope::findSymbolSpace(std::string const& name) const
+SymbolSpace* DeclarationScope::findSymbolSpace(std::string_view name) const
 {
-    auto symLess = [](SymbolSpace const& s, std::string const& name) { return s.name() < name; };
+    auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
     auto symSet = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( symSet != end(mySymbols) && symSet->name() == name )
         return &*symSet;
@@ -477,16 +477,16 @@ SymRes DataProductScope::resolveConstructors(Module& endModule, Diagnostics& dgn
     return ret;
 }
 
-std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultConstructor()
+Box<ProcedureDeclaration> DataProductScope::createDefaultConstructor()
 {
     return nullptr;
 }
 
 TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const& ctorTempl)
 {
-    auto builder = std::make_unique<TemplateDeclaration>(makeSym(makeToken("mk"),
+    auto builder = mk<TemplateDeclaration>(makeSym(makeToken("mk"),
                                                                  createPtrList<Expression>(createIdentifier(*declaration()))));
-    auto builderDefn = std::make_unique<TemplateScope>(*module().scope(), *builder);
+    auto builderDefn = mk<TemplateScope>(*module().scope(), *builder);
 
     auto const defn = ctorTempl.definition();
     for ( auto const& d : defn->childDeclarations() ) {
@@ -495,18 +495,18 @@ TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const&
             if ( !procCtor )
                 continue;
 
-            auto proc = std::make_unique<ProcedureDeclaration>(copyProcSym(d->symbol()),
+            auto proc = mk<ProcedureDeclaration>(copyProcSym(d->symbol()),
                                                                createIdentifier(*declaration()));
-            auto procDefn = std::make_unique<ProcedureScope>(*builderDefn, *proc);
+            auto procDefn = mk<ProcedureScope>(*builderDefn, *proc);
 
-            auto v_ = std::make_unique<VariableDeclaration>(Symbol(makeToken("r")),
+            auto v_ = mk<VariableDeclaration>(Symbol(makeToken("r")),
                                                             *procDefn,
                                                             createPtrList<Expression>(createIdentifier(*declaration())));
             auto v = v_.get();
             static_cast<DeclarationScope&>(*procDefn).append(std::move(v_));
             procDefn->append(createApply(createIdentifier(*procCtor), createTuple(proc->symbol().prototype().pattern())));
             procDefn->basicBlocks().back()->setJunction(
-                std::make_unique<ReturnJunction>(makeToken("return"), createIdentifier(*v)));
+                mk<ReturnJunction>(makeToken("return"), createIdentifier(*v)));
             
             proc->define(*procDefn);
             builderDefn->append(std::move(procDefn));
@@ -525,12 +525,12 @@ TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const&
 void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 {
     auto makeTempl = [this, &dgn] {
-        auto templ = std::make_unique<TemplateDeclaration>(
+        auto templ = mk<TemplateDeclaration>(
             Symbol(lexer::Token(lexer::TokenKind::Identifier,
                                 declaration()->symbol().token().line(),
                                 declaration()->symbol().token().column(),
                                 "dtor")));
-        auto templDefn = std::make_unique<TemplateScope>(*this, *templ);
+        auto templDefn = mk<TemplateScope>(*this, *templ);
         templ->define(*templDefn);
         append(std::move(templDefn));
         append(std::move(templ));
@@ -557,7 +557,7 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 
     Resolver narrowResolver(*templ->definition(), Resolver::Narrow);
     Context ctx(endModule, dgn, narrowResolver);
-    std::unique_ptr<Expression> thisType = createIdentifier(*declaration());
+    Box<Expression> thisType = createIdentifier(*declaration());
     decl = ctx.matchOverload(SymbolReference("", sliceunq(thisType))).decl();
     if ( !decl ) {
         auto proc = createDefaultDestructor();
@@ -581,17 +581,17 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
     myDestructor = proc;
 }
 
-std::unique_ptr<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
+Box<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
 {
     auto const line = declaration()->symbol().token().line();
     auto const column = declaration()->symbol().token().column();
     auto thisParam = createIdentifier(makeToken("this", 0, 0));
     thisParam->addConstraint(createIdentifier(*declaration()));
-    auto proc = std::make_unique<ProcedureDeclaration>(
+    auto proc = mk<ProcedureDeclaration>(
         makeSym(makeToken("", line, column), createPtrList<Expression>(std::move(thisParam))),
         nullptr);
 
-    auto ps = std::make_unique<ProcedureScope>(*this, *proc);
+    auto ps = mk<ProcedureScope>(*this, *proc);
 
     for ( auto f = myFields.rbegin(); f != myFields.rend(); ++f ) {
         auto decl = getDeclaration((*f)->type());
@@ -807,7 +807,7 @@ Slice<BasicBlock const*> ProcedureScope::basicBlocks() const
     return myBasicBlocks;
 }
 
-void ProcedureScope::append(std::unique_ptr<Expression> expr)
+void ProcedureScope::append(Box<Expression> expr)
 {
     if ( myBasicBlocks.back()->junction() )
         createBasicBlock();
@@ -817,7 +817,7 @@ void ProcedureScope::append(std::unique_ptr<Expression> expr)
 
 BasicBlock* ProcedureScope::createBasicBlock()
 {
-    myBasicBlocks.emplace_back(std::make_unique<BasicBlock>(this));
+    myBasicBlocks.emplace_back(mk<BasicBlock>(this));
     return myBasicBlocks.back().get();
 }
 
@@ -830,7 +830,7 @@ ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
                                                  lexer::Token const& openToken,
                                                  lexer::Token const& label)
 {
-    myChildScopes.push_back(std::make_unique<ProcedureScope>(*this, *declaration(), mergeBlock, openToken, label));
+    myChildScopes.push_back(mk<ProcedureScope>(*this, *declaration(), mergeBlock, openToken, label));
     return myChildScopes.back().get();
 }
 
@@ -917,7 +917,7 @@ struct Sequencer
             auto o = proc->ordinals();
             auto p = proc->parameters();
             check_point refCtx;
-            for ( std::size_t i = 0; i < args.size(); ++i ) {
+            for ( uz i = 0; i < args.size(); ++i ) {
                 refCtx = o[i] >= 0 && isReference(*p[o[i]]->type());
                 dispatch(*args[i]);
             }

@@ -216,7 +216,7 @@ Error& Context::error(Declaration const& decl)
     return myDiagnostics->error(resolver().scope().module(), decl.symbol().token());
 }
 
-std::size_t Context::errorCount() const
+uz Context::errorCount() const
 {
     return myDiagnostics->errorCount();
 }
@@ -245,13 +245,13 @@ Statement* Context::changeStatement(Statement* statement)
     return ret;
 }
 
-SymRes Context::rewrite(std::unique_ptr<Expression> expr)
+SymRes Context::rewrite(Box<Expression> expr)
 {
     myRewrite = std::move(expr);
     return SymRes::Rewrite;
 }
 
-SymRes Context::rewrite(std::function<std::unique_ptr<Expression>(std::unique_ptr<Expression>&)> func)
+SymRes Context::rewrite(std::function<Box<Expression>(Box<Expression>&)> func)
 {
     myLazyRewrite = func;
     return SymRes::Rewrite;
@@ -286,7 +286,7 @@ SymRes Context::resolveExpression(Expression& expression)
     return ret;
 }
 
-SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
+SymRes Context::resolveExpression(Box<Expression>& expression)
 {
     auto originalResolver = myResolver;
     myRewrite.reset();
@@ -328,8 +328,8 @@ SymRes Context::resolveExpression(std::unique_ptr<Expression>& expression)
     return ret;
 }
 
-SymRes Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::iterator left,
-                                   std::vector<std::unique_ptr<Expression>>::iterator right)
+SymRes Context::resolveExpressions(std::vector<Box<Expression>>::iterator left,
+                                   std::vector<Box<Expression>>::iterator right)
 {
     myRewrite.reset();
     SymRes ret;
@@ -339,7 +339,7 @@ SymRes Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>::ite
     return ret;
 }
 
-SymRes Context::resolveExpressions(std::vector<std::unique_ptr<Expression>>& expressions)
+SymRes Context::resolveExpressions(std::vector<Box<Expression>>& expressions)
 {
     return resolveExpressions(begin(expressions), end(expressions));
 }

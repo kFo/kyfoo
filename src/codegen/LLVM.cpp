@@ -40,6 +40,13 @@
 
 #include <kyfoo/codegen/Codegen.hpp>
 
+namespace {
+    llvm::StringRef strRef(std::string_view s)
+    {
+        return llvm::StringRef(s.data(), s.size());
+    }
+}
+
 namespace kyfoo::codegen {
 
 template <typename T>
@@ -50,7 +57,7 @@ struct LLVMCustomData : public CustomData
 template<>
 struct LLVMCustomData<ast::Module> : public CustomData
 {
-    std::unique_ptr<llvm::Module> module;
+    Box<llvm::Module> module;
 };
 
 template<>
@@ -88,7 +95,7 @@ struct LLVMCustomData<ast::DataProductDeclaration> : public CustomData
 template<>
 struct LLVMCustomData<ast::DataProductDeclaration::Field> : public CustomData
 {
-    std::uint32_t index = 0;
+    u32 index = 0;
 };
 
 template<>
@@ -174,7 +181,7 @@ llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
     return nullptr;
 }
 
-int log2(std::uint32_t n)
+int log2(u32 n)
 {
     int ret = 0;
     while ( n >>= 1 )
@@ -182,7 +189,7 @@ int log2(std::uint32_t n)
     return ret;
 }
 
-std::uint32_t nextPower2(std::uint32_t n)
+std::uint32_t nextPower2(u32 n)
 {
     --n;
     n |= n >> 1;
@@ -220,7 +227,7 @@ struct InitCodeGenPass
         if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
-        decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration>>());
+        decl.setCodegenData(mk<LLVMCustomData<ast::DataSumDeclaration>>());
 
         if ( auto defn = decl.definition() ) {
             for ( auto& e : defn->childDeclarations() )
@@ -236,7 +243,7 @@ struct InitCodeGenPass
         if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
-        decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataSumDeclaration::Constructor>>());
+        decl.setCodegenData(mk<LLVMCustomData<ast::DataSumDeclaration::Constructor>>());
     }
 
     result_t declDataProduct(ast::DataProductDeclaration const& decl)
@@ -244,13 +251,13 @@ struct InitCodeGenPass
         if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
-        decl.setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration>>());
+        decl.setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration>>());
 
         if ( auto defn = decl.definition() ) {
             auto const& fields = defn->fields();
-            for ( std::size_t i = 0; i < fields.size(); ++i ) {
-                fields[i]->setCodegenData(std::make_unique<LLVMCustomData<ast::DataProductDeclaration::Field>>());
-                customData(*fields[i])->index = static_cast<std::uint32_t>(i);
+            for ( uz i = 0; i < fields.size(); ++i ) {
+                fields[i]->setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration::Field>>());
+                customData(*fields[i])->index = static_cast<u32>(i);
             }
 
             for ( auto& e : defn->childDeclarations() )
@@ -292,7 +299,7 @@ struct InitCodeGenPass
         if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
 
-        decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureDeclaration>>());
+        decl.setCodegenData(mk<LLVMCustomData<ast::ProcedureDeclaration>>());
 
         auto last = procContext;
         procContext = &decl;
@@ -310,13 +317,13 @@ struct InitCodeGenPass
     result_t declProcedureParameter(ast::ProcedureParameter const& decl)
     {
         if ( !decl.codegenData() )
-            decl.setCodegenData(std::make_unique<LLVMCustomData<ast::ProcedureParameter>>());
+            decl.setCodegenData(mk<LLVMCustomData<ast::ProcedureParameter>>());
     }
 
     result_t declVariable(ast::VariableDeclaration const& decl)
     {
         if ( !decl.codegenData() )
-            decl.setCodegenData(std::make_unique<LLVMCustomData<ast::VariableDeclaration>>());
+            decl.setCodegenData(mk<LLVMCustomData<ast::VariableDeclaration>>());
     }
 
     result_t declImport(ast::ImportDeclaration const&)
@@ -486,7 +493,7 @@ struct CodeGenPass
 
             auto gatherStatement = [this, &builder](ast::Statement const& stmt) {
                 for ( auto const& v : stmt.unnamedVariables() ) {
-                    auto vdata = std::make_unique<LLVMCustomData<ast::VariableDeclaration>>();
+                    auto vdata = mk<LLVMCustomData<ast::VariableDeclaration>>();
                     vdata->inst = builder.CreateAlloca(toType(*v->type()));
                     v->setCodegenData(std::move(vdata));
                 }
@@ -528,7 +535,7 @@ struct CodeGenPass
     {
         auto bdata = customData(block);
         if ( !bdata ) {
-            block.setCodegenData(std::make_unique<LLVMCustomData<ast::BasicBlock>>());
+            block.setCodegenData(mk<LLVMCustomData<ast::BasicBlock>>());
             bdata = customData(block);
         }
         bdata->bb = bb;
@@ -538,7 +545,7 @@ struct CodeGenPass
 
         llvm::IRBuilder<> builder(bb);
 
-        //std::size_t cleanupDeclLast = 0;
+        //uz cleanupDeclLast = 0;
         //std::vector<llvm::BasicBlock*> cleanupBlocks;
 
         //auto createCleanupBlock = [&](lexer::Token const& token, bool exit) {
@@ -591,7 +598,7 @@ struct CodeGenPass
 
             auto u = stmt->unnamedVariables();
             if ( u.length() ) {
-                for ( std::size_t i = u.length() - 1; ~i; --i ) {
+                for ( uz i = u.length() - 1; ~i; --i ) {
                     if ( auto dp = getDeclaration(u[i]->type())->as<ast::DataProductDeclaration>() ) {
                         auto expr = createMemberCall(*dp->definition()->destructor(), *u[i]);
                         toValue(builder, builder.getVoidTy(), *expr);
@@ -726,14 +733,14 @@ private:
         {
             auto intType = llvm::dyn_cast_or_null<llvm::IntegerType>(destType);
             if ( !intType ) {
-                auto bits = llvm::APInt::getBitsNeeded(token.lexeme(), 10);
-                return builder.getInt(llvm::APInt(bits, token.lexeme(), 10));
+                auto bits = llvm::APInt::getBitsNeeded(strRef(token.lexeme()), 10);
+                return builder.getInt(llvm::APInt(bits, strRef(token.lexeme()), 10));
             }
 
-            return llvm::ConstantInt::get(intType, token.lexeme(), 10);
+            return llvm::ConstantInt::get(intType, strRef(token.lexeme()), 10);
         }
         case lexer::TokenKind::Rational:
-            return llvm::ConstantFP::get(destType, token.lexeme());
+            return llvm::ConstantFP::get(destType, strRef(token.lexeme()));
         case lexer::TokenKind::String:
         {
             auto const strType = customData(*sourceModule.axioms().intrinsic(ast::Sliceu8))->type;
@@ -741,7 +748,7 @@ private:
                 return nullptr;
 
             auto const& str = sourceModule.interpretString(dgn, token);
-            llvm::GlobalVariable* gv = builder.CreateGlobalString(str);
+            llvm::GlobalVariable* gv = builder.CreateGlobalString(strRef(str));
             auto zero = builder.getInt32(0);
             llvm::Constant* idx[] = { zero, zero };
             llvm::Constant* s[2] = {
@@ -785,7 +792,7 @@ private:
                     if ( lit->token().kind() != lexer::TokenKind::Integer )
                         die("bad index");
 
-                    auto index = static_cast<unsigned>(std::atoi(lit->token().lexeme().c_str()));
+                    auto index = static_cast<unsigned>(stoi(lit->token().lexeme()));
                     ret = builder.CreateStructGEP(ret->getType()->getPointerElementType(),
                                                   ret,
                                                   index);
@@ -862,7 +869,7 @@ private:
                     if ( lit->token().kind() != lexer::TokenKind::Integer )
                         die("bad index");
 
-                    auto index = static_cast<unsigned>(std::atoi(lit->token().lexeme().c_str()));
+                    auto index = static_cast<unsigned>(stoi(lit->token().lexeme()));
                     if ( ret->getType()->isPointerTy() )
                         ret = builder.CreateLoad(builder.CreateStructGEP(nullptr, ret, index));
                     else
@@ -944,7 +951,7 @@ private:
             std::vector<llvm::Value*> args;
             args.reserve(exprs.size());
 
-            for ( std::size_t i = 1; i < exprs.size(); ++i ) {
+            for ( uz i = 1; i < exprs.size(); ++i ) {
                 auto paramType = toType(*formalParams[i - 1]);
                 auto val = toValue(builder, paramType, *exprs[i]);
                 if ( !val )
@@ -1186,13 +1193,13 @@ struct LLVMGenerator::LLVMState
     Diagnostics& dgn;
     ast::ModuleSet& moduleSet;
 
-    std::unique_ptr<llvm::LLVMContext> context;
+    Box<llvm::LLVMContext> context;
 
     LLVMState(Diagnostics& dgn,
               ast::ModuleSet& moduleSet)
         : dgn(dgn)
         , moduleSet(moduleSet)
-        , context(std::make_unique<llvm::LLVMContext>())
+        , context(mk<llvm::LLVMContext>())
     {
     }
 
@@ -1292,9 +1299,9 @@ struct LLVMGenerator::LLVMState
 
     void generate(ast::Module const& module)
     {
-        module.setCodegenData(std::make_unique<LLVMCustomData<ast::Module>>());
+        module.setCodegenData(mk<LLVMCustomData<ast::Module>>());
         auto mdata = customData(module);
-        mdata->module = std::make_unique<llvm::Module>(module.name(), *context);
+        mdata->module = mk<llvm::Module>(std::string(module.name()), *context);
 
         ast::ShallowApply<InitCodeGenPass> init(dgn, module);
         for ( auto d : module.scope()->childDeclarations() )
@@ -1421,7 +1428,7 @@ struct LLVMGenerator::LLVMState
 
             dpData->type = llvm::StructType::create(*context,
                                                     fieldTypes,
-                                                    dp->symbol().token().lexeme(),
+                                                    strRef(dp->symbol().token().lexeme()),
                                                     /*isPacked*/false);
             return dpData->type;
         }
@@ -1465,7 +1472,7 @@ struct LLVMGenerator::LLVMState
 // LLVMGenerator
 
 LLVMGenerator::LLVMGenerator(Diagnostics& dgn, ast::ModuleSet& moduleSet)
-    : myImpl(std::make_unique<LLVMState>(dgn, moduleSet))
+    : myImpl(mk<LLVMState>(dgn, moduleSet))
 {
 }
 

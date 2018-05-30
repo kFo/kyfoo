@@ -9,7 +9,7 @@ namespace gs {
 template <kyfoo::lexer::TokenKind K>
 struct Terminal
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
         if ( scan.next().kind() != K)
             return false;
@@ -27,9 +27,9 @@ struct Terminal
 template <typename... T>
 struct And
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m = 0;
+        uz m = 0;
         if ( impl<T...>::match(scan, matches) ) {
             matches += m;
             return scan.commit();
@@ -41,9 +41,9 @@ struct And
 private:
     template <typename Head, typename... Tail>
     struct impl {
-        static bool match(kyfoo::lexer::ScanPoint& scan, std::size_t& matches)
+        static bool match(kyfoo::lexer::ScanPoint& scan, uz& matches)
         {
-            std::size_t m = 0;
+            uz m = 0;
             if ( Head::match(scan, m) && And<Tail...>::match(scan, matches) ) {
                 matches += m;
                 return true;
@@ -56,7 +56,7 @@ private:
     template <typename Head>
     struct impl<Head>
     {
-        static bool match(kyfoo::lexer::ScanPoint& scan, std::size_t& matches)
+        static bool match(kyfoo::lexer::ScanPoint& scan, uz& matches)
         {
             return Head::match(scan, matches);
         }
@@ -66,9 +66,9 @@ private:
 template <typename... T>
 struct Or
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m = 0;
+        uz m = 0;
         if ( impl<T...>::match(scan, matches) ) {
             matches += m;
             return scan.commit();
@@ -80,9 +80,9 @@ struct Or
 private:
     template <typename Head, typename... Tail>
     struct impl {
-        static bool match(kyfoo::lexer::ScanPoint& scan, std::size_t& matches)
+        static bool match(kyfoo::lexer::ScanPoint& scan, uz& matches)
         {
-            std::size_t m = 0;
+            uz m = 0;
             if ( Head::match(scan, matches) ) {
                 matches += m;
                 return true;
@@ -95,7 +95,7 @@ private:
 
     template <typename Head>
     struct impl<Head> {
-        static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+        static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
         {
             return Head::match(scan, matches);
         }
@@ -106,10 +106,10 @@ template <typename H, typename... T>
 struct Long
 {
     static bool match(kyfoo::lexer::ScanPoint scan,
-                      std::size_t& matches)
+                      uz& matches)
     {
-        std::size_t longest = 0;
-        std::size_t length = 0;
+        uz longest = 0;
+        uz length = 0;
 
         impl<0, H, T...>::match(scan, longest, length);
 
@@ -121,13 +121,13 @@ struct Long
     }
 
 private:
-    template <std::size_t N, typename Head, typename... Tail>
+    template <uz N, typename Head, typename... Tail>
     struct impl {
         static void match(kyfoo::lexer::ScanPoint& scan,
-                          std::size_t& longest,
-                          std::size_t& length)
+                          uz& longest,
+                          uz& length)
         {
-            std::size_t m = 0;
+            uz m = 0;
             if ( Head::match(scan, m) && m > length ) {
                 longest = N;
                 length = m;
@@ -137,8 +137,8 @@ private:
         }
 
         static void rematch(kyfoo::lexer::ScanPoint& scan,
-                            std::size_t& matches,
-                            std::size_t n)
+                            uz& matches,
+                            uz n)
         {
             if ( n == N )
                 Head::match(scan, matches);
@@ -147,13 +147,13 @@ private:
         }
     };
 
-    template <std::size_t N, typename Head>
+    template <uz N, typename Head>
     struct impl<N, Head> {
         static void match(kyfoo::lexer::ScanPoint& scan,
-                          std::size_t& longest,
-                          std::size_t& length)
+                          uz& longest,
+                          uz& length)
         {
-            std::size_t m = 0;
+            uz m = 0;
             if ( Head::match(scan, m) && m > length ) {
                 longest = N;
                 length = m;
@@ -161,8 +161,8 @@ private:
         }
 
         static void rematch(kyfoo::lexer::ScanPoint& scan,
-                            std::size_t& matches,
-                            std::size_t n)
+                            uz& matches,
+                            uz n)
         {
             if (n == N)
                 Head::match(scan, matches);
@@ -173,7 +173,7 @@ private:
 template <typename T>
 struct Opt
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
         if ( T::match(scan, matches) )
             return scan.commit();
@@ -185,9 +185,9 @@ struct Opt
 template <typename T>
 struct Repeat
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m = 0;
+        uz m = 0;
         while ( T::match(scan, m) ) {
             matches += m;
             m = 0;
@@ -200,9 +200,9 @@ struct Repeat
 template <typename U, typename V>
 struct Repeat2
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m0 = 0;
+        uz m0 = 0;
         if ( U::match(scan, m0))
             return scan.commit();
 
@@ -211,7 +211,7 @@ struct Repeat2
 
         for (;;) {
             m0 = 0;
-            std::size_t m1 = 0;
+            uz m1 = 0;
             if ( !V::match(scan, m0) || !U::match(scan, m1) )
                 break;
 
@@ -225,9 +225,9 @@ struct Repeat2
 template <typename T>
 struct OneOrMore
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m = 0;
+        uz m = 0;
         if ( !T::match(scan, m) )
             return false;
 
@@ -243,9 +243,9 @@ struct OneOrMore
 template <typename U, typename V>
 struct OneOrMore2
 {
-    static bool match(kyfoo::lexer::ScanPoint scan, std::size_t& matches)
+    static bool match(kyfoo::lexer::ScanPoint scan, uz& matches)
     {
-        std::size_t m0 = 0;
+        uz m0 = 0;
         if ( !U::match(scan, m) )
             return false;
 
@@ -253,7 +253,7 @@ struct OneOrMore2
 
         for (;;) {
             m0 = 0;
-            std::size_t m1 = 0;
+            uz m1 = 0;
             if ( !V::match(scan, m0) || !U::match(scan, m1) )
                 break;
 

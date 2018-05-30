@@ -1,12 +1,12 @@
 #pragma once
 
 #include <map>
-#include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Types.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/IO.hpp>
 #include <kyfoo/ast/Node.hpp>
@@ -31,7 +31,7 @@ class SymbolVariable;
 class SymRes;
 class VarianceResult;
 
-using Pattern = std::vector<std::unique_ptr<Expression>>;
+using Pattern = std::vector<Box<Expression>>;
 using pattern_t = Slice<Expression*>;
 using const_pattern_t = Slice<Expression const*>;
 
@@ -42,7 +42,7 @@ public:
 
 public:
     PatternsPrototype();
-    PatternsPrototype(std::vector<std::unique_ptr<Expression>>&& pattern);
+    PatternsPrototype(std::vector<Box<Expression>>&& pattern);
 
 protected:
     PatternsPrototype(PatternsPrototype const& rhs);
@@ -75,14 +75,14 @@ public:
 
 public:
     void bindVariables(Substitutions const& substs);
-    SymbolVariable* findVariable(std::string const& token);
-    SymbolVariable const* findVariable(std::string const& token) const;
+    SymbolVariable* findVariable(std::string_view token);
+    SymbolVariable const* findVariable(std::string_view token) const;
     bool isConcrete() const;
-    std::size_t metaVariableCount() const;
+    uz metaVariableCount() const;
 
 private:
     Pattern myPattern;
-    std::vector<std::unique_ptr<SymbolVariable>> myVariables;
+    std::vector<Box<SymbolVariable>> myVariables;
 };
 
 class Symbol : public IIO
@@ -94,7 +94,7 @@ public:
     Symbol(lexer::Token const& token,
            PatternsPrototype&& params);
     explicit Symbol(lexer::Token const& token);
-    Symbol(std::unique_ptr<SymbolExpression> symExpr);
+    Symbol(Box<SymbolExpression> symExpr);
 
 protected:
     Symbol(Symbol const& rhs);
@@ -128,26 +128,26 @@ public:
 
 private:
     lexer::Token myToken;
-    std::unique_ptr<PatternsPrototype> myPrototype;
+    Box<PatternsPrototype> myPrototype;
     Symbol const* myPrototypeParent = nullptr;
 };
 
 class SymbolReference
 {
 public:
+    SymbolReference(std::string_view name, const_pattern_t pattern);
     SymbolReference(const char* name, const_pattern_t pattern);
-    SymbolReference(std::string const& name, const_pattern_t pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
-    /*implicit*/ SymbolReference(std::string const& name);
+    /*implicit*/ SymbolReference(std::string_view name);
     /*implicit*/ SymbolReference(const char* name);
     ~SymbolReference();
 
 public:
-    const char* name() const;
+    std::string_view name() const;
     const_pattern_t const& pattern() const;
 
 private:
-    char const* myName;
+    std::string_view myName;
     const_pattern_t myPattern;
 };
 
@@ -160,8 +160,8 @@ struct Prototype {
     PatternsDecl proto;
     std::vector<PatternsDecl> instances;
 
-    std::vector<std::unique_ptr<Declaration>> ownDeclarations;
-    std::vector<std::unique_ptr<DeclarationScope>> ownDefinitions;
+    std::vector<Box<Declaration>> ownDeclarations;
+    std::vector<Box<DeclarationScope>> ownDefinitions;
 };
 
 struct Candidate
@@ -181,8 +181,8 @@ public:
     bool empty() const;
     std::vector<Candidate>::const_iterator begin() const;
     std::vector<Candidate>::const_iterator end() const;
-    Candidate const& operator[](std::size_t index) const;
-    Candidate& operator[](std::size_t index);
+    Candidate const& operator[](uz index) const;
+    Candidate& operator[](uz index);
 
     void append(VarianceResult const& v,
                 Prototype& proto,
@@ -201,7 +201,7 @@ public:
     };
 
 public:
-    SymbolSpace(DeclarationScope* scope, std::string const& name);
+    SymbolSpace(DeclarationScope* scope, std::string name);
 
     SymbolSpace(SymbolSpace const& rhs) = delete;
     SymbolSpace& operator = (SymbolSpace const& rhs) = delete;
@@ -214,7 +214,7 @@ public:
     void swap(SymbolSpace& rhs);
 
 public:
-    std::string const& name() const;
+    std::string_view name() const;
     Slice<Prototype const> prototypes() const;
 
     void append(PatternsPrototype const& prototype,

@@ -220,16 +220,16 @@ namespace kyfoo::ast {
 // AxiomsModule
 
 AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
-                           std::string const& name)
-    : Module(moduleSet, name)
+                           std::string name)
+    : Module(moduleSet, std::move(name))
 {
-    myScope = std::make_unique<ast::DeclarationScope>(*this);
+    myScope = mk<ast::DeclarationScope>(*this);
 
-    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))));
-    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
-    myScope->append(std::make_unique<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
 
-    for ( std::size_t i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
+    for ( uz i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
         myDataSumDecls[i] = scope()->childDeclarations()[i]->as<DataSumDeclaration>();
 }
 
@@ -252,7 +252,7 @@ ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) con
 
 bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < DataSumIntrinsicsCount; ++i )
+    for ( uz i = 0; i < DataSumIntrinsicsCount; ++i )
         if ( myDataSumDecls[i] == &decl )
             return true;
 
@@ -261,7 +261,7 @@ bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 
 bool AxiomsModule::isIntrinsic(DataProductDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < DataProductIntrinsicsCount; ++i )
+    for ( uz i = 0; i < DataProductIntrinsicsCount; ++i )
         if ( myDataProductDecls[i] == &decl )
             return true;
 
@@ -270,7 +270,7 @@ bool AxiomsModule::isIntrinsic(DataProductDeclaration const& decl) const
 
 bool AxiomsModule::isIntrinsic(ProcedureDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < InstructionIntrinsicsCount; ++i )
+    for ( uz i = 0; i < InstructionIntrinsicsCount; ++i )
         if ( descendsFromTemplate(myInstructionDecls[i]->symbol(), decl.symbol()) )
             return true;
 
@@ -290,7 +290,7 @@ bool AxiomsModule::isIntrinsic(Declaration const& decl) const
 
 bool AxiomsModule::isLiteral(DataSumDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < DataSumIntrinsicsCount; ++i )
+    for ( uz i = 0; i < DataSumIntrinsicsCount; ++i )
         if ( myDataSumDecls[i] == &decl )
             return true;
 
@@ -299,7 +299,7 @@ bool AxiomsModule::isLiteral(DataSumDeclaration const& decl) const
 
 bool AxiomsModule::isLiteral(DataProductDeclaration const& decl) const
 {
-    for ( std::size_t i = 0; i < DataProductIntrinsicsCount; ++i )
+    for ( uz i = 0; i < DataProductIntrinsicsCount; ++i )
         if ( myDataProductDecls[i] == &decl )
             return true;
 
@@ -325,7 +325,7 @@ AxiomsModule::IntegerMetaData const* AxiomsModule::integerMetaData(Declaration c
     return nullptr;
 }
 
-void AxiomsModule::setIntrinsic(std::string const& nameLiteral, Declaration const* decl)
+void AxiomsModule::setIntrinsic(std::string_view nameLiteral, Declaration const* decl)
 {
     static const char* sums[] = {
 #define X(a) #a,
