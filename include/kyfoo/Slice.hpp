@@ -24,21 +24,21 @@ public:
     using size_type = uz;
 
 public:
-    Slice() = default;
+    constexpr Slice() noexcept = default;
 
-    Slice(pointer p, size_type len)
+    Slice(pointer p, size_type len) noexcept
         : myData(p)
         , myLength(len)
     {
     }
 
-    /*implicit*/ Slice(std::vector<value_type>& v)
+    /*implicit*/ Slice(std::vector<value_type>& v) noexcept
         : Slice(v.data(), v.size())
     {
     }
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, pointer>>>
-    /*implicit*/ Slice(std::vector<U> const& v)
+    /*implicit*/ Slice(std::vector<U> const& v) noexcept
         : Slice(v.data(), v.size())
     {
     }
@@ -47,7 +47,7 @@ public:
               typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
                                        && std::is_pointer_v<value_type>
                                        && std::is_convertible_v<U const*, value_type>>>
-    /*implicit*/ Slice(std::vector<Box<U>> const& v)
+    /*implicit*/ Slice(std::vector<Box<U>> const& v) noexcept
         : myData(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))))
         , myLength(v.size())
     {
@@ -57,45 +57,45 @@ public:
               typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
                                        && std::is_pointer_v<value_type>
                                        && std::is_convertible_v<U*, value_type>>>
-    /*implicit*/ Slice(std::vector<Box<U>>& v)
+    /*implicit*/ Slice(std::vector<Box<U>>& v) noexcept
         : myData(reinterpret_cast<pointer>(reinterpret_cast<void*>(v.data())))
         , myLength(v.size())
     {
     }
 
-    /*implicit*/ Slice(Slice const& s)
+    /*implicit*/ Slice(Slice const& s) noexcept
         : myData(s.myData)
         , myLength(s.myLength)
     {
     }
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U, value_type>>>
-    /*implicit*/ Slice(Slice<U> const& s)
+    /*implicit*/ Slice(Slice<U> const& s) noexcept
         : Slice(s.data(), s.size())
     {
     }
 
-    Slice& operator = (Slice const& s)
+    Slice& operator = (Slice const& s) noexcept
     {
         Slice(s).swap(*this);
         return *this;
     }
 
-    void swap(Slice& s)
+    void swap(Slice& s) noexcept
     {
         using std::swap;
         swap(myData, s.myData);
         swap(myLength, s.myLength);
     }
 
-    Slice(Slice&& rhs)
+    /*implicit*/ Slice(Slice&& rhs) noexcept
         : myData(rhs.myData)
         , myLength(rhs.myLength)
     {
         rhs.clear();
     }
 
-    Slice& operator = (Slice&& rhs)
+    Slice& operator = (Slice&& rhs) noexcept
     {
         new (this) Slice(std::move(rhs));
         rhs.clear();
@@ -103,56 +103,109 @@ public:
     }
 
 public:
-    reference operator [] (size_type index)
+    reference operator [] (size_type index) noexcept
     {
         return myData[index];
     }
 
-    const_reference operator [] (size_type index) const
+    const_reference operator [] (size_type index) const noexcept
     {
         return myData[index];
     }
 
-    Slice operator () (size_type start, size_type end)
+    Slice operator () (size_type start, size_type end) noexcept
     {
         return Slice(myData + start, end - start);
     }
 
-    Slice operator () (size_type start, size_type end) const
+    Slice operator () (size_type start, size_type end) const noexcept
     {
         return Slice(myData + start, end - start);
     }
 
-    explicit operator bool () const
+    explicit operator bool () const noexcept
     {
         return !empty();
     }
 
 public:
-    iterator begin() { return myData; }
-    const_iterator begin() const { return myData; }
+    iterator begin() noexcept
+    {
+        return myData;
+    
+    }
+    const_iterator begin() const noexcept
+    {
+        return myData;
+    }
 
-    iterator end() { return myData + myLength; }
-    const_iterator end() const { return myData + myLength; }
+    iterator end() noexcept
+    {
+        return myData + myLength;
+    }
 
-    bool empty() const { return begin() == end(); }
+    const_iterator end() const noexcept
+    {
+        return myData + myLength;
+    }
 
-    pointer data() { return myData; }
-    const_pointer data() const { return myData; }
+    bool empty() const noexcept
+    {
+        return begin() == end();
+    }
 
-    uz length() const { return myLength; }
-    uz size() const { return myLength; }
+    pointer data() noexcept
+    {
+        return myData;
+    }
 
-    reference front() { return *myData; }
-    const_reference front() const { return *myData; }
+    const_pointer data() const noexcept
+    {
+        return myData;
+    }
 
-    reference back() { return myData[myLength - 1]; }
-    const_reference back() const { return myData[myLength - 1]; }
+    uz length() const noexcept
+    {
+        return myLength;
+    }
 
-    void popFront() { ++myData; --myLength; }
-    void popBack() { --myLength; }
+    uz size() const noexcept
+    {
+        return myLength;
+    }
 
-    void clear()
+    reference front() noexcept
+    {
+        return *myData;
+    }
+
+    const_reference front() const noexcept
+    {
+        return *myData;
+    }
+
+    reference back() noexcept
+    {
+        return myData[myLength - 1];
+    }
+
+    const_reference back() const noexcept
+    {
+        return myData[myLength - 1];
+    }
+
+    void popFront() noexcept
+    {
+        ++myData;
+        --myLength;
+    }
+
+    void popBack() noexcept
+    {
+        --myLength;
+    }
+
+    void clear() noexcept
     {
         myData = nullptr;
         myLength = 0;
@@ -230,13 +283,7 @@ Slice<T> slice(T& rhs)
 }
 
 template <typename T>
-Slice<T const> slice(T const& rhs)
-{
-    return Slice<T const>(&rhs, 1);
-}
-
-template <typename T>
-Slice<T const*> sliceunq(Box<T> const& rhs)
+Slice<T const*> sliceBox(Box<T> const& rhs)
 {
     return Slice<T const*>(reinterpret_cast<T const* const*>(reinterpret_cast<void const* const*>(&rhs)), 1);
 }

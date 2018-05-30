@@ -40,6 +40,8 @@
 
 #include <kyfoo/codegen/Codegen.hpp>
 
+#include <iostream>
+
 namespace {
     llvm::StringRef strRef(std::string_view s)
     {
@@ -941,9 +943,10 @@ private:
                 }
             }
 
-            assert(arrow);
+            if ( !arrow )
+                die("cannot determine function type");
 
-            auto formalParams = slice(&arrow->from());
+            auto formalParams = arrow->sliceFrom();
             if ( auto tup = arrow->from().as<ast::TupleExpression>() )
                 if ( tup->kind() == ast::TupleKind::Open )
                     formalParams = tup->expressions();

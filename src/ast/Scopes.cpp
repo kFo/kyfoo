@@ -558,7 +558,7 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
     Resolver narrowResolver(*templ->definition(), Resolver::Narrow);
     Context ctx(endModule, dgn, narrowResolver);
     Box<Expression> thisType = createIdentifier(*declaration());
-    decl = ctx.matchOverload(SymbolReference("", sliceunq(thisType))).decl();
+    decl = ctx.matchOverload(SymbolReference("", sliceBox(thisType))).decl();
     if ( !decl ) {
         auto proc = createDefaultDestructor();
         auto p = proc.get();

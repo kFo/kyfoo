@@ -1687,7 +1687,7 @@ Expression& ArrowExpression::from()
 
 Slice<Expression const*> ArrowExpression::sliceFrom() const
 {
-    return sliceunq(myFrom);
+    return sliceBox(myFrom);
 }
 
 Expression const& ArrowExpression::to() const
@@ -1702,7 +1702,7 @@ Expression& ArrowExpression::to()
 
 Slice<Expression const*> ArrowExpression::sliceTo() const
 {
-    return sliceunq(myTo);
+    return sliceBox(myTo);
 }
 
 //
