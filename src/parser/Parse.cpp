@@ -391,7 +391,7 @@ ProcedureScopeParser::parseNext()
     auto lastBranch = [this](ast::Junction& j) -> ast::BranchJunction* {
         auto& s = scope();
         if ( s.basicBlocks().size() >= 2 ) {
-            auto lastJunc = s.basicBlocks()[s.basicBlocks().size() - 2]->junction();
+            auto lastJunc = s.basicBlocks()[$ - 2]->junction();
             if ( lastJunc ) {
                 auto ret = lastJunc->as<ast::BranchJunction>();
                 if ( ret )

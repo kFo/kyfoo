@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kyfoo/Dollar.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/Node.hpp>
 #include <kyfoo/ast/Tuples.hpp>
@@ -314,7 +315,7 @@ public:
     Expression const* front() const { return exprs.front(); }
     Expression const* back() const { return exprs.back(); }
 
-    Expression const* operator[](uz i) const { return exprs[i % exprs.size()]; }
+    Expression const* operator[](uz i) const { return exprs[i % $]; }
 
 private:
     Slice<Expression const*> exprs;

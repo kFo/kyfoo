@@ -1395,7 +1395,7 @@ struct PrintOperator
         if ( !t.expressions().empty() ) {
             showTyped(*t.expressions()[0]);
 
-            for ( auto const& e : t.expressions()(1, t.expressions().size()) ) {
+            for ( auto const& e : t.expressions()(1, $) ) {
                 stream << presentTupleWeave(t.kind());
                 showTyped(*e);
             }
@@ -1436,7 +1436,7 @@ struct PrintOperator
             stream << '<';
             dispatch(*s.expressions()[0]);
 
-            for ( auto const& e : s.expressions()(1, s.expressions().size()) ) {
+            for ( auto const& e : s.expressions()(1, $) ) {
                 stream << ", ";
                 dispatch(*e);
             }

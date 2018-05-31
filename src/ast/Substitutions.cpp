@@ -191,7 +191,7 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
                 return tryImplicitRef();
             }
 
-            return deduce(a->expressions()(1, a->expressions().size()), s->expressions());
+            return deduce(a->expressions()(1, $), s->expressions());
         }
 
         auto aa = r->as<ApplyExpression>();

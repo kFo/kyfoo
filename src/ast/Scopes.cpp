@@ -946,7 +946,7 @@ struct Sequencer
 
             check_point refCtx;
             refCtx = true;
-            for ( auto m : d.expressions()(0, d.expressions().size() - 1) )
+            for ( auto m : d.expressions()(0, $ - 1) )
                 dispatch(*m);
         }
 

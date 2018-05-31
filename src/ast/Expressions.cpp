@@ -1770,7 +1770,7 @@ std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs)
     if ( exprs )
         print(stream, *exprs.front());
 
-    for ( auto e : exprs(1, exprs.size()) ) {
+    for ( auto e : exprs(1, $) ) {
         stream << ", ";
         print(stream, *e);
     }
@@ -1788,7 +1788,7 @@ std::ostream& operator << (std::ostream& stream, get_types&& types)
     if ( types.exprs )
         print(stream, *types.exprs.front()->type());
 
-    for ( auto e : types.exprs(1, types.exprs.size()) ) {
+    for ( auto e : types.exprs(1, $) ) {
         stream << ", ";
         print(stream, *e->type());
     }

@@ -113,14 +113,36 @@ public:
         return myData[index];
     }
 
-    Slice operator () (size_type start, size_type end) noexcept
+    template <typename Unary>
+    std::enable_if_t<
+        std::is_nothrow_invocable_r_v<size_type, Unary, size_type>
+        , reference>
+    wut (Unary&& f) noexcept
     {
-        return Slice(myData + start, end - start);
+        return myData[f(myLength)];
+    }
+
+    template <typename Unary>
+    std::enable_if_t<
+        std::is_nothrow_invocable_r_v<size_type, Unary, size_type>
+        , const_reference>
+    operator [] (Unary&& f) const noexcept
+    {
+        return myData[f(myLength)];
     }
 
     Slice operator () (size_type start, size_type end) const noexcept
     {
         return Slice(myData + start, end - start);
+    }
+
+    template <typename Unary>
+    std::enable_if_t<
+        std::is_nothrow_invocable_r_v<size_type, Unary, size_type>
+        , Slice>
+    operator () (size_type start, Unary&& f) const noexcept
+    {
+        return Slice(myData + start, f(myLength) - start);
     }
 
     explicit operator bool () const noexcept
