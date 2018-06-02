@@ -5,6 +5,7 @@
 
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Types.hpp>
+#include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
@@ -59,7 +60,7 @@ public:
 
     void swap(LookupHit& rhs)
     {
-        using std::swap;
+        using kyfoo::swap;
         swap(mySpaces, rhs.mySpaces);
         swap(myDecl, rhs.myDecl);
     }
@@ -189,7 +190,7 @@ public:
 
     ~DeclarationScope();
 
-    void swap(DeclarationScope& rhs);
+    void swap(DeclarationScope& rhs) noexcept;
 
     // IIO
 public:
@@ -270,7 +271,7 @@ public:
 
     ~DataSumScope();
 
-    void swap(DataSumScope& rhs);
+    void swap(DataSumScope& rhs) noexcept;
 
     // IIO
 public:
@@ -306,7 +307,7 @@ public:
 
     ~DataProductScope();
 
-    void swap(DataProductScope& rhs);
+    void swap(DataProductScope& rhs) noexcept;
 
     // IIO
 public:
@@ -363,7 +364,7 @@ public:
 
     ~ProcedureScope();
 
-    void swap(ProcedureScope& rhs);
+    void swap(ProcedureScope& rhs) noexcept;
 
     // IIO
 public:
@@ -431,7 +432,7 @@ public:
 
     ~TemplateScope();
 
-    void swap(TemplateScope& rhs);
+    void swap(TemplateScope& rhs) noexcept;
 
     // IIO
 public:

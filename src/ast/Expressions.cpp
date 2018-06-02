@@ -4,6 +4,7 @@
 #include <iterator>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Context.hpp>
@@ -95,9 +96,9 @@ Expression::Expression(Expression const& rhs)
 
 Expression::~Expression() = default;
 
-void Expression::swap(Expression& rhs)
+void Expression::swap(Expression& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myKind, rhs.myKind);
     swap(myConstraints, rhs.myConstraints);
     swap(myType, rhs.myType);
@@ -211,11 +212,11 @@ LiteralExpression& LiteralExpression::operator = (LiteralExpression const& rhs)
 
 LiteralExpression::~LiteralExpression() = default;
 
-void LiteralExpression::swap(LiteralExpression& rhs)
+void LiteralExpression::swap(LiteralExpression& rhs) noexcept
 {
     Expression::swap(rhs);
     
-    using std::swap;
+    using kyfoo::swap;
     swap(myToken, rhs.myToken);
 }
 
@@ -299,11 +300,11 @@ IdentifierExpression& IdentifierExpression::operator = (IdentifierExpression con
 
 IdentifierExpression::~IdentifierExpression() = default;
 
-void IdentifierExpression::swap(IdentifierExpression& rhs)
+void IdentifierExpression::swap(IdentifierExpression& rhs) noexcept
 {
     Expression::swap(rhs);
 
-    using std::swap;
+    using kyfoo::swap;
     swap(myToken, rhs.myToken);
     swap(myDeclaration, rhs.myDeclaration);
 }
@@ -560,11 +561,11 @@ TupleExpression& TupleExpression::operator = (TupleExpression const& rhs)
     return *this;
 }
 
-void TupleExpression::swap(TupleExpression& rhs)
+void TupleExpression::swap(TupleExpression& rhs) noexcept
 {
     Expression::swap(rhs);
 
-    using std::swap;
+    using kyfoo::swap;
     swap(myKind, rhs.myKind);
     swap(myExpressions, rhs.myExpressions);
 }
@@ -708,11 +709,11 @@ ApplyExpression& ApplyExpression::operator = (ApplyExpression const& rhs)
 
 ApplyExpression::~ApplyExpression() = default;
 
-void ApplyExpression::swap(ApplyExpression& rhs)
+void ApplyExpression::swap(ApplyExpression& rhs) noexcept
 {
     Expression::swap(rhs);
 
-    using std::swap;
+    using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
 }
 
@@ -1158,11 +1159,11 @@ SymbolExpression& SymbolExpression::operator = (SymbolExpression const& rhs)
 
 SymbolExpression::~SymbolExpression() = default;
 
-void SymbolExpression::swap(SymbolExpression& rhs)
+void SymbolExpression::swap(SymbolExpression& rhs) noexcept
 {
     IdentifierExpression::swap(rhs);
 
-    using std::swap;
+    using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
     swap(myOpenToken, rhs.myOpenToken);
     swap(myCloseToken, rhs.myCloseToken);
@@ -1273,10 +1274,10 @@ DotExpression::~DotExpression()
 {
 }
 
-void DotExpression::swap(DotExpression& rhs)
+void DotExpression::swap(DotExpression& rhs) noexcept
 {
     Expression::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
 }
 
@@ -1474,10 +1475,10 @@ AssignExpression& AssignExpression::operator = (AssignExpression const& rhs)
 
 AssignExpression::~AssignExpression() = default;
 
-void AssignExpression::swap(AssignExpression& rhs)
+void AssignExpression::swap(AssignExpression& rhs) noexcept
 {
     Expression::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myLeft, rhs.myLeft);
     swap(myRight, rhs.myRight);
 }
@@ -1569,10 +1570,10 @@ LambdaExpression& LambdaExpression::operator = (LambdaExpression const& rhs)
 
 LambdaExpression::~LambdaExpression() = default;
 
-void LambdaExpression::swap(LambdaExpression& rhs)
+void LambdaExpression::swap(LambdaExpression& rhs) noexcept
 {
     Expression::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myProc, rhs.myProc);
 }
 
@@ -1638,10 +1639,10 @@ ArrowExpression& ArrowExpression::operator = (ArrowExpression const& rhs)
 
 ArrowExpression::~ArrowExpression() = default;
 
-void ArrowExpression::swap(ArrowExpression& rhs)
+void ArrowExpression::swap(ArrowExpression& rhs) noexcept
 {
     Expression::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myFrom, rhs.myFrom);
     swap(myTo, rhs.myTo);
 }
@@ -1728,10 +1729,10 @@ UniverseExpression& UniverseExpression::operator = (UniverseExpression const& rh
 
 UniverseExpression::~UniverseExpression() = default;
 
-void UniverseExpression::swap(UniverseExpression& rhs)
+void UniverseExpression::swap(UniverseExpression& rhs) noexcept
 {
     Expression::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myLevel, rhs.myLevel);
 }
 

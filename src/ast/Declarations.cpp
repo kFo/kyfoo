@@ -1,6 +1,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 
@@ -44,9 +45,9 @@ Declaration::Declaration(Declaration const& rhs)
 
 Declaration::~Declaration() = default;
 
-void Declaration::swap(Declaration& rhs)
+void Declaration::swap(Declaration& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myKind, rhs.myKind);
     swap(mySymbol, rhs.mySymbol);
     swap(myScope, rhs.myScope);
@@ -178,10 +179,10 @@ DefinableDeclaration::DefinableDeclaration(DefinableDeclaration const& rhs)
 
 DefinableDeclaration::~DefinableDeclaration() = default;
 
-void DefinableDeclaration::swap(DefinableDeclaration& rhs)
+void DefinableDeclaration::swap(DefinableDeclaration& rhs) noexcept
 {
     Declaration::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
@@ -226,7 +227,7 @@ DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const& rhs)
 
 DataSumDeclaration::~DataSumDeclaration() = default;
 
-void DataSumDeclaration::swap(DataSumDeclaration& rhs)
+void DataSumDeclaration::swap(DataSumDeclaration& rhs) noexcept
 {
     base_t::swap(rhs);
 }
@@ -271,10 +272,10 @@ DataSumDeclaration::Constructor& DataSumDeclaration::Constructor::operator = (Co
 
 DataSumDeclaration::Constructor::~Constructor() = default;
 
-void DataSumDeclaration::Constructor::swap(Constructor& rhs)
+void DataSumDeclaration::Constructor::swap(Constructor& rhs) noexcept
 {
     Declaration::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myParent, rhs.myParent);
     swap(myPattern, rhs.myPattern);
 }
@@ -354,10 +355,10 @@ Binder::Binder(Binder const& rhs)
 
 Binder::~Binder() = default;
 
-void Binder::swap(Binder& rhs)
+void Binder::swap(Binder& rhs) noexcept
 {
     Declaration::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myConstraints, rhs.myConstraints);
     swap(myType, rhs.myType);
 }
@@ -443,10 +444,10 @@ DataProductDeclaration::DataProductDeclaration(DataProductDeclaration const& rhs
 
 DataProductDeclaration::~DataProductDeclaration() = default;
 
-void DataProductDeclaration::swap(DataProductDeclaration& rhs)
+void DataProductDeclaration::swap(DataProductDeclaration& rhs) noexcept
 {
     base_t::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
@@ -494,10 +495,10 @@ DataProductDeclaration::Field& DataProductDeclaration::Field::operator = (Field 
 
 DataProductDeclaration::Field::~Field() = default;
 
-void DataProductDeclaration::Field::swap(Field& rhs)
+void DataProductDeclaration::Field::swap(Field& rhs) noexcept
 {
     Binder::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myParent, rhs.myParent);
 }
 
@@ -570,10 +571,10 @@ SymbolDeclaration& SymbolDeclaration::operator = (SymbolDeclaration const& rhs)
 
 SymbolDeclaration::~SymbolDeclaration() = default;
 
-void SymbolDeclaration::swap(SymbolDeclaration& rhs)
+void SymbolDeclaration::swap(SymbolDeclaration& rhs) noexcept
 {
     Declaration::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myExpression, rhs.myExpression);
 }
 
@@ -642,7 +643,7 @@ VariableDeclaration& VariableDeclaration::operator = (VariableDeclaration const&
 
 VariableDeclaration::~VariableDeclaration() = default;
 
-void VariableDeclaration::swap(VariableDeclaration& rhs)
+void VariableDeclaration::swap(VariableDeclaration& rhs) noexcept
 {
     Binder::swap(rhs);
 }
@@ -692,7 +693,7 @@ ProcedureParameter& ProcedureParameter::operator = (ProcedureParameter const& rh
 
 ProcedureParameter::~ProcedureParameter() = default;
 
-void ProcedureParameter::swap(ProcedureParameter& rhs)
+void ProcedureParameter::swap(ProcedureParameter& rhs) noexcept
 {
     Binder::swap(rhs);
 }
@@ -736,10 +737,10 @@ ProcedureDeclaration& ProcedureDeclaration::operator = (ProcedureDeclaration con
 
 ProcedureDeclaration::~ProcedureDeclaration() = default;
 
-void ProcedureDeclaration::swap(ProcedureDeclaration& rhs)
+void ProcedureDeclaration::swap(ProcedureDeclaration& rhs) noexcept
 {
     base_t::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myReturnExpression, rhs.myReturnExpression);
     swap(myParameters, rhs.myParameters);
     swap(myOrdinals, rhs.myOrdinals);
@@ -960,7 +961,7 @@ ImportDeclaration& ImportDeclaration::operator = (ImportDeclaration const& rhs)
 
 ImportDeclaration::~ImportDeclaration() = default;
 
-void ImportDeclaration::swap(ImportDeclaration& rhs)
+void ImportDeclaration::swap(ImportDeclaration& rhs) noexcept
 {
     Declaration::swap(rhs);
 }
@@ -1018,10 +1019,10 @@ SymbolVariable& SymbolVariable::operator = (SymbolVariable const& rhs)
 
 SymbolVariable::~SymbolVariable() = default;
 
-void SymbolVariable::swap(SymbolVariable& rhs)
+void SymbolVariable::swap(SymbolVariable& rhs) noexcept
 {
     Declaration::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myPrototype, rhs.myPrototype);
     swap(myConstraints, rhs.myConstraints);
     swap(myBoundExpression, rhs.myBoundExpression);
@@ -1089,10 +1090,10 @@ TemplateDeclaration& TemplateDeclaration::operator = (TemplateDeclaration const&
 
 TemplateDeclaration::~TemplateDeclaration() = default;
 
-void TemplateDeclaration::swap(TemplateDeclaration& rhs)
+void TemplateDeclaration::swap(TemplateDeclaration& rhs) noexcept
 {
     base_t::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 

@@ -1,9 +1,9 @@
 #include <kyfoo/ast/Symbol.hpp>
 
-#include <algorithm>
 #include <tuple>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Utilities.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Context.hpp>
@@ -54,9 +54,9 @@ PatternsPrototype& PatternsPrototype::operator = (PatternsPrototype&& rhs)
 
 PatternsPrototype::~PatternsPrototype() = default;
 
-void PatternsPrototype::swap(PatternsPrototype& rhs)
+void PatternsPrototype::swap(PatternsPrototype& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myPattern, rhs.myPattern);
     swap(myVariables, rhs.myVariables);
 }
@@ -217,9 +217,9 @@ Symbol& Symbol::operator = (Symbol&& rhs)
 
 Symbol::~Symbol() = default;
 
-void Symbol::swap(Symbol& rhs)
+void Symbol::swap(Symbol& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myToken, rhs.myToken);
     swap(myPrototype, rhs.myPrototype);
     swap(myPrototypeParent, rhs.myPrototypeParent);
@@ -386,9 +386,9 @@ SymbolSpace& SymbolSpace::operator = (SymbolSpace&& rhs)
 
 SymbolSpace::~SymbolSpace() = default;
 
-void SymbolSpace::swap(SymbolSpace& rhs)
+void SymbolSpace::swap(SymbolSpace& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myScope, rhs.myScope);
     swap(myName, rhs.myName);
     swap(myPrototypes, rhs.myPrototypes);

@@ -1,5 +1,7 @@
 #include <kyfoo/lexer/Token.hpp>
 
+#include <kyfoo/Utilities.hpp>
+
 namespace kyfoo::lexer {
 
 Token::Token() = default;
@@ -44,9 +46,9 @@ Token& Token::operator = (Token&& rhs)
     return *this;
 }
 
-void Token::swap(Token& rhs)
+void Token::swap(Token& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
 
     swap(myKind, rhs.myKind);
     swap(myLine, rhs.myLine);

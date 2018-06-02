@@ -54,7 +54,7 @@ public:
 
     ~PatternsPrototype();
 
-    void swap(PatternsPrototype& rhs);
+    void swap(PatternsPrototype& rhs) noexcept;
 
     // IIO
 public:
@@ -106,7 +106,7 @@ public:
 
     ~Symbol();
 
-    void swap(Symbol& rhs);
+    void swap(Symbol& rhs) noexcept;
 
 public:
     void io(IStream& stream) const override;
@@ -211,7 +211,7 @@ public:
 
     ~SymbolSpace();
 
-    void swap(SymbolSpace& rhs);
+    void swap(SymbolSpace& rhs) noexcept;
 
 public:
     std::string_view name() const;

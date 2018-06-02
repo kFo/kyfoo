@@ -47,7 +47,7 @@ public:
 
     ~Resolver();
 
-    void swap(Resolver& rhs);
+    void swap(Resolver& rhs) noexcept;
 
     // Resolver
 public:

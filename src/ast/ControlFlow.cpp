@@ -1,5 +1,7 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 
+#include <kyfoo/Utilities.hpp>
+
 #include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
@@ -95,9 +97,9 @@ Statement& Statement::operator = (Statement&& rhs)
 
 Statement::~Statement() = default;
 
-void Statement::swap(Statement& rhs)
+void Statement::swap(Statement& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myKind, rhs.myKind);
     swap(myExpression, rhs.myExpression);
     swap(myUnnamedVariables, rhs.myUnnamedVariables);
@@ -185,9 +187,9 @@ Junction::Junction(Junction const& rhs)
 
 Junction::~Junction() = default;
 
-void Junction::swap(Junction& rhs)
+void Junction::swap(Junction& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myKind, rhs.myKind);
 }
 
@@ -237,10 +239,10 @@ BranchJunction& BranchJunction::operator = (BranchJunction const& rhs)
 
 BranchJunction::~BranchJunction() = default;
 
-void BranchJunction::swap(BranchJunction& rhs)
+void BranchJunction::swap(BranchJunction& rhs) noexcept
 {
     Junction::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myToken, rhs.myToken);
     swap(myCondition, rhs.myCondition);
     swap(myBranch[0], rhs.myBranch[0]);
@@ -352,10 +354,10 @@ ReturnJunction& ReturnJunction::operator = (ReturnJunction const& rhs)
 
 ReturnJunction::~ReturnJunction() = default;
 
-void ReturnJunction::swap(ReturnJunction& rhs)
+void ReturnJunction::swap(ReturnJunction& rhs) noexcept
 {
     Junction::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myExpression, rhs.myExpression);
 }
 
@@ -448,10 +450,10 @@ JumpJunction& JumpJunction::operator = (JumpJunction const& rhs)
 
 JumpJunction::~JumpJunction() = default;
 
-void JumpJunction::swap(JumpJunction& rhs)
+void JumpJunction::swap(JumpJunction& rhs) noexcept
 {
     Junction::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myTargetLabel, rhs.myTargetLabel);
     swap(myTargetBlock, rhs.myTargetBlock);
 }
@@ -551,9 +553,9 @@ BasicBlock::BasicBlock(BasicBlock const& rhs)
 
 BasicBlock::~BasicBlock() = default;
 
-void BasicBlock::swap(BasicBlock& rhs)
+void BasicBlock::swap(BasicBlock& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myScope, rhs.myScope);
     swap(myIncoming, rhs.myIncoming);
     swap(myStatements, rhs.myStatements);

@@ -67,7 +67,7 @@ protected:
 public:
     ~Declaration();
 
-    void swap(Declaration& rhs);
+    void swap(Declaration& rhs) noexcept;
 
     // IIO
 public:
@@ -129,7 +129,7 @@ public:
 
     ~DefinableDeclaration();
 
-    void swap(DefinableDeclaration& rhs);
+    void swap(DefinableDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -200,7 +200,7 @@ public:
 
         ~Constructor();
 
-        void swap(Constructor& rhs);
+        void swap(Constructor& rhs) noexcept;
 
         // IIO
     public:
@@ -235,7 +235,7 @@ public:
 
     ~DataSumDeclaration();
 
-    void swap(DataSumDeclaration& rhs);
+    void swap(DataSumDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -270,7 +270,7 @@ protected:
 public:
     ~Binder();
 
-    void swap(Binder& rhs);
+    void swap(Binder& rhs) noexcept;
 
     // IIO
 public:
@@ -319,7 +319,7 @@ public:
 
         ~Field();
 
-        void swap(Field& rhs);
+        void swap(Field& rhs) noexcept;
 
         // IIO
     public:
@@ -354,7 +354,7 @@ public:
 
     ~DataProductDeclaration();
 
-    void swap(DataProductDeclaration& rhs);
+    void swap(DataProductDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -383,7 +383,7 @@ public:
 
     ~SymbolDeclaration();
 
-    void swap(SymbolDeclaration& rhs);
+    void swap(SymbolDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -424,7 +424,7 @@ public:
 
     ~VariableDeclaration();
 
-    void swap(VariableDeclaration& rhs);
+    void swap(VariableDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -462,7 +462,7 @@ public:
 
     ~ProcedureParameter();
 
-    void swap(ProcedureParameter& rhs);
+    void swap(ProcedureParameter& rhs) noexcept;
 
     // IIO
 public:
@@ -494,7 +494,7 @@ public:
 
     ~ProcedureDeclaration();
 
-    void swap(ProcedureDeclaration& rhs);
+    void swap(ProcedureDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -548,7 +548,7 @@ public:
 
     ~ImportDeclaration();
 
-    void swap(ImportDeclaration& rhs);
+    void swap(ImportDeclaration& rhs) noexcept;
 
     // IIO
 public:
@@ -585,7 +585,7 @@ public:
 
     ~SymbolVariable();
 
-    void swap(SymbolVariable& rhs);
+    void swap(SymbolVariable& rhs) noexcept;
 
     // IIO
 public:
@@ -628,7 +628,7 @@ public:
 
     ~TemplateDeclaration();
 
-    void swap(TemplateDeclaration& rhs);
+    void swap(TemplateDeclaration& rhs) noexcept;
 
     // IIO
 public:

@@ -4,6 +4,7 @@
 #include <type_traits>
 
 #include <kyfoo/Types.hpp>
+#include <kyfoo/Utilities.hpp>
 
 namespace kyfoo {
 
@@ -83,7 +84,7 @@ public:
 
     void swap(Slice& s) noexcept
     {
-        using std::swap;
+        using kyfoo::swap;
         swap(myData, s.myData);
         swap(myLength, s.myLength);
     }

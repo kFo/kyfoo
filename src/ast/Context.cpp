@@ -1,6 +1,7 @@
 #include <kyfoo/ast/Context.hpp>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Utilities.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
@@ -37,9 +38,9 @@ Resolver& Resolver::operator = (Resolver&& rhs)
 
 Resolver::~Resolver() = default;
 
-void Resolver::swap(Resolver& rhs)
+void Resolver::swap(Resolver& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myScope, rhs.myScope);
     swap(mySupplementaryPrototypes, rhs.mySupplementaryPrototypes);
 }

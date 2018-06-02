@@ -65,9 +65,9 @@ DeclarationScope& DeclarationScope::operator = (DeclarationScope const& rhs)
 
 DeclarationScope::~DeclarationScope() = default;
 
-void DeclarationScope::swap(DeclarationScope& rhs)
+void DeclarationScope::swap(DeclarationScope& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myKind, rhs.myKind);
     swap(myModule, rhs.myModule);
     swap(myDeclaration, rhs.myDeclaration);
@@ -349,7 +349,7 @@ DataSumScope& DataSumScope::operator = (DataSumScope const& rhs)
 
 DataSumScope::~DataSumScope() = default;
 
-void DataSumScope::swap(DataSumScope& rhs)
+void DataSumScope::swap(DataSumScope& rhs) noexcept
 {
     DeclarationScope::swap(rhs);
 }
@@ -415,10 +415,10 @@ DataProductScope& DataProductScope::operator = (DataProductScope const& rhs)
 
 DataProductScope::~DataProductScope() = default;
 
-void DataProductScope::swap(DataProductScope& rhs)
+void DataProductScope::swap(DataProductScope& rhs) noexcept
 {
     DeclarationScope::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myFields, rhs.myFields);
 }
 
@@ -682,10 +682,10 @@ ProcedureScope& ProcedureScope::operator = (ProcedureScope const& rhs)
 
 ProcedureScope::~ProcedureScope() = default;
 
-void ProcedureScope::swap(ProcedureScope& rhs)
+void ProcedureScope::swap(ProcedureScope& rhs) noexcept
 {
     DeclarationScope::swap(rhs);
-    using std::swap;
+    using kyfoo::swap;
     swap(myMergeBlock, rhs.myMergeBlock);
     swap(myOpenToken, rhs.myOpenToken);
     swap(myLabel, rhs.myLabel);
@@ -1088,7 +1088,7 @@ TemplateScope& TemplateScope::operator = (TemplateScope const& rhs)
 
 TemplateScope::~TemplateScope() = default;
 
-void TemplateScope::swap(TemplateScope& rhs)
+void TemplateScope::swap(TemplateScope& rhs) noexcept
 {
     DeclarationScope::swap(rhs);
 }

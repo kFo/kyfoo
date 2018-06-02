@@ -31,7 +31,7 @@ public:
     Token(Token&&);
     Token& operator = (Token&&);
 
-    void swap(Token&);
+    void swap(Token&) noexcept;
 
 public:
     bool operator < (Token const&) const;

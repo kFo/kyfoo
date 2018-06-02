@@ -46,7 +46,7 @@ public:
     Statement& operator = (Statement&& rhs);
 
     ~Statement();
-    void swap(Statement& rhs);
+    void swap(Statement& rhs) noexcept;
 
     // IIO
 public:
@@ -104,7 +104,7 @@ protected:
     Junction(Junction const& rhs);
     Junction(Junction&&) = delete;
     
-    void swap(Junction& rhs);
+    void swap(Junction& rhs) noexcept;
 
 public:
     ~Junction();
@@ -141,7 +141,7 @@ protected:
 public:
     ~BranchJunction();
 
-    void swap(BranchJunction& rhs);
+    void swap(BranchJunction& rhs) noexcept;
 
     // IIO
 public:
@@ -185,7 +185,7 @@ protected:
 public:
     ~ReturnJunction();
 
-    void swap(ReturnJunction& rhs);
+    void swap(ReturnJunction& rhs) noexcept;
 
     // IIO
 public:
@@ -234,7 +234,7 @@ protected:
 public:
     ~JumpJunction();
 
-    void swap(JumpJunction& rhs);
+    void swap(JumpJunction& rhs) noexcept;
 
     // IIO
 public:
@@ -268,7 +268,7 @@ public:
     explicit BasicBlock(ProcedureScope* scope);
     BasicBlock(BasicBlock const& rhs);
     ~BasicBlock();
-    void swap(BasicBlock& rhs);
+    void swap(BasicBlock& rhs) noexcept;
 
     // IIO
 public:

@@ -129,4 +129,19 @@ struct StringComp {
 
 int stoi(std::string_view s);
 
+template <typename L, typename R>
+std::enable_if_t<!std::is_scalar_v<L>>
+swap(L& lhs, R& rhs) noexcept
+{
+    lhs.swap(rhs);
+}
+
+template <typename L, typename R>
+std::enable_if_t<std::is_scalar_v<L>>
+swap(L& lhs, R& rhs) noexcept
+{
+    using std::swap;
+    swap(lhs, rhs);
+}
+
 } // namespace kyfoo

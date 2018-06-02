@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kyfoo/Utilities.hpp>
+
 #include <kyfoo/parser/Grammar.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
@@ -94,7 +96,7 @@ public:
 
     ~Defer();
 
-    void swap(Defer& rhs);
+    void swap(Defer& rhs) noexcept;
 
 public:
     bool match(kyfoo::lexer::ScanPoint scan, uz& matches);
@@ -645,9 +647,9 @@ template <typename T>
 Defer<T>::~Defer() = default;
 
 template <typename T>
-void Defer<T>::swap(Defer& rhs)
+void Defer<T>::swap(Defer& rhs) noexcept
 {
-    using std::swap;
+    using kyfoo::swap;
     swap(myGrammar, rhs.myGrammar);
 }
 

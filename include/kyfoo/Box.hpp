@@ -1,7 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <memory>
+
+#include <kyfoo/Utilities.hpp>
 
 namespace kyfoo {
 
@@ -55,10 +56,9 @@ public:
         reset();
     }
 
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-    void swap(Box<U>& rhs) noexcept
+    void swap(Box& rhs) noexcept
     {
-        using std::swap;
+        using kyfoo::swap;
         swap(myPtr, rhs.myPtr);
     }
 

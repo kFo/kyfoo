@@ -128,7 +128,7 @@ public:
     ~Expression();
 
 protected:
-    void swap(Expression& rhs);
+    void swap(Expression& rhs) noexcept;
 
     // IIO
 public:
@@ -186,7 +186,7 @@ protected:
 public:
     ~LiteralExpression();
 
-    void swap(LiteralExpression& rhs);
+    void swap(LiteralExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -221,7 +221,7 @@ protected:
 public:
     ~IdentifierExpression();
 
-    void swap(IdentifierExpression& rhs);
+    void swap(IdentifierExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -347,7 +347,7 @@ protected:
 public:
     ~TupleExpression();
 
-    void swap(TupleExpression& rhs);
+    void swap(TupleExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -398,7 +398,7 @@ protected:
 public:
     ~ApplyExpression();
 
-    void swap(ApplyExpression& rhs);
+    void swap(ApplyExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -453,7 +453,7 @@ protected:
 public:
     ~SymbolExpression();
 
-    void swap(SymbolExpression& rhs);
+    void swap(SymbolExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -497,7 +497,7 @@ protected:
 public:
     ~DotExpression();
 
-    void swap(DotExpression& rhs);
+    void swap(DotExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -539,7 +539,7 @@ protected:
 public:
     ~AssignExpression();
 
-    void swap(AssignExpression& rhs);
+    void swap(AssignExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -574,7 +574,7 @@ protected:
 public:
     ~LambdaExpression();
 
-    void swap(LambdaExpression& rhs);
+    void swap(LambdaExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -609,7 +609,7 @@ protected:
 public:
     ~ArrowExpression();
 
-    void swap(ArrowExpression& rhs);
+    void swap(ArrowExpression& rhs) noexcept;
 
     // IIO
 public:
@@ -652,7 +652,7 @@ protected:
 public:
     ~UniverseExpression();
 
-    void swap(UniverseExpression& rhs);
+    void swap(UniverseExpression& rhs) noexcept;
 
     // IIO
 public:
