@@ -812,10 +812,8 @@ L_restart:
         ret |= lowerToApplicable(ctx);
     }
 
-    if ( !ret ) {
-        ctx.error(*myExpressions.front()) << "is not applicable";
+    if ( !ret )
         return ret;
-    }
 
     auto arrow = subjType->as<ArrowExpression>();
     if ( myProc )

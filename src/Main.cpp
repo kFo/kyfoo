@@ -106,13 +106,13 @@ int analyzeModule(ast::Module& m, bool treeDump)
         // Handled below
     }
     catch (std::exception const& e) {
-        std::cout << m.path() << ": ICE: " << e.what() << std::endl;
+        std::cout << m << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     auto semTime = sw.reset();
     dgn.dumpErrors(std::cout);
-    std::cout << "semantics: " << m.name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+    std::cout << "semantics: " << m << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -229,7 +229,7 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
             // Handled below
         }
         catch (std::exception const& e) {
-            std::cout << m->path() << ": ICE: " << e.what() << std::endl;
+            std::cout << *m << ": ICE: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
 
