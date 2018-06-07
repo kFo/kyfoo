@@ -39,6 +39,25 @@ bool ModuleSet::init(Diagnostics& dgn)
     return false;
 }
 
+void ModuleSet::initBaseModules()
+{
+    if ( myModules.empty() )
+        return;
+
+    std::filesystem::path commonPath;
+    for ( auto const& m : myModules) {
+        if ( m->path().empty() )
+            continue;
+
+        if ( commonPath.empty() )
+            commonPath = m->path().parent_path();
+        else if ( m->path().parent_path() != commonPath )
+            return;
+    }
+
+    myPath = commonPath;
+}
+
 Module* ModuleSet::create(std::string name)
 {
     auto m = find(std::string_view(name));
@@ -127,6 +146,11 @@ Slice<Module*> ModuleSet::impliedImports()
 Slice<Module const*> ModuleSet::impliedImports() const
 {
     return myImpliedImports;
+}
+
+std::filesystem::path const& ModuleSet::path() const
+{
+    return myPath;
 }
 
 //
@@ -240,6 +264,11 @@ void Module::appendTemplateInstance(Declaration const* instance)
     auto e = find(begin(myTemplateInstantiations), end(myTemplateInstantiations), instance);
     if ( e == end(myTemplateInstantiations) )
         myTemplateInstantiations.push_back(instance);
+}
+
+ModuleSet const& Module::moduleSet() const
+{
+    return *myModuleSet;
 }
 
 AxiomsModule& Module::axioms()

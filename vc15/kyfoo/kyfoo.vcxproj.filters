@@ -60,9 +60,6 @@
     <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp">
       <Filter>include\kyfoo\parser</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\parser\GrammarStatic.hpp">
-      <Filter>include\kyfoo\parser</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp">
       <Filter>include\kyfoo\parser</Filter>
     </ClInclude>
@@ -123,6 +120,12 @@
     <ClInclude Include="..\..\include\kyfoo\Dollar.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Overloading.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Variance.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -178,6 +181,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Utilities.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Overloading.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Variance.cpp">
+      <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

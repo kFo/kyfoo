@@ -7,21 +7,18 @@ namespace kyfoo::lexer {
 Token::Token() = default;
 
 Token::Token(TokenKind kind,
-             line_index_t line,
-             column_index_t column,
-             std::string lexeme)
+             std::string lexeme,
+             SourceLocation loc)
     : myKind(kind)
-    , myLine(line)
-    , myColumn(column)
     , myLexeme(std::move(lexeme))
+    , myLoc(loc)
 {
 }
 
 Token::Token(Token const& rhs)
     : myKind(rhs.myKind)
-    , myLine(rhs.myLine)
-    , myColumn(rhs.myColumn)
     , myLexeme(rhs.myLexeme)
+    , myLoc(rhs.myLoc)
 {
 }
 
@@ -33,9 +30,8 @@ Token& Token::operator = (Token const& rhs)
 
 Token::Token(Token&& rhs)
     : myKind(rhs.myKind)
-    , myLine(rhs.myLine)
-    , myColumn(rhs.myColumn)
     , myLexeme(rhs.myLexeme)
+    , myLoc(rhs.myLoc)
 {
 }
 
@@ -51,9 +47,8 @@ void Token::swap(Token& rhs) noexcept
     using kyfoo::swap;
 
     swap(myKind, rhs.myKind);
-    swap(myLine, rhs.myLine);
-    swap(myColumn, rhs.myColumn);
     swap(myLexeme, rhs.myLexeme);
+    swap(myLoc, rhs.myLoc);
 }
 
 bool Token::operator < (Token const& rhs) const
@@ -71,19 +66,24 @@ TokenKind Token::kind() const
     return myKind;
 }
 
+std::string_view Token::lexeme() const
+{
+    return myLexeme;
+}
+
+SourceLocation Token::location() const
+{
+    return myLoc;
+}
+
 line_index_t Token::line() const
 {
-    return myLine;
+    return myLoc.line;
 }
 
 column_index_t Token::column() const
 {
-    return myColumn;
-}
-
-std::string_view Token::lexeme() const
-{
-    return myLexeme;
+    return myLoc.column;
 }
 
 } // namespace kyfoo::lexer

@@ -74,6 +74,12 @@ size_t := unsigned<wordSize>
 
 staticSize(p : ptr \T) -> size_t => wordSize
 
+@"intrininst" "implicitUnsigned"
+implicitTo<unsigned<\D>>(s : unsigned<\S>) -> unsigned<D>
+
+@"intrininst" "implicitSigned"
+implicitTo<signed<unsigned<\D>>>(s : signed<unsigned<\S>>) -> signed<unsigned<D>>
+
 @"intrininst" "Addu"
 add(x y : unsigned<\n>) -> unsigned<n>
 
@@ -211,6 +217,7 @@ cast<ptr \T>(p : ptr \U) -> ptr T
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Module.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -225,9 +232,9 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
 {
     myScope = mk<ast::DeclarationScope>(*this);
 
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "integer" ))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "rational"))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "null_t"  ))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , {0, 0}))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", {0, 0}))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , {0, 0}))));
 
     for ( uz i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
         myDataSumDecls[i] = scope()->childDeclarations()[i]->as<DataSumDeclaration>();
@@ -401,20 +408,20 @@ bool AxiomsModule::init(Diagnostics& dgn)
         if ( dgn.errorCount() )
             return false;
 
-        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").decl())->as<DataSumDeclaration>();
+        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataSumDeclaration>();
 
-        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent("i8"  ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent("i16" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent("i32" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).decl())->as<DataSumDeclaration>();
-        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").decl())->as<DataSumDeclaration>();
+        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent("i8"  ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent("i16" ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent("i32" ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).single())->as<DataSumDeclaration>();
+        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").single())->as<DataSumDeclaration>();
 
-        myDataSumDecls[size_t] = resolveIndirections(scope()->findEquivalent("size_t").decl())->as<DataSumDeclaration>();
+        myDataSumDecls[size_t] = resolveIndirections(scope()->findEquivalent("size_t").single())->as<DataSumDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
         auto decl = begin(childDecls);

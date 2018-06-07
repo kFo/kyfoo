@@ -3,13 +3,11 @@
 #include <functional>
 #include <vector>
 
+#include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo {
-
-    class Diagnostics;
-    class Error;
 
     namespace lexer {
         class Token;
@@ -22,7 +20,7 @@ class DeclarationScope;
 class Statement;
 class Declaration;
 class Expression;
-class LookupHit;
+class Lookup;
 class Module;
 class SymRes;
 
@@ -31,9 +29,9 @@ class Resolver
 public:
     enum Options
     {
-        None        = 0,
-        Narrow      = 1 << 0,
-        SkipImports = 1 << 1,
+        None                    = 0,
+        Narrow                  = 1 << 0,
+        SkipImports             = 1 << 1,
     };
 
     using options_t = Options;
@@ -54,14 +52,14 @@ public:
     DeclarationScope const& scope() const;
     DeclarationScope& scope();
 
-    LookupHit matchEquivalent(SymbolReference const& symbol) const;
-    LookupHit matchOverload(Module& endModule,
+    Lookup matchEquivalent(SymbolReference const& symbol) const;
+    Lookup matchOverload(Module& endModule,
                             Diagnostics& dgn,
                             SymbolReference const& symbol);
 
 public:
     void addSupplementaryPrototype(PatternsPrototype& proto);
-    LookupHit matchSupplementary(SymbolReference const& symbol) const;
+    Lookup matchSupplementary(SymbolReference const& symbol) const;
 
 private:
     DeclarationScope* myScope = nullptr;
@@ -72,6 +70,8 @@ private:
 class Context
 {
 public:
+    friend class ResolverReverter;
+
     enum Options
     {
         DisableCacheTemplateInstantiations = 1 << 0,
@@ -104,9 +104,11 @@ public:
     Error& error(Declaration const& decl);
     uz errorCount() const;
 
-    LookupHit matchOverload(SymbolReference const& sym) const;
+    Lookup matchOverload(SymbolReference const& sym);
+    Lookup Context::matchOverloadUsingImplicitConversions(std::string_view name, Slice<Box<Expression>> args);
 
     Resolver* changeResolver(Resolver& resolver);
+    ResolverReverter pushResolver(Resolver& resolver);
     Statement* changeStatement(Statement* statement);
 
     SymRes rewrite(Box<Expression> expr);
@@ -127,6 +129,12 @@ public:
 
     bool isTopLevel() const;
 
+public:
+    operator DiagnosticsContext();
+
+protected:
+    Lookup trackForModule(Lookup&& hit);
+
 private:
     Module* myModule = nullptr;
     Diagnostics* myDiagnostics = nullptr;
@@ -136,6 +144,32 @@ private:
     Box<Expression> myRewrite;
     std::function<Box<Expression>(Box<Expression>&)> myLazyRewrite;
     int myExpressionDepth = -1;
+};
+
+class [[nodiscard]] ResolverReverter
+{
+public:
+    ResolverReverter(Context& ctx, Resolver* old)
+        : myCtx(ctx)
+        , myOld(old)
+    {
+    }
+
+    ~ResolverReverter()
+    {
+        if ( myOld )
+            myCtx.changeResolver(*myOld);
+    }
+
+public:
+    Resolver* resolver()
+    {
+        return myOld;
+    }
+
+private:
+    Context& myCtx;
+    Resolver* myOld = nullptr;
 };
 
     } // namespace ast

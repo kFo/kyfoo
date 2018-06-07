@@ -203,7 +203,7 @@ Scanner::operator bool() const
 
 char Scanner::nextChar()
 {
-    ++myColumn;
+    ++myLoc.column;
     return static_cast<char>(myStream.get());
 }
 
@@ -214,46 +214,46 @@ char Scanner::peekChar()
 
 void Scanner::unget()
 {
-    --myColumn;
+    --myLoc.column;
     myStream.unget();
 }
 
 void Scanner::putback(char c)
 {
-    --myColumn;
+    --myLoc.column;
     myStream.putback(c);
 }
 
-Token Scanner::indent(line_index_t line, column_index_t column, indent_width_t indent)
+Token Scanner::indent(SourceLocation loc, indent_width_t indent)
 {
     indent_width_t current = 0;
     if ( !myIndents.empty() )
         current = myIndents.back();
 
     if ( indent == current )
-        return Token(TokenKind::IndentEQ, line, column, "");
+        return Token(TokenKind::IndentEQ, "", loc);
 
     if ( indent > current ) {
         myIndents.push_back(indent);
-        return Token(TokenKind::IndentGT, line, column, "");
+        return Token(TokenKind::IndentGT, "", loc);
     }
 
-    Token ret(TokenKind::IndentLT, line, column, "");
+    Token ret(TokenKind::IndentLT, "", loc);
     myIndents.pop_back();
 
     while ( !myIndents.empty() && myIndents.back() != indent ) {
         if ( myIndents.back() < indent ) {
             myError = true;
-            return Token(TokenKind::IndentError, line, column, "");
+            return Token(TokenKind::IndentError, "", loc);
         }
         
-        myBuffer.push_back(Token(TokenKind::IndentLT, line, column, ""));
+        myBuffer.push_back(Token(TokenKind::IndentLT, "", loc));
         myIndents.pop_back();
     }
 
     if ( myIndents.empty() && indent != 0 ) {
         myError = true;
-        return Token(TokenKind::IndentError, line, column, "");
+        return Token(TokenKind::IndentError, "", loc);
     }
 
     return ret;
@@ -261,8 +261,8 @@ Token Scanner::indent(line_index_t line, column_index_t column, indent_width_t i
 
 void Scanner::bumpLine()
 {
-    ++myLine;
-    myColumn = 1;
+    ++myLoc.line;
+    myLoc.column = 1;
 }
 
 void Scanner::addNest()
@@ -282,12 +282,12 @@ int Scanner::nestings() const
 
 Token Scanner::readNext()
 {
-#define TOK(t) Token(TokenKind::##t, myLine, column, lexeme)
-#define TOK2(t, l) Token(TokenKind::##t, myLine, column, l)
+#define TOK(t) Token(TokenKind::##t, lexeme, {myLoc.line, column})
+#define TOK2(t, l) Token(TokenKind::##t, l, {myLoc.line, column})
 
     char c = nextChar();
     std::string lexeme;
-    column_index_t column = myColumn;
+    column_index_t column = myLoc.column;
 
     if ( myStream.eof() )
         return TOK(EndOfFile);
@@ -369,16 +369,16 @@ Token Scanner::readNext()
 
         if ( !nestings() ) {
             unget();
-            return indent(myLine, myColumn, spaces);
+            return indent(myLoc, spaces);
         }
     }
     else if ( !nestings() && spaces && column == 1 ) {
         unget();
-        return indent(myLine, myColumn, spaces);
+        return indent(myLoc, spaces);
     }
 
     // Resync column with start of lexeme
-    column = myColumn;
+    column = myLoc.column;
 
     if ( c == '\'' ) {
         lexeme += c;
@@ -459,7 +459,7 @@ L_lexIdentifier:
         while ( isIdentifierMid(peekChar()) )
             lexeme += nextChar();
 
-        return Token(identifierKind(lexeme), myLine, column, lexeme);
+        return Token(identifierKind(lexeme), lexeme, {myLoc.line, column});
     }
     else if ( isNumber(c) ) {
 L_lexNumber:

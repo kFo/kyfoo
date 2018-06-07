@@ -10,8 +10,6 @@ namespace kyfoo {
 template <template<typename> class>
 struct deducto_syntacto_impl {};
 
-#define KYFOO_LABEL_CAT(a,b) a##b
-
 template <typename F>
 struct ycombinator {
     F f;
@@ -62,8 +60,9 @@ CheckPoint<T> operator*(deducto_syntacto_impl<CheckPoint>, T& rhs) noexcept
     return CheckPoint<T>(rhs);
 }
 
+#define KYFOO_LABEL_CAT(a,b) a##b
 #define KYFOO_LABEL_CHECKPOINT(a) KYFOO_LABEL_CAT(check_point_, a)
-#define check_point auto KYFOO_LABEL_CHECKPOINT(__COUNTER__) = deducto_syntacto_impl<CheckPoint>{} *
+#define check_point [[maybe_unused]] auto KYFOO_LABEL_CHECKPOINT(__COUNTER__) = deducto_syntacto_impl<CheckPoint>{} *
 
 template <typename F>
 struct ScopeExit
@@ -88,8 +87,11 @@ ScopeExit<F> operator*(deducto_syntacto_impl<ScopeExit>, F&& f)
     return ScopeExit<F>(std::forward<F>(f));
 }
 
-#define KYFOO_LABEL_SCOPEEXIT(a) KYFOO_LABEL_SCOPEEXIT(scope_exit_, a)
-#define scope_exit auto KYFOO_LABEL_SCOPEEXIT(__COUNTER__) = deducto_syntacto_impl<ScopeExit>{} * [&]
+#define KYFOO_LABEL_SCOPEEXIT(a) KYFOO_LABEL_CAT(scope_exit_, a)
+#define scope_exit [[maybe_unused]] auto KYFOO_LABEL_SCOPEEXIT(__COUNTER__) = deducto_syntacto_impl<ScopeExit>{} * [&]
+
+#define KYFOO_LABEL_REVERT(a) KYFOO_LABEL_CAT(revert_, a)
+#define REVERT [[maybe_unused]] auto KYFOO_LABEL_REVERT(__COUNTER__)
 
 struct StringComp {
     struct is_transparent;

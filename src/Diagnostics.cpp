@@ -2,10 +2,25 @@
 
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
+
+//
+// ContextReference
+
+ContextReference::~ContextReference()
+{
+    if ( myKind == SeeLookup )
+        delete myContext.miss;
+}
+
+ContextReference::Ctx::Ctx(ast::Lookup&& miss)
+    : miss(new ast::Lookup(std::move(miss)))
+{
+}
 
 //
 // Error
@@ -83,6 +98,12 @@ Error& Error::see(ast::DeclarationScope const& scope,
     return *this;
 }
 
+Error& Error::see(ast::Lookup&& miss)
+{
+    myReferences.emplace_back(std::move(miss));
+    return *this;
+}
+
 Error& Error::expected(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
 {
     myReferences.emplace_back(ContextReference::MismatchExpected,
@@ -132,19 +153,12 @@ Error& Error::operator << (lexer::Token const& token)
 
 std::ostream& operator << (std::ostream& sink, Error const& err)
 {
-    auto startLine = [&](ast::Module const& mod) {
-        if ( !mod.path().empty() )
-            sink << mod.path().string();
-        else
-            sink << mod.name();
+    auto startLine = [&sink](ast::Module const& mod,
+                             lexer::SourceLocation loc) -> std::ostream& {
+        return sink << mod << ':' << loc;
     };
-    startLine(err.module());
 
-    auto startPos = [&](lexer::Token const& tok) {
-        sink << "(" << tok.line() << ", " << tok.column() << "): ";
-    };
-    startPos(err.token());
-    sink << "error: ";
+    startLine(err.module(), err.token().location()) << ": error: ";
 
     switch (err.code()) {
     case Error::General:
@@ -170,26 +184,64 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
 
     for ( auto const& r : err.references() ) {
         if ( auto decl = r.seeDecl() ) {
-            startLine(decl->scope().module());
-            auto const& id = decl->token();
-            startPos(id);
-            sink << "    see '";
+            startLine(decl->scope().module(),
+                      decl->token().location())
+                 << ":  see '";
             print(sink, *decl);
             sink << "' declared as " << to_string(decl->kind()) << std::endl;
         }
         else if ( auto exprCtx = r.seeExpr() ) {
-            startLine(exprCtx.scope->module());
-            auto const& id = front(*exprCtx.expr);
-            startPos(id);
-            sink << "    see '";
+            startLine(exprCtx.scope->module(),
+                      front(*exprCtx.expr).location())
+                 << ":  see '";
             print(sink, *exprCtx.expr);
             sink << "'" << std::endl;
         }
+        else if ( auto miss = r.seeLookup() ) {
+            startLine(err.module(), err.token().location());
+            switch ( miss->viable().result() ) {
+            case ast::ViableSet::None:
+                if ( miss->symSpace() ) {
+                    sink << ": did not match any of:\n";
+                    for ( auto const& p : miss->symSpace()->prototypes() ) {
+                        auto d = p.proto.decl;
+                        startLine(d->scope().module(), d->token().location())
+                            << ":  ";
+                        print(sink, *d);
+                        sink << std::endl;
+                    }
+                }
+                else {
+                    sink << ": did not match anything" << std::endl;
+                }
+                break;
+
+            case ast::ViableSet::Single:
+            case ast::ViableSet::NeedsConversion:
+                sink << ": has a matching overload" << std::endl;
+                break;
+
+            case ast::ViableSet::Ambiguous:
+                sink << ": could be one of:\n";
+                auto const& set = miss->viable();
+                auto const rank = set.best().rank();
+                for ( auto const& v : set ) {
+                    if ( v.rank() != rank )
+                        break;
+
+                    auto d = v.prototype().proto.decl;
+                    startLine(d->scope().module(), d->token().location())
+                        << ":  ";
+                    print(sink, *d);
+                    sink << std::endl;
+                }
+                break;
+            }
+        }
         else if ( auto expected = r.expected() ) {
-            startLine(expected.scope->module());
-            auto const& id = front(*expected.exprs.front());
-            startPos(id);
-            sink << "    expected: ";
+            startLine(expected.scope->module(),
+                      front(*expected.exprs.front()).location())
+                 << ":  expected: ";
             if ( expected.isValue() )
                 sink << ast::get_types(expected.exprs);
             else
@@ -197,10 +249,9 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
             sink << std::endl;
         }
         else if ( auto received = r.received() ) {
-            startLine(received.scope->module());
-            auto const& id = front(*received.exprs.front());
-            startPos(id);
-            sink << "    received: ";
+            startLine(received.scope->module(),
+                      front(*received.exprs.front()).location())
+                 << ":  received: ";
             if ( received.isValue() )
                 sink << ast::get_types(received.exprs);
             else
@@ -220,43 +271,37 @@ void Diagnostics::die()
     throw this;
 }
 
-Error& Diagnostics::error(ast::Module const& module)
+Error& Diagnostics::error(ast::Module const& mod)
 {
-    myErrors.emplace_back(mk<Error>(module));
+    myErrors.emplace_back(mk<Error>(mod));
     return *myErrors.back();
 }
 
-Error& Diagnostics::error(ast::Module const& module, lexer::Token const& token)
+Error& Diagnostics::error(ast::Module const& mod, lexer::Token const& token)
 {
-    myErrors.emplace_back(mk<Error>(module, token));
+    myErrors.emplace_back(mk<Error>(mod, token));
     return *myErrors.back();
 }
 
-Error& Diagnostics::error(ast::Module const& module, ast::Expression const& expr)
+Error& Diagnostics::error(ast::Module const& mod, ast::Expression const& expr)
 {
-    myErrors.emplace_back(mk<Error>(module, expr, Error::Code::General));
+    myErrors.emplace_back(mk<Error>(mod, expr, Error::Code::General));
     return *myErrors.back();
 }
 
-Error& Diagnostics::error(ast::Module const& module, ast::Statement const& stmt)
+Error& Diagnostics::error(ast::Module const& mod, ast::Statement const& stmt)
 {
-    return error(module, front(stmt));
+    return error(mod, front(stmt));
 }
 
-Error& Diagnostics::error(ast::Module const& module, ast::Junction const& junc)
+Error& Diagnostics::error(ast::Module const& mod, ast::Junction const& junc)
 {
-    return error(module, front(junc));
+    return error(mod, front(junc));
 }
 
-Error& Diagnostics::error(ast::Module const& module, ast::Declaration const& decl)
+Error& Diagnostics::error(ast::Module const& mod, ast::Declaration const& decl)
 {
-    return error(module, decl.symbol().token());
-}
-
-Error& Diagnostics::undeclared(ast::Module const& module, lexer::Token const& token)
-{
-    myErrors.emplace_back(mk<Error>(module, token, Error::Undeclared));
-    return *myErrors.back();
+    return error(mod, decl.symbol().token());
 }
 
 void Diagnostics::dumpErrors(std::ostream& stream)
@@ -273,6 +318,71 @@ uz Diagnostics::errorCount() const
 void Diagnostics::bunkExpression(Box<ast::Expression> expr)
 {
     myBunkedExpressions.emplace_back(std::move(expr));
+}
+
+//
+// DiagnosticsContext
+
+DiagnosticsContext::DiagnosticsContext(Diagnostics& dgn, ast::Module const& mod)
+    : myDiagnostics(&dgn)
+    , myModule(&mod)
+{
+}
+
+Error& DiagnosticsContext::error()
+{
+    return myDiagnostics->error(*myModule);
+}
+
+Error& DiagnosticsContext::error(lexer::Token const& token)
+{
+    return myDiagnostics->error(*myModule, token);
+}
+
+Error& DiagnosticsContext::error(ast::Expression const& expr)
+{
+    return myDiagnostics->error(*myModule, expr);
+}
+
+Error& DiagnosticsContext::error(ast::Statement const& stmt)
+{
+    return myDiagnostics->error(*myModule, stmt);
+}
+
+Error& DiagnosticsContext::error(ast::Junction const& junc)
+{
+    return myDiagnostics->error(*myModule, junc);
+}
+
+Error& DiagnosticsContext::error(ast::Declaration const& decl)
+{
+    return myDiagnostics->error(*myModule, decl);
+}
+
+Diagnostics& DiagnosticsContext::diagnostics()
+{
+    return *myDiagnostics;
+}
+
+ast::Module const& DiagnosticsContext::module()
+{
+    return *myModule;
+}
+
+//
+// misc
+
+std::ostream& operator << (std::ostream& sink, ast::Module const& mod)
+{
+    if ( mod.path().empty() )
+        return sink << mod.name();
+
+    return sink << relative(mod.path(), mod.moduleSet().path()).string();
+}
+
+std::ostream& operator << (std::ostream& sink, lexer::SourceLocation loc)
+{
+    return sink << loc.line << ':' << loc.column;
 }
 
 } // namespace kyfoo

@@ -10,6 +10,7 @@
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Module.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
 namespace kyfoo::ast {
@@ -518,7 +519,7 @@ IMPL_CLONE_REMAP_END
 SymRes DataProductDeclaration::Field::resolveSymbols(Context& ctx)
 {
     Resolver resolver(*myParent->definition());
-    ctx.changeResolver(resolver);
+    REVERT = ctx.pushResolver(resolver);
     
     auto ret = Binder::resolveSymbols(ctx);
     if ( !ret )
@@ -598,7 +599,7 @@ SymRes SymbolDeclaration::resolveSymbols(Context& ctx)
     Resolver resolver(scope());
     resolver.addSupplementaryPrototype(symbol().prototype());
 
-    ctx.changeResolver(resolver);
+    REVERT = ctx.changeResolver(resolver);
     ret |= ctx.resolveExpression(myExpression);
     return ret;
 }
@@ -823,10 +824,9 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     {
         Resolver resolver(ctx.resolver().scope());
         resolver.addSupplementaryPrototype(mySymbol->prototype());
-        auto save = ctx.changeResolver(resolver);
+        REVERT = ctx.pushResolver(resolver);
         for ( auto& p : myParameters )
             ret |= p->resolveSymbols(ctx);
-        ctx.changeResolver(*save);
     }
 
     if ( !ret )
@@ -838,7 +838,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
     Resolver resolver(scope());
     resolver.addSupplementaryPrototype(mySymbol->prototype());
-    ctx.changeResolver(resolver);
+    REVERT = ctx.pushResolver(resolver);
 
     // Resolve return
     // todo: return type deduction
@@ -859,7 +859,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     ret |= ctx.resolveExpression(myReturnExpression);
 
     myResult = mk<ProcedureParameter>(
-        Symbol(lexer::Token(lexer::TokenKind::Identifier, id.line(), id.column(), "result")),
+        Symbol(lexer::Token(lexer::TokenKind::Identifier, "result", id.location())),
         *this,
         flattenConstraints(ast::clone(myReturnExpression)));
 

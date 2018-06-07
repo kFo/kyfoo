@@ -20,7 +20,7 @@ class Context;
 class Resolver;
 class Expression;
 class Declaration;
-class LookupHit;
+class Lookup;
 class ProcedureDeclaration;
 class ProcedureScope;
 class SymbolReference;
@@ -428,6 +428,9 @@ public:
     Slice<Expression const*> arguments() const;
 
     ProcedureDeclaration const* procedure() const;
+
+protected:
+    Slice<Box<Expression>> mutableArgs();
 
 private:
     // AST state

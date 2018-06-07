@@ -32,6 +32,7 @@ public:
 
 public:
     bool init(Diagnostics& dgn);
+    void initBaseModules();
 
     Module* create(std::string name);
     Module* create(std::filesystem::path const& path);
@@ -50,10 +51,13 @@ public:
     Slice<Module*> impliedImports();
     Slice<Module const*> impliedImports() const;
 
+    std::filesystem::path const& path() const;
+
 private:
     AxiomsModule* myAxioms;
     std::vector<Box<Module>> myModules;
     std::vector<Module*> myImpliedImports;
+    std::filesystem::path myPath;
 };
 
 class Module : public INode
@@ -86,6 +90,8 @@ public:
     void appendTemplateInstance(Declaration const* instance);
 
 public:
+    ModuleSet const& moduleSet() const;
+
     AxiomsModule& axioms();
     AxiomsModule const& axioms() const;
 

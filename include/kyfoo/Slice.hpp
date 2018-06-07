@@ -76,6 +76,26 @@ public:
     {
     }
 
+    template <typename U,
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
+                                       && std::is_pointer_v<value_type>
+                                       && std::is_convertible_v<U const*, value_type>>>
+    /*implicit*/ Slice(Slice<Box<U>> const& s) noexcept
+        : myData(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(s.data()))))
+        , myLength(s.size())
+    {
+    }
+
+    template <typename U,
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
+                                       && std::is_pointer_v<value_type>
+                                       && std::is_convertible_v<U*, value_type>>>
+    /*implicit*/ Slice(Slice<Box<U>>& s) noexcept
+        : myData(reinterpret_cast<pointer>(reinterpret_cast<void*>(s.data())))
+        , myLength(s.size())
+    {
+    }
+
     Slice& operator = (Slice const& s) noexcept
     {
         Slice(s).swap(*this);
@@ -118,7 +138,7 @@ public:
     std::enable_if_t<
         std::is_nothrow_invocable_r_v<size_type, Unary, size_type>
         , reference>
-    wut (Unary&& f) noexcept
+    operator [] (Unary&& f) noexcept
     {
         return myData[f(myLength)];
     }

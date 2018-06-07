@@ -1,22 +1,21 @@
 #pragma once
 
+#include <algorithm>
 #include <vector>
 #include <map>
 #include <set>
 
+#include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 
-namespace kyfoo {
-    namespace lexer {
-        class Token;
+namespace kyfoo::lexer {
+    class Token;
+}
 
-        bool isBefore(lexer::Token const& lhs, lexer::Token const& rhs);
-    }
-
-    namespace ast {
+namespace kyfoo::ast {
 
 class Module;
 
@@ -267,43 +266,6 @@ struct SymbolDependencyTracker
 
 void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
 
-enum Variance
-{
-    Covariant,
-    Exact,
-    Contravariant,
-    Invariant,
-};
-
-class VarianceResult
-{
-    Variance myVariance = Invariant;
-
-public:
-    /*implicit*/ VarianceResult(Variance variance)
-        : myVariance(variance)
-    {
-    }
-
-    bool covariant() const { return myVariance <= Exact; }
-    bool exact() const { return myVariance == Exact; }
-    bool contravariant() const { return myVariance == Contravariant; }
-    bool invariant() const { return myVariance == Invariant; }
-
-    Variance value() const { return myVariance; }
-
-    explicit operator bool() const { return covariant(); }
-};
-
-VarianceResult variance(lexer::Token const& target, lexer::Token const& query);
-VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query);
-VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query);
-VarianceResult variance(Context& ctx, Expression const& lhs, Expression const& rhs);
-VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Slice<Expression const*> rhs);
-VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression const*> rhs);
-VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Expression const& rhs);
-VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs);
-
 Expression const* lookThrough(Expression const* expr);
 Expression const* lookThrough(Declaration const* decl);
 Declaration const* resolveIndirections(Declaration const* decl);
@@ -317,7 +279,6 @@ bool hasSubstitutions(Symbol const& sym);
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 bool isReference(Declaration const& decl);
-bool isReference(Context const& ctx, Symbol const& sym);
 bool isReference(Expression const& expr);
 DeclarationScope const* memberScope(Declaration const& decl);
 TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc);
@@ -344,5 +305,4 @@ std::ostream& print(std::ostream& stream, Junction   const& junc);
 
 uz level(Expression const& expr);
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

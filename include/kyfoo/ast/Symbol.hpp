@@ -25,11 +25,13 @@ class Resolver;
 class Expression;
 class Module;
 class LiteralExpression;
+class OverloadViability;
 class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
 class SymRes;
-class VarianceResult;
+class Variance;
+class ViableSet;
 
 using Pattern = std::vector<Box<Expression>>;
 using pattern_t = Slice<Expression*>;
@@ -142,6 +144,8 @@ public:
     /*implicit*/ SymbolReference(const char* name);
     ~SymbolReference();
 
+    void swap(SymbolReference& rhs);
+
 public:
     std::string_view name() const;
     const_pattern_t const& pattern() const;
@@ -149,92 +153,6 @@ public:
 private:
     std::string_view myName;
     const_pattern_t myPattern;
-};
-
-struct PatternsDecl {
-    PatternsPrototype const* params;
-    Declaration* decl;
-};
-
-struct Prototype {
-    PatternsDecl proto;
-    std::vector<PatternsDecl> instances;
-
-    std::vector<Box<Declaration>> ownDeclarations;
-    std::vector<Box<DeclarationScope>> ownDefinitions;
-};
-
-struct Candidate
-{
-    enum {
-        Exact,
-        Parametric,
-        Covariant,
-    } rank;
-    Prototype* proto;
-    Substitutions substs;
-};
-
-class CandidateSet
-{
-public:
-    bool empty() const;
-    std::vector<Candidate>::const_iterator begin() const;
-    std::vector<Candidate>::const_iterator end() const;
-    Candidate const& operator[](uz index) const;
-    Candidate& operator[](uz index);
-
-    void append(VarianceResult const& v,
-                Prototype& proto,
-                Substitutions&& substs);
-
-private:
-    std::vector<Candidate> myCandidates;
-};
-
-class SymbolSpace
-{
-public:
-    struct DeclInstance {
-        Declaration* parent;
-        Declaration* instance;
-    };
-
-public:
-    SymbolSpace(DeclarationScope* scope, std::string name);
-
-    SymbolSpace(SymbolSpace const& rhs) = delete;
-    SymbolSpace& operator = (SymbolSpace const& rhs) = delete;
-
-    SymbolSpace(SymbolSpace&& rhs);
-    SymbolSpace& operator = (SymbolSpace&& rhs);
-
-    ~SymbolSpace();
-
-    void swap(SymbolSpace& rhs) noexcept;
-
-public:
-    std::string_view name() const;
-    Slice<Prototype const> prototypes() const;
-
-    void append(PatternsPrototype const& prototype,
-                Declaration& declaration);
-
-    Declaration const* findEquivalent(const_pattern_t paramlist) const;
-    Declaration* findEquivalent(const_pattern_t paramlist);
-    
-    CandidateSet findCandidates(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist);
-    DeclInstance findOverload(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist);
-
-private:
-    DeclInstance instantiate(Context& ctx,
-                             Prototype& proto,
-                             Substitutions&& bindingSet);
-
-private:
-    DeclarationScope* myScope = nullptr;
-    std::string myName;
-    std::vector<Prototype> myPrototypes;
 };
 
 std::ostream& print(std::ostream& stream, Symbol const& sym);

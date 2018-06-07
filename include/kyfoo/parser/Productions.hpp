@@ -162,8 +162,9 @@ Box<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& parser,
     if ( returnExpr )
         returnTypeExpression = returnExpr->make(parser);
 
-    return mk<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, start.line(), start.column(), ""), std::move(pattern)),
-                                                        std::move(returnTypeExpression));
+    return mk<ast::ProcedureDeclaration>(ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, "", start.location()),
+                                                     std::move(pattern)),
+                                         std::move(returnTypeExpression));
 }
 
 struct ProcedureDeclaration :

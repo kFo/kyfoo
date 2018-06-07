@@ -101,7 +101,7 @@ parseImplicitTemplateProcedureDeclaration(DeclarationScopeParser& parser)
     if ( parse(parser.scanner(), grammar) )
         return grammar.make(parser);
 
-    return {ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, "")), nullptr};
+    return { ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, "", {0, 0})), nullptr };
 }
 
 DeclarationScopeParser::ParseResult
@@ -280,13 +280,12 @@ DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
                                                ast::DataProductScope& scope)
     : DeclarationScopeParser(dgn, scanner, scope)
 {
-    uz const line = 0;
-    uz const col = 0;
-    myParameterContext.emplace_back(ast::createIdentifier(ast::makeToken("this", line, col)));
+    lexer::SourceLocation loc { 0, 0 };
+    myParameterContext.emplace_back(ast::createIdentifier(ast::makeToken("this", loc)));
     myParameterContext.back()->addConstraint(
-        createRefType(line, col,
+        createRefType(loc,
             ast::createIdentifier(
-                lexer::Token(lexer::TokenKind::Identifier, line, col, std::string(scope.declaration()->symbol().token().lexeme())),
+                lexer::Token(lexer::TokenKind::Identifier, std::string(scope.declaration()->symbol().token().lexeme()), loc),
                 *scope.declaration())));
 }
 

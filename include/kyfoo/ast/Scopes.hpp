@@ -24,137 +24,12 @@ class SymbolDeclaration;
 class ProcedureDeclaration;
 class Module;
 
-class LookupHit
-{
-public:
-    LookupHit() = default;
-
-    LookupHit(SymbolSpace const* symSpace, Declaration* decl)
-        : myDecl(decl)
-    {
-        if ( symSpace )
-            mySpaces.push_back(symSpace);
-    }
-
-    explicit LookupHit(SymbolVariable* symVar)
-        : myDecl(symVar)
-    {
-    }
-
-    LookupHit(LookupHit const&) = delete;
-
-    LookupHit(LookupHit&& rhs)
-        : mySpaces(std::move(rhs.mySpaces))
-        , myDecl(rhs.myDecl)
-    {
-        rhs.myDecl = nullptr;
-    }
-
-    LookupHit& operator = (LookupHit&& rhs)
-    {
-        LookupHit(std::move(rhs)).swap(*this);
-        return *this;
-    }
-
-    ~LookupHit() = default;
-
-    void swap(LookupHit& rhs)
-    {
-        using kyfoo::swap;
-        swap(mySpaces, rhs.mySpaces);
-        swap(myDecl, rhs.myDecl);
-    }
-
-    explicit operator bool () const
-    {
-        return myDecl;
-    }
-
-    LookupHit& lookup(SymbolSpace const* space, Declaration* decl)
-    {
-        if ( space )
-            mySpaces.push_back(space);
-
-        if ( myDecl )
-            throw std::runtime_error("declaration reference stomped");
-
-        myDecl = decl;
-        return *this;
-    }
-
-    LookupHit& lookup(Declaration* decl)
-    {
-        if ( myDecl )
-            throw std::runtime_error("declaration reference stomped");
-
-        myDecl = decl;
-        return *this;
-    }
-
-    LookupHit& append(LookupHit&& rhs)
-    {
-        mySpaces.insert(end(mySpaces),
-                        begin(rhs.mySpaces), end(rhs.mySpaces));
-        myDecl = rhs.myDecl;
-
-        rhs.mySpaces.clear();
-        rhs.myDecl = nullptr;
-
-        return *this;
-    }
-
-    template <typename T>
-    T const* as() const
-    {
-        if ( decl() )
-            return decl()->as<T>();
-
-        return nullptr;
-    }
-
-    template <typename T>
-    T* as()
-    {
-        if ( decl() )
-            return decl()->as<T>();
-
-        return nullptr;
-    }
-
-    SymbolSpace const* symSpace() const
-    {
-        if ( !mySpaces.empty() )
-            return mySpaces.front();
-
-        return nullptr;
-    }
-
-    Declaration const* decl() const
-    {
-        return myDecl;
-    }
-
-    Declaration* decl()
-    {
-        return myDecl;
-    }
-
-    Slice<SymbolSpace const* const> trace() const
-    {
-        return mySpaces;
-    }
-
-private:
-    std::vector<SymbolSpace const*> mySpaces;
-    Declaration* myDecl = nullptr;
-};
-
 #define SCOPE_KINDS(X)               \
     X(Declaration, DeclarationScope) \
-    X(Procedure  , ProcedureScope)   \
-    X(DataSum    , DataSumScope)     \
+    X(Procedure  , ProcedureScope  ) \
+    X(DataSum    , DataSumScope    ) \
     X(DataProduct, DataProductScope) \
-    X(Template   , TemplateScope)
+    X(Template   , TemplateScope   )
 
 class DeclarationScope : public INode
 {
@@ -214,10 +89,10 @@ public:
     void import(Module& module);
     void merge(DeclarationScope& rhs);
 
-    LookupHit findEquivalent(SymbolReference const& symbol) const;
+    Lookup findEquivalent(SymbolReference const& symbol) const;
 
 protected:
-    LookupHit findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
+    Lookup findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string_view name);
     bool addSymbol(Diagnostics& dgn,

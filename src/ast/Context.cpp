@@ -3,7 +3,9 @@
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Utilities.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
 #include <kyfoo/ast/Module.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
 namespace kyfoo::ast {
@@ -55,9 +57,9 @@ DeclarationScope& Resolver::scope()
     return *myScope;
 }
 
-LookupHit Resolver::matchEquivalent(SymbolReference const& symbol) const
+Lookup Resolver::matchEquivalent(SymbolReference const& symbol) const
 {
-    LookupHit hit = matchSupplementary(symbol);
+    Lookup hit = matchSupplementary(symbol);
     if ( hit )
         return hit;
 
@@ -68,7 +70,7 @@ LookupHit Resolver::matchEquivalent(SymbolReference const& symbol) const
         if ( symbol.pattern().empty() )
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
-                    return std::move(hit.lookup(s));
+                    return std::move(hit.resolveTo(*s));
 
         if ( myOptions & Narrow )
             break;
@@ -83,11 +85,11 @@ LookupHit Resolver::matchEquivalent(SymbolReference const& symbol) const
     return hit;
 }
 
-LookupHit Resolver::matchOverload(Module& endModule,
+Lookup Resolver::matchOverload(Module& endModule,
                                   Diagnostics& dgn,
                                   SymbolReference const& symbol)
 {
-    LookupHit hit = matchSupplementary(symbol);
+    Lookup hit = matchSupplementary(symbol);
 
     if ( hit )
         return hit;
@@ -99,11 +101,11 @@ LookupHit Resolver::matchOverload(Module& endModule,
         if ( symbol.pattern().empty() ) {
             if ( auto decl = scope->declaration() ) {
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
-                    return std::move(hit.lookup(s));
+                    return std::move(hit.resolveTo(*s));
 
                 if ( auto proc = decl->as<ProcedureDeclaration>() )
                     if ( auto p = proc->findParameter(symbol.name()) )
-                        return std::move(hit.lookup(p));
+                        return std::move(hit.resolveTo(*p));
             }
         }
 
@@ -125,13 +127,13 @@ void Resolver::addSupplementaryPrototype(PatternsPrototype& proto)
     mySupplementaryPrototypes.push_back(&proto);
 }
 
-LookupHit Resolver::matchSupplementary(SymbolReference const& symbol) const
+Lookup Resolver::matchSupplementary(SymbolReference const& symbol) const
 {
-    LookupHit hit;
+    Lookup hit(symbol);
     if ( symbol.pattern().empty() )
         for ( auto& proto : mySupplementaryPrototypes )
             if ( auto symVar = proto->findVariable(symbol.name()) )
-                return std::move(hit.lookup(symVar));
+                return std::move(hit.resolveTo(*symVar));
 
     return hit;
 }
@@ -222,14 +224,31 @@ uz Context::errorCount() const
     return myDiagnostics->errorCount();
 }
 
-LookupHit Context::matchOverload(SymbolReference const& sym) const
+Lookup Context::matchOverload(SymbolReference const& sym)
 {
-    auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, sym);
-    if ( !(myOptions & DisableCacheTemplateInstantiations) )
-        if ( hit.decl() && hit.decl()->symbol().prototypeParent() && hasSubstitutions(hit.decl()->symbol()) )
-            myModule->appendTemplateInstance(hit.decl());
+    return trackForModule(myResolver->matchOverload(*myModule, *myDiagnostics, sym));
+}
 
-    return hit;
+Lookup
+Context::matchOverloadUsingImplicitConversions(std::string_view name,
+                                               Slice<Box<Expression>> args)
+{
+    auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, SymbolReference(name, args));
+    if ( !hit )
+        return hit;
+
+    if ( hit.viable().result() == ViableSet::NeedsConversion ) {
+        auto const& v = hit.viable().best().viability();
+        for ( uz i = 0, arity = args.size(); i != arity; ++i ) {
+            if ( auto proc = v[i].conversion() )
+                args[i] = createApply(createIdentifier(*proc), std::move(args[i]));
+        }
+
+        if ( auto decl = hit.viable().best().instantiate(*this) )
+            hit.resolveTo(*decl);
+    }
+
+    return trackForModule(std::move(hit));
 }
 
 Resolver* Context::changeResolver(Resolver& resolver)
@@ -237,6 +256,11 @@ Resolver* Context::changeResolver(Resolver& resolver)
     auto ret = myResolver;
     myResolver = &resolver;
     return ret;
+}
+
+ResolverReverter Context::pushResolver(Resolver& resolver)
+{
+    return { *this, changeResolver(resolver) };
 }
 
 Statement* Context::changeStatement(Statement* statement)
@@ -261,10 +285,8 @@ SymRes Context::rewrite(std::function<Box<Expression>(Box<Expression>&)> func)
 SymRes Context::resolveDeclaration(Declaration& declaration)
 {
     Resolver resolver(declaration.scope());
-    auto oldResolver = changeResolver(resolver);
+    REVERT = pushResolver(resolver);
     auto ret = declaration.resolveSymbols(*this);
-    if ( oldResolver )
-        changeResolver(*oldResolver);
     return ret;
 }
 
@@ -375,6 +397,22 @@ SymRes Context::resolveStatements(std::vector<Statement>& stmts)
 bool Context::isTopLevel() const
 {
     return myExpressionDepth == 0;
+}
+
+Context::operator DiagnosticsContext()
+{
+    return { *myDiagnostics, *myModule };
+}
+
+Lookup Context::trackForModule(Lookup&& hit)
+{
+    if ( !(myOptions & DisableCacheTemplateInstantiations) ) {
+        auto decl = hit.single();
+        if ( decl && decl->symbol().prototypeParent() && hasSubstitutions(decl->symbol()) )
+            myModule->appendTemplateInstance(decl);
+    }
+
+    return std::move(hit);
 }
 
 } // namespace kyfoo::ast

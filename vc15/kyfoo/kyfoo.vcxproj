@@ -221,6 +221,7 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Fabrication.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Overloading.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp" />
@@ -229,6 +230,7 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Variance.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Box.hpp" />
     <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp" />
     <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp" />
@@ -238,7 +240,6 @@
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\parser\GrammarStatic.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
@@ -251,11 +252,13 @@
     <ClCompile Include="..\..\src\ast\ControlFlow.cpp" />
     <ClCompile Include="..\..\src\ast\Declarations.cpp" />
     <ClCompile Include="..\..\src\ast\Expressions.cpp" />
+    <ClCompile Include="..\..\src\ast\Overloading.cpp" />
     <ClCompile Include="..\..\src\ast\Substitutions.cpp" />
     <ClCompile Include="..\..\src\ast\Symbol.cpp" />
     <ClCompile Include="..\..\src\ast\Module.cpp" />
     <ClCompile Include="..\..\src\ast\Scopes.cpp" />
     <ClCompile Include="..\..\src\ast\Semantics.cpp" />
+    <ClCompile Include="..\..\src\ast\Variance.cpp" />
     <ClCompile Include="..\..\src\codegen\LLVM.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='DebugFaster|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

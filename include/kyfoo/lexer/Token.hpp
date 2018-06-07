@@ -7,22 +7,33 @@
 
 namespace kyfoo::lexer {
 
-using line_index_t = uz;
-using column_index_t = uz;
+using line_index_t = u32;
+using column_index_t = u32;
+
+struct SourceLocation
+{
+    line_index_t line;
+    column_index_t column;
+
+    void swap(SourceLocation& rhs)
+    {
+        using kyfoo::swap;
+        swap(line, rhs.line);
+        swap(column, rhs.column);
+    }
+};
 
 class Token
 {
     TokenKind myKind = TokenKind::Undefined;
     std::string myLexeme;
-    line_index_t myLine = 0;
-    column_index_t myColumn = 0;
+    SourceLocation myLoc;
 
 public:
     explicit Token();
     Token(TokenKind kind,
-          line_index_t line,
-          column_index_t column,
-          std::string lexeme);
+          std::string lexeme,
+          SourceLocation loc);
 
 public:
     Token(Token const&);
@@ -40,9 +51,10 @@ public:
 
 public:
     TokenKind kind() const;
+    std::string_view lexeme() const;
+    SourceLocation location() const;
     line_index_t line() const;
     column_index_t column() const;
-    std::string_view lexeme() const;
 };
 
 } // namespace kyfoo::lexer

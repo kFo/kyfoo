@@ -4,33 +4,18 @@
 #include <functional>
 #include <set>
 
-#include <boost/multiprecision/cpp_int.hpp>
-#include <boost/numeric/interval.hpp>
-
 #include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/TokenKind.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
-#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Symbol.hpp>
+#include <kyfoo/ast/Variance.hpp>
 
-namespace kyfoo {
-    namespace lexer {
-        bool isBefore(lexer::Token const& lhs, lexer::Token const& rhs)
-        {
-            return std::make_tuple(lhs.line(), lhs.column()) < std::make_tuple(rhs.line(), rhs.column());
-        }
-    }
-
-    namespace ast {
-
-    using boost::multiprecision::cpp_int;
-    using boost::numeric::interval;
-    using bounds_t = interval<cpp_int>;
+namespace kyfoo::ast {
 
 namespace {
     template <typename T>
@@ -50,15 +35,6 @@ namespace {
                 return false;
 
         return true;
-    }
-
-    bounds_t bitsToBounds(int bits)
-    {
-        cpp_int const c(pow(cpp_int(2), std::abs(bits)));
-        if ( bits < 0 )
-            return bounds_t(-c / 2, c / 2 - 1);
-
-        return bounds_t(0, c - 1);
     }
 
 } // namespace
@@ -422,283 +398,6 @@ bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs)
     return compare(lhs, rhs, [](auto& l, auto& r) { return matchEquivalent(l, r); });
 }
 
-VarianceResult variance(lexer::Token const& target, lexer::Token const& query)
-{
-    return target.lexeme() == query.lexeme() ? Exact : Invariant;
-}
-
-VarianceResult variance(Context& ctx, Declaration const& target, lexer::Token const& query)
-{
-    auto const& axioms = ctx.axioms();
-
-    if ( auto intMeta = axioms.integerMetaData(target) ) {
-        if ( query.kind() != lexer::TokenKind::Integer )
-            return Invariant; // todo: diagnostics
-
-        std::string s(query.lexeme());
-        cpp_int const n(s);
-        bounds_t const bounds = bitsToBounds(intMeta->bits);
-
-        if ( !in(n, bounds) )
-            return Contravariant; // todo: error diagnostics
-
-        return Covariant;
-    }
-
-    if ( query.kind() == lexer::TokenKind::String ) {
-        if ( &target == axioms.intrinsic(Sliceu8) )
-            return Covariant;
-    }
-
-    return Invariant;
-}
-
-VarianceResult variance(Context& ctx, Declaration const& target, Declaration const& query)
-{
-    if ( &target == &query )
-        return Exact;
-
-    if ( auto targetInteger = ctx.axioms().integerMetaData(target) ) {
-        if ( auto queryInteger = ctx.axioms().integerMetaData(query) ) {
-            if ( targetInteger->bits == queryInteger->bits )
-                return Exact;
-
-            auto const targetBounds = bitsToBounds(targetInteger->bits);
-            auto const queryBounds = bitsToBounds(queryInteger->bits);
-
-            return subset(queryBounds, targetBounds) ? Covariant : Contravariant;
-        }
-
-        return Invariant;
-    }
-
-    // todo: removeme
-    if ( &query == ctx.axioms().intrinsic(PointerNullLiteralType) ) {
-        if ( descendsFromTemplate(ctx.axioms().intrinsic(PointerTemplate)->symbol(), target.symbol()) )
-            return Covariant;
-
-        return Invariant;
-    }
-
-    // todo: this is a hack for covariance
-    if ( rootTemplate(target.symbol()) == rootTemplate(query.symbol()) ) {
-        return variance(ctx,
-                        target.symbol().prototype().pattern(),
-                        query.symbol().prototype().pattern());
-    }
-
-    return Invariant;
-}
-
-VarianceResult variance(Context& ctx,
-                        Expression const& target,
-                        Expression const& query)
-{
-    auto t = lookThrough(&target);
-    auto q = lookThrough(&query);
-
-    if ( !t ) {
-        ctx.error(target) << "is an unresolved alias";
-        return Invariant;
-    }
-
-    if ( !q ) {
-        ctx.error(query) << "is an unresolved alias";
-        return Invariant;
-    }
-
-    auto targetType = lookThrough(t->type());
-    auto queryType = lookThrough(q->type());
-
-    if ( !targetType ) {
-        ctx.error(target) << "is not typed";
-        return Invariant;
-    }
-    else if ( !queryType ) {
-        ctx.error(query) << "is not typed";
-        return Invariant;
-    }
-
-    if ( auto targetLiteral = t->as<LiteralExpression>() ) {
-        if ( auto queryLiteral = q->as<LiteralExpression>() )
-            return variance(targetLiteral->token(), queryLiteral->token());
-
-        // todo: compile time execute
-        return Invariant;
-    }
-
-    if ( auto targetDecl = getDeclaration(*t) ) {
-        if ( isReference(*targetDecl) ) {
-            if ( auto queryRef = getRefType(*q) )
-                return variance(ctx, targetDecl->symbol().prototype().pattern(), *queryRef);
-
-            if ( auto queryDecl = getDeclaration(*q) ) {
-                if ( isReference(*queryDecl) )
-                    return variance(ctx, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
-
-                if ( auto queryBinder = getBinder(*queryDecl) )
-                    return variance(ctx, *t, *queryType);
-            }
-
-            // todo: hack
-            if ( auto app = q->as<AssignExpression>() )
-                return variance(ctx, *t, *queryType);
-
-            return Invariant;
-        }
-        else if ( auto queryDecl = getDeclaration(*q) ) {
-            if ( isReference(*queryDecl) )
-                if ( variance(ctx, *t, queryDecl->symbol().prototype().pattern()) )
-                    return Covariant;
-        }
-
-        if ( auto targetBinder = getBinder(*targetDecl) ) {
-            auto ret = variance(ctx, *targetBinder->type(), *q);
-            if ( ret.invariant() )
-                return variance(ctx, *targetBinder->type(), *q->type());
-
-            return ret;
-        }
-
-        if ( auto queryLiteral = q->as<LiteralExpression>() )
-            return variance(ctx, *targetDecl, queryLiteral->token());
-
-        if ( auto queryDecl = getDeclaration(*q) ) {
-            auto ret = variance(ctx, *targetDecl, *queryDecl);
-            if ( !ret.invariant() )
-                return ret;
-        }
-
-        if ( queryType->kind() == Expression::Kind::Universe )
-            return Invariant;
-
-        return variance(ctx, *t, *queryType);
-    }
-
-    if ( auto targetTuple = t->as<TupleExpression>() ) {
-        auto queryTuple = q->as<TupleExpression>();
-        if ( !queryTuple )
-            return Invariant;
-
-        if ( targetTuple->kind() != queryTuple->kind() )
-            return Invariant;
-
-        auto const l = targetTuple->elements();
-        auto const r = queryTuple->elements();
-        if ( l.size() != r.size() )
-            return Invariant;
-
-        VarianceResult ret = Exact;
-        for ( auto i = begin(l), j = begin(r); i != end(l); ++i, ++j ) {
-            auto v = variance(ctx, **i, **j);
-            if ( !v )
-                return v;
-
-            if ( !v.exact() )
-                ret = Covariant;
-        }
-
-        return ret;
-    }
-
-    if ( auto targetArrow = t->as<ArrowExpression>() ) {
-        auto queryArrow = q->as<ArrowExpression>();
-        if ( !queryArrow ) {
-            queryArrow = queryType->as<ArrowExpression>();
-            if ( !queryArrow )
-                return Invariant;
-        }
-
-        auto inputVariance = variance(ctx, targetArrow->from(), queryArrow->from());
-        auto outputVariance = variance(ctx, targetArrow->to(), queryArrow->to());
-
-        if ( outputVariance ) {
-            if ( inputVariance.exact() )
-                return outputVariance.exact() ? Exact : Covariant;
-            else if ( inputVariance.contravariant() )
-                return Covariant;
-            else if ( inputVariance.covariant() )
-                return Contravariant;
-        }
-        else if ( outputVariance.contravariant() ) {
-            if ( inputVariance.exact() || inputVariance.covariant() )
-                return Contravariant;
-            else if ( inputVariance.contravariant() )
-                return Covariant;
-        }
-
-        return Invariant;
-    }
-
-    if ( auto targetUniv = t->as<UniverseExpression>() ) {
-        auto queryUniv = q->as<UniverseExpression>();
-        if ( !queryUniv )
-            return Invariant; // todo
-
-        if ( targetUniv->level() == queryUniv->level() )
-            return Exact;
-        else if ( targetUniv->level() > queryUniv->level() )
-            return Covariant;
-        else
-            return Contravariant;
-    }
-
-    return variance(ctx, *targetType, *queryType);
-}
-
-VarianceResult variance(Context& ctx,
-                        Slice<Expression const*> lhs,
-                        Slice<Expression const*> rhs)
-{
-    auto const size = lhs.size();
-    if ( size != rhs.size() )
-        return Invariant;
-
-    auto ret = Exact;
-    for ( uz i = 0; i < size; ++i ) {
-        auto v = variance(ctx, *lhs[i], *rhs[i]);
-        if ( !v )
-            return v;
-
-        if ( !v.exact() )
-            ret = Covariant;
-    }
-
-    return ret;
-}
-
-VarianceResult variance(Context& ctx, Expression const& lhs, Slice<Expression const*> rhs)
-{
-    if ( auto l = lhs.as<TupleExpression>() )
-        if ( l->kind() == TupleKind::Open )
-            return variance(ctx, l->expressions(), rhs);
-
-    if ( rhs.size() == 1 )
-        return variance(ctx, lhs, *rhs[0]);
-
-    return Invariant;
-}
-
-VarianceResult variance(Context& ctx, Slice<Expression const*> lhs, Expression const& rhs)
-{
-    if ( auto r = rhs.as<TupleExpression>() )
-        if ( r->kind() == TupleKind::Open )
-            return variance(ctx, lhs, r->expressions());
-
-    if ( lhs.size() == 1 )
-        return variance(ctx, *lhs[0], rhs);
-
-    return Invariant;
-}
-
-VarianceResult variance(Context& ctx, SymbolReference const& lhs, SymbolReference const& rhs)
-{
-    if ( lhs.name() != rhs.name() )
-        return Invariant;
-
-    return variance(ctx, lhs.pattern(), rhs.pattern());
-}
-
 Expression const* lookThrough(Expression const* expr)
 {
     auto decl = getDeclaration(expr);
@@ -852,11 +551,6 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 bool isReference(Declaration const& decl)
 {
     return descendsFromTemplate(decl.scope().module().axioms().intrinsic(ReferenceTemplate)->symbol(), decl.symbol());
-}
-
-bool isReference(Context const& ctx, Symbol const& sym)
-{
-    return descendsFromTemplate(ctx.axioms().intrinsic(ReferenceTemplate)->symbol(), sym);
 }
 
 bool isReference(Expression const& expr)
@@ -1411,13 +1105,18 @@ struct PrintOperator
 
         ++nest;
         auto first = true;
-        for ( auto const& e : a.expressions() ) {
+        auto e = a.expressions();
+        if ( auto id = e.front()->as<IdentifierExpression>() )
+            if ( id->token().kind() == lexer::TokenKind::Undefined )
+                e.popFront();
+
+        for ( ; e; e.popFront() ) {
             if ( !first )
                 stream << " ";
             else
                 first = false;
 
-            dispatch(*e);
+            dispatch(*e.front());
         }
         --nest;
         if ( nest )
@@ -1650,5 +1349,4 @@ uz level(Expression const& expr)
     return op(expr);
 }
 
-    } // namespace ast
-} // namespace kyfoo
+} // namespace kyfoo::ast

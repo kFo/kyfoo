@@ -99,9 +99,8 @@ SymRes PatternsPrototype::resolveSymbols(Context& ctx)
 {
     Resolver resolver(ctx.resolver().scope());
     resolver.addSupplementaryPrototype(*this);
-    auto save = ctx.changeResolver(resolver);
+    REVERT = ctx.pushResolver(resolver);
     auto ret = ctx.resolveExpressions(myPattern);
-    ctx.changeResolver(*save);
 
     return ret;
 }
@@ -301,6 +300,13 @@ SymbolReference::SymbolReference(const char* name)
 
 SymbolReference::~SymbolReference() = default;
 
+void SymbolReference::swap(SymbolReference& rhs)
+{
+    using kyfoo::swap;
+    swap(myName, rhs.myName);
+    swap(myPattern, rhs.myPattern);
+}
+
 std::string_view SymbolReference::name() const
 {
     return myName;
@@ -312,230 +318,7 @@ const_pattern_t const& SymbolReference::pattern() const
 }
 
 //
-// CandidateSet
-
-bool CandidateSet::empty() const
-{
-    return myCandidates.empty();
-}
-
-std::vector<Candidate>::const_iterator CandidateSet::begin() const
-{
-    return myCandidates.begin();
-}
-
-std::vector<Candidate>::const_iterator CandidateSet::end() const
-{
-    return myCandidates.end();
-}
-
-Candidate const& CandidateSet::operator[](uz index) const
-{
-    return myCandidates[index];
-}
-
-Candidate& CandidateSet::operator[](uz index)
-{
-    return myCandidates[index];
-}
-
-void CandidateSet::append(VarianceResult const& v, Prototype& proto, Substitutions&& substs)
-{
-    decltype(Candidate::rank) r;
-    if ( v.exact() )
-        r = substs.empty() ? Candidate::Exact : Candidate::Parametric;
-    else if ( v.covariant() )
-        r = Candidate::Covariant;
-    else
-        throw std::runtime_error("invalid candidate match");
-
-    auto lt = [](Candidate const& lhs, Candidate const& rhs) {
-        auto const& lid = lhs.proto->proto.decl->symbol().token();
-        auto const& rid = rhs.proto->proto.decl->symbol().token();
-        return std::make_tuple(lhs.rank, lid.line(), lid.column())
-             < std::make_tuple(rhs.rank, rid.line(), rid.column());
-    };
-    Candidate c{ r, &proto, std::move(substs) };
-    myCandidates.emplace(upper_bound(begin(), end(), c, lt), std::move(c));
-}
-
-//
-// SymbolSpace
-
-SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string name)
-    : myScope(scope)
-    , myName(std::move(name))
-{
-}
-
-SymbolSpace::SymbolSpace(SymbolSpace&& rhs)
-    : myScope(rhs.myScope)
-    , myName(std::move(rhs.myName))
-    , myPrototypes(std::move(rhs.myPrototypes))
-{
-    rhs.myScope = nullptr;
-}
-
-SymbolSpace& SymbolSpace::operator = (SymbolSpace&& rhs)
-{
-    this->~SymbolSpace();
-    new (this) SymbolSpace(std::move(rhs));
-
-    return *this;
-}
-
-SymbolSpace::~SymbolSpace() = default;
-
-void SymbolSpace::swap(SymbolSpace& rhs) noexcept
-{
-    using kyfoo::swap;
-    swap(myScope, rhs.myScope);
-    swap(myName, rhs.myName);
-    swap(myPrototypes, rhs.myPrototypes);
-}
-
-std::string_view SymbolSpace::name() const
-{
-    return myName;
-}
-
-Slice<Prototype const> SymbolSpace::prototypes() const
-{
-    return myPrototypes;
-}
-
-void SymbolSpace::append(PatternsPrototype const& prototype,
-                         Declaration& declaration)
-{
-    myPrototypes.push_back(Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
-}
-
-Declaration const* SymbolSpace::findEquivalent(const_pattern_t paramlist) const
-{
-    for ( auto const& e : myPrototypes )
-        if ( matchEquivalent(e.proto.params->pattern(), paramlist) )
-            return e.proto.decl;
-
-    return nullptr;
-}
-
-Declaration* SymbolSpace::findEquivalent(const_pattern_t paramlist)
-{
-    return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(paramlist));
-}
-
-CandidateSet SymbolSpace::findCandidates(Module& endModule, Diagnostics& dgn, const_pattern_t paramlist)
-{
-    CandidateSet ret;
-    Resolver resolver(*myScope);
-    Context ctx(endModule, dgn, resolver);
-
-    Diagnostics sfinaeDgn;
-    Context sfinaeCtx(endModule, sfinaeDgn, resolver, Context::DisableCacheTemplateInstantiations);
-
-    for ( auto& e : myPrototypes ) {
-        Substitutions substs(*e.proto.decl, paramlist);
-        if ( !substs )
-            continue;
-
-        if ( substs.empty() ) {
-            if ( auto v = variance(ctx, e.proto.params->pattern(), paramlist) )
-                ret.append(v, e, std::move(substs));
-        }
-        else {
-            auto d = ast::clone(e.proto.decl);
-            d->symbol().prototype().bindVariables(substs);
-            auto result = sfinaeCtx.resolveDeclaration(*d);
-            if ( !result )
-                continue;
-
-            if ( auto v = variance(sfinaeCtx, d->symbol().prototype().pattern(), paramlist) )
-                ret.append(v, e, std::move(substs));
-        }
-    }
-
-    return ret;
-}
-
-SymbolSpace::DeclInstance
-SymbolSpace::findOverload(Module& endModule,
-                          Diagnostics& dgn,
-                          const_pattern_t paramlist)
-{
-    Resolver resolver(*myScope);
-    Context ctx(endModule, dgn, resolver);
-    
-    auto cset = findCandidates(endModule, dgn, paramlist);
-    if ( cset.empty() )
-        return { nullptr, nullptr };
-
-    auto& c = cset[0];
-    if ( c.proto->proto.params->isConcrete() )
-        return { c.proto->proto.decl, nullptr };
-
-    for ( auto param : paramlist )
-        if ( needsSubstitution(*param) )
-            return { c.proto->proto.decl, nullptr };
-
-    return instantiate(ctx, *c.proto, std::move(c.substs));
-}
-
-SymbolSpace::DeclInstance
-SymbolSpace::instantiate(Context& ctx,
-                         Prototype& proto,
-                         Substitutions&& substs)
-{
-    for ( uz i = 0; i < substs.size(); ++i ) {
-        if ( needsSubstitution(substs.expr(i)) )
-            throw std::runtime_error("cannot instantiate template with unbound symbol variable");
-    }
-
-    // use existing instantiation if it exists
-    for ( uz i = 0; i < proto.instances.size(); ++i ) {
-        auto const& inst = proto.instances[i];
-        auto const& instVars = inst.params->symbolVariables();
-        if ( instVars.size() != substs.size() )
-            throw std::runtime_error("invalid template instance");
-
-        auto l = begin(instVars);
-        uz r = 0;
-        while ( l != end(instVars) ) {
-            auto lhs = (*l)->boundExpression();
-            if ( !lhs )
-                break;
-
-            if ( !matchEquivalent(*lhs, substs.expr(r)) )
-                break;
-
-            ++l;
-            ++r;
-        }
-
-        if ( l == end(instVars) )
-            return { proto.proto.decl, inst.decl };
-    }
-
-    // create new instantiation
-    clone_map_t cloneMap;
-    proto.ownDeclarations.emplace_back(ast::clone(proto.proto.decl, cloneMap));
-    auto instanceDecl = proto.ownDeclarations.back().get();
-    instanceDecl->symbol().prototype().bindVariables(substs);
-    ctx.resolveDeclaration(*instanceDecl);
-
-    if ( auto defn = getDefinition(*proto.proto.decl) ) {
-        if ( instanceDecl->symbol().prototype().isConcrete() ) {
-            proto.ownDefinitions.emplace_back(ast::clone(defn, cloneMap));
-            auto instanceDefn = proto.ownDefinitions.back().get();
-            instanceDecl->remapReferences(cloneMap);
-
-            if ( !instanceDefn->resolveSymbols(ctx.module(), ctx.diagnostics()) )
-                return { nullptr, nullptr };
-        }
-    }
-
-    proto.instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
-    return { proto.proto.decl, proto.instances.back().decl };
-}
+// misc
 
 std::ostream& print(std::ostream& stream, Symbol const& sym)
 {

@@ -9,15 +9,17 @@
 
 #include <kyfoo/lexer/Token.hpp>
 
+namespace kyfoo::ast {
+    class Expression;
+    class Declaration;
+    class DeclarationScope;
+    class Junction;
+    class Lookup;
+    class Module;
+    class Statement;
+}
+
 namespace kyfoo {
-    namespace ast {
-        class Module;
-        class DeclarationScope;
-        class Declaration;
-        class Expression;
-        class Statement;
-        class Junction;
-    }
 
 class StopWatch
 {
@@ -50,6 +52,7 @@ public:
     enum Kind {
         SeeDeclaration,
         SeeExpression,
+        SeeLookup,
         MismatchExpected,
         MismatchReceived,
     };
@@ -128,11 +131,19 @@ public:
     {
     }
 
+    ContextReference(ast::Lookup&& miss)
+        : myKind(SeeLookup)
+        , myContext(std::move(miss))
+    {
+    }
+
     ContextReference(ContextReference const& rhs)
         : myKind(rhs.myKind)
     {
         std::memcpy(&myContext, &rhs.myContext, sizeof(rhs.myContext));
     }
+
+    ~ContextReference();
 
 public:
     ast::Declaration const* seeDecl() const
@@ -143,6 +154,11 @@ public:
     SingleExpressionContext seeExpr() const
     {
         return myKind == SeeExpression ? myContext.exprSingle : SingleExpressionContext();
+    }
+
+    ast::Lookup const* seeLookup() const
+    {
+        return myKind == SeeLookup ? myContext.miss : nullptr;
     }
 
     ManyExpressionContext expected() const
@@ -172,6 +188,9 @@ private:
             ast::DeclarationScope const& scope,
             Slice<ast::Expression const*> exprs) : exprMany(kind, scope, exprs) {}
         ManyExpressionContext exprMany;
+
+        Ctx(ast::Lookup&& miss);
+        ast::Lookup* miss;
     } myContext;
 };
 
@@ -200,6 +219,7 @@ public:
     Slice<ContextReference const> references() const;
     Error& see(ast::Declaration const& declaration);
     Error& see(ast::DeclarationScope const& scope, ast::Expression const& expression);
+    Error& see(ast::Lookup&& miss);
     Error& expected(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
     Error& expectedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
     Error& received(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
@@ -235,13 +255,12 @@ class Diagnostics
 public:
     void die();
 
-    Error& error(ast::Module const& module);
-    Error& error(ast::Module const& module, lexer::Token const& token);
-    Error& error(ast::Module const& module, ast::Expression const& expr);
-    Error& error(ast::Module const& module, ast::Statement const& stmt);
-    Error& error(ast::Module const& module, ast::Junction const& junc);
-    Error& error(ast::Module const& module, ast::Declaration const& decl);
-    Error& undeclared(ast::Module const& module, lexer::Token const& token);
+    Error& error(ast::Module const& mod);
+    Error& error(ast::Module const& mod, lexer::Token const& token);
+    Error& error(ast::Module const& mod, ast::Expression const& expr);
+    Error& error(ast::Module const& mod, ast::Statement const& stmt);
+    Error& error(ast::Module const& mod, ast::Junction const& junc);
+    Error& error(ast::Module const& mod, ast::Declaration const& decl);
 
     void dumpErrors(std::ostream& stream);
 
@@ -253,5 +272,30 @@ private:
     std::vector<Box<Error>> myErrors;
     std::vector<Box<ast::Expression>> myBunkedExpressions;
 };
+
+class DiagnosticsContext
+{
+public:
+    DiagnosticsContext(Diagnostics& dgn, ast::Module const& mod);
+
+public:
+    Error& error();
+    Error& error(lexer::Token const& token);
+    Error& error(ast::Expression const& expr);
+    Error& error(ast::Statement const& stmt);
+    Error& error(ast::Junction const& junc);
+    Error& error(ast::Declaration const& decl);
+
+public:
+    Diagnostics& diagnostics();
+    ast::Module const& module();
+
+private:
+    Diagnostics* myDiagnostics = nullptr;
+    ast::Module const* myModule = nullptr;
+};
+
+std::ostream& operator << (std::ostream& sink, ast::Module const& mod);
+std::ostream& operator << (std::ostream& sink, lexer::SourceLocation loc);
 
 } // namespace kyfoo

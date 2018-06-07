@@ -41,7 +41,7 @@ protected:
     void unget();
     void putback(char c);
 
-    Token indent(line_index_t line, column_index_t column, indent_width_t indent);
+    Token indent(SourceLocation loc, indent_width_t indent);
     void bumpLine();
 
     void addNest();
@@ -61,8 +61,7 @@ private:
     std::vector<indent_width_t> myIndents;
     std::deque<Token> myBuffer;
 
-    line_index_t myLine = 1;
-    column_index_t myColumn = 1;
+    SourceLocation myLoc = { 1, 1 };
     int myNestings = 0;
     bool myError = false;
 };

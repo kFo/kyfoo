@@ -63,41 +63,44 @@ enum DataProductIntrinsics
     X(Slice_idx   ) \
     X(Sliceu8_idx ) \
     X(Sliceu8_dtor) \
-                    \
-    X(Addu        ) \
-    X(Adds        ) \
-    X(Subu        ) \
-    X(Subs        ) \
-    X(Mulu        ) \
-    X(Muls        ) \
-    X(Divu        ) \
-    X(Divs        ) \
-    X(Remu        ) \
-    X(Rems        ) \
-    X(Shlu        ) \
-    X(Shls        ) \
-    X(Shru        ) \
-    X(Shrs        ) \
-    X(Bitandu     ) \
-    X(Bitands     ) \
-    X(Bitoru      ) \
-    X(Bitors      ) \
-    X(Bitxoru     ) \
-    X(Bitxors     ) \
-                    \
-    X(Equ         ) \
-    X(Eqs         ) \
-    X(Nequ        ) \
-    X(Neqs        ) \
-    X(Gtu         ) \
-    X(Gts         ) \
-    X(Geu         ) \
-    X(Ges         ) \
-    X(Ltu         ) \
-    X(Lts         ) \
-    X(Leu         ) \
-    X(Les         ) \
-                    \
+    \
+    X(implicitUnsigned) \
+    X(implicitSigned  ) \
+    \
+    X(Addu   ) \
+    X(Adds   ) \
+    X(Subu   ) \
+    X(Subs   ) \
+    X(Mulu   ) \
+    X(Muls   ) \
+    X(Divu   ) \
+    X(Divs   ) \
+    X(Remu   ) \
+    X(Rems   ) \
+    X(Shlu   ) \
+    X(Shls   ) \
+    X(Shru   ) \
+    X(Shrs   ) \
+    X(Bitandu) \
+    X(Bitands) \
+    X(Bitoru ) \
+    X(Bitors ) \
+    X(Bitxoru) \
+    X(Bitxors) \
+    \
+    X(Equ ) \
+    X(Eqs ) \
+    X(Nequ) \
+    X(Neqs) \
+    X(Gtu ) \
+    X(Gts ) \
+    X(Geu ) \
+    X(Ges ) \
+    X(Ltu ) \
+    X(Lts ) \
+    X(Leu ) \
+    X(Les ) \
+    \
     X(Truncu1u8   ) \
     X(Truncu1u16  ) \
     X(Truncu1u32  ) \
@@ -123,9 +126,9 @@ enum DataProductIntrinsics
     X(Trunci32i64 ) \
     X(Trunci32i128) \
     X(Trunci64i128) \
-                    \
-    X(Addr        ) \
-    X(Cast        )
+    \
+    X(Addr) \
+    X(Cast)
 
 enum InstructionIntrinsics
 {

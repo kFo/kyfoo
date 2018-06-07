@@ -11,6 +11,7 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Fabrication.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
@@ -371,7 +372,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
         }
 
         auto hit = ctx.matchOverload(token().lexeme());
-        myDeclaration = hit.decl();
+        myDeclaration = hit.single();
         if ( !myDeclaration ) {
             ctx.error(token()) << "undeclared identifier";
             return SymRes::Fail;
@@ -424,7 +425,7 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
 
     Resolver resolver(*defn, Resolver::Narrow);
     Context templateCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto proc = templateCtx.matchOverload("").as<ProcedureDeclaration>();
+    auto proc = templateCtx.matchOverload("").singleAs<ProcedureDeclaration>();
     if ( !proc ) {
         ctx.error(*this) << "does not refer to any procedure";
         return SymRes::Fail;
@@ -877,17 +878,17 @@ SymRes ApplyExpression::lowerToApplicable(Context& ctx)
 
     Resolver resolver(*defn, Resolver::Narrow);
     Context dpCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto hit = dpCtx.matchOverload(SymbolReference("", expressions()));
+    auto hit = dpCtx.matchOverloadUsingImplicitConversions("", myExpressions);
     if ( !hit ) {
         (ctx.error(subj) << "no suitable apply overload found")
             .see(*dp);
         return SymRes::Fail;
     }
 
-    auto proc = hit.as<ProcedureDeclaration>();
+    auto proc = hit.singleAs<ProcedureDeclaration>();
     if ( !proc ) {
         (ctx.error(subj) << "is not a procedure")
-            .see(*hit.decl())
+            .see(*hit.single())
             .see(*dp);
         return SymRes::Fail;
     }
@@ -922,14 +923,11 @@ SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
 
     Resolver resolver(*defn, Resolver::Narrow);
     Context templCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto hit = templCtx.matchOverload(SymbolReference("", arguments()));
-    auto proc = hit.as<ProcedureDeclaration>();
+    auto hit = templCtx.matchOverloadUsingImplicitConversions("", mutableArgs());
+    auto proc = hit.singleAs<ProcedureDeclaration>();
     if ( !proc ) {
-        auto& err = ctx.error(*this) << "does not match any procedure overload";
-        if ( hit.symSpace() ) {
-            for ( auto const& p : hit.symSpace()->prototypes() )
-                err.see(*p.proto.decl);
-        }
+        (ctx.error(*this) << "failed to find static call")
+            .see(std::move(hit));
         return SymRes::Fail;
     }
 
@@ -963,14 +961,14 @@ SymRes ApplyExpression::lowerToConstruction(Context& ctx)
             return SymRes::Fail;
         }
 
-        auto ctorTemplDecl = hit.as<TemplateDeclaration>();
+        auto ctorTemplDecl = hit.singleAs<TemplateDeclaration>();
         if ( !ctorTemplDecl )
             throw std::runtime_error("ctor is not a template");
 
         Resolver templScope(*ctorTemplDecl->definition(), Resolver::Narrow);
-        dpCtx.changeResolver(templScope);
-        hit = dpCtx.matchOverload(SymbolReference("", arguments()));
-        auto proc = hit.as<ProcedureDeclaration>();
+        REVERT = dpCtx.pushResolver(templScope);
+        hit = dpCtx.matchOverloadUsingImplicitConversions("", mutableArgs());
+        auto proc = hit.singleAs<ProcedureDeclaration>();
         if ( !proc )
             throw std::runtime_error("ctor is not a procedure");
 
@@ -1025,7 +1023,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
         Box<IdentifierExpression> refStorage;
         auto refElementType = elementType;
         if ( !isReference(*refElementType) ) {
-            refStorage = createIdentifier(*ctx.matchOverload(SymbolReference("ref", slice(elementType))).decl());
+            refStorage = createIdentifier(*ctx.matchOverload(SymbolReference("ref", slice(elementType))).single());
             refElementType = refStorage.get();
         }
 
@@ -1116,6 +1114,11 @@ Slice<Expression const*> ApplyExpression::arguments() const
 ProcedureDeclaration const* ApplyExpression::procedure() const
 {
     return myProc;
+}
+
+Slice<Box<Expression>> ApplyExpression::mutableArgs()
+{
+    return Slice<Box<Expression>>(myExpressions)(1, $);
 }
 
 //
@@ -1218,7 +1221,7 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
-    setDeclaration(*hit.decl());
+    setDeclaration(*hit.single());
     return SymRes::Success;
 }
 
@@ -1372,8 +1375,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
 
                 auto const tok = lit->token();
                 myExpressions[i] = createIdentifier(makeToken(tok.lexeme(),
-                                                              tok.line(),
-                                                              tok.column()),
+                                                              tok.location()),
                                                     *defn->fields()[index]);
                 e = myExpressions[i].get();
             }
@@ -1511,7 +1513,7 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    VarianceResult result = Invariant;
+    Variance result = Variance::Invariant;
     if ( isReference(*myLeft->type()) )
         result = variance(ctx, getDeclaration(myLeft->type())->symbol().prototype().pattern(), *myRight->type());
     else

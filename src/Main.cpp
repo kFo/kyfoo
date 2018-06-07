@@ -18,10 +18,12 @@
 #include <kyfoo/codegen/Codegen.hpp>
 #include <kyfoo/codegen/LLVM.hpp>
 
+namespace kyfoo {
+
 int runScannerDump(std::filesystem::path const& file)
 {
     std::ifstream fin(file);
-    kyfoo::lexer::Scanner scanner(fin);
+    lexer::Scanner scanner(fin);
     if ( !scanner ) {
         std::cout << "could not open file: " << file << std::endl;
         return EXIT_FAILURE;
@@ -33,22 +35,22 @@ int runScannerDump(std::filesystem::path const& file)
         std::cout << 'L' << std::left << std::setw(10) << token.line();
         switch (token.kind())
         {
-        case kyfoo::lexer::TokenKind::Undefined:
+        case lexer::TokenKind::Undefined:
             std::cout << "<undefined>\n";
             break;
 
-        case kyfoo::lexer::TokenKind::EndOfFile:
+        case lexer::TokenKind::EndOfFile:
             std::cout << "<eof>\n";
             break;
 
-        case kyfoo::lexer::TokenKind::IndentLT:
-        case kyfoo::lexer::TokenKind::IndentEQ:
-        case kyfoo::lexer::TokenKind::IndentGT:
-        case kyfoo::lexer::TokenKind::IndentError:
+        case lexer::TokenKind::IndentLT:
+        case lexer::TokenKind::IndentEQ:
+        case lexer::TokenKind::IndentGT:
+        case lexer::TokenKind::IndentError:
             std::cout << "<" << to_string(token.kind()) << "> " << '\n';
             break;
 
-        case kyfoo::lexer::TokenKind::Identifier:
+        case lexer::TokenKind::Identifier:
             std::cout << '\'' << token.lexeme() << "'\n";
             break;
 
@@ -62,15 +64,15 @@ int runScannerDump(std::filesystem::path const& file)
 
 int runParserTest(std::filesystem::path const& filepath)
 {
-    kyfoo::Diagnostics dgn;
-    kyfoo::ast::ModuleSet moduleSet;
+    Diagnostics dgn;
+    ast::ModuleSet moduleSet;
     auto main = moduleSet.create(filepath);
     try {
         main->parse(dgn);
-        kyfoo::ast::JsonOutput output(std::cout);
+        ast::JsonOutput output(std::cout);
         main->io(output);
     }
-    catch (kyfoo::Diagnostics*) {
+    catch (Diagnostics*) {
         // Handled below
     }
     catch (std::exception const& e) {
@@ -86,21 +88,21 @@ int runParserTest(std::filesystem::path const& filepath)
     return EXIT_SUCCESS;
 }
 
-int analyzeModule(kyfoo::ast::Module& m, bool treeDump)
+int analyzeModule(ast::Module& m, bool treeDump)
 {
-    kyfoo::Diagnostics dgn;
-    kyfoo::StopWatch sw;
+    Diagnostics dgn;
+    StopWatch sw;
     try {
         m.semantics(dgn);
         if ( treeDump ) {
             std::ofstream fout(std::string(m.name()) + ".astdump.json");
             if ( fout ) {
-                kyfoo::ast::JsonOutput out(fout);
+                ast::JsonOutput out(fout);
                 m.io(out);
             }
         }
     }
-    catch (kyfoo::Diagnostics*) {
+    catch (Diagnostics*) {
         // Handled below
     }
     catch (std::exception const& e) {
@@ -118,12 +120,12 @@ int analyzeModule(kyfoo::ast::Module& m, bool treeDump)
     return EXIT_SUCCESS;
 }
 
-int codegenModule(kyfoo::Diagnostics& dgn,
-                  kyfoo::codegen::LLVMGenerator& gen,
-                  kyfoo::ast::Module const& m,
+int codegenModule(Diagnostics& dgn,
+                  codegen::LLVMGenerator& gen,
+                  ast::Module const& m,
                   bool writeIR)
 {
-    kyfoo::StopWatch sw;
+    StopWatch sw;
 
     auto IRFilepath = [](std::filesystem::path p) {
         return p.replace_extension(".ll");
@@ -134,19 +136,19 @@ int codegenModule(kyfoo::Diagnostics& dgn,
         if ( writeIR )
             gen.writeIR(m, IRFilepath(m.path()));
         else
-            gen.write(m, kyfoo::codegen::toObjectFilepath(m.path()));
+            gen.write(m, codegen::toObjectFilepath(m.path()));
     }
-    catch (kyfoo::Diagnostics*) {
+    catch (Diagnostics*) {
         // Handled below
     }
     catch (std::exception const& e) {
-        std::cout << m.path() << ": ICE: " << e.what() << std::endl;
+        std::cout << m << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     auto semTime = sw.reset();
     dgn.dumpErrors(std::cout);
-    std::cout << "codegen: " << m.name() << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+    std::cout << "codegen: " << m << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -162,12 +164,12 @@ enum Options
     IR            = 1 << 2,
 };
 
-int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
+int compile(std::vector<std::filesystem::path> const& files, u32 options)
 {
     auto ret = EXIT_SUCCESS;
-    kyfoo::ast::ModuleSet moduleSet;
+    ast::ModuleSet moduleSet;
     {
-        kyfoo::Diagnostics dgn;
+        Diagnostics dgn;
         try {
             if ( !moduleSet.init(dgn) ) {
                 dgn.dumpErrors(std::cout);
@@ -180,10 +182,10 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
         }
     }
 
-    std::set<kyfoo::ast::Module*> visited;
-    std::queue<kyfoo::ast::Module*> queue;
+    std::set<ast::Module*> visited;
+    std::queue<ast::Module*> queue;
 
-    auto append = [&](kyfoo::ast::Module* m) {
+    auto append = [&](ast::Module* m) {
         if ( visited.find(m) == end(visited) )
             queue.push(m);
     };
@@ -199,6 +201,8 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
     for ( auto const& f : files )
         append(moduleSet.create(f));
 
+    moduleSet.initBaseModules();
+
     // parse and imports extraction
     // Every module will be parsed before the semantics pass so that symbols
     // may be resolved across module boundaries
@@ -208,8 +212,8 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
     while ( !queue.empty() ) {
         auto m = take();
 
-        kyfoo::Diagnostics dgn;
-        kyfoo::StopWatch sw;
+        Diagnostics dgn;
+        StopWatch sw;
         try {
             if ( m->parsed() )
                 continue;
@@ -221,7 +225,7 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
                     append(i);
             }
         }
-        catch (kyfoo::Diagnostics*) {
+        catch (Diagnostics*) {
             // Handled below
         }
         catch (std::exception const& e) {
@@ -231,7 +235,7 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
 
         parseTime = sw.reset();
         dgn.dumpErrors(std::cout);
-        std::cout << "parse: " << m->path() << "; errors: " << dgn.errorCount() << "; time: " << parseTime.count() << std::endl;
+        std::cout << "parse: " << *m << "; errors: " << dgn.errorCount() << "; time: " << parseTime.count() << std::endl;
 
         if ( dgn.errorCount() )
             ret = EXIT_FAILURE;
@@ -241,7 +245,7 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
         return ret;
 
     // semantic pass
-    std::vector<kyfoo::ast::Module*> allModules(begin(moduleSet.modules()), end(moduleSet.modules()));
+    std::vector<ast::Module*> allModules(begin(moduleSet.modules()), end(moduleSet.modules()));
     allModules.erase(find(begin(allModules), end(allModules), &moduleSet.axioms()));
 
     for ( auto m = begin(allModules); m != end(allModules); ++m ) {
@@ -253,8 +257,8 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
         }
     }
 
-    kyfoo::Diagnostics dgn;
-    kyfoo::codegen::LLVMGenerator gen(dgn, moduleSet);
+    Diagnostics dgn;
+    codegen::LLVMGenerator gen(dgn, moduleSet);
 
     try {
         gen.generate(moduleSet.axioms());
@@ -263,7 +267,7 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
         std::cout << "ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-    catch (kyfoo::Diagnostics*) {
+    catch (Diagnostics*) {
         // nop
     }
 
@@ -282,9 +286,6 @@ int compile(std::vector<std::filesystem::path> const& files, kyfoo::u32 options)
         if ( (ret = codegenModule(dgn, gen, *m, options & IR)) != EXIT_SUCCESS )
             return ret;
     }
-
-    // link
-    
 
     return ret;
 }
@@ -306,8 +307,12 @@ void printHelp(std::filesystem::path const& arg0)
         << std::endl;
 }
 
+} // namespace kyfoo
+
 int main(int argc, char* argv[])
 {
+    using namespace kyfoo;
+
     try {
         if ( argc < 3 ) {
             printHelp(argv[0]);
@@ -338,7 +343,7 @@ int main(int argc, char* argv[])
             for ( int i = 2; i != argc; ++i )
                 files.push_back(argv[i]);
 
-            kyfoo::u32 options = SemanticsOnly;
+            u32 options = SemanticsOnly;
             if ( command == "semdump" )
                 options |= TreeDump;
 

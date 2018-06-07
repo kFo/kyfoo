@@ -14,6 +14,7 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Context.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 
 namespace kyfoo::ast {
 
@@ -167,25 +168,29 @@ void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
         s->resolveAttributes(endModule, dgn);
 }
 
-LookupHit DeclarationScope::findEquivalent(SymbolReference const& symbol) const
+Lookup DeclarationScope::findEquivalent(SymbolReference const& symbol) const
 {
+    Lookup ret(symbol);
     auto symSpace = findSymbolSpace(symbol.name());
-    if ( symSpace )
-        return LookupHit(symSpace, symSpace->findEquivalent(symbol.pattern()));
+    if ( symSpace ) {
+        ret.appendTrace(*symSpace);
+        if ( auto decl = symSpace->findEquivalent(symbol.pattern()) )
+            ret.resolveTo(*decl);
+    }
+    else if ( myDeclaration && symbol.pattern().empty() )
+        if ( auto symVar = myDeclaration->symbol().prototype().findVariable(symbol.name()) )
+            ret.resolveTo(*symVar);
 
-    if ( myDeclaration && symbol.pattern().empty() )
-        return LookupHit(symSpace, myDeclaration->symbol().prototype().findVariable(symbol.name()));
-
-    return LookupHit();
+    return ret;
 }
 
-LookupHit DeclarationScope::findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const
+Lookup DeclarationScope::findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const
 {
-    LookupHit hit;
+    Lookup hit(sym);
     auto symSpace = findSymbolSpace(sym.name());
     if ( symSpace ) {
-        auto t = symSpace->findOverload(endModule, dgn, sym.pattern());
-        hit.lookup(symSpace, t.instance ? t.instance : t.parent);
+        hit.appendTrace(*symSpace);
+        hit.resolveTo(symSpace->findViableOverloads(endModule, dgn, sym.pattern()));
     }
 
     return hit;
@@ -218,7 +223,7 @@ void DeclarationScope::appendLambda(Box<ProcedureDeclaration> proc,
 
 void DeclarationScope::import(Module& module)
 {
-    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, 0, 0, std::string(module.name())))));
+    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, std::string(module.name()), {0, 0}))));
 }
 
 void DeclarationScope::merge(DeclarationScope& rhs)
@@ -527,9 +532,8 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
     auto makeTempl = [this, &dgn] {
         auto templ = mk<TemplateDeclaration>(
             Symbol(lexer::Token(lexer::TokenKind::Identifier,
-                                declaration()->symbol().token().line(),
-                                declaration()->symbol().token().column(),
-                                "dtor")));
+                                "dtor",
+                                declaration()->symbol().token().location())));
         auto templDefn = mk<TemplateScope>(*this, *templ);
         templ->define(*templDefn);
         append(std::move(templDefn));
@@ -558,13 +562,13 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
     Resolver narrowResolver(*templ->definition(), Resolver::Narrow);
     Context ctx(endModule, dgn, narrowResolver);
     Box<Expression> thisType = createIdentifier(*declaration());
-    decl = ctx.matchOverload(SymbolReference("", sliceBox(thisType))).decl();
+    decl = ctx.matchOverload(SymbolReference("", sliceBox(thisType))).single();
     if ( !decl ) {
         auto proc = createDefaultDestructor();
         auto p = proc.get();
         templ->definition()->append(std::move(proc));
         Resolver resolver(*templ->definition());
-        ctx.changeResolver(resolver);
+        REVERT = ctx.pushResolver(resolver);
         ctx.resolveDeclaration(*p);
         templ->definition()->addSymbol(dgn, p->symbol(), *p);
         p->definition()->resolveSymbols(endModule, dgn);
@@ -583,12 +587,11 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 
 Box<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
 {
-    auto const line = declaration()->symbol().token().line();
-    auto const column = declaration()->symbol().token().column();
-    auto thisParam = createIdentifier(makeToken("this", 0, 0));
+    auto const loc = declaration()->symbol().token().location();
+    auto thisParam = createIdentifier(makeToken("this", {0, 0}));
     thisParam->addConstraint(createIdentifier(*declaration()));
     auto proc = mk<ProcedureDeclaration>(
-        makeSym(makeToken("", line, column), createPtrList<Expression>(std::move(thisParam))),
+        makeSym(makeToken("", loc), createPtrList<Expression>(std::move(thisParam))),
         nullptr);
 
     auto ps = mk<ProcedureScope>(*this, *proc);
@@ -608,9 +611,9 @@ Box<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
 
     auto bb = ps->basicBlocks().back();
     if ( bb->statements().empty() )
-        bb->append(createIdentifier(makeToken("this", line, column)));
+        bb->append(createIdentifier(makeToken("this", loc)));
 
-    bb->setJunction(createReturn(line, column, createEmptyExpression()));
+    bb->setJunction(createReturn(loc, createEmptyExpression()));
 
     proc->define(*ps);
     append(std::move(ps));
