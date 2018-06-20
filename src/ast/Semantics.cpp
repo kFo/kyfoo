@@ -69,9 +69,9 @@ void SymbolDependencyTracker::add(Declaration& decl)
     group->add(decl);
 }
 
-void SymbolDependencyTracker::addDependency(Declaration& decl,
-                                            std::string_view name,
-                                            uz arity)
+SymRes SymbolDependencyTracker::addDependency(Declaration& decl,
+                                              std::string_view name,
+                                              uz arity)
 {
     auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().size());
     auto dependency = findOrCreate(name, arity);
@@ -83,8 +83,12 @@ void SymbolDependencyTracker::addDependency(Declaration& decl,
             auto& err = dgn.error(mod, decl.symbol().token()) << "circular reference detected";
             for ( auto const& d : dependency->declarations )
                 err.see(*d);
+
+            return SymRes::Fail;
         }
     }
+
+    return SymRes::Success;
 }
 
 void SymbolDependencyTracker::sortPasses()
@@ -99,7 +103,7 @@ void SymbolDependencyTracker::sortPasses()
 template <typename Dispatcher>
 struct SymbolDependencyBuilder
 {
-    using result_t = void;
+    using result_t = SymRes;
     Dispatcher& dispatch;
     SymbolDependencyTracker& tracker;
     Declaration& decl;
@@ -117,19 +121,24 @@ struct SymbolDependencyBuilder
 
     result_t exprLiteral(LiteralExpression const&)
     {
-        // nop
+        return SymRes::Success;
     }
 
     result_t exprIdentifier(IdentifierExpression const& p)
     {
         if ( p.token().kind() == lexer::TokenKind::Identifier )
-            tracker.addDependency(decl, p.token().lexeme(), 0);
+            return tracker.addDependency(decl, p.token().lexeme(), 0);
+
+        return SymRes::Success;
     }
 
     result_t exprTuple(TupleExpression const& t)
     {
+        SymRes ret = SymRes::Success;
         for ( auto const& e : t.expressions() )
-            dispatch(*e);
+            ret |= dispatch(*e);
+
+        return ret;
     }
 
     result_t exprApply(ApplyExpression const& a)
@@ -137,33 +146,40 @@ struct SymbolDependencyBuilder
         // todo: failover to implicit proc call semantics
         auto subject = a.expressions()[0]->as<LiteralExpression>();
         if ( subject && subject->token().kind() == lexer::TokenKind::Identifier ) {
-            tracker.addDependency(decl, subject->token().lexeme(), a.expressions().size() - 1);
-            return;
+            return tracker.addDependency(decl, subject->token().lexeme(), a.expressions().size() - 1);
         }
 
+        SymRes ret = SymRes::Success;
         for ( auto const& e : a.expressions() )
-            dispatch(*e);
+            ret |= dispatch(*e);
+
+        return ret;
     }
 
     result_t exprSymbol(SymbolExpression const& s)
     {
         if ( s.token().kind() == lexer::TokenKind::Identifier )
-            tracker.addDependency(decl, s.token().lexeme(), s.expressions().size());
+            return tracker.addDependency(decl, s.token().lexeme(), s.expressions().size());
 
+        SymRes ret = SymRes::Success;
         for ( auto const& e : s.expressions() )
-            dispatch(*e);
+            ret |= dispatch(*e);
+
+        return ret;
     }
 
     result_t exprDot(DotExpression const& d)
     {
+        SymRes ret = SymRes::Success;
         for ( auto const& e : d.expressions() )
-            dispatch(*e);
+            ret |= dispatch(*e);
+
+        return ret;
     }
 
     result_t exprAssign(AssignExpression const& v)
     {
-        dispatch(v.left());
-        dispatch(v.right());
+        return dispatch(v.left()) | dispatch(v.right());
     }
 
     result_t exprLambda(LambdaExpression const& l)
@@ -173,132 +189,148 @@ struct SymbolDependencyBuilder
 
     result_t exprArrow(ArrowExpression const& a)
     {
-        dispatch(a.from());
-        dispatch(a.to());
+        return dispatch(a.from()) | dispatch(a.to());
     }
 
     result_t exprUniverse(UniverseExpression const&)
     {
-        // nop
+        return SymRes::Success;
     }
 
     result_t stmtExpression(Statement const& s)
     {
-        dispatch(s.expression());
+        return dispatch(s.expression());
     }
 
     result_t juncBranch(BranchJunction const& b)
     {
+        SymRes ret = SymRes::Success;
         if ( b.condition() )
-            dispatch(*b.condition());
+            ret |= dispatch(*b.condition());
 
         for ( auto const& stmt : b.scope()->statements() )
-            dispatch(stmt.expression());
+            ret |= dispatch(stmt.expression());
 
         if ( b.next() )
-            exprBranch(*b.next());
+            ret |= exprBranch(*b.next());
+
+        return ret;
     }
 
     result_t juncReturn(ReturnJunction const& r)
     {
+        SymRes ret = SymRes::Success;
         if ( r.expression() )
-            dispatch(*r.expression());
+            ret |= dispatch(*r.expression());
+
+        return ret;
     }
 
     result_t juncJump(JumpJunction const&)
     {
-        // nop
+        return SymRes::Success;
     }
 
     // declarations
 
-    void traceSymbol(Symbol const& sym)
+    SymRes traceSymbol(Symbol const& sym)
     {
-        tracePrototype(sym.prototype());
+        return tracePrototype(sym.prototype());
     }
 
-    void tracePrototype(PatternsPrototype const& proto)
+    SymRes tracePrototype(PatternsPrototype const& proto)
     {
+        SymRes ret = SymRes::Success;
         for ( auto const& p : proto.pattern() )
-            dispatch(*p);
+            ret |= dispatch(*p);
+
+        return ret;
     }
 
-    void traceSymbol()
+    SymRes traceSymbol()
     {
-        traceSymbol(decl.symbol());
+        return traceSymbol(decl.symbol());
     }
 
     result_t declDataSum(DataSumDeclaration const&)
     {
-        traceSymbol();
+        return traceSymbol();
         // todo
     }
 
     result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
     {
-        traceSymbol(dsCtor.symbol());
+        return traceSymbol(dsCtor.symbol());
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
-        traceSymbol();
+        SymRes ret = traceSymbol();
         if ( auto defn = dp.definition() )
             for ( auto const& field : defn->fields() )
-                declField(*field);
+                ret |= declField(*field);
+
+        return ret;
     }
 
     result_t declField(DataProductDeclaration::Field const&)
     {
-        traceSymbol();
+        return traceSymbol();
     }
 
     result_t declSymbol(SymbolDeclaration const& s)
     {
-        traceSymbol();
+        SymRes ret = traceSymbol();
         if ( s.expression() )
-            dispatch(*s.expression());
+            ret |= dispatch(*s.expression());
+
+        return ret;
     }
 
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
-        traceSymbol();
+        SymRes ret = traceSymbol();
         if ( proc.returnType() )
-            dispatch(*proc.returnType());
+            ret |= dispatch(*proc.returnType());
+
+        return ret;
     }
 
     result_t declProcedureParameter(ProcedureParameter const&)
     {
-        // nop
+        return SymRes::Success;
     }
 
     result_t declVariable(VariableDeclaration const& var)
     {
-        traceSymbol();
+        SymRes ret = traceSymbol();
         for ( auto const& c : var.constraints() )
-            dispatch(*c);
+            ret |= dispatch(*c);
+
+        return ret;
     }
 
     result_t declImport(ImportDeclaration const&)
     {
-        // nop
+        return SymRes::Success;
     }
 
     result_t declSymbolVariable(SymbolVariable const&)
     {
-        // nop
+        return SymRes::Success;
     }
 
     result_t declTemplate(TemplateDeclaration const&)
     {
-        traceSymbol();
+        return traceSymbol();
     }
 };
 
-void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
+SymRes traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
 {
     DeepApply<SymbolDependencyBuilder> op(tracker, decl);
     tracker.add(decl);
-    op(decl);
+    return op(decl);
 }
 
 template <typename O>
@@ -668,7 +700,7 @@ Expression const* dataType(Expression const& expr_)
 template <typename Dispatcher>
 struct MetaVariableVisitor
 {
-    using result_t = void;
+    using result_t = bool;
     Dispatcher& dispatch;
     
     using visitor_t = std::function<void(IdentifierExpression&)>;
@@ -682,66 +714,65 @@ struct MetaVariableVisitor
 
     result_t exprLiteral(LiteralExpression&)
     {
-        // nop
+        return false;
     }
 
     result_t exprIdentifier(IdentifierExpression& p)
     {
-        if ( p.token().kind() == lexer::TokenKind::MetaVariable )
-            return visitor(p);
+        if ( p.token().kind() == lexer::TokenKind::MetaVariable ) {
+            visitor(p);
+            return true;
+        }
+
+        return false;
     }
 
     result_t exprTuple(TupleExpression& t)
     {
-        for ( auto const& e : t.expressions() )
-            dispatch(*e);
+        return dispatch(t.expressions());
     }
 
     result_t exprApply(ApplyExpression& a)
     {
-        for ( auto const& e : a.expressions() )
-            dispatch(*e);
+        return dispatch(a.expressions());
     }
 
     result_t exprSymbol(SymbolExpression& s)
     {
-        for ( auto const& e : s.expressions() )
-            dispatch(*e);
+        return dispatch(s.expressions());
     }
 
     result_t exprDot(DotExpression& d)
     {
-        for ( auto const& e : d.expressions() )
-            dispatch(*e);
+        return dispatch(d.expressions());
     }
 
     result_t exprAssign(AssignExpression& v)
     {
-        dispatch(v.left());
-        dispatch(v.right());
+        return dispatch(v.left()) | dispatch(v.right());
     }
 
     result_t exprLambda(LambdaExpression& l)
     {
+        result_t ret = false;
         for ( auto p : l.procedure().parameters() )
-            for ( auto c : p->constraints() )
-                dispatch(*c);
+            ret |= dispatch(p->constraints());
 
         for ( auto c : l.procedure().result()->constraints() )
-            dispatch(*c);
+            ret |= dispatch(*c);
 
         // todo: defn
+        return ret;
     }
 
     result_t exprArrow(ArrowExpression& a)
     {
-        dispatch(a.from());
-        dispatch(a.to());
+        return dispatch(a.from()) | dispatch(a.to());
     }
 
     result_t exprUniverse(UniverseExpression&)
     {
-        // nop
+        return false;
     }
 
     result_t stmtExpression(Statement& e)
@@ -751,23 +782,28 @@ struct MetaVariableVisitor
 
     result_t juncBranch(BranchJunction& b)
     {
+        result_t ret = false;
         if ( b.condition() )
-            dispatch(*b.condition());
+            ret |= dispatch(*b.condition());
 
         for ( uz i = 0; i < 2; ++i )
             if ( b.branch(i) )
-                dispatch.procScope(*b.branch(i)->scope());
+                ret |= dispatch.procScope(*b.branch(i)->scope());
+
+        return ret;
     }
 
     result_t juncReturn(ReturnJunction& r)
     {
         if ( r.expression() )
-            dispatch(*r.expression());
+            return dispatch(*r.expression());
+
+        return false;
     }
 
     result_t juncJump(JumpJunction&)
     {
-        // nop
+        return false;
     }
 };
 

@@ -1270,10 +1270,15 @@ bool isDefinableDeclaration(DeclKind kind)
 
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl)
 {
+    return getDefinableDeclaration(const_cast<Declaration&>(decl));
+}
+
+DefinableDeclaration* getDefinableDeclaration(Declaration& decl)
+{
     if ( !isDefinableDeclaration(decl.kind()) )
         return nullptr;
 
-    return static_cast<DefinableDeclaration const*>(&decl);
+    return static_cast<DefinableDeclaration*>(&decl);
 }
 
 DeclarationScope const* getDefinition(Declaration const& decl)

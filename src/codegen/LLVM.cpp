@@ -1077,6 +1077,25 @@ private:
         {
             return toValue(builder, destType, *exprs[1]);
         }
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkUnsignedFromInteger    )->symbol()
+               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkSignedFromInteger      )->symbol()
+               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
+               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
+        {
+            return toLiteral(builder,
+                             toType(*proc->result()->type()),
+                             exprs[1]->as<ast::LiteralExpression>()->token());
+        }
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkUnsignedFromUnsigned)->symbol() )
+        {
+            return builder.CreateZExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
+                                      toType(*proc->parameters()[0]->type()));
+        }
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkSignedFromSigned)->symbol() )
+        {
+            return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
+                                      toType(*proc->parameters()[0]->type()));
+        }
 
         // todo: hash lookup
 #define US(SYM)    \

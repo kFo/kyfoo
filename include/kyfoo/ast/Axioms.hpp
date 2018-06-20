@@ -64,8 +64,15 @@ enum DataProductIntrinsics
     X(Sliceu8_idx ) \
     X(Sliceu8_dtor) \
     \
-    X(implicitUnsigned) \
-    X(implicitSigned  ) \
+    X(mkUnsignedFromInteger)  \
+    X(mkSignedFromInteger)    \
+    X(mkUnsignedFromUnsigned) \
+    X(mkSignedFromSigned)     \
+    \
+    X(implicitIntegerToUnsigned ) \
+    X(implicitIntegerToSigned   ) \
+    X(implicitUnsignedToUnsigned) \
+    X(implicitSignedToSigned    ) \
     \
     X(Addu   ) \
     X(Adds   ) \

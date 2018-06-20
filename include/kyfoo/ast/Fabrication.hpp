@@ -11,7 +11,7 @@
 namespace kyfoo::ast {
 
 inline lexer::Token
-makeToken(std::string_view id, lexer::SourceLocation loc = {0, 0})
+makeToken(std::string_view id, lexer::SourceLocation loc = lexer::SourceLocation())
 {
     return lexer::Token(lexer::TokenKind::Identifier, std::string(id), loc);
 }
@@ -165,7 +165,7 @@ createReturn(lexer::SourceLocation loc,
 inline Box<ReturnJunction>
 createReturn(Box<Expression> expr)
 {
-    return createReturn({0, 0}, std::move(expr));
+    return createReturn(lexer::SourceLocation(), std::move(expr));
 }
 
 inline Box<SymbolExpression>

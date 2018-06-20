@@ -23,28 +23,21 @@ namespace kyfoo::ast {
 
 DeclarationScope::DeclarationScope(Kind kind,
                                    Module* module,
-                                   DeclarationScope* parent,
-                                   Declaration* decl)
+                                   DeclarationScope* parent)
     : myKind(kind)
     , myModule(module)
     , myParent(parent)
-    , myDeclaration(decl)
 {
     mySymbols.emplace_back(this, "");
 }
 
 DeclarationScope::DeclarationScope(Module& module)
-    : DeclarationScope(Kind::Declaration, &module, nullptr, nullptr)
+    : DeclarationScope(Kind::Declaration, &module, nullptr)
 {
 }
 
 DeclarationScope::DeclarationScope(DeclarationScope* parent)
-    : DeclarationScope(Kind::Declaration, &parent->module(), parent, nullptr)
-{
-}
-
-DeclarationScope::DeclarationScope(DeclarationScope& parent, Declaration& decl)
-    : DeclarationScope(Kind::Declaration, &parent.module(), &parent, &decl)
+    : DeclarationScope(Kind::Declaration, &parent->module(), parent)
 {
 }
 
@@ -113,18 +106,18 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
 
 SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
 {
+    SymRes ret = SymRes::Success;
     SymbolDependencyTracker tracker(module(), dgn);
     for ( auto const& d : myDeclarations )
-        traceDependencies(tracker, *d);
+        ret |= traceDependencies(tracker, *d);
 
-    if ( dgn.errorCount() )
+    if ( ret.error() )
         return SymRes::Fail;
 
     tracker.sortPasses();
 
     Resolver resolver(*this);
     Context ctx(endModule, dgn, resolver);
-    SymRes ret = SymRes::Success;
 
     // Resolve top-level declarations
     for ( auto const& symGroup : tracker.groups ) {
@@ -134,14 +127,14 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
         }
     }
 
-    if ( dgn.errorCount() )
+    if ( ret.error() )
         return ret;
 
     // Resolve lambdas
     for ( auto& l : myLambdas )
         ret |= ctx.resolveDeclaration(*l);
 
-    if ( dgn.errorCount() )
+    if ( ret.error() )
         return ret;
 
     // Resolve definitions
@@ -151,10 +144,7 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
         }
     }
 
-    if ( dgn.errorCount() )
-        return ret;
-
-    return SymRes::Success;
+    return ret;
 }
 
 void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
@@ -184,6 +174,12 @@ Lookup DeclarationScope::findEquivalent(SymbolReference const& symbol) const
     return ret;
 }
 
+void DeclarationScope::setDeclaration(DefinableDeclaration& declaration)
+{
+    myDeclaration = &declaration;
+    myParent = &myDeclaration->scope();
+}
+
 Lookup DeclarationScope::findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const
 {
     Lookup hit(sym);
@@ -194,11 +190,6 @@ Lookup DeclarationScope::findOverload(Module& endModule, Diagnostics& dgn, Symbo
     }
 
     return hit;
-}
-
-void DeclarationScope::setDeclaration(Declaration* declaration)
-{
-    myDeclaration = declaration;
 }
 
 void DeclarationScope::append(Box<Declaration> declaration)
@@ -223,7 +214,7 @@ void DeclarationScope::appendLambda(Box<ProcedureDeclaration> proc,
 
 void DeclarationScope::import(Module& module)
 {
-    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, std::string(module.name()), {0, 0}))));
+    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, std::string(module.name()), lexer::SourceLocation()))));
 }
 
 void DeclarationScope::merge(DeclarationScope& rhs)
@@ -297,12 +288,12 @@ Module const& DeclarationScope::module() const
     return *myModule;
 }
 
-Declaration* DeclarationScope::declaration()
+DefinableDeclaration* DeclarationScope::declaration()
 {
     return myDeclaration;
 }
 
-Declaration const* DeclarationScope::declaration() const
+DefinableDeclaration const* DeclarationScope::declaration() const
 {
     return myDeclaration;
 }
@@ -337,8 +328,9 @@ Slice<ProcedureDeclaration const*> DeclarationScope::childLambdas() const
 
 DataSumScope::DataSumScope(DeclarationScope& parent,
                            DataSumDeclaration& declaration)
-    : DeclarationScope(Kind::DataSum, &parent.module(), &parent, &declaration)
+    : DeclarationScope(Kind::DataSum, &parent.module(), &parent)
 {
+    declaration.define(*this);
 }
 
 DataSumScope::DataSumScope(DataSumScope const& rhs)
@@ -402,8 +394,9 @@ Slice<DataSumDeclaration::Constructor const*> DataSumScope::constructors() const
 
 DataProductScope::DataProductScope(DeclarationScope& parent,
                                    DataProductDeclaration& declaration)
-    : DeclarationScope(Kind::DataProduct, &parent.module(), &parent, &declaration)
+    : DeclarationScope(Kind::DataProduct, &parent.module(), &parent)
 {
+    declaration.define(*this);
 }
 
 DataProductScope::DataProductScope(DataProductScope const& rhs)
@@ -513,13 +506,11 @@ TemplateDeclaration* DataProductScope::reflectBuilder(TemplateDeclaration const&
             procDefn->basicBlocks().back()->setJunction(
                 mk<ReturnJunction>(makeToken("return"), createIdentifier(*v)));
             
-            proc->define(*procDefn);
             builderDefn->append(std::move(procDefn));
             builderDefn->append(std::move(proc));
         }
     }
 
-    builder->define(*builderDefn);
     module().scope()->append(std::move(builderDefn));
 
     auto ret = builder.get();
@@ -535,7 +526,6 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
                                 "dtor",
                                 declaration()->symbol().token().location())));
         auto templDefn = mk<TemplateScope>(*this, *templ);
-        templ->define(*templDefn);
         append(std::move(templDefn));
         append(std::move(templ));
         addSymbol(dgn, myDeclarations.back()->symbol(), *myDeclarations.back());
@@ -588,7 +578,7 @@ void DataProductScope::resolveDestructor(Module& endModule, Diagnostics& dgn)
 Box<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
 {
     auto const loc = declaration()->symbol().token().location();
-    auto thisParam = createIdentifier(makeToken("this", {0, 0}));
+    auto thisParam = createIdentifier(makeToken("this", lexer::SourceLocation()));
     thisParam->addConstraint(createIdentifier(*declaration()));
     auto proc = mk<ProcedureDeclaration>(
         makeSym(makeToken("", loc), createPtrList<Expression>(std::move(thisParam))),
@@ -615,7 +605,6 @@ Box<ProcedureDeclaration> DataProductScope::createDefaultDestructor()
 
     bb->setJunction(createReturn(loc, createEmptyExpression()));
 
-    proc->define(*ps);
     append(std::move(ps));
     return proc;
 }
@@ -661,11 +650,25 @@ ProcedureScope::ProcedureScope(DeclarationScope& parent,
                                BasicBlock* mergeBlock,
                                lexer::Token const& openToken,
                                lexer::Token const& label)
-    : DeclarationScope(Kind::Procedure, &parent.module(), &parent, &declaration)
+    : DeclarationScope(Kind::Procedure, &parent.module(), &parent)
     , myMergeBlock(mergeBlock)
     , myOpenToken(openToken)
     , myLabel(label)
 {
+    declaration.define(*this);
+    createBasicBlock();
+}
+
+ProcedureScope::ProcedureScope(ProcedureScope& parent,
+                               BasicBlock* mergeBlock,
+                               lexer::Token const& openToken,
+                               lexer::Token const& label)
+    : DeclarationScope(Kind::Procedure, &parent.module(), &parent)
+    , myMergeBlock(mergeBlock)
+    , myOpenToken(openToken)
+    , myLabel(label)
+{
+    myDeclaration = parent.declaration();
     createBasicBlock();
 }
 
@@ -833,7 +836,8 @@ ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
                                                  lexer::Token const& openToken,
                                                  lexer::Token const& label)
 {
-    myChildScopes.push_back(mk<ProcedureScope>(*this, *declaration(), mergeBlock, openToken, label));
+    Box<ProcedureScope> child(new ProcedureScope(*this, mergeBlock, openToken, label));
+    myChildScopes.push_back(std::move(child));
     return myChildScopes.back().get();
 }
 
@@ -1074,8 +1078,9 @@ SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
 
 TemplateScope::TemplateScope(DeclarationScope& parent,
                              TemplateDeclaration& declaration)
-    : DeclarationScope(Kind::Template, &parent.module(), &parent, &declaration)
+    : DeclarationScope(Kind::Template, &parent.module(), &parent)
 {
+    declaration.define(*this);
 }
 
 TemplateScope::TemplateScope(TemplateScope const& rhs)

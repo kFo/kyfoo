@@ -240,8 +240,11 @@ Context::matchOverloadUsingImplicitConversions(std::string_view name,
     if ( hit.viable().result() == ViableSet::NeedsConversion ) {
         auto const& v = hit.viable().best().viability();
         for ( uz i = 0, arity = args.size(); i != arity; ++i ) {
-            if ( auto proc = v[i].conversion() )
+            if ( auto proc = v[i].conversion() ) {
                 args[i] = createApply(createIdentifier(*proc), std::move(args[i]));
+                if ( !resolveExpression(args[i]) )
+                    throw std::runtime_error("invalid implicit conversion");
+            }
         }
 
         if ( auto decl = hit.viable().best().instantiate(*this) )

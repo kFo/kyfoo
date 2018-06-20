@@ -42,19 +42,17 @@ public:
     };
 
     friend class Context;
-    friend class Resolver;
     friend class DataProductScope;
+    template <typename T> friend class DefinableMixin;
+    friend class Resolver;
 
 protected:
     DeclarationScope(Kind kind,
                      Module* module,
-                     DeclarationScope* parent,
-                     Declaration* decl);
+                     DeclarationScope* parent);
 public:
     explicit DeclarationScope(Module& module);
     explicit DeclarationScope(DeclarationScope* parent);
-    DeclarationScope(DeclarationScope& parent,
-                     Declaration& decl);
 
 protected:
     DeclarationScope(DeclarationScope const& rhs);
@@ -62,6 +60,7 @@ protected:
 
 public:
     DeclarationScope(DeclarationScope&&) = delete;
+    void operator = (DeclarationScope&&) = delete;
 
     ~DeclarationScope();
 
@@ -81,7 +80,6 @@ public:
     virtual void resolveAttributes(Module& endModule, Diagnostics& dgn);
 
 public:
-    void setDeclaration(Declaration* declaration);
     void append(Box<Declaration> declaration);
     void append(Box<DeclarationScope> definition);
     void appendLambda(Box<ProcedureDeclaration> proc,
@@ -92,6 +90,8 @@ public:
     Lookup findEquivalent(SymbolReference const& symbol) const;
 
 protected:
+    void setDeclaration(DefinableDeclaration& declaration);
+
     Lookup findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string_view name);
@@ -105,8 +105,8 @@ public:
     Module& module();
     Module const& module() const;
 
-    Declaration* declaration();
-    Declaration const* declaration() const;
+    DefinableDeclaration* declaration();
+    DefinableDeclaration const* declaration() const;
 
     DeclarationScope* parent();
     DeclarationScope const* parent() const;
@@ -121,7 +121,7 @@ public:
 protected:
     Kind myKind = Kind::Declaration;
     Module* myModule = nullptr;
-    Declaration* myDeclaration = nullptr;
+    DefinableDeclaration* myDeclaration = nullptr;
     DeclarationScope* myParent = nullptr;
     std::vector<Box<Declaration>> myDeclarations;
     std::vector<Box<DeclarationScope>> myDefinitions;
@@ -224,13 +224,19 @@ public:
     ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration,
                    BasicBlock* mergeBlock);
+
+protected:
     ProcedureScope(DeclarationScope& parent,
                    ProcedureDeclaration& declaration,
                    BasicBlock* mergeBlock,
                    lexer::Token const& openToken,
                    lexer::Token const& label);
 
-protected:
+    ProcedureScope(ProcedureScope& parent,
+                   BasicBlock* mergeBlock,
+                   lexer::Token const& openToken,
+                   lexer::Token const& label);
+
     ProcedureScope(ProcedureScope const& rhs);
     ProcedureScope& operator = (ProcedureScope const& rhs);
 

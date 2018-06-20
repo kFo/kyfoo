@@ -42,7 +42,6 @@ DeclarationScopeParser::parseDataSumDefinition(ast::DataSumDeclaration& declarat
     scanner().next();
 
     auto dsDefn = mk<ast::DataSumScope>(*myScope, declaration);
-    declaration.define(*dsDefn);
     scope().append(std::move(dsDefn));
     return mk<DataSumScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
@@ -57,7 +56,6 @@ DeclarationScopeParser::parseDataProductDefinition(ast::DataProductDeclaration& 
     scanner().next();
 
     auto dpDefn = mk<ast::DataProductScope>(*myScope, declaration);
-    declaration.define(*dpDefn);
     scope().append(std::move(dpDefn));
     return mk<DataProductScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
@@ -69,8 +67,7 @@ DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& decl
     if ( scanner().peek().kind() == lexer::TokenKind::Yield ) {
         scanner().next(); // yield
         auto p = mk<ast::ProcedureScope>(*myScope, declaration);
-        declaration.define(*p);
-        scope().append(std::move(p));
+        declaration.scope().append(std::move(p));
         if ( !isIndent(scanner().peek().kind()) ) {
             auto expr = parse<Expression>(*this);
             if ( !expr ) {
@@ -94,14 +91,14 @@ DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& decl
     return nullptr;
 }
 
-std::tuple<ast::Symbol, Box<ast::ProcedureDeclaration>>
+ImplicitProcDecl
 parseImplicitTemplateProcedureDeclaration(DeclarationScopeParser& parser)
 {
     ImplicitProcedureTemplateDeclaration grammar;
     if ( parse(parser.scanner(), grammar) )
         return grammar.make(parser);
 
-    return { ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, "", {0, 0})), nullptr };
+    return { ast::Symbol(lexer::Token(lexer::TokenKind::Identifier, "", lexer::SourceLocation())), nullptr };
 }
 
 DeclarationScopeParser::ParseResult
@@ -116,14 +113,16 @@ DeclarationScopeParser::parseNonProcedural()
         return {true, nullptr};
     }
     else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
-        auto newScopeParser = parseDataSumDefinition(*dsDecl);
+        auto p = dsDecl.get();
         append(std::move(dsDecl));
+        auto newScopeParser = parseDataSumDefinition(*p);
 
         return {true, std::move(newScopeParser)};
     }
     else if ( auto dpDecl = parse<DataProductDeclaration>(*this) ) {
-        auto newScopeParser = parseDataProductDefinition(*dpDecl);
+        auto p = dpDecl.get();
         append(std::move(dpDecl));
+        auto newScopeParser = parseDataProductDefinition(*p);
 
         return {true, std::move(newScopeParser)};
     }
@@ -135,22 +134,23 @@ DeclarationScopeParser::ParseResult
 DeclarationScopeParser::parseProcedural()
 {
     if ( auto procDecl = parse<ProcedureDeclaration>(*this) ) {
-        auto newScopeParser = parseProcedureDefinition(*procDecl);
+        auto p = procDecl.get();
         append(std::move(procDecl));
+        auto newScopeParser = parseProcedureDefinition(*p);
 
         return {true, std::move(newScopeParser)};
     }
 
     auto templProcDecl = parseImplicitTemplateProcedureDeclaration(*this);
-    if ( std::get<1>(templProcDecl) ) {
-        std::get<1>(templProcDecl)->setAttributes(std::move(myAttributes));
-        auto templDecl = mk<ast::TemplateDeclaration>(std::move(std::get<0>(templProcDecl)));
+    if ( templProcDecl.proc ) {
+        templProcDecl.proc->setAttributes(std::move(myAttributes));
+        auto templDecl = mk<ast::TemplateDeclaration>(std::move(templProcDecl.templSym));
         auto templDefn = mk<ast::TemplateScope>(*myScope, *templDecl);
-        templDecl->define(*templDefn);
         scope().append(std::move(templDefn));
 
-        auto newScopeParser = parseProcedureDefinition(*std::get<1>(templProcDecl));
-        templDecl->definition()->append(std::move(std::get<1>(templProcDecl)));
+        auto p = templProcDecl.proc.get();
+        templDecl->definition()->append(std::move(templProcDecl.proc));
+        auto newScopeParser = parseProcedureDefinition(*p);
 
         append(std::move(templDecl));
         return {true, std::move(newScopeParser)};
@@ -300,8 +300,9 @@ DataProductScopeParser::parseNext()
         return {true, nullptr};
     }
     else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
-        auto newScopeParser = parseDataSumDefinition(*dsDecl);
+        auto p = dsDecl.get();
         myScope->append(std::move(dsDecl));
+        auto newScopeParser = parseDataSumDefinition(*p);
 
         return {true, std::move(newScopeParser)};
     }

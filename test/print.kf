@@ -38,9 +38,9 @@ BOOL         := u32
 SIZE_T       := ULONG_PTR
 ULONG_PTR    := size_t
 
-STD_INPUT_HANDLE  := 4294967286 // -10
-STD_OUTPUT_HANDLE := 4294967285 // -11
-STD_ERROR_HANDLE  := 4294967284 // -12
+STD_INPUT_HANDLE  := mk<u32> 4294967286 // -10
+STD_OUTPUT_HANDLE := mk<u32> 4294967285 // -11
+STD_ERROR_HANDLE  := mk<u32> 4294967284 // -12
 
 HEAP_GENERATE_EXCEPTIONS := 4 // 0x00000004
 HEAP_NO_SERIALIZE        := 1 // 0x00000001
@@ -51,14 +51,14 @@ NULL := null
 put(c : u8) -> () =>
     := a : u8 = c
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL
-    :.
+    :. 42
 
 put(n : u32) -> () =>
     := digits : ascii = "0123456789"
     := i : u32 = n
     :<> neq i 0
         := digit : u32 = rem i 10
-        put (digits digit)
+        put (mk<u8>(digits digit))
         i = div i 10
     :.
 

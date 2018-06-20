@@ -39,18 +39,9 @@ Variance variance(DiagnosticsContext /*dgn*/, Declaration const& target, lexer::
 {
     auto const& axioms = getAxioms(target);
 
-    if ( auto intMeta = axioms.integerMetaData(target) ) {
-        if ( query.kind() != lexer::TokenKind::Integer )
-            return Variance::Invariant; // todo: diagnostics
-
-        std::string s(query.lexeme());
-        cpp_int const n(s);
-        bounds_t const bounds = bitsToBounds(intMeta->bits);
-
-        if ( !in(n, bounds) )
-            return Variance::Contravariant; // todo: error diagnostics
-
-        return Variance::Covariant;
+    if ( query.kind() == lexer::TokenKind::Integer ) {
+        if ( &target == axioms.intrinsic(IntegerLiteralType) )
+            return Variance::Exact;
     }
 
     if ( query.kind() == lexer::TokenKind::String ) {

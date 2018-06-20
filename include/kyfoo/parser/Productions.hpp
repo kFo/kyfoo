@@ -229,8 +229,6 @@ struct Lambda :
                 procScope = yield->factor<1>().term<1>().make(parser, *procDecl);
             }
 
-            procDecl->define(*procScope);
-
             auto proc = procDecl.get();
             parser.scope().appendLambda(std::move(procDecl), std::move(procScope));
             return mk<ast::LambdaExpression>(yield->factor<0>().token(), proc);
@@ -428,12 +426,18 @@ struct Symbol :
     }
 };
 
+struct ImplicitProcDecl
+{
+    ast::Symbol templSym;
+    Box<ast::ProcedureDeclaration> proc;
+};
+
 struct ImplicitProcedureTemplateDeclaration :
     g::And<Symbol, ProcedureDeclaration>
 {
-    std::tuple<ast::Symbol, Box<ast::ProcedureDeclaration>> make(DeclarationScopeParser& parser)
+    ImplicitProcDecl make(DeclarationScopeParser& parser)
     {
-        return {factor<0>().make(parser), factor<1>().make(parser)};
+        return { factor<0>().make(parser), factor<1>().make(parser) };
     }
 };
 

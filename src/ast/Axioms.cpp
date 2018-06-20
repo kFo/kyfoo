@@ -74,11 +74,31 @@ size_t := unsigned<wordSize>
 
 staticSize(p : ptr \T) -> size_t => wordSize
 
-@"intrininst" "implicitUnsigned"
-implicitTo<unsigned<\D>>(s : unsigned<\S>) -> unsigned<D>
+@"intrininst" "mkUnsignedFromInteger"
+mk<unsigned<\n>>(i : integer) -> unsigned<n>
 
-@"intrininst" "implicitSigned"
-implicitTo<signed<unsigned<\D>>>(s : signed<unsigned<\S>>) -> signed<unsigned<D>>
+@"intrininst" "mkSignedFromInteger"
+mk<signed<unsigned<\n>>>(i : integer) -> signed<unsigned<n>>
+
+@"intrininst" "mkUnsignedFromUnsigned"
+mk<unsigned<\n>>(i : unsigned<\m>) -> unsigned<n>
+
+@"intrininst" "mkSignedFromSigned"
+mk<signed<unsigned<\n>>>(i : signed<unsigned<\m>>) -> signed<unsigned<n>>
+
+@"intrininst" "implicitIntegerToUnsigned"
+implicitTo<unsigned<\D>>(i : integer) -> unsigned<D>
+
+@"intrininst" "implicitIntegerToSigned"
+implicitTo<signed<unsigned<\D>>>(i : integer) -> signed<unsigned<D>>
+
+@"intrininst" "implicitUnsignedToUnsigned"
+implicitTo<unsigned<\D>>(s : unsigned<\S>) -> unsigned<D> =>
+    :. mk<unsigned<D>> s
+
+@"intrininst" "implicitSignedToSigned"
+implicitTo<signed<unsigned<\D>>>(s : signed<unsigned<\S>>) -> signed<unsigned<D>> =>
+    :. mk<signed<unsigned<D>>> s
 
 @"intrininst" "Addu"
 add(x y : unsigned<\n>) -> unsigned<n>
@@ -232,9 +252,9 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
 {
     myScope = mk<ast::DeclarationScope>(*this);
 
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , {0, 0}))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", {0, 0}))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , {0, 0}))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , lexer::SourceLocation()))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", lexer::SourceLocation()))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , lexer::SourceLocation()))));
 
     for ( uz i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
         myDataSumDecls[i] = scope()->childDeclarations()[i]->as<DataSumDeclaration>();

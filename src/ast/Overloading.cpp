@@ -158,9 +158,12 @@ Declaration* Via::instantiate(Context& ctx)
         if ( instanceDecl->symbol().prototype().isConcrete() ) {
             myProto->ownDefinitions.emplace_back(ast::clone(defn, cloneMap));
             auto instanceDefn = myProto->ownDefinitions.back().get();
-            instanceDecl->remapReferences(cloneMap);
+            define(*instanceDecl, *instanceDefn);
 
-            if ( !instanceDefn->resolveSymbols(ctx.module(), ctx.diagnostics()) )
+            if ( instanceDecl != instanceDefn->declaration() )
+                throw std::runtime_error("decl/defn mismatch");
+
+            if ( instanceDefn->resolveSymbols(ctx.module(), ctx.diagnostics()).error() )
                 return nullptr;
         }
     }

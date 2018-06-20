@@ -136,6 +136,7 @@ class DeepApply
 {
 public:
     using operator_t = Op<DeepApply>;
+    using result_t = typename operator_t::result_t;
 
     DeepApply()
         : myOperator(*this)
@@ -148,31 +149,25 @@ public:
     {
     }
 
-    template <typename U>
-    typename operator_t::result_t operator()(U&) = delete;
-
-    template<>
-    typename operator_t::result_t operator()(Expression const& expr)
+    result_t operator()(Expression const& expr)
     {
-#define X(a,b) if ( auto e = expr.as<b>() ) { myOperator.expr##a(*e); for ( auto c : e->constraints() ) operator()(*c); return; }
+#define X(a,b) if ( auto e = expr.as<b>() ) { result_t ret = myOperator.expr##a(*e); for ( auto c : e->constraints() ) ret |= operator()(*c); return ret; }
         EXPRESSION_KINDS(X)
 #undef X
 
         throw std::runtime_error("invalid expression kind");
     }
 
-    template<>
-    typename operator_t::result_t operator()(Expression& expr)
+    result_t operator()(Expression& expr)
     {
-#define X(a,b) if ( auto e = expr.as<b>() ) { myOperator.expr##a(*e); for ( auto c : e->constraints() ) operator()(*c); return; }
+#define X(a,b) if ( auto e = expr.as<b>() ) { result_t ret = myOperator.expr##a(*e); for ( auto c : e->constraints() ) ret |= operator()(*c); return ret; }
         EXPRESSION_KINDS(X)
 #undef X
 
         throw std::runtime_error("invalid expression kind");
     }
 
-    template <>
-    typename operator_t::result_t operator()(Declaration& decl)
+    result_t operator()(Declaration& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
         DECLARATION_KINDS(X)
@@ -181,14 +176,31 @@ public:
         throw std::runtime_error("invalid declaration kind");
     }
 
-    template <>
-    typename operator_t::result_t operator()(Declaration const& decl)
+    result_t operator()(Declaration const& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
         DECLARATION_KINDS(X)
 #undef X
 
         throw std::runtime_error("invalid declaration kind");
+    }
+
+    result_t operator()(Slice<Expression*> exprs)
+    {
+        result_t ret;
+        for ( ; exprs; exprs.popFront() )
+            ret |= operator()(*exprs.front());
+
+        return ret;
+    }
+
+    result_t operator()(Slice<Expression const*> exprs)
+    {
+        result_t ret;
+        for ( ; exprs; exprs.popFront() )
+            ret |= operator()(*exprs.front());
+
+        return ret;
     }
 
 private:
@@ -257,14 +269,14 @@ struct SymbolDependencyTracker
     SymGroup* findOrCreate(std::string_view name, uz arity);
 
     void add(Declaration& decl);
-    void addDependency(Declaration& decl,
-                       std::string_view name,
-                       uz arity);
+    SymRes addDependency(Declaration& decl,
+                         std::string_view name,
+                         uz arity);
 
     void sortPasses();
 };
 
-void traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
+SymRes traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl);
 
 Expression const* lookThrough(Expression const* expr);
 Expression const* lookThrough(Declaration const* decl);

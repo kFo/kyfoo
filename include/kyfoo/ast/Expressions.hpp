@@ -75,6 +75,11 @@ public:
 
         return *this;
     }
+
+    bool error() const
+    {
+        return myRes == Fail;
+    }
 };
 
 inline SymRes operator |(SymRes lhs, SymRes const& rhs)

@@ -1511,11 +1511,29 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    Variance result = Variance::Invariant;
-    if ( isReference(*myLeft->type()) )
-        result = variance(ctx, getDeclaration(myLeft->type())->symbol().prototype().pattern(), *myRight->type());
-    else
-        result = variance(ctx, *myLeft, *myRight);
+    auto checkVariance = [&, this]() {
+        if ( isReference(*myLeft->type()) )
+            return variance(ctx, getDeclaration(myLeft->type())->symbol().prototype().pattern(), *myRight->type());
+        else
+            return variance(ctx, *myLeft, *myRight);
+    };
+    Variance result = checkVariance();
+
+    if ( !result ) {
+        ProcedureDeclaration const* proc = nullptr;
+        if ( isReference(*myLeft->type()) )
+            proc = findImplicitConversion(ctx, *getDeclaration(myLeft->type())->symbol().prototype().pattern().front(), *myRight->type());
+        else
+            proc = findImplicitConversion(ctx, *myLeft, *myRight);
+
+        if ( proc ) {
+            myRight = createApply(createIdentifier(*proc), std::move(myRight));
+            if ( !ctx.resolveExpression(myRight) )
+                throw std::runtime_error("implicit conversion error");
+
+            result = checkVariance();
+        }
+    }
 
     if ( !result ) {
         ctx.error(*this) << "assignment expression type does not match variable type";

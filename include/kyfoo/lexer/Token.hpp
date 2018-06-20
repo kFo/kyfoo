@@ -12,8 +12,23 @@ using column_index_t = u32;
 
 struct SourceLocation
 {
-    line_index_t line;
-    column_index_t column;
+    line_index_t line = 0;
+    column_index_t column = 0;
+
+    SourceLocation() = default;
+    SourceLocation(line_index_t line, column_index_t col)
+        : line(line)
+        , column(col)
+    {
+    }
+
+    SourceLocation(SourceLocation const&) = default;
+    SourceLocation& operator = (SourceLocation const&) = default;
+
+    SourceLocation(SourceLocation&&) = default;
+    SourceLocation& operator = (SourceLocation&&) = default;
+
+    ~SourceLocation() = default;
 
     void swap(SourceLocation& rhs)
     {
@@ -27,7 +42,7 @@ class Token
 {
     TokenKind myKind = TokenKind::Undefined;
     std::string myLexeme;
-    SourceLocation myLoc;
+    SourceLocation myLoc = { 0, 0 };
 
 public:
     explicit Token();

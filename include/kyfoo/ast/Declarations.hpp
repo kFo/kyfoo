@@ -63,6 +63,7 @@ protected:
     void operator = (Declaration const&) = delete;
 
     Declaration(Declaration&&) = delete;
+    void operator = (Declaration&&) = delete;
 
 public:
     ~Declaration();
@@ -122,11 +123,8 @@ public:
 
 protected:
     DefinableDeclaration(DefinableDeclaration const& rhs);
-    void operator = (DefinableDeclaration const& rhs);
 
 public:
-    DefinableDeclaration(DefinableDeclaration&&) = delete;
-
     ~DefinableDeclaration();
 
     void swap(DefinableDeclaration& rhs) noexcept;
@@ -159,11 +157,8 @@ protected:
 public:
     void define(T& scope)
     {
-        if ( myDefinition )
-            throw std::runtime_error("type declaration defined more than once");
-
         myDefinition = &scope;
-        myDefinition->setDeclaration(this);
+        myDefinition->setDeclaration(*this);
     }
 
     T* definition()
@@ -666,6 +661,7 @@ bool isCtor(ProcedureDeclaration const& proc);
 bool isDtor(ProcedureDeclaration const& proc);
 bool isDefinableDeclaration(DeclKind kind);
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl);
+DefinableDeclaration* getDefinableDeclaration(Declaration& decl);
 DeclarationScope const* getDefinition(Declaration const& decl);
 void define(Declaration& decl, DeclarationScope& defn);
 
