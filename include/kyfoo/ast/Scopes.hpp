@@ -194,23 +194,13 @@ public:
     SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
 
 public:
-    SymRes resolveConstructors(Module& endModule, Diagnostics& dgn);
-    Box<ProcedureDeclaration> createDefaultConstructor();
-    TemplateDeclaration* reflectBuilder(TemplateDeclaration const& ctorTempl);
-
-    void resolveDestructor(Module& endModule, Diagnostics& dgn);
-    Box<ProcedureDeclaration> createDefaultDestructor();
-
     DataProductDeclaration* declaration();
 
     Slice<DataProductDeclaration::Field*> fields();
     Slice<DataProductDeclaration::Field const*> fields() const;
 
-    ProcedureDeclaration const* destructor() const;
-
 private:
     std::vector<DataProductDeclaration::Field*> myFields;
-    ProcedureDeclaration const* myDestructor = nullptr;
 };
 
 class ProcedureScope : public DeclarationScope

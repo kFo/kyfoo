@@ -152,7 +152,10 @@ Declaration* Via::instantiate(Context& ctx)
     myProto->ownDeclarations.emplace_back(ast::clone(myProto->proto.decl, cloneMap));
     auto instanceDecl = myProto->ownDeclarations.back().get();
     instanceDecl->symbol().prototype().bindVariables(mySubsts);
-    ctx.resolveDeclaration(*instanceDecl);
+    if ( ctx.resolveDeclaration(*instanceDecl).error() )
+        throw std::runtime_error("invalid substitution");
+
+    myProto->instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
 
     if ( auto defn = getDefinition(*myProto->proto.decl) ) {
         if ( instanceDecl->symbol().prototype().isConcrete() ) {
@@ -168,7 +171,6 @@ Declaration* Via::instantiate(Context& ctx)
         }
     }
 
-    myProto->instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
     return myProto->instances.back().decl;
 }
 

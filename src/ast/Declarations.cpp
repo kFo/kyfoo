@@ -383,7 +383,7 @@ SymRes Binder::resolveSymbols(Context& ctx)
     auto ret = Declaration::resolveSymbols(ctx);
     ret |= ctx.resolveExpressions(myConstraints);
 
-    if ( !ret )
+    if ( !ret || myType )
         return ret;
 
     for ( auto const& c : myConstraints ) {

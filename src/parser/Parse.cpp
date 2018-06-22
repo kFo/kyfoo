@@ -280,13 +280,6 @@ DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
                                                ast::DataProductScope& scope)
     : DeclarationScopeParser(dgn, scanner, scope)
 {
-    lexer::SourceLocation loc { 0, 0 };
-    myParameterContext.emplace_back(ast::createIdentifier(ast::makeToken("this", loc)));
-    myParameterContext.back()->addConstraint(
-        createRefType(loc,
-            ast::createIdentifier(
-                lexer::Token(lexer::TokenKind::Identifier, std::string(scope.declaration()->symbol().token().lexeme()), loc),
-                *scope.declaration())));
 }
 
 DataProductScopeParser::~DataProductScopeParser() = default;

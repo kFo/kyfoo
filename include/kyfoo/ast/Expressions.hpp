@@ -417,7 +417,6 @@ protected:
 public:
     SymRes lowerToApplicable(Context& ctx);
     SymRes lowerToStaticCall(Context& ctx);
-    SymRes lowerToConstruction(Context& ctx);
     SymRes elaborateTuple(Context& ctx);
     void flatten();
     void flatten(std::vector<Box<Expression>>::iterator first);

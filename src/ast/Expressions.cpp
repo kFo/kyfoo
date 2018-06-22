@@ -802,10 +802,7 @@ L_restart:
         break;
 
     case Kind::Universe:
-        if ( subjType->as<UniverseExpression>()->level() == 0 )
-            ret |= lowerToStaticCall(ctx);
-        else
-            ret |= lowerToConstruction(ctx);
+        ret |= lowerToStaticCall(ctx);
         break;
 
     default:
@@ -906,22 +903,22 @@ SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
         return SymRes::Fail;
     }
 
-    auto templ = decl->as<TemplateDeclaration>();
-    if ( !templ ) {
-        (ctx.error(subj) << "does not refer to a template-declaration")
+    auto defDecl = getDefinableDeclaration(*decl);
+    if ( !defDecl ) {
+        (ctx.error(subj) << "does not refer to a callable declaration")
             .see(*decl);
         return SymRes::Fail;
     }
 
-    auto defn = templ->definition();
+    auto defn = defDecl->definition();
     if ( !defn ) {
-        ctx.error(*templ) << "missing definition";
+        ctx.error(*defDecl) << "missing definition";
         return SymRes::Fail;
     }
 
     Resolver resolver(*defn, Resolver::Narrow);
-    Context templCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto hit = templCtx.matchOverloadUsingImplicitConversions("", mutableArgs());
+    Context defnCtx(ctx.module(), ctx.diagnostics(), resolver);
+    auto hit = defnCtx.matchOverloadUsingImplicitConversions("", mutableArgs());
     auto proc = hit.singleAs<ProcedureDeclaration>();
     if ( !proc ) {
         (ctx.error(*this) << "failed to find static call")
@@ -930,55 +927,6 @@ SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
     }
 
     myProc = proc;
-    return SymRes::Success;
-}
-
-SymRes ApplyExpression::lowerToConstruction(Context& ctx)
-{
-    auto const& subj = *subject();
-    auto decl = resolveIndirections(getDeclaration(subj));
-    if ( !decl ) {
-        ctx.error(subj) << "does not refer to a declaration";
-        return SymRes::Fail;
-    }
-
-    if ( auto dp = decl->as<DataProductDeclaration>() ) {
-        auto defn = dp->definition();
-        if ( !defn ) {
-            (ctx.error(subj) << "missing data-product definition")
-                .see(*dp);
-            return SymRes::Fail;
-        }
-
-        Resolver resolver(*defn, Resolver::Narrow);
-        Context dpCtx(ctx.module(), ctx.diagnostics(), resolver);
-        auto hit = dpCtx.matchOverload("ctor");
-        if ( !hit ) {
-            (ctx.error(subj) << "data-product is not constructible")
-                .see(*dp);
-            return SymRes::Fail;
-        }
-
-        auto ctorTemplDecl = hit.singleAs<TemplateDeclaration>();
-        if ( !ctorTemplDecl )
-            throw std::runtime_error("ctor is not a template");
-
-        Resolver templScope(*ctorTemplDecl->definition(), Resolver::Narrow);
-        REVERT = dpCtx.pushResolver(templScope);
-        hit = dpCtx.matchOverloadUsingImplicitConversions("", mutableArgs());
-        auto proc = hit.singleAs<ProcedureDeclaration>();
-        if ( !proc )
-            throw std::runtime_error("ctor is not a procedure");
-
-        myProc = proc;
-        return SymRes::Success;
-    }
-
-    if ( auto dsCtor = decl->as<DataSumDeclaration::Constructor>() ) {
-        ctx.error(*myExpressions.front()) << "ds ctor not implemented";
-        return SymRes::Fail;
-    }
-
     return SymRes::Success;
 }
 
@@ -1219,7 +1167,13 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
-    setDeclaration(*hit.single());
+    auto decl = hit.single();
+    if ( !decl ) {
+        ctx.error(*this) << "failed to instantiate symbol";
+        return SymRes::Fail;
+    }
+
+    setDeclaration(*decl);
     return SymRes::Success;
 }
 

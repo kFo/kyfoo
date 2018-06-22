@@ -16,25 +16,9 @@ class ModuleSet;
     X(IntegerLiteralType    ) \
     X(RationalLiteralType   ) \
     X(PointerNullLiteralType) \
-                              \
-    X(UnsignedTemplate      ) \
-    X(SignedTemplate        ) \
-    X(ReferenceTemplate     ) \
-    X(PointerTemplate       ) \
-                              \
-    X(u1                    ) \
-    X(u8                    ) \
-    X(u16                   ) \
-    X(u32                   ) \
-    X(u64                   ) \
-    X(u128                  ) \
-                              \
-    X(i8                    ) \
-    X(i16                   ) \
-    X(i32                   ) \
-    X(i64                   ) \
-    X(i128                  ) \
-    X(size_t                )
+    \
+    X(ReferenceTemplate) \
+    X(PointerTemplate  )
 
 enum DataSumIntrinsics
 {
@@ -48,7 +32,24 @@ enum DataSumIntrinsics
     X(ArrayStaticTemplate ) \
     X(ArrayDynamicTemplate) \
     X(SliceTemplate       ) \
-    X(Sliceu8             )
+    X(Sliceu8             ) \
+    \
+    X(UnsignedTemplate) \
+    X(SignedTemplate  ) \
+    \
+    X(u1    ) \
+    X(u8    ) \
+    X(u16   ) \
+    X(u32   ) \
+    X(u64   ) \
+    X(u128  ) \
+    \
+    X(i8    ) \
+    X(i16   ) \
+    X(i32   ) \
+    X(i64   ) \
+    X(i128  ) \
+    X(size_t)
 
 enum DataProductIntrinsics
 {
@@ -59,15 +60,15 @@ enum DataProductIntrinsics
 };
 
 #define INTRINSIC_INSTRUCTIONS(X) \
+    X(UnsignedFromInteger)  \
+    X(UnsignedFromUnsigned) \
+    X(SignedFromInteger)    \
+    X(SignedFromSigned)     \
+    \
     X(Array_idx   ) \
     X(Slice_idx   ) \
     X(Sliceu8_idx ) \
     X(Sliceu8_dtor) \
-    \
-    X(mkUnsignedFromInteger)  \
-    X(mkSignedFromInteger)    \
-    X(mkUnsignedFromUnsigned) \
-    X(mkSignedFromSigned)     \
     \
     X(implicitIntegerToUnsigned ) \
     X(implicitIntegerToSigned   ) \
@@ -150,7 +151,7 @@ class AxiomsModule : public Module
 public:
     struct IntegerMetaData
     {
-        DataSumDeclaration const* decl;
+        DataProductDeclaration const* decl;
         int bits;
     };
 

@@ -38,9 +38,9 @@ BOOL         := u32
 SIZE_T       := ULONG_PTR
 ULONG_PTR    := size_t
 
-STD_INPUT_HANDLE  := mk<u32> 4294967286 // -10
-STD_OUTPUT_HANDLE := mk<u32> 4294967285 // -11
-STD_ERROR_HANDLE  := mk<u32> 4294967284 // -12
+STD_INPUT_HANDLE  := u32 4294967286 // -10
+STD_OUTPUT_HANDLE := u32 4294967285 // -11
+STD_ERROR_HANDLE  := u32 4294967284 // -12
 
 HEAP_GENERATE_EXCEPTIONS := 4 // 0x00000004
 HEAP_NO_SERIALIZE        := 1 // 0x00000001
@@ -56,9 +56,9 @@ put(c : u8) -> () =>
 put(n : u32) -> () =>
     := digits : ascii = "0123456789"
     := i : u32 = n
-    :<> neq i 0
+    :<> ne i 0
         := digit : u32 = rem i 10
-        put (mk<u8>(digits digit))
+        put (u8(digits digit))
         i = div i 10
     :.
 
@@ -136,7 +136,7 @@ htest() -> () =>
     := arr : slice u32
     arr.ctor<> p 6
     := i : u32 = 0
-    :<> neq i 6
+    :<> ne i 6
         arr i = sub 6 i
         i = add i 1
     

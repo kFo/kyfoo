@@ -91,7 +91,7 @@ struct LLVMCustomData<ast::DataSumDeclaration> : public CustomData
 template<>
 struct LLVMCustomData<ast::DataProductDeclaration> : public CustomData
 {
-    llvm::StructType* type = nullptr;
+    llvm::Type* type = nullptr;
 };
 
 template<>
@@ -598,15 +598,17 @@ struct CodeGenPass
                 die();
             }
 
-            auto u = stmt->unnamedVariables();
-            if ( u.length() ) {
-                for ( uz i = u.length() - 1; ~i; --i ) {
-                    if ( auto dp = getDeclaration(u[i]->type())->as<ast::DataProductDeclaration>() ) {
-                        auto expr = createMemberCall(*dp->definition()->destructor(), *u[i]);
-                        toValue(builder, builder.getVoidTy(), *expr);
-                    }
-                }
-            }
+            //auto u = stmt->unnamedVariables();
+            //if ( u.length() ) {
+            //    for ( uz i = u.length() - 1; ~i; --i ) {
+            //        if ( auto dp = getDeclaration(u[i]->type())->as<ast::DataProductDeclaration>() ) {
+            //            if ( auto defn = dp->definition() ) {
+            //                auto expr = createMemberCall(*defn->destructor(), *u[i]);
+            //                toValue(builder, builder.getVoidTy(), *expr);
+            //            }
+            //        }
+            //    }
+            //}
         }
 
         if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
@@ -728,6 +730,11 @@ private:
         return codegen::toType(module->getContext(), expr);
     }
 
+    llvm::Type* toType(ast::Declaration const& decl)
+    {
+        return codegen::toType(decl);
+    }
+
     llvm::Constant* toLiteral(llvm::IRBuilder<>& builder, llvm::Type* destType, lexer::Token const& token)
     {
         switch ( token.kind() ) {
@@ -745,7 +752,7 @@ private:
             return llvm::ConstantFP::get(destType, strRef(token.lexeme()));
         case lexer::TokenKind::String:
         {
-            auto const strType = customData(*sourceModule.axioms().intrinsic(ast::Sliceu8))->type;
+            auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::Sliceu8))->type);
             if ( destType != strType )
                 return nullptr;
 
@@ -1063,7 +1070,26 @@ private:
         const auto& axioms = sourceModule.axioms();
         auto const& exprs = a->expressions();
 
-        if ( proc == axioms.intrinsic(ast::Array_idx)
+        if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::UnsignedFromInteger)->symbol()
+          || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::SignedFromInteger)->symbol()
+          || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
+          || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
+        {
+            return toLiteral(builder,
+                             toType(*proc->result()->type()),
+                             exprs[1]->as<ast::LiteralExpression>()->token());
+        }
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::UnsignedFromUnsigned)->symbol() )
+        {
+            return builder.CreateZExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
+                                      toType(*proc->parameters()[0]->type()));
+        }
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::SignedFromSigned)->symbol() )
+        {
+            return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
+                                      toType(*proc->parameters()[0]->type()));
+        }
+        else if ( proc == axioms.intrinsic(ast::Array_idx)
           || proc == axioms.intrinsic(ast::Sliceu8_idx)
           || descendsFromTemplate(axioms.intrinsic(ast::Slice_idx)->symbol(), proc->symbol()) )
         {
@@ -1076,25 +1102,6 @@ private:
         else if ( proc == axioms.intrinsic(ast::Sliceu8_dtor) )
         {
             return toValue(builder, destType, *exprs[1]);
-        }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkUnsignedFromInteger    )->symbol()
-               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkSignedFromInteger      )->symbol()
-               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
-               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
-        {
-            return toLiteral(builder,
-                             toType(*proc->result()->type()),
-                             exprs[1]->as<ast::LiteralExpression>()->token());
-        }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkUnsignedFromUnsigned)->symbol() )
-        {
-            return builder.CreateZExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
-                                      toType(*proc->parameters()[0]->type()));
-        }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::mkSignedFromSigned)->symbol() )
-        {
-            return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
-                                      toType(*proc->parameters()[0]->type()));
         }
 
         // todo: hash lookup
@@ -1374,17 +1381,6 @@ struct LLVMGenerator::LLVMState
                 dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
                 return dsData->type;
             }
-            else if ( ds == axioms().intrinsic(ast::u1  ) ) return dsData->type = llvm::Type::getInt1Ty  (*context);
-            else if ( ds == axioms().intrinsic(ast::u8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
-            else if ( ds == axioms().intrinsic(ast::u16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
-            else if ( ds == axioms().intrinsic(ast::u32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
-            else if ( ds == axioms().intrinsic(ast::u64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
-            else if ( ds == axioms().intrinsic(ast::u128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
-            else if ( ds == axioms().intrinsic(ast::i8  ) ) return dsData->type = llvm::Type::getInt8Ty  (*context);
-            else if ( ds == axioms().intrinsic(ast::i16 ) ) return dsData->type = llvm::Type::getInt16Ty (*context);
-            else if ( ds == axioms().intrinsic(ast::i32 ) ) return dsData->type = llvm::Type::getInt32Ty (*context);
-            else if ( ds == axioms().intrinsic(ast::i64 ) ) return dsData->type = llvm::Type::getInt64Ty (*context);
-            else if ( ds == axioms().intrinsic(ast::i128) ) return dsData->type = llvm::Type::getInt128Ty(*context);
 
             auto const& sym = ds->symbol();
             if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate)->symbol()
@@ -1400,7 +1396,21 @@ struct LLVMGenerator::LLVMState
         }
 
         if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
-            // todo
+            auto dpData = customData(*dp);
+            if ( dpData->type )
+                return dpData->type;
+
+                 if ( dp == axioms().intrinsic(ast::u1  ) ) return dpData->type = llvm::Type::getInt1Ty  (*context);
+            else if ( dp == axioms().intrinsic(ast::u8  ) ) return dpData->type = llvm::Type::getInt8Ty  (*context);
+            else if ( dp == axioms().intrinsic(ast::u16 ) ) return dpData->type = llvm::Type::getInt16Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::u32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::u64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::u128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
+            else if ( dp == axioms().intrinsic(ast::i8  ) ) return dpData->type = llvm::Type::getInt8Ty  (*context);
+            else if ( dp == axioms().intrinsic(ast::i16 ) ) return dpData->type = llvm::Type::getInt16Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::i32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::i64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::i128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
         }
 
         return nullptr;
@@ -1408,6 +1418,19 @@ struct LLVMGenerator::LLVMState
 
     llvm::Type* registerType(ast::Module const& mod, ast::Declaration const& decl)
     {
+        for ( auto e = decl.symbol().prototype().pattern(); e; e.popFront() ) {
+            if ( auto d = getDeclaration(lookThrough(e.front())) ) {
+                d = resolveIndirections(d);
+                if ( auto b = getBinder(*d) ) {
+                    if ( auto bd = getDeclaration(*b->type()) )
+                        registerType(mod, *resolveIndirections(bd));
+                }
+                else {
+                    registerType(mod, *d);
+                }
+            }
+        }
+
         if ( auto t = intrinsicType(decl) )
             return t;
 

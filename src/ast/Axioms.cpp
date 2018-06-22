@@ -1,9 +1,19 @@
 auto source = R"axioms(
 @"intrininst" "UnsignedTemplate"
-:| unsigned<\n : integer>
+:& unsigned<\n : integer>
+    @"intrininst" "UnsignedFromInteger"
+    (i : integer) -> unsigned<n>
+
+    @"intrininst" "UnsignedFromUnsigned"
+    (i : unsigned<\m>) -> unsigned<n>
 
 @"intrininst" "SignedTemplate"
-:| signed<unsigned<\n : integer>>
+:& signed<\n : integer>
+    @"intrininst" "SignedFromInteger"
+    (i : integer) -> signed<n>
+
+    @"intrininst" "SignedFromSigned"
+    (i : signed<\m>) -> signed<n>
 
 @"intrininst" "ReferenceTemplate"
 :| ref<\T>
@@ -18,11 +28,11 @@ u32  := unsigned<32 >
 u64  := unsigned<64 >
 u128 := unsigned<128>
 
-i8   := signed<u8  >
-i16  := signed<u16 >
-i32  := signed<u32 >
-i64  := signed<u64 >
-i128 := signed<u128>
+i8   := signed<8  >
+i16  := signed<16 >
+i32  := signed<32 >
+i64  := signed<64 >
+i128 := signed<128>
 
 ascii := slice<u8>
 
@@ -35,7 +45,7 @@ ascii := slice<u8>
     card : size_t
 
     @"intrininst" "Array_idx"
-    (i : size_t) -> ref T
+    (this : ref array<T>, i : size_t) -> ref T
 
 @"intrininst" "SliceTemplate"
 :& slice<\T>
@@ -43,15 +53,15 @@ ascii := slice<u8>
     card : size_t
 
     // todo: removeme
-    ctor(p : ptr T, c : size_t) =>
+    ctor(this : ref slice<T>, p : ptr T, c : size_t) =>
         this.base = p
         this.card = c
         :.
 
     @"intrininst" "Slice_idx"
-    (i : size_t) -> ref T
+    (this : ref slice<T>, i : size_t) -> ref T
 
-    (f : (ref T) -> ()) -> () =>
+    (this : ref slice<T>, f : (ref T) -> ()) -> () =>
         := i : size_t = 0
         :<> lt i this.card
             f (this i)
@@ -64,41 +74,29 @@ ascii := slice<u8>
     card : size_t
 
     @"intrininst" "Sliceu8_idx"
-    (i : size_t) -> ref u8
+    (this : ref slice<u8>, i : size_t) -> ref u8
 
     @"intrininst" "Sliceu8_dtor"
-    dtor()
+    dtor(this : ref slice<u8>)
 
 wordSize := 64
 size_t := unsigned<wordSize>
 
 staticSize(p : ptr \T) -> size_t => wordSize
 
-@"intrininst" "mkUnsignedFromInteger"
-mk<unsigned<\n>>(i : integer) -> unsigned<n>
-
-@"intrininst" "mkSignedFromInteger"
-mk<signed<unsigned<\n>>>(i : integer) -> signed<unsigned<n>>
-
-@"intrininst" "mkUnsignedFromUnsigned"
-mk<unsigned<\n>>(i : unsigned<\m>) -> unsigned<n>
-
-@"intrininst" "mkSignedFromSigned"
-mk<signed<unsigned<\n>>>(i : signed<unsigned<\m>>) -> signed<unsigned<n>>
-
 @"intrininst" "implicitIntegerToUnsigned"
 implicitTo<unsigned<\D>>(i : integer) -> unsigned<D>
 
 @"intrininst" "implicitIntegerToSigned"
-implicitTo<signed<unsigned<\D>>>(i : integer) -> signed<unsigned<D>>
+implicitTo<signed<\D>>(i : integer) -> signed<D>
 
 @"intrininst" "implicitUnsignedToUnsigned"
 implicitTo<unsigned<\D>>(s : unsigned<\S>) -> unsigned<D> =>
-    :. mk<unsigned<D>> s
+    :. unsigned<D> s
 
 @"intrininst" "implicitSignedToSigned"
-implicitTo<signed<unsigned<\D>>>(s : signed<unsigned<\S>>) -> signed<unsigned<D>> =>
-    :. mk<signed<unsigned<D>>> s
+implicitTo<signed<\D>>(s : signed<\S>) -> signed<D> =>
+    :. signed<D> s
 
 @"intrininst" "Addu"
 add(x y : unsigned<\n>) -> unsigned<n>
@@ -167,10 +165,10 @@ eq(x y : unsigned<\n>) -> u1
 eq(x y : signed<\n>) -> u1
 
 @"intrininst" "Nequ"
-neq(x y : unsigned<\n>) -> u1
+ne(x y : unsigned<\n>) -> u1
 
 @"intrininst" "Neqs"
-neq(x y : signed<\n>) -> u1
+ne(x y : signed<\n>) -> u1
 
 @"intrininst" "Gtu"
 gt(x y : unsigned<\n>) -> u1
@@ -211,16 +209,16 @@ trunc<unsigned<16>>(x : unsigned<128>) -> unsigned<16>
 trunc<unsigned<32>>(x : unsigned<64 >) -> unsigned<32>
 trunc<unsigned<32>>(x : unsigned<128>) -> unsigned<32>
 trunc<unsigned<64>>(x : unsigned<128>) -> unsigned<64>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<16 >>) -> signed<unsigned<8 >>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<32 >>) -> signed<unsigned<8 >>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<64 >>) -> signed<unsigned<8 >>
-trunc<signed<unsigned<8 >>>(x : signed<unsigned<128>>) -> signed<unsigned<8 >>
-trunc<signed<unsigned<16>>>(x : signed<unsigned<32 >>) -> signed<unsigned<16>>
-trunc<signed<unsigned<16>>>(x : signed<unsigned<64 >>) -> signed<unsigned<16>>
-trunc<signed<unsigned<16>>>(x : signed<unsigned<128>>) -> signed<unsigned<16>>
-trunc<signed<unsigned<32>>>(x : signed<unsigned<64 >>) -> signed<unsigned<32>>
-trunc<signed<unsigned<32>>>(x : signed<unsigned<128>>) -> signed<unsigned<32>>
-trunc<signed<unsigned<64>>>(x : signed<unsigned<128>>) -> signed<unsigned<64>>
+trunc<signed<8 >>(x : signed<16 >) -> signed<8 >
+trunc<signed<8 >>(x : signed<32 >) -> signed<8 >
+trunc<signed<8 >>(x : signed<64 >) -> signed<8 >
+trunc<signed<8 >>(x : signed<128>) -> signed<8 >
+trunc<signed<16>>(x : signed<32 >) -> signed<16>
+trunc<signed<16>>(x : signed<64 >) -> signed<16>
+trunc<signed<16>>(x : signed<128>) -> signed<16>
+trunc<signed<32>>(x : signed<64 >) -> signed<32>
+trunc<signed<32>>(x : signed<128>) -> signed<32>
+trunc<signed<64>>(x : signed<128>) -> signed<64>
 
 @"intrininst" "Addr"
 addr(p : ref \T) -> ptr T
@@ -428,20 +426,20 @@ bool AxiomsModule::init(Diagnostics& dgn)
         if ( dgn.errorCount() )
             return false;
 
-        myDataSumDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataSumDeclaration>();
+        myDataProductDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataProductDeclaration>();
 
-        myDataSumDecls[i8  ] = resolveIndirections(scope()->findEquivalent("i8"  ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[i16 ] = resolveIndirections(scope()->findEquivalent("i16" ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[i32 ] = resolveIndirections(scope()->findEquivalent("i32" ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).single())->as<DataSumDeclaration>();
-        myDataSumDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").single())->as<DataSumDeclaration>();
+        myDataProductDecls[i8  ] = resolveIndirections(scope()->findEquivalent("i8"  ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[i16 ] = resolveIndirections(scope()->findEquivalent("i16" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[i32 ] = resolveIndirections(scope()->findEquivalent("i32" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").single())->as<DataProductDeclaration>();
 
-        myDataSumDecls[size_t] = resolveIndirections(scope()->findEquivalent("size_t").single())->as<DataSumDeclaration>();
+        myDataProductDecls[size_t] = resolveIndirections(scope()->findEquivalent("size_t").single())->as<DataProductDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
         auto decl = begin(childDecls);

@@ -384,6 +384,9 @@ struct MatchEquivalent
 
     bool operator()(SymbolExpression const& l, SymbolExpression const& r)
     {
+        if ( !variance(l.token(), r.token()).exact() )
+            return false;
+
         return matchEquivalent(l.expressions(), r.expressions());
     }
 
