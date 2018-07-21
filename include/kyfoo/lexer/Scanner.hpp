@@ -38,7 +38,6 @@ protected:
 
     char nextChar();
     char peekChar();
-    void unget();
     void putback(char c);
 
     Token indent(SourceLocation loc, indent_width_t indent);
@@ -50,6 +49,7 @@ protected:
 
 private:
     std::istream& myStream;
+    std::deque<char> myCharBuffer;
 
     struct InternalScanState
     {

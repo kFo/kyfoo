@@ -204,24 +204,29 @@ Scanner::operator bool() const
 char Scanner::nextChar()
 {
     ++myLoc.column;
-    return static_cast<char>(myStream.get());
+    if ( myCharBuffer.empty() )
+        return static_cast<char>(myStream.get());
+
+    auto ret = myCharBuffer.front();
+    myCharBuffer.pop_front();
+    return ret;
 }
 
 char Scanner::peekChar()
 {
-    return static_cast<char>(myStream.peek());
-}
+    if ( myCharBuffer.empty() ) {
+        auto ret = static_cast<char>(myStream.get());
+        myCharBuffer.push_back(ret);
+        return ret;
+    }
 
-void Scanner::unget()
-{
-    --myLoc.column;
-    myStream.unget();
+    return myCharBuffer.front();
 }
 
 void Scanner::putback(char c)
 {
     --myLoc.column;
-    myStream.putback(c);
+    myCharBuffer.push_front(c);
 }
 
 Token Scanner::indent(SourceLocation loc, indent_width_t indent)
@@ -289,8 +294,16 @@ Token Scanner::readNext()
     std::string lexeme;
     column_index_t column = myLoc.column;
 
-    if ( myStream.eof() )
+    if ( myStream.eof() ) {
         return TOK(EndOfFile);
+    }
+    else if ( myStream.bad() ) {
+        myError = true;
+        return TOK2(Undefined, "");
+    }
+    else if ( myStream.fail() ) {
+        throw std::runtime_error("lexing failure");
+    }
 
     auto takeLineBreaks = [this, &c] {
         int ret = 0;
@@ -368,12 +381,12 @@ Token Scanner::readNext()
             return TOK(EndOfFile);
 
         if ( !nestings() ) {
-            unget();
+            putback(c);
             return indent(myLoc, spaces);
         }
     }
     else if ( !nestings() && spaces && column == 1 ) {
-        unget();
+        putback(c);
         return indent(myLoc, spaces);
     }
 
@@ -470,9 +483,9 @@ L_lexNumber:
         if ( peekChar() != '.' )
             return TOK(Integer);
 
-        nextChar();
+        c = nextChar();
         if ( !isNumber(peekChar()) ) {
-            unget();
+            putback(c);
             return TOK(Integer);
         }
 
@@ -486,7 +499,7 @@ L_lexNumber:
             c = peekChar();
             if ( !isNumber(c) ) {
                 if ( c != '-' && c != '+' ) {
-                    unget(); // e
+                    putback(e);
                     return TOK(Rational);
                 }
 
