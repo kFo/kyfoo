@@ -252,7 +252,7 @@ SymRes LiteralExpression::resolveSymbols(Context& ctx)
     case lexer::TokenKind::String:
     {
         ctx.module().interpretString(ctx.diagnostics(), myToken);
-        setType(*ctx.axioms().intrinsic(Sliceu8));
+        setType(*ctx.axioms().intrinsic(StringLiteralType));
         return SymRes::Success;
     }
     }
@@ -423,9 +423,13 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
         return SymRes::Fail;
     }
 
-    Resolver resolver(*defn, Resolver::Narrow);
-    Context templateCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto proc = templateCtx.matchOverload("").singleAs<ProcedureDeclaration>();
+    ProcedureDeclaration* proc = nullptr;
+    {
+        Resolver templResolver(*defn, Resolver::Narrow);
+        REVERT = ctx.pushResolver(templResolver);
+        proc = ctx.matchOverload("").singleAs<ProcedureDeclaration>();
+    }
+
     if ( !proc ) {
         ctx.error(*this) << "does not refer to any procedure";
         return SymRes::Fail;
@@ -871,9 +875,7 @@ SymRes ApplyExpression::lowerToApplicable(Context& ctx)
         return SymRes::Fail;
     }
 
-    Resolver resolver(*defn, Resolver::Narrow);
-    Context dpCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto hit = dpCtx.matchOverloadUsingImplicitConversions("", myExpressions);
+    auto hit = ctx.matchOverloadUsingImplicitConversions(*defn, Resolver::Narrow, "", myExpressions);
     if ( !hit ) {
         (ctx.error(subj) << "no suitable apply overload found")
             .see(*dp);
@@ -916,9 +918,7 @@ SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
         return SymRes::Fail;
     }
 
-    Resolver resolver(*defn, Resolver::Narrow);
-    Context defnCtx(ctx.module(), ctx.diagnostics(), resolver);
-    auto hit = defnCtx.matchOverloadUsingImplicitConversions("", mutableArgs());
+    auto hit = ctx.matchOverloadUsingImplicitConversions(*defn, Resolver::Narrow, "", mutableArgs());
     auto proc = hit.singleAs<ProcedureDeclaration>();
     if ( !proc ) {
         (ctx.error(*this) << "failed to find static call")

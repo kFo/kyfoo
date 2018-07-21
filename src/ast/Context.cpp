@@ -85,9 +85,7 @@ Lookup Resolver::matchEquivalent(SymbolReference const& symbol) const
     return hit;
 }
 
-Lookup Resolver::matchOverload(Module& endModule,
-                                  Diagnostics& dgn,
-                                  SymbolReference const& symbol)
+Lookup Resolver::matchOverload(Context& ctx, SymbolReference const& symbol)
 {
     Lookup hit = matchSupplementary(symbol);
 
@@ -95,7 +93,7 @@ Lookup Resolver::matchOverload(Module& endModule,
         return hit;
 
     for ( auto scope = myScope; scope; scope = scope->parent() ) {
-        if ( hit.append(scope->findOverload(endModule, dgn, symbol)) )
+        if ( hit.append(scope->findOverload(ctx, symbol)) )
             return hit;
 
         if ( symbol.pattern().empty() ) {
@@ -115,7 +113,7 @@ Lookup Resolver::matchOverload(Module& endModule,
 
     if ( !(myOptions & SkipImports) ) {
         for ( auto m : myScope->module().imports() )
-            if ( hit.append(m->scope()->findOverload(endModule, dgn, symbol)) )
+            if ( hit.append(m->scope()->findOverload(ctx, symbol)) )
                 return hit;
     }
 
@@ -224,16 +222,35 @@ uz Context::errorCount() const
     return myDiagnostics->errorCount();
 }
 
+Lookup Context::matchOverload(DeclarationScope const& scope,
+                              Resolver::Options options,
+                              SymbolReference const& sym)
+{
+    Resolver resolver(scope, options);
+    REVERT = pushResolver(resolver);
+    return matchOverload(sym);
+}
+
 Lookup Context::matchOverload(SymbolReference const& sym)
 {
-    return trackForModule(myResolver->matchOverload(*myModule, *myDiagnostics, sym));
+    return trackForModule(myResolver->matchOverload(*this, sym));
+}
+
+Lookup Context::matchOverloadUsingImplicitConversions(DeclarationScope const& scope,
+                                                      Resolver::Options options,
+                                                      std::string_view name,
+                                                      Slice<Box<Expression>> args)
+{
+    Resolver resolver(scope, options);
+    REVERT = pushResolver(resolver);
+    return matchOverloadUsingImplicitConversions(name, args);
 }
 
 Lookup
 Context::matchOverloadUsingImplicitConversions(std::string_view name,
                                                Slice<Box<Expression>> args)
 {
-    auto hit = myResolver->matchOverload(*myModule, *myDiagnostics, SymbolReference(name, args));
+    auto hit = myResolver->matchOverload(*this, SymbolReference(name, args));
     if ( !hit )
         return hit;
 
@@ -289,8 +306,47 @@ SymRes Context::resolveDeclaration(Declaration& declaration)
 {
     Resolver resolver(declaration.scope());
     REVERT = pushResolver(resolver);
-    auto ret = declaration.resolveSymbols(*this);
+    return declaration.resolveSymbols(*this);
+}
+
+SymRes Context::resolveScopeDeclarations(DeclarationScope& scope)
+{
+    Resolver resolver(scope);
+    REVERT = pushResolver(resolver);
+    auto ret = scope.resolveDeclarations(*this);
+    if ( !myInstantiatedDeclarations.empty() )
+        throw std::runtime_error("instantiated declarations not elaborated");
+
     return ret;
+}
+
+SymRes Context::resolveScopeDefinitions(DeclarationScope& scope)
+{
+    Resolver resolver(scope);
+    REVERT = pushResolver(resolver);
+    auto ret = scope.resolveDefinitions(*this);
+    
+    // Resolve any accrued definitions
+    for ( auto defns = takeInstantiatedDefinitions(); !defns.empty(); defns = takeInstantiatedDefinitions() )
+        for ( auto d : defns )
+            if ( d->declaration()->symbol().prototype().isConcrete() )
+                ret |= resolveScopeDefinitions(*d);
+
+    return ret;
+}
+
+SymRes Context::resolveScope(DeclarationScope& scope)
+{
+    Resolver resolver(scope);
+    REVERT = pushResolver(resolver);
+    return scope.resolveSymbols(*this);
+}
+
+SymRes Context::resolveScopeAttributes(DeclarationScope& scope)
+{
+    Resolver resolver(scope);
+    REVERT = pushResolver(resolver);
+    return scope.resolveAttributes(*this);
 }
 
 SymRes Context::resolveExpression(Expression& expression)
@@ -400,6 +456,16 @@ SymRes Context::resolveStatements(std::vector<Statement>& stmts)
 bool Context::isTopLevel() const
 {
     return myExpressionDepth == 0;
+}
+
+void Context::appendInstantiatedDefinition(DeclarationScope& defn)
+{
+    myInstantiatedDefinitions.push_back(&defn);
+}
+
+std::vector<DeclarationScope*>&& Context::takeInstantiatedDefinitions()
+{
+    return std::move(myInstantiatedDefinitions);
 }
 
 Context::operator DiagnosticsContext()

@@ -7,19 +7,12 @@ auto source = R"axioms(
     @"intrininst" "UnsignedFromUnsigned"
     (i : unsigned<\m>) -> unsigned<n>
 
-@"intrininst" "SignedTemplate"
-:& signed<\n : integer>
-    @"intrininst" "SignedFromInteger"
-    (i : integer) -> signed<n>
+@"intrininst" "implicitIntegerToUnsigned"
+implicitTo<unsigned<\D>>(i : integer) -> unsigned<D>
 
-    @"intrininst" "SignedFromSigned"
-    (i : signed<\m>) -> signed<n>
-
-@"intrininst" "ReferenceTemplate"
-:| ref<\T>
-
-@"intrininst" "PointerTemplate"
-:| ptr<\T>
+@"intrininst" "implicitUnsignedToUnsigned"
+implicitTo<unsigned<\D>>(s : unsigned<\S>) -> unsigned<D> =>
+    :. unsigned<D> s
 
 u1   := unsigned<1  >
 u8   := unsigned<8  >
@@ -28,13 +21,32 @@ u32  := unsigned<32 >
 u64  := unsigned<64 >
 u128 := unsigned<128>
 
-i8   := signed<8  >
-i16  := signed<16 >
-i32  := signed<32 >
-i64  := signed<64 >
-i128 := signed<128>
+@"intrininst" "SignedTemplate"
+:& signed<\n : integer>
+    @"intrininst" "SignedFromInteger"
+    (i : integer) -> signed<n>
 
-ascii := slice<u8>
+    @"intrininst" "SignedFromSigned"
+    (i : signed<\m>) -> signed<n>
+
+@"intrininst" "implicitIntegerToSigned"
+implicitTo<signed<\D>>(i : integer) -> signed<D>
+
+@"intrininst" "implicitSignedToSigned"
+implicitTo<signed<\D>>(s : signed<\S>) -> signed<D> =>
+    :. signed<D> s
+
+s8   := signed<8  >
+s16  := signed<16 >
+s32  := signed<32 >
+s64  := signed<64 >
+s128 := signed<128>
+
+@"intrininst" "ReferenceTemplate"
+:| ref<\T>
+
+@"intrininst" "PointerTemplate"
+:| ptr<\T>
 
 @"intrininst" "ArrayStaticTemplate"
 :& array<\T, \card : integer>
@@ -42,61 +54,41 @@ ascii := slice<u8>
 @"intrininst" "ArrayDynamicTemplate"
 :& array<\T>
     base : ptr T
-    card : size_t
+    card : uz
 
     @"intrininst" "Array_idx"
-    (this : ref array<T>, i : size_t) -> ref T
+    (this : ref array<T>, i : uz) -> ref T
 
 @"intrininst" "SliceTemplate"
 :& slice<\T>
     base : ptr T
-    card : size_t
+    card : uz
 
     // todo: removeme
-    ctor(this : ref slice<T>, p : ptr T, c : size_t) =>
+    ctor(this : ref slice<T>, p : ptr T, c : uz) =>
         this.base = p
         this.card = c
         :.
 
     @"intrininst" "Slice_idx"
-    (this : ref slice<T>, i : size_t) -> ref T
+    (this : ref slice<T>, i : uz) -> ref T
 
     (this : ref slice<T>, f : (ref T) -> ()) -> () =>
-        := i : size_t = 0
+        := i : uz = 0
         :<> lt i this.card
             f (this i)
             i = add i 1
         :.
 
-@"intrininst" "Sliceu8"
-:& slice<u8>
-    base : ptr u8
-    card : size_t
+ascii := slice<u8>
 
-    @"intrininst" "Sliceu8_idx"
-    (this : ref slice<u8>, i : size_t) -> ref u8
-
-    @"intrininst" "Sliceu8_dtor"
-    dtor(this : ref slice<u8>)
+@"intrininst" "implicitStringToAscii"
+implicitTo<ascii>(s : string) -> ascii
 
 wordSize := 64
-size_t := unsigned<wordSize>
+uz := unsigned<wordSize>
 
-staticSize(p : ptr \T) -> size_t => wordSize
-
-@"intrininst" "implicitIntegerToUnsigned"
-implicitTo<unsigned<\D>>(i : integer) -> unsigned<D>
-
-@"intrininst" "implicitIntegerToSigned"
-implicitTo<signed<\D>>(i : integer) -> signed<D>
-
-@"intrininst" "implicitUnsignedToUnsigned"
-implicitTo<unsigned<\D>>(s : unsigned<\S>) -> unsigned<D> =>
-    :. unsigned<D> s
-
-@"intrininst" "implicitSignedToSigned"
-implicitTo<signed<\D>>(s : signed<\S>) -> signed<D> =>
-    :. signed<D> s
+staticSize(p : ptr \T) -> uz => wordSize
 
 @"intrininst" "Addu"
 add(x y : unsigned<\n>) -> unsigned<n>
@@ -164,10 +156,10 @@ eq(x y : unsigned<\n>) -> u1
 @"intrininst" "Eqs"
 eq(x y : signed<\n>) -> u1
 
-@"intrininst" "Nequ"
+@"intrininst" "Neu"
 ne(x y : unsigned<\n>) -> u1
 
-@"intrininst" "Neqs"
+@"intrininst" "Nes"
 ne(x y : signed<\n>) -> u1
 
 @"intrininst" "Gtu"
@@ -252,6 +244,7 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
 
     myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , lexer::SourceLocation()))));
     myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", lexer::SourceLocation()))));
+    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "string"  , lexer::SourceLocation()))));
     myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , lexer::SourceLocation()))));
 
     for ( uz i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
@@ -433,13 +426,14 @@ bool AxiomsModule::init(Diagnostics& dgn)
         myDataProductDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataProductDeclaration>();
         myDataProductDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataProductDeclaration>();
 
-        myDataProductDecls[i8  ] = resolveIndirections(scope()->findEquivalent("i8"  ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[i16 ] = resolveIndirections(scope()->findEquivalent("i16" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[i32 ] = resolveIndirections(scope()->findEquivalent("i32" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[i64 ] = resolveIndirections(scope()->findEquivalent("i64" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[i128] = resolveIndirections(scope()->findEquivalent("i128").single())->as<DataProductDeclaration>();
+        myDataProductDecls[s8  ] = resolveIndirections(scope()->findEquivalent("s8"  ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[s16 ] = resolveIndirections(scope()->findEquivalent("s16" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[s32 ] = resolveIndirections(scope()->findEquivalent("s32" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[s64 ] = resolveIndirections(scope()->findEquivalent("s64" ).single())->as<DataProductDeclaration>();
+        myDataProductDecls[s128] = resolveIndirections(scope()->findEquivalent("s128").single())->as<DataProductDeclaration>();
 
-        myDataProductDecls[size_t] = resolveIndirections(scope()->findEquivalent("size_t").single())->as<DataProductDeclaration>();
+        myDataProductDecls[ascii ] = resolveIndirections(scope()->findEquivalent("ascii").single())->as<DataProductDeclaration>();
+        myDataProductDecls[size_t] = resolveIndirections(scope()->findEquivalent("uz").single())->as<DataProductDeclaration>();
 
         auto childDecls = scope()->childDeclarations();
         auto decl = begin(childDecls);
@@ -480,11 +474,11 @@ void AxiomsModule::buildMetaData()
     myIntegerMetaData[4 ] = IntegerMetaData{ intrinsic(u64 ), 64  };
     myIntegerMetaData[5 ] = IntegerMetaData{ intrinsic(u128), 128 };
 
-    myIntegerMetaData[6 ] = IntegerMetaData{ intrinsic(i8  ), -8   };
-    myIntegerMetaData[7 ] = IntegerMetaData{ intrinsic(i16 ), -16  };
-    myIntegerMetaData[8 ] = IntegerMetaData{ intrinsic(i32 ), -32  };
-    myIntegerMetaData[9 ] = IntegerMetaData{ intrinsic(i64 ), -64  };
-    myIntegerMetaData[10] = IntegerMetaData{ intrinsic(i128), -128 };
+    myIntegerMetaData[6 ] = IntegerMetaData{ intrinsic(s8  ), -8   };
+    myIntegerMetaData[7 ] = IntegerMetaData{ intrinsic(s16 ), -16  };
+    myIntegerMetaData[8 ] = IntegerMetaData{ intrinsic(s32 ), -32  };
+    myIntegerMetaData[9 ] = IntegerMetaData{ intrinsic(s64 ), -64  };
+    myIntegerMetaData[10] = IntegerMetaData{ intrinsic(s128), -128 };
 }
 
 } // namespace kyfoo::ast

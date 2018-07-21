@@ -53,9 +53,7 @@ public:
     DeclarationScope& scope();
 
     Lookup matchEquivalent(SymbolReference const& symbol) const;
-    Lookup matchOverload(Module& endModule,
-                            Diagnostics& dgn,
-                            SymbolReference const& symbol);
+    Lookup matchOverload(Context& ctx, SymbolReference const& symbol);
 
 public:
     void addSupplementaryPrototype(PatternsPrototype& proto);
@@ -104,8 +102,16 @@ public:
     Error& error(Declaration const& decl);
     uz errorCount() const;
 
+    Lookup matchOverload(DeclarationScope const& scope,
+                         Resolver::Options options,
+                         SymbolReference const& sym);
     Lookup matchOverload(SymbolReference const& sym);
-    Lookup Context::matchOverloadUsingImplicitConversions(std::string_view name, Slice<Box<Expression>> args);
+    Lookup matchOverloadUsingImplicitConversions(DeclarationScope const& scope,
+                                                 Resolver::Options options,
+                                                 std::string_view name,
+                                                 Slice<Box<Expression>> args);
+    Lookup matchOverloadUsingImplicitConversions(std::string_view name,
+                                                 Slice<Box<Expression>> args);
 
     Resolver* changeResolver(Resolver& resolver);
     ResolverReverter pushResolver(Resolver& resolver);
@@ -115,6 +121,10 @@ public:
     SymRes rewrite(std::function<Box<Expression>(Box<Expression>&)> func);
 
     SymRes resolveDeclaration(Declaration& declaration);
+    SymRes resolveScopeDeclarations(DeclarationScope& scope);
+    SymRes resolveScopeDefinitions(DeclarationScope& scope);
+    SymRes resolveScope(DeclarationScope& scope);
+    SymRes resolveScopeAttributes(DeclarationScope& scope);
 
     SymRes resolveExpression(Expression& expression);
     SymRes resolveExpression(Box<Expression>& expression);
@@ -128,6 +138,9 @@ public:
     SymRes resolveStatements(std::vector<Statement>& stmts);
 
     bool isTopLevel() const;
+
+    void appendInstantiatedDefinition(DeclarationScope& defn);
+    std::vector<DeclarationScope*>&& takeInstantiatedDefinitions();
 
 public:
     operator DiagnosticsContext();
@@ -144,6 +157,8 @@ private:
     Box<Expression> myRewrite;
     std::function<Box<Expression>(Box<Expression>&)> myLazyRewrite;
     int myExpressionDepth = -1;
+    std::vector<Declaration*> myInstantiatedDeclarations;
+    std::vector<DeclarationScope*> myInstantiatedDefinitions;
 };
 
 class [[nodiscard]] ResolverReverter

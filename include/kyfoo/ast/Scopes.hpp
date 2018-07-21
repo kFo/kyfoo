@@ -44,6 +44,7 @@ public:
     friend class Context;
     friend class DataProductScope;
     template <typename T> friend class DefinableMixin;
+    friend class Module;
     friend class Resolver;
 
 protected:
@@ -75,9 +76,12 @@ public:
     virtual void cloneChildren(DeclarationScope& c, clone_map_t& map) const;
     virtual void remapReferences(clone_map_t const& map);
 
+protected:
     virtual void resolveImports(Diagnostics& dgn);
-    virtual SymRes resolveSymbols(Module& endModule, Diagnostics& dgn);
-    virtual void resolveAttributes(Module& endModule, Diagnostics& dgn);
+    SymRes resolveSymbols(Context& ctx);
+    virtual SymRes resolveDeclarations(Context& ctx);
+    virtual SymRes resolveDefinitions(Context& ctx);
+    virtual SymRes resolveAttributes(Context& ctx);
 
 public:
     void append(Box<Declaration> declaration);
@@ -92,7 +96,7 @@ public:
 protected:
     void setDeclaration(DefinableDeclaration& declaration);
 
-    Lookup findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const;
+    Lookup findOverload(Context& ctx, SymbolReference const& sym) const;
 
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string_view name);
     bool addSymbol(Diagnostics& dgn,
@@ -155,7 +159,10 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveDeclarations(Context& ctx) override;
+    SymRes resolveDefinitions(Context& ctx) override;
 
 public:
     DataSumDeclaration* declaration();
@@ -191,7 +198,10 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveDeclarations(Context& ctx) override;
+    SymRes resolveDefinitions(Context& ctx) override;
 
 public:
     DataProductDeclaration* declaration();
@@ -244,7 +254,10 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveDeclarations(Context& ctx) override;
+    SymRes resolveDefinitions(Context& ctx) override;
 
 public:
     bool isJumpTarget() const;
@@ -312,7 +325,10 @@ public:
     // DeclarationScope
 public:
     DECL_CLONE_ALL(DeclarationScope)
-    SymRes resolveSymbols(Module& endModule, Diagnostics& dgn) override;
+
+protected:
+    SymRes resolveDeclarations(Context& ctx);
+    SymRes resolveDefinitions(Context& ctx);
 
 public:
     TemplateDeclaration* declaration();

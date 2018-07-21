@@ -363,6 +363,7 @@ struct CodeGenPass
     Diagnostics& dgn;
     llvm::Module* module;
     ast::Module const& sourceModule;
+    std::vector<ast::ProcedureDeclaration const*> procBodiesToCodegen;
 
     CodeGenPass(Dispatcher& dispatch,
                 Diagnostics& dgn,
@@ -465,6 +466,20 @@ struct CodeGenPass
             linkage = llvm::Function::ExternalLinkage;
 
         fun->defn = llvm::Function::Create(fun->type, linkage, name, module);
+        procBodiesToCodegen.push_back(&decl);
+    }
+
+    void generateProcBodies()
+    {
+        for ( auto procs = std::move(procBodiesToCodegen); !procs.empty(); procs = std::move(procBodiesToCodegen) ) {
+            for ( auto p : procs )
+                generateProcBody(*p);
+        }
+    }
+
+    void generateProcBody(ast::ProcedureDeclaration const& decl)
+    {
+        auto defn = decl.definition();
 
         for ( auto d : defn->childDeclarations() )
             dispatch(*d);
@@ -472,6 +487,7 @@ struct CodeGenPass
         for ( auto l : defn->childLambdas() )
             dispatch(*l);
 
+        auto fun = customData(decl);
         {
             auto arg = fun->defn->arg_begin();
             for ( auto const& p : decl.parameters() )
@@ -482,6 +498,7 @@ struct CodeGenPass
         llvm::IRBuilder<> builder(entryBlock);
 
         // todo: comply with calling convention
+        auto returnType = toType(*decl.returnType());
         if ( !returnType->isVoidTy() )
             fun->returnInst = builder.CreateAlloca(returnType);
 
@@ -752,19 +769,12 @@ private:
             return llvm::ConstantFP::get(destType, strRef(token.lexeme()));
         case lexer::TokenKind::String:
         {
-            auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::Sliceu8))->type);
+            auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::ascii))->type);
             if ( destType != strType )
                 return nullptr;
 
             auto const& str = sourceModule.interpretString(dgn, token);
-            llvm::GlobalVariable* gv = builder.CreateGlobalString(strRef(str));
-            auto zero = builder.getInt32(0);
-            llvm::Constant* idx[] = { zero, zero };
-            llvm::Constant* s[2] = {
-                llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
-                builder.getInt64(str.length())
-            };
-            return llvm::ConstantStruct::get(strType, s);
+            return builder.CreateGlobalString(strRef(str));
         }
         }
 
@@ -1002,7 +1012,7 @@ private:
             return true;
 
         if ( auto pdecl = proc.scope().declaration() )
-            return pdecl == sourceModule.axioms().intrinsic(ast::Sliceu8);
+            return pdecl == sourceModule.axioms().intrinsic(ast::ascii);
 
         return false;
     }
@@ -1089,19 +1099,27 @@ private:
             return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
                                       toType(*proc->parameters()[0]->type()));
         }
-        else if ( proc == axioms.intrinsic(ast::Array_idx)
-          || proc == axioms.intrinsic(ast::Sliceu8_idx)
-          || descendsFromTemplate(axioms.intrinsic(ast::Slice_idx)->symbol(), proc->symbol()) )
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Array_idx)->symbol()
+               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Slice_idx)->symbol() )
         {
-            auto arr = toRef(builder, *a->expressions()[1]);
+            auto arr = toRef(builder, *exprs[1]);
             auto basePtr = builder.CreateStructGEP(nullptr, arr, 0);
             auto baseVal = builder.CreateLoad(basePtr);
             auto idx = toValue(builder, toType(*proc->parameters()[1]->type()), *exprs[2]);
             return builder.CreateGEP(baseVal, idx);
         }
-        else if ( proc == axioms.intrinsic(ast::Sliceu8_dtor) )
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitStringToAscii)->symbol() )
         {
-            return toValue(builder, destType, *exprs[1]);
+            auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::ascii))->type);
+            auto const& str = sourceModule.interpretString(dgn, exprs[1]->as<ast::LiteralExpression>()->token());
+            llvm::GlobalVariable* gv = builder.CreateGlobalString(strRef(str));
+            auto zero = builder.getInt32(0);
+            llvm::Constant* idx[] = { zero, zero };
+            llvm::Constant* s[2] = {
+                llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
+                builder.getInt64(str.length())
+            };
+            return llvm::ConstantStruct::get(strType, s);
         }
 
         // todo: hash lookup
@@ -1128,18 +1146,18 @@ private:
     X(Bitxoru, Xor ) \
     X(Bitxoru, Xor ) \
                      \
-    X(Equ , ICmpEQ ) \
-    X(Eqs , ICmpEQ ) \
-    X(Nequ, ICmpNE ) \
-    X(Neqs, ICmpNE ) \
-    X(Gtu , ICmpUGT) \
-    X(Gts , ICmpSGT) \
-    X(Geu , ICmpUGE) \
-    X(Ges , ICmpSGE) \
-    X(Ltu , ICmpULT) \
-    X(Lts , ICmpSLT) \
-    X(Leu , ICmpULE) \
-    X(Les , ICmpSLE) \
+    X(Equ, ICmpEQ ) \
+    X(Eqs, ICmpEQ ) \
+    X(Neu, ICmpNE ) \
+    X(Nes, ICmpNE ) \
+    X(Gtu, ICmpUGT) \
+    X(Gts, ICmpSGT) \
+    X(Geu, ICmpUGE) \
+    X(Ges, ICmpSGE) \
+    X(Ltu, ICmpULT) \
+    X(Lts, ICmpSLT) \
+    X(Leu, ICmpULE) \
+    X(Les, ICmpSLE) \
 
 #define X(ID,LLVMSUFFIX)                                                                             \
         else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::ID)->symbol(), proc->symbol()) ) { \
@@ -1355,6 +1373,8 @@ struct LLVMGenerator::LLVMState
         for ( auto d : module.scope()->childLambdas() )
             gen(*d);
 
+        gen.getOperator().generateProcBodies();
+
         if ( verifyModule(*mdata->module, &llvm::errs()) ) {
 #ifndef NDEBUG
             mdata->module->dump();
@@ -1406,11 +1426,11 @@ struct LLVMGenerator::LLVMState
             else if ( dp == axioms().intrinsic(ast::u32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
             else if ( dp == axioms().intrinsic(ast::u64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
             else if ( dp == axioms().intrinsic(ast::u128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
-            else if ( dp == axioms().intrinsic(ast::i8  ) ) return dpData->type = llvm::Type::getInt8Ty  (*context);
-            else if ( dp == axioms().intrinsic(ast::i16 ) ) return dpData->type = llvm::Type::getInt16Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::i32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::i64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::i128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
+            else if ( dp == axioms().intrinsic(ast::s8  ) ) return dpData->type = llvm::Type::getInt8Ty  (*context);
+            else if ( dp == axioms().intrinsic(ast::s16 ) ) return dpData->type = llvm::Type::getInt16Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::s32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::s64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
+            else if ( dp == axioms().intrinsic(ast::s128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
         }
 
         return nullptr;

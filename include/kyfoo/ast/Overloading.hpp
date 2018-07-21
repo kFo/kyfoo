@@ -208,7 +208,7 @@ public:
     Declaration const* findEquivalent(Slice<Expression const*> paramlist) const;
     Declaration* findEquivalent(Slice<Expression const*> paramlist);
     
-    ViableSet findViableOverloads(Module& endModule, Diagnostics& dgn, Slice<Expression const*> paramlist);
+    ViableSet findViableOverloads(Context& ctx, Slice<Expression const*> paramlist);
 
 private:
     DeclarationScope* myScope = nullptr;

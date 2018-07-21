@@ -83,7 +83,7 @@ protected:
     virtual SymRes resolveSymbols(Context& ctx) = 0;
 
 public:
-    void resolveAttributes(Context& ctx);
+    SymRes resolveAttributes(Context& ctx);
 
 public:
     DeclKind kind() const;
@@ -663,6 +663,7 @@ bool isDefinableDeclaration(DeclKind kind);
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl);
 DefinableDeclaration* getDefinableDeclaration(Declaration& decl);
 DeclarationScope const* getDefinition(Declaration const& decl);
+DeclarationScope* getDefinition(Declaration& decl);
 void define(Declaration& decl, DeclarationScope& defn);
 
 std::ostream& print(std::ostream& stream, Declaration const& decl);

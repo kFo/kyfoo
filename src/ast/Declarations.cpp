@@ -78,9 +78,9 @@ SymRes Declaration::resolveSymbols(Context& ctx)
     return symbol().resolveSymbols(ctx);
 }
 
-void Declaration::resolveAttributes(Context& ctx)
+SymRes Declaration::resolveAttributes(Context& ctx)
 {
-    ctx.resolveStatements(myAttributes);
+    return ctx.resolveStatements(myAttributes);
 }
 
 DeclKind Declaration::kind() const
@@ -1282,6 +1282,11 @@ DefinableDeclaration* getDefinableDeclaration(Declaration& decl)
 }
 
 DeclarationScope const* getDefinition(Declaration const& decl)
+{
+    return getDefinition(const_cast<Declaration&>(decl));
+}
+
+DeclarationScope* getDefinition(Declaration& decl)
 {
     if ( auto d = getDefinableDeclaration(decl) )
         return d->definition();

@@ -152,26 +152,28 @@ Declaration* Via::instantiate(Context& ctx)
     myProto->ownDeclarations.emplace_back(ast::clone(myProto->proto.decl, cloneMap));
     auto instanceDecl = myProto->ownDeclarations.back().get();
     instanceDecl->symbol().prototype().bindVariables(mySubsts);
-    if ( ctx.resolveDeclaration(*instanceDecl).error() )
+    auto res = ctx.resolveDeclaration(*instanceDecl);
+    if ( res.error() )
         throw std::runtime_error("invalid substitution");
 
     myProto->instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
 
+    if ( !res )
+        return instanceDecl;
+
     if ( auto defn = getDefinition(*myProto->proto.decl) ) {
-        if ( instanceDecl->symbol().prototype().isConcrete() ) {
-            myProto->ownDefinitions.emplace_back(ast::clone(defn, cloneMap));
-            auto instanceDefn = myProto->ownDefinitions.back().get();
-            define(*instanceDecl, *instanceDefn);
+        myProto->ownDefinitions.emplace_back(ast::clone(defn, cloneMap));
+        auto instanceDefn = myProto->ownDefinitions.back().get();
+        define(*instanceDecl, *instanceDefn);
 
-            if ( instanceDecl != instanceDefn->declaration() )
-                throw std::runtime_error("decl/defn mismatch");
+        if ( instanceDecl != instanceDefn->declaration() )
+            throw std::runtime_error("decl/defn mismatch");
 
-            if ( instanceDefn->resolveSymbols(ctx.module(), ctx.diagnostics()).error() )
-                return nullptr;
-        }
+        ctx.resolveScopeDeclarations(*instanceDefn);
+        ctx.appendInstantiatedDefinition(*instanceDefn);
     }
 
-    return myProto->instances.back().decl;
+    return instanceDecl;
 }
 
 Via::Rank Via::rank() const
@@ -383,15 +385,15 @@ Declaration* SymbolSpace::findEquivalent(Slice<Expression const*> paramlist)
     return const_cast<Declaration*>(const_cast<SymbolSpace const*>(this)->findEquivalent(paramlist));
 }
 
-ViableSet SymbolSpace::findViableOverloads(Module& endModule, Diagnostics& dgn, Slice<Expression const*> paramlist)
+ViableSet SymbolSpace::findViableOverloads(Context& ctx, Slice<Expression const*> paramlist)
 {
     ViableSet ret;
 
     Resolver resolver(*myScope);
-    Context primaryCtx(endModule, dgn, resolver);
+    REVERT = ctx.pushResolver(resolver);
 
     Diagnostics sfinaeDgn;
-    Context sfinaeCtx(endModule, sfinaeDgn, resolver, Context::DisableCacheTemplateInstantiations);
+    Context sfinaeCtx(ctx.module(), sfinaeDgn, resolver, Context::DisableCacheTemplateInstantiations);
 
     for ( auto& e : myPrototypes ) {
         if ( e.proto.decl->symbol().prototype().pattern().size() != paramlist.size() )
@@ -402,7 +404,7 @@ ViableSet SymbolSpace::findViableOverloads(Module& endModule, Diagnostics& dgn, 
             continue;
 
         auto targetProto = e.proto.params;
-        auto ctx = &primaryCtx;
+        auto relativeCtx = &ctx;
         std::unique_ptr<Declaration> substDecl;
         if ( !substs.empty() ) {
             substDecl = ast::clone(e.proto.decl);
@@ -412,14 +414,14 @@ ViableSet SymbolSpace::findViableOverloads(Module& endModule, Diagnostics& dgn, 
                 continue;
 
             targetProto = &substDecl->symbol().prototype();
-            ctx = &sfinaeCtx;
+            relativeCtx = &sfinaeCtx;
         }
 
-        if ( auto v = implicitViability(*ctx, targetProto->pattern(), paramlist) )
+        if ( auto v = implicitViability(*relativeCtx, targetProto->pattern(), paramlist) )
             ret.append(std::move(v), e, std::move(substs));
     }
 
-    ret.condense(primaryCtx);
+    ret.condense(ctx);
 
     return ret;
 }
@@ -572,10 +574,7 @@ findImplicitConversion(Context& ctx, Expression const& dest, Expression const& s
     if ( !templDefn )
         return nullptr;
 
-    Resolver templResolver(*templDefn, Resolver::Narrow);
-    Context templCtx(ctx.module(), ctx.diagnostics(), templResolver);
-    hit = templCtx.matchOverload(SymbolReference("", slice(s)));
-    return hit.singleAs<ProcedureDeclaration>();
+    return ctx.matchOverload(*templDefn, Resolver::Narrow, SymbolReference("", slice(s))).singleAs<ProcedureDeclaration>();
 }
 
 OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest, Slice<Expression const*> src)

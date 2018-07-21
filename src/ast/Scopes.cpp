@@ -104,28 +104,57 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
         defn->resolveImports(dgn);
 }
 
-SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DeclarationScope::resolveSymbols(Context& ctx)
+{
+    auto ret = resolveDeclarations(ctx);
+    ret |= resolveDefinitions(ctx);
+
+    return ret;
+}
+
+SymRes DeclarationScope::resolveDeclarations(Context& ctx)
 {
     SymRes ret = SymRes::Success;
-    SymbolDependencyTracker tracker(module(), dgn);
+    SymbolDependencyTracker tracker(module(), ctx.diagnostics());
     for ( auto const& d : myDeclarations )
         ret |= traceDependencies(tracker, *d);
 
     if ( ret.error() )
-        return SymRes::Fail;
+        return ret;
 
     tracker.sortPasses();
 
-    Resolver resolver(*this);
-    Context ctx(endModule, dgn, resolver);
-
     // Resolve top-level declarations
     for ( auto const& symGroup : tracker.groups ) {
-        for ( auto const& d : symGroup->declarations ) {
-            ret |= ctx.resolveDeclaration(*d);
-            addSymbol(dgn, d->symbol(), *d);
+        if ( symGroup->upstreamErrors )
+            continue;
+
+        for ( auto d : symGroup->declarations ) {
+            auto res = ctx.resolveDeclaration(*d);
+            if ( res.error() ) {
+                for ( auto dep : symGroup->dependents )
+                    dep->upstreamErrors = true;
+            }
+            ret |= res;
+
+            addSymbol(ctx.diagnostics(), d->symbol(), *d);
         }
     }
+
+    if ( ret.error() )
+        return ret;
+
+    if ( ret.error() )
+        return ret;
+
+    for ( auto& decl : myDeclarations ) {
+        if ( decl->symbol().prototype().isConcrete() )
+            if ( auto defn = getDefinition(*decl) )
+                ret |= ctx.resolveScopeDeclarations(*defn);
+    }
+
+    if ( ret.error() )
+        return ret;
 
     if ( ret.error() )
         return ret;
@@ -134,28 +163,34 @@ SymRes DeclarationScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
     for ( auto& l : myLambdas )
         ret |= ctx.resolveDeclaration(*l);
 
-    if ( ret.error() )
-        return ret;
+    return ret;
+}
+
+SymRes DeclarationScope::resolveDefinitions(Context& ctx)
+{
+    SymRes ret;
 
     // Resolve definitions
-    for ( auto& defn : myDefinitions ) {
-        if ( defn->declaration()->symbol().prototype().isConcrete() ) {
-            ret |= defn->resolveSymbols(endModule, dgn);
-        }
-    }
+    for ( auto& defn : myDefinitions )
+        if ( defn->declaration()->symbol().prototype().isConcrete() )
+            ret |= ctx.resolveScopeDefinitions(*defn);
+
+    if ( ret.error() )
+        return ret;
 
     return ret;
 }
 
-void DeclarationScope::resolveAttributes(Module& endModule, Diagnostics& dgn)
+SymRes DeclarationScope::resolveAttributes(Context& ctx)
 {
-    Resolver resolver(*this);
-    Context ctx(endModule, dgn, resolver);
+    SymRes ret;
     for ( auto& d : myDeclarations )
-        d->resolveAttributes(ctx);
+        ret |= d->resolveAttributes(ctx);
 
     for ( auto& s : myDefinitions )
-        s->resolveAttributes(endModule, dgn);
+        ret |= ctx.resolveScopeAttributes(*s);
+
+    return ret;
 }
 
 Lookup DeclarationScope::findEquivalent(SymbolReference const& symbol) const
@@ -180,13 +215,13 @@ void DeclarationScope::setDeclaration(DefinableDeclaration& declaration)
     myParent = &myDeclaration->scope();
 }
 
-Lookup DeclarationScope::findOverload(Module& endModule, Diagnostics& dgn, SymbolReference const& sym) const
+Lookup DeclarationScope::findOverload(Context& ctx, SymbolReference const& sym) const
 {
     Lookup hit(sym);
     auto symSpace = findSymbolSpace(sym.name());
     if ( symSpace ) {
         hit.appendTrace(*symSpace);
-        hit.resolveTo(symSpace->findViableOverloads(endModule, dgn, sym.pattern()));
+        hit.resolveTo(symSpace->findViableOverloads(ctx, sym.pattern()));
     }
 
     return hit;
@@ -361,7 +396,7 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumScope, DeclarationScope)
 IMPL_CLONE_REMAP_END
 
-SymRes DataSumScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataSumScope::resolveDeclarations(Context& ctx)
 {
     for ( auto const& d : myDeclarations ) {
         auto dsCtor = d->as<DataSumDeclaration::Constructor>();
@@ -371,7 +406,12 @@ SymRes DataSumScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
         myCtors.push_back(dsCtor);
     }
 
-    return DeclarationScope::resolveSymbols(endModule, dgn);
+    return DeclarationScope::resolveDeclarations(ctx);
+}
+
+SymRes DataSumScope::resolveDefinitions(Context& ctx)
+{
+    return DeclarationScope::resolveDefinitions(ctx);
 }
 
 DataSumDeclaration* DataSumScope::declaration()
@@ -430,13 +470,18 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataProductScope, DeclarationScope)
 IMPL_CLONE_REMAP_END
 
-SymRes DataProductScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes DataProductScope::resolveDeclarations(Context& ctx)
 {
     for ( auto& d : myDeclarations )
         if ( auto v = d->as<DataProductDeclaration::Field>() )
             myFields.push_back(v);
 
-    return DeclarationScope::resolveSymbols(endModule, dgn);
+    return DeclarationScope::resolveDeclarations(ctx);
+}
+
+SymRes DataProductScope::resolveDefinitions(Context& ctx)
+{
+    return DeclarationScope::resolveDefinitions(ctx);
 }
 
 DataProductDeclaration* DataProductScope::declaration()
@@ -549,19 +594,20 @@ IMPL_CLONE_REMAP(myBasicBlocks)
 IMPL_CLONE_REMAP(myChildScopes)
 IMPL_CLONE_REMAP_END
 
-SymRes ProcedureScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes ProcedureScope::resolveDeclarations(Context& ctx)
 {
-    // Resolve declarations
-    auto ret = DeclarationScope::resolveSymbols(endModule, dgn);
+    return DeclarationScope::resolveDeclarations(ctx);
+}
 
-    // Resolve expressions
-    Resolver resolver(*this);
-    Context ctx(endModule, dgn, resolver);
+SymRes ProcedureScope::resolveDefinitions(Context& ctx)
+{
+    auto ret = DeclarationScope::resolveDefinitions(ctx);
+
     for ( auto& bb : myBasicBlocks )
         ret |= bb->resolveSymbols(ctx);
 
     for ( auto& s : myChildScopes )
-        ret |= s->resolveSymbols(endModule, dgn);
+        ret |= ctx.resolveScope(*s);
 
     if ( !ret )
         return ret;
@@ -936,9 +982,14 @@ IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(TemplateScope, DeclarationScope)
 IMPL_CLONE_REMAP_END
 
-SymRes TemplateScope::resolveSymbols(Module& endModule, Diagnostics& dgn)
+SymRes TemplateScope::resolveDeclarations(Context& ctx)
 {
-    return DeclarationScope::resolveSymbols(endModule, dgn);
+    return DeclarationScope::resolveDeclarations(ctx);
+}
+
+SymRes TemplateScope::resolveDefinitions(Context& ctx)
+{
+    return DeclarationScope::resolveDefinitions(ctx);
 }
 
 TemplateDeclaration* TemplateScope::declaration()

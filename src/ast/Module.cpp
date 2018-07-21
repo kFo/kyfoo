@@ -13,6 +13,7 @@
 #include <kyfoo/parser/Parse.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
+#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 
@@ -219,8 +220,10 @@ void Module::resolveImports(Diagnostics& dgn)
 
 void Module::semantics(Diagnostics& dgn)
 {
-    myScope->resolveSymbols(*this, dgn);
-    myScope->resolveAttributes(*this, dgn);
+    Resolver resolver(*myScope);
+    Context ctx(*this, dgn, resolver);
+    ctx.resolveScope(*myScope);
+    ctx.resolveScopeAttributes(*myScope);
 }
 
 Module const* Module::import(Module* module)

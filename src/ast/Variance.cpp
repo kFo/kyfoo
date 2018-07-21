@@ -45,8 +45,8 @@ Variance variance(DiagnosticsContext /*dgn*/, Declaration const& target, lexer::
     }
 
     if ( query.kind() == lexer::TokenKind::String ) {
-        if ( &target == axioms.intrinsic(Sliceu8) )
-            return Variance::Covariant;
+        if ( &target == axioms.intrinsic(StringLiteralType) )
+            return Variance::Exact;
     }
 
     return Variance::Invariant;

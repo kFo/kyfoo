@@ -116,6 +116,11 @@ public:
         throw std::runtime_error("invalid declaration kind");
     }
 
+    operator_t& getOperator()
+    {
+        return myOperator;
+    }
+
     void procScope(ProcedureScope& p)
     {
         for ( auto& bb : p.basicBlocks() ) {
@@ -212,9 +217,10 @@ struct SymbolDependencyTracker
     struct SymGroup {
         std::string name;
         uz arity;
-        int pass = 0;
+        int level = 0;
         std::vector<Declaration*> declarations;
         std::vector<SymGroup*> dependents;
+        bool upstreamErrors = false;
 
         SymGroup(std::string name, uz arity)
             : name(std::move(name))
@@ -244,15 +250,15 @@ struct SymbolDependencyTracker
 
         bool defer(SymGroup* startSym, int deferPass)
         {
-            if ( pass >= deferPass )
+            if ( level >= deferPass )
                 return true;
 
-            pass = deferPass;
+            level = deferPass;
             for ( auto& d : dependents ) {
                 if ( d == startSym )
                     return false;
 
-                d->defer(startSym, pass + 1);
+                d->defer(startSym, level + 1);
             }
 
             return true;
@@ -269,7 +275,7 @@ struct SymbolDependencyTracker
     SymGroup* findOrCreate(std::string_view name, uz arity);
 
     void add(Declaration& decl);
-    SymRes addDependency(Declaration& decl,
+    SymRes addDependency(Declaration& dependent,
                          std::string_view name,
                          uz arity);
 

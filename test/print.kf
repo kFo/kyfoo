@@ -36,7 +36,7 @@ LPDWORD      := ptr u32
 LPOVERLAPPED := ptr<()>
 BOOL         := u32
 SIZE_T       := ULONG_PTR
-ULONG_PTR    := size_t
+ULONG_PTR    := uz
 
 STD_INPUT_HANDLE  := u32 4294967286 // -10
 STD_OUTPUT_HANDLE := u32 4294967285 // -11
@@ -79,7 +79,7 @@ swap(a b : ref \T) -> () =>
 
 bubble(arr : ref slice<\T>) -> u32 =>
     := ret : u32 = 0
-    := i : size_t = 0
+    := i : uz = 0
     :<> lt(i, sub arr.card 1)
         :? lt(arr i, arr (add i 1))
             swap(arr i, arr (add i 1))
@@ -95,7 +95,7 @@ WriteWrapper(str : ascii) -> () =>
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) str.base (trunc<u32> str.card) (addr written) NULL
     :.
 
-ftest (x y : i32) -> i32 =>
+ftest (x y : s32) -> s32 =>
     WriteWrapper("hello world!\n")
     :? add (add x y) y
         WriteWrapper("branch 1\n")
@@ -109,14 +109,14 @@ ftest (x y : i32) -> i32 =>
     WriteWrapper("end\n")
     :. 55
 
-gtest(n : i32) -> () =>
+gtest(n : s32) -> () =>
     := p : LPVOID = HeapAlloc GetProcessHeap 0 512
     := bytes : DWORD = 0
     := arr : u8..256
     ReadFile (GetStdHandle STD_INPUT_HANDLE) (addr (arr bytes)) 256 (addr bytes) NULL
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr arr.0) bytes NULL NULL
     :<outer>
-        := i : i32 = 0
+        := i : s32 = 0
         :<> lt i n
             WriteWrapper("wut\n")
             i = add i 1
@@ -131,7 +131,7 @@ gtest(n : i32) -> () =>
 htest() -> () =>
     //:= arr : u32..6 = [1, 2, 3, 4, 5, 6]
     //:= arr : u32..6
-    := four : size_t = 4
+    := four : uz = 4
     := p : ptr u32 = cast<ptr u32>(HeapAlloc GetProcessHeap 0 (mul four 6))
     := arr : slice u32
     arr.ctor<> p 6

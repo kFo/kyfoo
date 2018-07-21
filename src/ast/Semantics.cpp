@@ -69,18 +69,18 @@ void SymbolDependencyTracker::add(Declaration& decl)
     group->add(decl);
 }
 
-SymRes SymbolDependencyTracker::addDependency(Declaration& decl,
+SymRes SymbolDependencyTracker::addDependency(Declaration& dependent,
                                               std::string_view name,
                                               uz arity)
 {
-    auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().size());
+    auto group = findOrCreate(dependent.symbol().token().lexeme(), dependent.symbol().prototype().pattern().size());
     auto dependency = findOrCreate(name, arity);
 
     dependency->addDependent(*group);
 
-    if ( group->pass <= dependency->pass ) {
-        if ( !group->defer(group, dependency->pass + 1) ) {
-            auto& err = dgn.error(mod, decl.symbol().token()) << "circular reference detected";
+    if ( group->level <= dependency->level ) {
+        if ( !group->defer(group, dependency->level + 1) ) {
+            auto& err = dgn.error(mod, dependent.symbol().token()) << "circular reference detected";
             for ( auto const& d : dependency->declarations )
                 err.see(*d);
 
@@ -94,7 +94,7 @@ SymRes SymbolDependencyTracker::addDependency(Declaration& decl,
 void SymbolDependencyTracker::sortPasses()
 {
     stable_sort(begin(groups), end(groups),
-                [](auto const& lhs, auto const& rhs) { return lhs->pass < rhs->pass; });
+                [](auto const& lhs, auto const& rhs) { return lhs->level < rhs->level; });
 }
 
 //
@@ -106,19 +106,73 @@ struct SymbolDependencyBuilder
     using result_t = SymRes;
     Dispatcher& dispatch;
     SymbolDependencyTracker& tracker;
-    Declaration& decl;
+    Declaration& dependent;
+
+    struct LocalDecl {
+        std::vector<std::string_view> names;
+    };
+
+    std::vector<LocalDecl> localDecls;
 
     SymbolDependencyBuilder(Dispatcher& dispatch,
                             SymbolDependencyTracker& tracker,
-                            Declaration& decl)
+                            Declaration& dependent)
         : dispatch(dispatch)
         , tracker(tracker)
-        , decl(decl)
+        , dependent(dependent)
     {
     }
 
-    // expressions
+private:
+    result_t addDep(std::string_view name, uz arity)
+    {
+        if ( arity == 0 )
+            for ( auto localDecl = localDecls.rbegin(); localDecl != localDecls.rend(); ++localDecl )
+                for ( auto const& n : localDecl->names )
+                    if ( n == name )
+                        return SymRes::Success;
 
+        return tracker.addDependency(dependent, name, arity);
+    }
+
+    struct Pop {
+        SymbolDependencyBuilder& outer;
+        Pop(SymbolDependencyBuilder& outer) : outer(outer) {}
+        ~Pop() { outer.localDecls.pop_back(); }
+    };
+
+    Pop pushLocal(Declaration const&)
+    {
+        localDecls.emplace_back();
+        return Pop(*this);
+    }
+
+    void pushName(std::string_view name)
+    {
+        localDecls.back().names.push_back(name);
+    }
+
+    SymRes traceDecl(Declaration const& decl)
+    {
+        return traceSymbol(decl.symbol());
+    }
+
+    SymRes traceSymbol(Symbol const& sym)
+    {
+        return tracePrototype(sym.prototype());
+    }
+
+    SymRes tracePrototype(PatternsPrototype const& proto)
+    {
+        SymRes ret = SymRes::Success;
+        for ( auto const& p : proto.pattern() )
+            ret |= dispatch(*p);
+
+        return ret;
+    }
+
+    // expressions
+public:
     result_t exprLiteral(LiteralExpression const&)
     {
         return SymRes::Success;
@@ -126,8 +180,13 @@ struct SymbolDependencyBuilder
 
     result_t exprIdentifier(IdentifierExpression const& p)
     {
-        if ( p.token().kind() == lexer::TokenKind::Identifier )
-            return tracker.addDependency(decl, p.token().lexeme(), 0);
+        switch (p.token().kind())
+        {
+        case lexer::TokenKind::Identifier:
+            return addDep(p.token().lexeme(), 0);
+        case lexer::TokenKind::MetaVariable:
+            pushName(p.token().lexeme());
+        }
 
         return SymRes::Success;
     }
@@ -144,12 +203,11 @@ struct SymbolDependencyBuilder
     result_t exprApply(ApplyExpression const& a)
     {
         // todo: failover to implicit proc call semantics
-        auto subject = a.expressions()[0]->as<LiteralExpression>();
-        if ( subject && subject->token().kind() == lexer::TokenKind::Identifier ) {
-            return tracker.addDependency(decl, subject->token().lexeme(), a.expressions().size() - 1);
-        }
-
         SymRes ret = SymRes::Success;
+        auto subject = a.expressions()[0]->as<LiteralExpression>();
+        if ( subject && subject->token().kind() == lexer::TokenKind::Identifier )
+            ret |= addDep(subject->token().lexeme(), a.expressions().size() - 1);
+
         for ( auto const& e : a.expressions() )
             ret |= dispatch(*e);
 
@@ -158,10 +216,10 @@ struct SymbolDependencyBuilder
 
     result_t exprSymbol(SymbolExpression const& s)
     {
-        if ( s.token().kind() == lexer::TokenKind::Identifier )
-            return tracker.addDependency(decl, s.token().lexeme(), s.expressions().size());
-
         SymRes ret = SymRes::Success;
+        if ( s.token().kind() == lexer::TokenKind::Identifier )
+            ret |= addDep(s.token().lexeme(), s.expressions().size());
+
         for ( auto const& e : s.expressions() )
             ret |= dispatch(*e);
 
@@ -197,6 +255,8 @@ struct SymbolDependencyBuilder
         return SymRes::Success;
     }
 
+    // statements
+public:
     result_t stmtExpression(Statement const& s)
     {
         return dispatch(s.expression());
@@ -232,40 +292,23 @@ struct SymbolDependencyBuilder
     }
 
     // declarations
-
-    SymRes traceSymbol(Symbol const& sym)
+public:
+    result_t declDataSum(DataSumDeclaration const& ds)
     {
-        return tracePrototype(sym.prototype());
-    }
-
-    SymRes tracePrototype(PatternsPrototype const& proto)
-    {
-        SymRes ret = SymRes::Success;
-        for ( auto const& p : proto.pattern() )
-            ret |= dispatch(*p);
-
-        return ret;
-    }
-
-    SymRes traceSymbol()
-    {
-        return traceSymbol(decl.symbol());
-    }
-
-    result_t declDataSum(DataSumDeclaration const&)
-    {
-        return traceSymbol();
-        // todo
+        REVERT = pushLocal(ds);
+        return traceDecl(ds);
     }
 
     result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
     {
-        return traceSymbol(dsCtor.symbol());
+        REVERT = pushLocal(dsCtor);
+        return traceDecl(dsCtor);
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
-        SymRes ret = traceSymbol();
+        REVERT = pushLocal(dp);
+        auto ret = traceDecl(dp);
         if ( auto defn = dp.definition() )
             for ( auto const& field : defn->fields() )
                 ret |= declField(*field);
@@ -273,14 +316,16 @@ struct SymbolDependencyBuilder
         return ret;
     }
 
-    result_t declField(DataProductDeclaration::Field const&)
+    result_t declField(DataProductDeclaration::Field const& dpField)
     {
-        return traceSymbol();
+        REVERT = pushLocal(dpField);
+        return traceDecl(dpField);
     }
 
     result_t declSymbol(SymbolDeclaration const& s)
     {
-        SymRes ret = traceSymbol();
+        REVERT = pushLocal(s);
+        auto ret = traceDecl(s);
         if ( s.expression() )
             ret |= dispatch(*s.expression());
 
@@ -289,7 +334,8 @@ struct SymbolDependencyBuilder
 
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
-        SymRes ret = traceSymbol();
+        REVERT = pushLocal(proc);
+        SymRes ret = traceDecl(proc);
         if ( proc.returnType() )
             ret |= dispatch(*proc.returnType());
 
@@ -303,7 +349,8 @@ struct SymbolDependencyBuilder
 
     result_t declVariable(VariableDeclaration const& var)
     {
-        SymRes ret = traceSymbol();
+        REVERT = pushLocal(var);
+        auto ret = traceDecl(var);
         for ( auto const& c : var.constraints() )
             ret |= dispatch(*c);
 
@@ -320,9 +367,14 @@ struct SymbolDependencyBuilder
         return SymRes::Success;
     }
 
-    result_t declTemplate(TemplateDeclaration const&)
+    result_t declTemplate(TemplateDeclaration const& templ)
     {
-        return traceSymbol();
+        REVERT = pushLocal(templ);
+        result_t ret = traceDecl(templ);
+        for ( auto const& d : templ.definition()->childDeclarations() )
+            ret |= dispatch(*d);
+
+        return ret;
     }
 };
 

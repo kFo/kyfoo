@@ -15,6 +15,7 @@ class ModuleSet;
 #define INTRINSIC_DATASUMS(X) \
     X(IntegerLiteralType    ) \
     X(RationalLiteralType   ) \
+    X(StringLiteralType     ) \
     X(PointerNullLiteralType) \
     \
     X(ReferenceTemplate) \
@@ -32,23 +33,24 @@ enum DataSumIntrinsics
     X(ArrayStaticTemplate ) \
     X(ArrayDynamicTemplate) \
     X(SliceTemplate       ) \
-    X(Sliceu8             ) \
     \
     X(UnsignedTemplate) \
     X(SignedTemplate  ) \
     \
-    X(u1    ) \
-    X(u8    ) \
-    X(u16   ) \
-    X(u32   ) \
-    X(u64   ) \
-    X(u128  ) \
+    X(u1  ) \
+    X(u8  ) \
+    X(u16 ) \
+    X(u32 ) \
+    X(u64 ) \
+    X(u128) \
     \
-    X(i8    ) \
-    X(i16   ) \
-    X(i32   ) \
-    X(i64   ) \
-    X(i128  ) \
+    X(s8  ) \
+    X(s16 ) \
+    X(s32 ) \
+    X(s64 ) \
+    X(s128) \
+    \
+    X(ascii) \
     X(size_t)
 
 enum DataProductIntrinsics
@@ -60,20 +62,18 @@ enum DataProductIntrinsics
 };
 
 #define INTRINSIC_INSTRUCTIONS(X) \
-    X(UnsignedFromInteger)  \
-    X(UnsignedFromUnsigned) \
-    X(SignedFromInteger)    \
-    X(SignedFromSigned)     \
-    \
-    X(Array_idx   ) \
-    X(Slice_idx   ) \
-    X(Sliceu8_idx ) \
-    X(Sliceu8_dtor) \
-    \
+    X(UnsignedFromInteger)        \
+    X(UnsignedFromUnsigned)       \
     X(implicitIntegerToUnsigned ) \
-    X(implicitIntegerToSigned   ) \
     X(implicitUnsignedToUnsigned) \
+    X(SignedFromInteger)          \
+    X(SignedFromSigned)           \
+    X(implicitIntegerToSigned   ) \
     X(implicitSignedToSigned    ) \
+    \
+    X(Array_idx   )          \
+    X(Slice_idx   )          \
+    X(implicitStringToAscii) \
     \
     X(Addu   ) \
     X(Adds   ) \
@@ -98,8 +98,8 @@ enum DataProductIntrinsics
     \
     X(Equ ) \
     X(Eqs ) \
-    X(Nequ) \
-    X(Neqs) \
+    X(Neu)  \
+    X(Nes)  \
     X(Gtu ) \
     X(Gts ) \
     X(Geu ) \
@@ -206,7 +206,7 @@ private:
 private:
     void buildMetaData();
 
-    std::array<IntegerMetaData, i128 - u1 + 1> myIntegerMetaData;
+    std::array<IntegerMetaData, s128 - u1 + 1> myIntegerMetaData;
 };
 
 } // namespace kyfoo::ast
