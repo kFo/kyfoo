@@ -236,7 +236,7 @@ private:
     ast::Module const* myModule = nullptr;
     ast::Expression const* myExpression = nullptr;
     lexer::Token myToken;
-    Code myCode;
+    Code myCode = General;
     std::ostringstream myInfo;
     std::vector<ContextReference> myReferences;
 };
