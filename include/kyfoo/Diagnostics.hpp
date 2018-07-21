@@ -12,7 +12,7 @@
 namespace kyfoo::ast {
     class Expression;
     class Declaration;
-    class DeclarationScope;
+    class Scope;
     class Junction;
     class Lookup;
     class Module;
@@ -64,11 +64,11 @@ public:
         };
 
         Kind kind = Value;
-        ast::DeclarationScope const* scope = nullptr;
+        ast::Scope const* scope = nullptr;
 
         ExpressionContextBase() = default;
 
-        ExpressionContextBase(Kind kind, ast::DeclarationScope const& scope)
+        ExpressionContextBase(Kind kind, ast::Scope const& scope)
             : kind(kind)
             , scope(&scope)
         {
@@ -85,7 +85,7 @@ public:
         SingleExpressionContext() = default;
 
         SingleExpressionContext(Kind kind,
-                          ast::DeclarationScope const& scope,
+                          ast::Scope const& scope,
                           ast::Expression const& expr)
             : ExpressionContextBase(kind, scope)
             , expr(&expr)
@@ -99,7 +99,7 @@ public:
         ManyExpressionContext() = default;
 
         ManyExpressionContext(Kind kind,
-                           ast::DeclarationScope const& scope,
+                           ast::Scope const& scope,
                            Slice<ast::Expression const*> exprs)
             : ExpressionContextBase(kind, scope)
             , exprs(exprs)
@@ -115,7 +115,7 @@ public:
     }
 
     ContextReference(ExpressionContextBase::Kind kind,
-                     ast::DeclarationScope const& scope,
+                     ast::Scope const& scope,
                      ast::Expression const& expr)
         : myKind(SeeExpression)
         , myContext(kind, scope, expr)
@@ -124,7 +124,7 @@ public:
 
     ContextReference(Kind kind,
                      ExpressionContextBase::Kind exprKind,
-                     ast::DeclarationScope const& scope,
+                     ast::Scope const& scope,
                      Slice<ast::Expression const*> exprs)
         : myKind(kind)
         , myContext(exprKind, scope, exprs)
@@ -180,12 +180,12 @@ private:
         ast::Declaration const* decl;
 
         Ctx(ExpressionContextBase::Kind kind,
-            ast::DeclarationScope const& scope,
+            ast::Scope const& scope,
             ast::Expression const& expr) : exprSingle(kind, scope, expr) {}
         SingleExpressionContext exprSingle;
 
         Ctx(ExpressionContextBase::Kind kind,
-            ast::DeclarationScope const& scope,
+            ast::Scope const& scope,
             Slice<ast::Expression const*> exprs) : exprMany(kind, scope, exprs) {}
         ManyExpressionContext exprMany;
 
@@ -218,12 +218,12 @@ public:
     Code code() const;
     Slice<ContextReference const> references() const;
     Error& see(ast::Declaration const& declaration);
-    Error& see(ast::DeclarationScope const& scope, ast::Expression const& expression);
+    Error& see(ast::Scope const& scope, ast::Expression const& expression);
     Error& see(ast::Lookup&& miss);
-    Error& expected(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
-    Error& expectedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
-    Error& received(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
-    Error& receivedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs);
+    Error& expected(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
+    Error& expectedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
+    Error& received(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
+    Error& receivedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
 
 public:
     std::ostream& stream();

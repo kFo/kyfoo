@@ -21,9 +21,9 @@ namespace kyfoo::ast {
 //
 // DeclarationScope
 
-DeclarationScope::DeclarationScope(Kind kind,
+Scope::Scope(Kind kind,
                                    Module* module,
-                                   DeclarationScope* parent)
+                                   Scope* parent)
     : myKind(kind)
     , myModule(module)
     , myParent(parent)
@@ -31,17 +31,17 @@ DeclarationScope::DeclarationScope(Kind kind,
     mySymbols.emplace_back(this, "");
 }
 
-DeclarationScope::DeclarationScope(Module& module)
-    : DeclarationScope(Kind::Declaration, &module, nullptr)
+Scope::Scope(Module& module)
+    : Scope(Kind::Base, &module, nullptr)
 {
 }
 
-DeclarationScope::DeclarationScope(DeclarationScope* parent)
-    : DeclarationScope(Kind::Declaration, &parent->module(), parent)
+Scope::Scope(Scope* parent)
+    : Scope(Kind::Base, &parent->module(), parent)
 {
 }
 
-DeclarationScope::DeclarationScope(DeclarationScope const& rhs)
+Scope::Scope(Scope const& rhs)
     : myKind(rhs.myKind)
     , myModule(rhs.myModule)
     , myDeclaration(rhs.myDeclaration)
@@ -51,15 +51,15 @@ DeclarationScope::DeclarationScope(DeclarationScope const& rhs)
     // by the semantic passes that build these indices
 }
 
-DeclarationScope& DeclarationScope::operator = (DeclarationScope const& rhs)
+Scope& Scope::operator = (Scope const& rhs)
 {
-    DeclarationScope(rhs).swap(*this);
+    Scope(rhs).swap(*this);
     return *this;
 }
 
-DeclarationScope::~DeclarationScope() = default;
+Scope::~Scope() = default;
 
-void DeclarationScope::swap(DeclarationScope& rhs) noexcept
+void Scope::swap(Scope& rhs) noexcept
 {
     using kyfoo::swap;
     swap(myKind, rhs.myKind);
@@ -73,17 +73,17 @@ void DeclarationScope::swap(DeclarationScope& rhs) noexcept
     swap(myImports, rhs.myImports);
 }
 
-void DeclarationScope::io(IStream& stream) const
+void Scope::io(IStream& stream) const
 {
     stream.next("declarations", myDeclarations);
 }
 
-IMPL_CLONE_NOBASE_BEGIN(DeclarationScope, DeclarationScope)
+IMPL_CLONE_NOBASE_BEGIN(Scope, Scope)
 IMPL_CLONE_CHILD(myDeclarations)
 IMPL_CLONE_CHILD(myDefinitions)
 IMPL_CLONE_CHILD(myLambdas)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_NOBASE_BEGIN(DeclarationScope)
+IMPL_CLONE_REMAP_NOBASE_BEGIN(Scope)
 IMPL_CLONE_REMAP(myModule)
 IMPL_CLONE_REMAP(myDeclaration)
 IMPL_CLONE_REMAP(myParent)
@@ -92,7 +92,7 @@ IMPL_CLONE_REMAP(myDefinitions)
 IMPL_CLONE_REMAP(myLambdas)
 IMPL_CLONE_REMAP_END
 
-void DeclarationScope::resolveImports(Diagnostics& dgn)
+void Scope::resolveImports(Diagnostics& dgn)
 {
     for ( auto& e : myDeclarations ) {
         if ( auto d = e->as<ImportDeclaration>() ) {
@@ -104,7 +104,7 @@ void DeclarationScope::resolveImports(Diagnostics& dgn)
         defn->resolveImports(dgn);
 }
 
-SymRes DeclarationScope::resolveSymbols(Context& ctx)
+SymRes Scope::resolveSymbols(Context& ctx)
 {
     auto ret = resolveDeclarations(ctx);
     ret |= resolveDefinitions(ctx);
@@ -112,7 +112,7 @@ SymRes DeclarationScope::resolveSymbols(Context& ctx)
     return ret;
 }
 
-SymRes DeclarationScope::resolveDeclarations(Context& ctx)
+SymRes Scope::resolveDeclarations(Context& ctx)
 {
     SymRes ret = SymRes::Success;
     SymbolDependencyTracker tracker(module(), ctx.diagnostics());
@@ -166,7 +166,7 @@ SymRes DeclarationScope::resolveDeclarations(Context& ctx)
     return ret;
 }
 
-SymRes DeclarationScope::resolveDefinitions(Context& ctx)
+SymRes Scope::resolveDefinitions(Context& ctx)
 {
     SymRes ret;
 
@@ -181,7 +181,7 @@ SymRes DeclarationScope::resolveDefinitions(Context& ctx)
     return ret;
 }
 
-SymRes DeclarationScope::resolveAttributes(Context& ctx)
+SymRes Scope::resolveAttributes(Context& ctx)
 {
     SymRes ret;
     for ( auto& d : myDeclarations )
@@ -193,7 +193,7 @@ SymRes DeclarationScope::resolveAttributes(Context& ctx)
     return ret;
 }
 
-Lookup DeclarationScope::findEquivalent(SymbolReference const& symbol) const
+Lookup Scope::findEquivalent(SymbolReference const& symbol) const
 {
     Lookup ret(symbol);
     auto symSpace = findSymbolSpace(symbol.name());
@@ -209,13 +209,13 @@ Lookup DeclarationScope::findEquivalent(SymbolReference const& symbol) const
     return ret;
 }
 
-void DeclarationScope::setDeclaration(DefinableDeclaration& declaration)
+void Scope::setDeclaration(DefinableDeclaration& declaration)
 {
     myDeclaration = &declaration;
     myParent = &myDeclaration->scope();
 }
 
-Lookup DeclarationScope::findOverload(Context& ctx, SymbolReference const& sym) const
+Lookup Scope::findOverload(Context& ctx, SymbolReference const& sym) const
 {
     Lookup hit(sym);
     auto symSpace = findSymbolSpace(sym.name());
@@ -227,19 +227,19 @@ Lookup DeclarationScope::findOverload(Context& ctx, SymbolReference const& sym) 
     return hit;
 }
 
-void DeclarationScope::append(Box<Declaration> declaration)
+void Scope::append(Box<Declaration> declaration)
 {
     myDeclarations.emplace_back(std::move(declaration));
     myDeclarations.back()->setScope(*this);
 }
 
-void DeclarationScope::append(Box<DeclarationScope> definition)
+void Scope::append(Box<Scope> definition)
 {
     myDefinitions.emplace_back(std::move(definition));
     myDefinitions.back()->myParent = this;
 }
 
-void DeclarationScope::appendLambda(Box<ProcedureDeclaration> proc,
+void Scope::appendLambda(Box<ProcedureDeclaration> proc,
                                     Box<ProcedureScope> defn)
 {
     myLambdas.emplace_back(std::move(proc));
@@ -247,12 +247,12 @@ void DeclarationScope::appendLambda(Box<ProcedureDeclaration> proc,
     append(std::move(defn));
 }
 
-void DeclarationScope::import(Module& module)
+void Scope::import(Module& module)
 {
     append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, std::string(module.name()), lexer::SourceLocation()))));
 }
 
-void DeclarationScope::merge(DeclarationScope& rhs)
+void Scope::merge(Scope& rhs)
 {
     myDeclarations.reserve(myDeclarations.size() + rhs.myDeclarations.size());
     for ( auto& e : rhs.myDeclarations ) {
@@ -263,7 +263,7 @@ void DeclarationScope::merge(DeclarationScope& rhs)
     rhs.myDeclarations.clear();
 }
 
-SymbolSpace* DeclarationScope::createSymbolSpace(Diagnostics&, std::string_view name)
+SymbolSpace* Scope::createSymbolSpace(Diagnostics&, std::string_view name)
 {
     auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
     auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
@@ -274,7 +274,7 @@ SymbolSpace* DeclarationScope::createSymbolSpace(Diagnostics&, std::string_view 
     return &*l;
 }
 
-bool DeclarationScope::addSymbol(Diagnostics& dgn,
+bool Scope::addSymbol(Diagnostics& dgn,
                                  Symbol const& sym,
                                  Declaration& decl)
 {
@@ -303,7 +303,7 @@ bool DeclarationScope::addSymbol(Diagnostics& dgn,
     return true;
 }
 
-SymbolSpace* DeclarationScope::findSymbolSpace(std::string_view name) const
+SymbolSpace* Scope::findSymbolSpace(std::string_view name) const
 {
     auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
     auto symSet = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
@@ -313,47 +313,47 @@ SymbolSpace* DeclarationScope::findSymbolSpace(std::string_view name) const
     return nullptr;
 }
 
-Module& DeclarationScope::module()
+Module& Scope::module()
 {
     return *myModule;
 }
 
-Module const& DeclarationScope::module() const
+Module const& Scope::module() const
 {
     return *myModule;
 }
 
-DefinableDeclaration* DeclarationScope::declaration()
+DefinableDeclaration* Scope::declaration()
 {
     return myDeclaration;
 }
 
-DefinableDeclaration const* DeclarationScope::declaration() const
+DefinableDeclaration const* Scope::declaration() const
 {
     return myDeclaration;
 }
 
-DeclarationScope* DeclarationScope::parent()
+Scope* Scope::parent()
 {
     return myParent;
 }
 
-DeclarationScope const* DeclarationScope::parent() const
+Scope const* Scope::parent() const
 {
     return myParent;
 }
 
-Slice<Declaration const*> DeclarationScope::childDeclarations() const
+Slice<Declaration const*> Scope::childDeclarations() const
 {
     return myDeclarations;
 }
 
-Slice<DeclarationScope const*> DeclarationScope::childDefinitions() const
+Slice<Scope const*> Scope::childDefinitions() const
 {
     return myDefinitions;
 }
 
-Slice<ProcedureDeclaration const*> DeclarationScope::childLambdas() const
+Slice<ProcedureDeclaration const*> Scope::childLambdas() const
 {
     return myLambdas;
 }
@@ -361,15 +361,15 @@ Slice<ProcedureDeclaration const*> DeclarationScope::childLambdas() const
 //
 // DataSumScope
 
-DataSumScope::DataSumScope(DeclarationScope& parent,
+DataSumScope::DataSumScope(Scope& parent,
                            DataSumDeclaration& declaration)
-    : DeclarationScope(Kind::DataSum, &parent.module(), &parent)
+    : Scope(Kind::DataSum, &parent.module(), &parent)
 {
     declaration.define(*this);
 }
 
 DataSumScope::DataSumScope(DataSumScope const& rhs)
-    : DeclarationScope(rhs)
+    : Scope(rhs)
 {
 }
 
@@ -383,17 +383,17 @@ DataSumScope::~DataSumScope() = default;
 
 void DataSumScope::swap(DataSumScope& rhs) noexcept
 {
-    DeclarationScope::swap(rhs);
+    Scope::swap(rhs);
 }
 
 void DataSumScope::io(IStream& stream) const
 {
-    DeclarationScope::io(stream);
+    Scope::io(stream);
 }
 
-IMPL_CLONE_BEGIN(DataSumScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_BEGIN(DataSumScope, Scope, Scope)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataSumScope, DeclarationScope)
+IMPL_CLONE_REMAP_BEGIN(DataSumScope, Scope)
 IMPL_CLONE_REMAP_END
 
 SymRes DataSumScope::resolveDeclarations(Context& ctx)
@@ -406,12 +406,12 @@ SymRes DataSumScope::resolveDeclarations(Context& ctx)
         myCtors.push_back(dsCtor);
     }
 
-    return DeclarationScope::resolveDeclarations(ctx);
+    return Scope::resolveDeclarations(ctx);
 }
 
 SymRes DataSumScope::resolveDefinitions(Context& ctx)
 {
-    return DeclarationScope::resolveDefinitions(ctx);
+    return Scope::resolveDefinitions(ctx);
 }
 
 DataSumDeclaration* DataSumScope::declaration()
@@ -432,15 +432,15 @@ Slice<DataSumDeclaration::Constructor const*> DataSumScope::constructors() const
 //
 // DataProductScope
 
-DataProductScope::DataProductScope(DeclarationScope& parent,
+DataProductScope::DataProductScope(Scope& parent,
                                    DataProductDeclaration& declaration)
-    : DeclarationScope(Kind::DataProduct, &parent.module(), &parent)
+    : Scope(Kind::DataProduct, &parent.module(), &parent)
 {
     declaration.define(*this);
 }
 
 DataProductScope::DataProductScope(DataProductScope const& rhs)
-    : DeclarationScope(rhs)
+    : Scope(rhs)
 {
     // myFields is populated by the semantic pass
 }
@@ -455,19 +455,19 @@ DataProductScope::~DataProductScope() = default;
 
 void DataProductScope::swap(DataProductScope& rhs) noexcept
 {
-    DeclarationScope::swap(rhs);
+    Scope::swap(rhs);
     using kyfoo::swap;
     swap(myFields, rhs.myFields);
 }
 
 void DataProductScope::io(IStream& stream) const
 {
-    DeclarationScope::io(stream);
+    Scope::io(stream);
 }
 
-IMPL_CLONE_BEGIN(DataProductScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_BEGIN(DataProductScope, Scope, Scope)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataProductScope, DeclarationScope)
+IMPL_CLONE_REMAP_BEGIN(DataProductScope, Scope)
 IMPL_CLONE_REMAP_END
 
 SymRes DataProductScope::resolveDeclarations(Context& ctx)
@@ -476,12 +476,12 @@ SymRes DataProductScope::resolveDeclarations(Context& ctx)
         if ( auto v = d->as<DataProductDeclaration::Field>() )
             myFields.push_back(v);
 
-    return DeclarationScope::resolveDeclarations(ctx);
+    return Scope::resolveDeclarations(ctx);
 }
 
 SymRes DataProductScope::resolveDefinitions(Context& ctx)
 {
-    return DeclarationScope::resolveDefinitions(ctx);
+    return Scope::resolveDefinitions(ctx);
 }
 
 DataProductDeclaration* DataProductScope::declaration()
@@ -502,25 +502,25 @@ Slice<DataProductDeclaration::Field const*> DataProductScope::fields() const
 //
 // ProcedureScope
 
-ProcedureScope::ProcedureScope(DeclarationScope& parent,
+ProcedureScope::ProcedureScope(Scope& parent,
                                ProcedureDeclaration& declaration)
     : ProcedureScope(parent, declaration, nullptr)
 {
 }
 
-ProcedureScope::ProcedureScope(DeclarationScope& parent,
+ProcedureScope::ProcedureScope(Scope& parent,
                                ProcedureDeclaration& declaration,
                                BasicBlock* mergeBlock)
     : ProcedureScope(parent, declaration, mergeBlock, lexer::Token(), lexer::Token())
 {
 }
 
-ProcedureScope::ProcedureScope(DeclarationScope& parent,
+ProcedureScope::ProcedureScope(Scope& parent,
                                ProcedureDeclaration& declaration,
                                BasicBlock* mergeBlock,
                                lexer::Token const& openToken,
                                lexer::Token const& label)
-    : DeclarationScope(Kind::Procedure, &parent.module(), &parent)
+    : Scope(Kind::Procedure, &parent.module(), &parent)
     , myMergeBlock(mergeBlock)
     , myOpenToken(openToken)
     , myLabel(label)
@@ -533,7 +533,7 @@ ProcedureScope::ProcedureScope(ProcedureScope& parent,
                                BasicBlock* mergeBlock,
                                lexer::Token const& openToken,
                                lexer::Token const& label)
-    : DeclarationScope(Kind::Procedure, &parent.module(), &parent)
+    : Scope(Kind::Procedure, &parent.module(), &parent)
     , myMergeBlock(mergeBlock)
     , myOpenToken(openToken)
     , myLabel(label)
@@ -543,7 +543,7 @@ ProcedureScope::ProcedureScope(ProcedureScope& parent,
 }
 
 ProcedureScope::ProcedureScope(ProcedureScope const& rhs)
-    : DeclarationScope(rhs)
+    : Scope(rhs)
     , myMergeBlock(rhs.myMergeBlock)
     , myOpenToken(rhs.myOpenToken)
     , myLabel(rhs.myLabel)
@@ -560,7 +560,7 @@ ProcedureScope::~ProcedureScope() = default;
 
 void ProcedureScope::swap(ProcedureScope& rhs) noexcept
 {
-    DeclarationScope::swap(rhs);
+    Scope::swap(rhs);
     using kyfoo::swap;
     swap(myMergeBlock, rhs.myMergeBlock);
     swap(myOpenToken, rhs.myOpenToken);
@@ -571,7 +571,7 @@ void ProcedureScope::swap(ProcedureScope& rhs) noexcept
 
 void ProcedureScope::io(IStream& stream) const
 {
-    DeclarationScope::io(stream);
+    Scope::io(stream);
     if ( myLabel.kind() != lexer::TokenKind::Undefined )
         stream.next("name", myLabel.lexeme());
 
@@ -584,11 +584,11 @@ void ProcedureScope::io(IStream& stream) const
         s->io(stream);
 }
 
-IMPL_CLONE_BEGIN(ProcedureScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_BEGIN(ProcedureScope, Scope, Scope)
 IMPL_CLONE_CHILD(myBasicBlocks)
 IMPL_CLONE_CHILD(myChildScopes)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ProcedureScope, DeclarationScope)
+IMPL_CLONE_REMAP_BEGIN(ProcedureScope, Scope)
 IMPL_CLONE_REMAP(myMergeBlock)
 IMPL_CLONE_REMAP(myBasicBlocks)
 IMPL_CLONE_REMAP(myChildScopes)
@@ -596,12 +596,12 @@ IMPL_CLONE_REMAP_END
 
 SymRes ProcedureScope::resolveDeclarations(Context& ctx)
 {
-    return DeclarationScope::resolveDeclarations(ctx);
+    return Scope::resolveDeclarations(ctx);
 }
 
 SymRes ProcedureScope::resolveDefinitions(Context& ctx)
 {
-    auto ret = DeclarationScope::resolveDefinitions(ctx);
+    auto ret = Scope::resolveDefinitions(ctx);
 
     for ( auto& bb : myBasicBlocks )
         ret |= bb->resolveSymbols(ctx);
@@ -947,15 +947,15 @@ SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
 //
 // TemplateScope
 
-TemplateScope::TemplateScope(DeclarationScope& parent,
+TemplateScope::TemplateScope(Scope& parent,
                              TemplateDeclaration& declaration)
-    : DeclarationScope(Kind::Template, &parent.module(), &parent)
+    : Scope(Kind::Template, &parent.module(), &parent)
 {
     declaration.define(*this);
 }
 
 TemplateScope::TemplateScope(TemplateScope const& rhs)
-    : DeclarationScope(rhs)
+    : Scope(rhs)
 {
 }
 
@@ -969,27 +969,27 @@ TemplateScope::~TemplateScope() = default;
 
 void TemplateScope::swap(TemplateScope& rhs) noexcept
 {
-    DeclarationScope::swap(rhs);
+    Scope::swap(rhs);
 }
 
 void TemplateScope::io(IStream& stream) const
 {
-    DeclarationScope::io(stream);
+    Scope::io(stream);
 }
 
-IMPL_CLONE_BEGIN(TemplateScope, DeclarationScope, DeclarationScope)
+IMPL_CLONE_BEGIN(TemplateScope, Scope, Scope)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(TemplateScope, DeclarationScope)
+IMPL_CLONE_REMAP_BEGIN(TemplateScope, Scope)
 IMPL_CLONE_REMAP_END
 
 SymRes TemplateScope::resolveDeclarations(Context& ctx)
 {
-    return DeclarationScope::resolveDeclarations(ctx);
+    return Scope::resolveDeclarations(ctx);
 }
 
 SymRes TemplateScope::resolveDefinitions(Context& ctx)
 {
-    return DeclarationScope::resolveDefinitions(ctx);
+    return Scope::resolveDefinitions(ctx);
 }
 
 TemplateDeclaration* TemplateScope::declaration()

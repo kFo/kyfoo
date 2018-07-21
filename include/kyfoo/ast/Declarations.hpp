@@ -40,7 +40,7 @@ enum class DeclKind
 
 const char* to_string(DeclKind kind);
 
-class DeclarationScope;
+class Scope;
 class DataSumScope;
 class DataProductScope;
 class Module;
@@ -57,7 +57,7 @@ public:
 protected:
     Declaration(DeclKind kind,
                 Symbol&& symbol,
-                DeclarationScope* scope);
+                Scope* scope);
 
     Declaration(Declaration const& rhs);
     void operator = (Declaration const&) = delete;
@@ -95,9 +95,9 @@ public:
     template <typename T> T const* as() const = delete;
 
 public:
-    DeclarationScope& scope();
-    DeclarationScope const& scope() const;
-    void setScope(DeclarationScope& parent);
+    Scope& scope();
+    Scope const& scope() const;
+    void setScope(Scope& parent);
 
     void setAttributes(std::vector<Box<Expression>>&& exprs);
     Slice<Statement const> attributes() const;
@@ -111,7 +111,7 @@ public:
 protected:
     DeclKind myKind;
     Box<Symbol> mySymbol;
-    DeclarationScope* myScope = nullptr;
+    Scope* myScope = nullptr;
     std::vector<Statement> myAttributes;
     mutable Box<codegen::CustomData> myCodeGenData;
 };
@@ -141,11 +141,11 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
-    DeclarationScope* definition();
-    DeclarationScope const* definition() const;
+    Scope* definition();
+    Scope const* definition() const;
 
 protected:
-    DeclarationScope* myDefinition = nullptr;
+    Scope* myDefinition = nullptr;
 };
 
 template <typename T>
@@ -249,12 +249,12 @@ class Binder : public Declaration
 protected:
     Binder(DeclKind kind,
            Symbol&& symbol,
-           DeclarationScope* scope,
+           Scope* scope,
            std::vector<Box<Expression>> constraints);
 
     Binder(DeclKind kind,
            Symbol&& symbol,
-           DeclarationScope* scope,
+           Scope* scope,
            Expression const* type);
 
     Binder(Binder const& rhs);
@@ -564,11 +564,11 @@ class SymbolVariable : public Declaration
 {
 public:
     SymbolVariable(IdentifierExpression const& id,
-                   DeclarationScope* scope,
+                   Scope* scope,
                    PatternsPrototype& prototype,
                    Expression const* bindExpr);
     SymbolVariable(IdentifierExpression const& id,
-                   DeclarationScope* scope,
+                   Scope* scope,
                    PatternsPrototype& prototype);
 
 protected:
@@ -662,9 +662,9 @@ bool isDtor(ProcedureDeclaration const& proc);
 bool isDefinableDeclaration(DeclKind kind);
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl);
 DefinableDeclaration* getDefinableDeclaration(Declaration& decl);
-DeclarationScope const* getDefinition(Declaration const& decl);
-DeclarationScope* getDefinition(Declaration& decl);
-void define(Declaration& decl, DeclarationScope& defn);
+Scope const* getDefinition(Declaration const& decl);
+Scope* getDefinition(Declaration& decl);
+void define(Declaration& decl, Scope& defn);
 
 std::ostream& print(std::ostream& stream, Declaration const& decl);
 

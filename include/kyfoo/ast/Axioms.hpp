@@ -197,7 +197,7 @@ public:
 
 private:
     void setIntrinsic(std::string_view name, Declaration const* decl);
-    void findIntrinsics(DeclarationScope const* s);
+    void findIntrinsics(Scope const* s);
 
     DataSumDeclaration const* myDataSumDecls[DataSumIntrinsicsCount];
     DataProductDeclaration const* myDataProductDecls[DataProductIntrinsicsCount];

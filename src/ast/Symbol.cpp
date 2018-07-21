@@ -82,13 +82,13 @@ IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-void PatternsPrototype::resolveVariables(DeclarationScope const& scope)
+void PatternsPrototype::resolveVariables(Scope const& scope)
 {
     if ( myVariables.empty() ) {
         for ( auto const& param : myPattern ) {
             auto fv = gatherMetaVariables(*param);
             for ( auto& p : fv ) {
-                myVariables.push_back(mk<SymbolVariable>(*p, const_cast<DeclarationScope*>(&scope), *this));
+                myVariables.push_back(mk<SymbolVariable>(*p, const_cast<Scope*>(&scope), *this));
                 p->setDeclaration(*myVariables.back());
             }
         }

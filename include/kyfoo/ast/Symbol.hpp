@@ -20,7 +20,7 @@ namespace kyfoo {
 
 class Context;
 class Declaration;
-class DeclarationScope;
+class Scope;
 class Resolver;
 class Expression;
 class Module;
@@ -66,7 +66,7 @@ public:
     DECL_CLONE_ALL_NOBASE(PatternsPrototype)
 
 public:
-    void resolveVariables(DeclarationScope const& scope);
+    void resolveVariables(Scope const& scope);
     SymRes resolveSymbols(Context& ctx);
 
 public:

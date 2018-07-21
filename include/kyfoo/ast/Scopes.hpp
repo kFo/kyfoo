@@ -25,13 +25,13 @@ class ProcedureDeclaration;
 class Module;
 
 #define SCOPE_KINDS(X)               \
-    X(Declaration, DeclarationScope) \
+    X(Base       , Scope           ) \
     X(Procedure  , ProcedureScope  ) \
     X(DataSum    , DataSumScope    ) \
     X(DataProduct, DataProductScope) \
     X(Template   , TemplateScope   )
 
-class DeclarationScope : public INode
+class Scope : public INode
 {
 public:
     enum class Kind
@@ -48,32 +48,32 @@ public:
     friend class Resolver;
 
 protected:
-    DeclarationScope(Kind kind,
+    Scope(Kind kind,
                      Module* module,
-                     DeclarationScope* parent);
+                     Scope* parent);
 public:
-    explicit DeclarationScope(Module& module);
-    explicit DeclarationScope(DeclarationScope* parent);
+    explicit Scope(Module& module);
+    explicit Scope(Scope* parent);
 
 protected:
-    DeclarationScope(DeclarationScope const& rhs);
-    DeclarationScope& operator = (DeclarationScope const& rhs);
+    Scope(Scope const& rhs);
+    Scope& operator = (Scope const& rhs);
 
 public:
-    DeclarationScope(DeclarationScope&&) = delete;
-    void operator = (DeclarationScope&&) = delete;
+    Scope(Scope&&) = delete;
+    void operator = (Scope&&) = delete;
 
-    ~DeclarationScope();
+    ~Scope();
 
-    void swap(DeclarationScope& rhs) noexcept;
+    void swap(Scope& rhs) noexcept;
 
     // IIO
 public:
     void io(IStream& stream) const override;
 
 public:
-    virtual DeclarationScope* clone(clone_map_t& map) const;
-    virtual void cloneChildren(DeclarationScope& c, clone_map_t& map) const;
+    virtual Scope* clone(clone_map_t& map) const;
+    virtual void cloneChildren(Scope& c, clone_map_t& map) const;
     virtual void remapReferences(clone_map_t const& map);
 
 protected:
@@ -85,11 +85,11 @@ protected:
 
 public:
     void append(Box<Declaration> declaration);
-    void append(Box<DeclarationScope> definition);
+    void append(Box<Scope> definition);
     void appendLambda(Box<ProcedureDeclaration> proc,
                       Box<ProcedureScope> defn);
     void import(Module& module);
-    void merge(DeclarationScope& rhs);
+    void merge(Scope& rhs);
 
     Lookup findEquivalent(SymbolReference const& symbol) const;
 
@@ -112,33 +112,33 @@ public:
     DefinableDeclaration* declaration();
     DefinableDeclaration const* declaration() const;
 
-    DeclarationScope* parent();
-    DeclarationScope const* parent() const;
+    Scope* parent();
+    Scope const* parent() const;
 
     Slice<Declaration const*> childDeclarations() const;
-    Slice<DeclarationScope const*> childDefinitions() const;
+    Slice<Scope const*> childDefinitions() const;
     Slice<ProcedureDeclaration const*> childLambdas() const;
 
     template <typename T> T* as();
     template <typename T> T const* as() const;
 
 protected:
-    Kind myKind = Kind::Declaration;
+    Kind myKind = Kind::Base;
     Module* myModule = nullptr;
     DefinableDeclaration* myDeclaration = nullptr;
-    DeclarationScope* myParent = nullptr;
+    Scope* myParent = nullptr;
     std::vector<Box<Declaration>> myDeclarations;
-    std::vector<Box<DeclarationScope>> myDefinitions;
+    std::vector<Box<Scope>> myDefinitions;
     std::vector<Box<ProcedureDeclaration>> myLambdas;
 
     mutable std::vector<SymbolSpace> mySymbols;
     mutable std::map<std::string, ImportDeclaration*> myImports;
 };
 
-class DataSumScope : public DeclarationScope
+class DataSumScope : public Scope
 {
 public:
-    DataSumScope(DeclarationScope& parent,
+    DataSumScope(Scope& parent,
                  DataSumDeclaration& declaration);
 
 protected:
@@ -158,7 +158,7 @@ public:
 
     // DeclarationScope
 public:
-    DECL_CLONE_ALL(DeclarationScope)
+    DECL_CLONE_ALL(Scope)
 
 protected:
     SymRes resolveDeclarations(Context& ctx) override;
@@ -174,10 +174,10 @@ private:
     std::vector<DataSumDeclaration::Constructor*> myCtors;
 };
 
-class DataProductScope : public DeclarationScope
+class DataProductScope : public Scope
 {
 public:
-    DataProductScope(DeclarationScope& parent,
+    DataProductScope(Scope& parent,
                      DataProductDeclaration& declaration);
 
 protected:
@@ -197,7 +197,7 @@ public:
 
     // DeclarationScope
 public:
-    DECL_CLONE_ALL(DeclarationScope)
+    DECL_CLONE_ALL(Scope)
 
 protected:
     SymRes resolveDeclarations(Context& ctx) override;
@@ -213,20 +213,20 @@ private:
     std::vector<DataProductDeclaration::Field*> myFields;
 };
 
-class ProcedureScope : public DeclarationScope
+class ProcedureScope : public Scope
 {
 public:
     using declaration_t = ProcedureDeclaration;
 
 public:
-    ProcedureScope(DeclarationScope& parent,
+    ProcedureScope(Scope& parent,
                    ProcedureDeclaration& declaration);
-    ProcedureScope(DeclarationScope& parent,
+    ProcedureScope(Scope& parent,
                    ProcedureDeclaration& declaration,
                    BasicBlock* mergeBlock);
 
 protected:
-    ProcedureScope(DeclarationScope& parent,
+    ProcedureScope(Scope& parent,
                    ProcedureDeclaration& declaration,
                    BasicBlock* mergeBlock,
                    lexer::Token const& openToken,
@@ -253,7 +253,7 @@ public:
 
     // DeclarationScope
 public:
-    DECL_CLONE_ALL(DeclarationScope)
+    DECL_CLONE_ALL(Scope)
 
 protected:
     SymRes resolveDeclarations(Context& ctx) override;
@@ -301,10 +301,10 @@ private:
     mutable std::vector<Extent> myExtents;
 };
 
-class TemplateScope : public DeclarationScope
+class TemplateScope : public Scope
 {
 public:
-    TemplateScope(DeclarationScope& parent,
+    TemplateScope(Scope& parent,
                   TemplateDeclaration& declaration);
 
 protected:
@@ -324,7 +324,7 @@ public:
 
     // DeclarationScope
 public:
-    DECL_CLONE_ALL(DeclarationScope)
+    DECL_CLONE_ALL(Scope)
 
 protected:
     SymRes resolveDeclarations(Context& ctx);
@@ -334,11 +334,11 @@ public:
     TemplateDeclaration* declaration();
 };
 
-#define X(a, b) template <> inline b* DeclarationScope::as<b>() { return myKind == DeclarationScope::Kind::a ? static_cast<b*>(this) : nullptr; }
+#define X(a, b) template <> inline b* Scope::as<b>() { return myKind == Scope::Kind::a ? static_cast<b*>(this) : nullptr; }
 SCOPE_KINDS(X)
 #undef X
 
-#define X(a, b) template <> inline b const* DeclarationScope::as<b>() const { return myKind == DeclarationScope::Kind::a ? static_cast<b const*>(this) : nullptr; }
+#define X(a, b) template <> inline b const* Scope::as<b>() const { return myKind == Scope::Kind::a ? static_cast<b const*>(this) : nullptr; }
 SCOPE_KINDS(X)
 #undef X
 

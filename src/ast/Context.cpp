@@ -13,14 +13,14 @@ namespace kyfoo::ast {
 //
 // Resolver
 
-Resolver::Resolver(DeclarationScope& scope, Options opts)
+Resolver::Resolver(Scope& scope, Options opts)
     : myScope(&scope)
     , myOptions(opts)
 {
 }
 
-Resolver::Resolver(DeclarationScope const& scope, Options opts)
-    : myScope(const_cast<DeclarationScope*>(&scope))
+Resolver::Resolver(Scope const& scope, Options opts)
+    : myScope(const_cast<Scope*>(&scope))
     , myOptions(opts)
 {
 }
@@ -47,12 +47,12 @@ void Resolver::swap(Resolver& rhs) noexcept
     swap(mySupplementaryPrototypes, rhs.mySupplementaryPrototypes);
 }
 
-DeclarationScope const& Resolver::scope() const
+Scope const& Resolver::scope() const
 {
     return *myScope;
 }
 
-DeclarationScope& Resolver::scope()
+Scope& Resolver::scope()
 {
     return *myScope;
 }
@@ -222,7 +222,7 @@ uz Context::errorCount() const
     return myDiagnostics->errorCount();
 }
 
-Lookup Context::matchOverload(DeclarationScope const& scope,
+Lookup Context::matchOverload(Scope const& scope,
                               Resolver::Options options,
                               SymbolReference const& sym)
 {
@@ -236,7 +236,7 @@ Lookup Context::matchOverload(SymbolReference const& sym)
     return trackForModule(myResolver->matchOverload(*this, sym));
 }
 
-Lookup Context::matchOverloadUsingImplicitConversions(DeclarationScope const& scope,
+Lookup Context::matchOverloadUsingImplicitConversions(Scope const& scope,
                                                       Resolver::Options options,
                                                       std::string_view name,
                                                       Slice<Box<Expression>> args)
@@ -309,7 +309,7 @@ SymRes Context::resolveDeclaration(Declaration& declaration)
     return declaration.resolveSymbols(*this);
 }
 
-SymRes Context::resolveScopeDeclarations(DeclarationScope& scope)
+SymRes Context::resolveScopeDeclarations(Scope& scope)
 {
     Resolver resolver(scope);
     REVERT = pushResolver(resolver);
@@ -320,7 +320,7 @@ SymRes Context::resolveScopeDeclarations(DeclarationScope& scope)
     return ret;
 }
 
-SymRes Context::resolveScopeDefinitions(DeclarationScope& scope)
+SymRes Context::resolveScopeDefinitions(Scope& scope)
 {
     Resolver resolver(scope);
     REVERT = pushResolver(resolver);
@@ -335,14 +335,14 @@ SymRes Context::resolveScopeDefinitions(DeclarationScope& scope)
     return ret;
 }
 
-SymRes Context::resolveScope(DeclarationScope& scope)
+SymRes Context::resolveScope(Scope& scope)
 {
     Resolver resolver(scope);
     REVERT = pushResolver(resolver);
     return scope.resolveSymbols(*this);
 }
 
-SymRes Context::resolveScopeAttributes(DeclarationScope& scope)
+SymRes Context::resolveScopeAttributes(Scope& scope)
 {
     Resolver resolver(scope);
     REVERT = pushResolver(resolver);
@@ -458,12 +458,12 @@ bool Context::isTopLevel() const
     return myExpressionDepth == 0;
 }
 
-void Context::appendInstantiatedDefinition(DeclarationScope& defn)
+void Context::appendInstantiatedDefinition(Scope& defn)
 {
     myInstantiatedDefinitions.push_back(&defn);
 }
 
-std::vector<DeclarationScope*>&& Context::takeInstantiatedDefinitions()
+std::vector<Scope*>&& Context::takeInstantiatedDefinitions()
 {
     return std::move(myInstantiatedDefinitions);
 }

@@ -31,7 +31,7 @@ const char* to_string(DeclKind kind)
 
 Declaration::Declaration(DeclKind kind,
                          Symbol&& symbol,
-                         DeclarationScope* scope)
+                         Scope* scope)
     : myScope(scope)
     , myKind(kind)
     , mySymbol(mk<Symbol>(std::move(symbol)))
@@ -103,17 +103,17 @@ lexer::Token const& Declaration::token() const
     return mySymbol->token();
 }
 
-DeclarationScope& Declaration::scope()
+Scope& Declaration::scope()
 {
     return *myScope;
 }
 
-DeclarationScope const& Declaration::scope() const
+Scope const& Declaration::scope() const
 {
     return *myScope;
 }
 
-void Declaration::setScope(DeclarationScope& scope)
+void Declaration::setScope(Scope& scope)
 {
     if ( myScope && myScope != &scope ) {
         if ( myScope->declaration()->kind() != DeclKind::Template )
@@ -203,12 +203,12 @@ SymRes DefinableDeclaration::resolveSymbols(Context& ctx)
     return Declaration::resolveSymbols(ctx);
 }
 
-DeclarationScope* DefinableDeclaration::definition()
+Scope* DefinableDeclaration::definition()
 {
     return myDefinition;
 }
 
-DeclarationScope const* DefinableDeclaration::definition() const
+Scope const* DefinableDeclaration::definition() const
 {
     return myDefinition;
 }
@@ -331,7 +331,7 @@ DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
 
 Binder::Binder(DeclKind kind,
                Symbol&& symbol,
-               DeclarationScope* scope,
+               Scope* scope,
                std::vector<Box<Expression>> constraints)
     : Declaration(kind, std::move(symbol), scope)
     , myConstraints(std::move(constraints))
@@ -340,7 +340,7 @@ Binder::Binder(DeclKind kind,
 
 Binder::Binder(DeclKind kind,
                Symbol&& symbol,
-               DeclarationScope* scope,
+               Scope* scope,
                Expression const* type)
     : Declaration(kind, std::move(symbol), scope)
     , myType(type)
@@ -985,7 +985,7 @@ SymRes ImportDeclaration::resolveSymbols(Context& ctx)
 // SymbolVariable
 
 SymbolVariable::SymbolVariable(IdentifierExpression const& id,
-                               DeclarationScope* scope,
+                               Scope* scope,
                                PatternsPrototype& prototype,
                                Expression const* bindExpr)
     : Declaration(DeclKind::SymbolVariable, Symbol(id.token()), scope)
@@ -997,7 +997,7 @@ SymbolVariable::SymbolVariable(IdentifierExpression const& id,
 }
 
 SymbolVariable::SymbolVariable(IdentifierExpression const& id,
-                               DeclarationScope* scope,
+                               Scope* scope,
                                PatternsPrototype& prototype)
     : SymbolVariable(id, scope, prototype, nullptr)
 {
@@ -1281,12 +1281,12 @@ DefinableDeclaration* getDefinableDeclaration(Declaration& decl)
     return static_cast<DefinableDeclaration*>(&decl);
 }
 
-DeclarationScope const* getDefinition(Declaration const& decl)
+Scope const* getDefinition(Declaration const& decl)
 {
     return getDefinition(const_cast<Declaration&>(decl));
 }
 
-DeclarationScope* getDefinition(Declaration& decl)
+Scope* getDefinition(Declaration& decl)
 {
     if ( auto d = getDefinableDeclaration(decl) )
         return d->definition();
@@ -1294,7 +1294,7 @@ DeclarationScope* getDefinition(Declaration& decl)
     return nullptr;
 }
 
-void define(Declaration& decl, DeclarationScope& defn)
+void define(Declaration& decl, Scope& defn)
 {
     if ( auto ds = decl.as<DataSumDeclaration>() )
         if ( auto dsDefn = defn.as<DataSumScope>() )

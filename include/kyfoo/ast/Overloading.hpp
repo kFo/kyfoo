@@ -180,13 +180,13 @@ struct Prototype {
     std::vector<PatternsDecl> instances;
 
     std::vector<Box<Declaration>> ownDeclarations;
-    std::vector<Box<DeclarationScope>> ownDefinitions;
+    std::vector<Box<Scope>> ownDefinitions;
 };
 
 class SymbolSpace
 {
 public:
-    SymbolSpace(DeclarationScope* scope, std::string name);
+    SymbolSpace(Scope* scope, std::string name);
 
     SymbolSpace(SymbolSpace const& rhs) = delete;
     SymbolSpace& operator = (SymbolSpace const& rhs) = delete;
@@ -211,7 +211,7 @@ public:
     ViableSet findViableOverloads(Context& ctx, Slice<Expression const*> paramlist);
 
 private:
-    DeclarationScope* myScope = nullptr;
+    Scope* myScope = nullptr;
     std::string myName;
     std::vector<Prototype> myPrototypes;
 };

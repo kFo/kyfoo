@@ -323,7 +323,7 @@ void ViableSet::clear()
 //
 // SymbolSpace
 
-SymbolSpace::SymbolSpace(DeclarationScope* scope, std::string name)
+SymbolSpace::SymbolSpace(Scope* scope, std::string name)
     : myScope(scope)
     , myName(std::move(name))
 {

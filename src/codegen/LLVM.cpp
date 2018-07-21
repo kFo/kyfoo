@@ -1501,7 +1501,7 @@ struct LLVMGenerator::LLVMState
         return nullptr;
     }
 
-    void registerTypes(ast::Module const& m, ast::DeclarationScope const& scope)
+    void registerTypes(ast::Module const& m, ast::Scope const& scope)
     {
         for ( auto d : scope.childDeclarations() )
             registerTypes(m, *d);

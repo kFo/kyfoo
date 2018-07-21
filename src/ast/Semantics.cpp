@@ -648,7 +648,7 @@ bool isReference(Expression const& expr)
     return false;
 }
 
-DeclarationScope const* memberScope(Declaration const& decl_)
+Scope const* memberScope(Declaration const& decl_)
 {
     auto decl = resolveIndirections(decl_);
     if ( auto b = getBinder(*decl) ) {

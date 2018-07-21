@@ -240,7 +240,7 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
                            std::string name)
     : Module(moduleSet, std::move(name))
 {
-    myScope = mk<ast::DeclarationScope>(*this);
+    myScope = mk<ast::Scope>(*this);
 
     myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , lexer::SourceLocation()))));
     myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", lexer::SourceLocation()))));
@@ -380,7 +380,7 @@ void AxiomsModule::setIntrinsic(std::string_view nameLiteral, Declaration const*
     throw std::runtime_error("unknown intrinsic");
 }
 
-void AxiomsModule::findIntrinsics(DeclarationScope const* s)
+void AxiomsModule::findIntrinsics(Scope const* s)
 {
     for ( auto d : s->childDeclarations() ) {
         for ( auto const& attr : d->attributes() ) {

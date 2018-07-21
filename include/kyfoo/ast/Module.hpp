@@ -21,7 +21,7 @@ namespace kyfoo {
 
 class AxiomsModule;
 class Declaration;
-class DeclarationScope;
+class Scope;
 class Module;
 
 class ModuleSet
@@ -98,8 +98,8 @@ public:
     Slice<Module*> imports();
     Slice<Module*> imports() const;
 
-    DeclarationScope* scope();
-    DeclarationScope const* scope() const;
+    Scope* scope();
+    Scope const* scope() const;
 
     bool imports(Module* module) const;
     bool parsed() const;
@@ -114,7 +114,7 @@ protected:
     ModuleSet* myModuleSet = nullptr;
     std::filesystem::path myPath;
     std::string myName;
-    Box<DeclarationScope> myScope;
+    Box<Scope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;
 
     mutable std::vector<Module*> myImports;

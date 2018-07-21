@@ -91,7 +91,7 @@ Error& Error::see(ast::Declaration const& declaration)
     return *this;
 }
 
-Error& Error::see(ast::DeclarationScope const& scope,
+Error& Error::see(ast::Scope const& scope,
                   ast::Expression const& expression)
 {
     myReferences.emplace_back(ContextReference::ExpressionContextBase::Value, scope, expression);
@@ -104,7 +104,7 @@ Error& Error::see(ast::Lookup&& miss)
     return *this;
 }
 
-Error& Error::expected(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+Error& Error::expected(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
 {
     myReferences.emplace_back(ContextReference::MismatchExpected,
                               ContextReference::ExpressionContextBase::Value,
@@ -113,7 +113,7 @@ Error& Error::expected(ast::DeclarationScope const& scope, Slice<ast::Expression
     return *this;
 }
 
-Error& Error::expectedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+Error& Error::expectedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
 {
     myReferences.emplace_back(ContextReference::MismatchExpected,
                               ContextReference::ExpressionContextBase::Type,
@@ -122,7 +122,7 @@ Error& Error::expectedTypes(ast::DeclarationScope const& scope, Slice<ast::Expre
     return *this;
 }
 
-Error& Error::received(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+Error& Error::received(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
 {
     myReferences.emplace_back(ContextReference::MismatchReceived,
                               ContextReference::ExpressionContextBase::Value,
@@ -131,7 +131,7 @@ Error& Error::received(ast::DeclarationScope const& scope, Slice<ast::Expression
     return *this;
 }
 
-Error& Error::receivedTypes(ast::DeclarationScope const& scope, Slice<ast::Expression const*> exprs)
+Error& Error::receivedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
 {
     myReferences.emplace_back(ContextReference::MismatchReceived,
                               ContextReference::ExpressionContextBase::Type,

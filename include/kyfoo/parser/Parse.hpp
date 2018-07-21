@@ -15,7 +15,7 @@ namespace kyfoo {
     namespace ast {
         class Module;
         class Declaration;
-        class DeclarationScope;
+        class Scope;
         class DataSumScope;
         class DataProductScope;
         class ProcedureScope;
@@ -36,7 +36,7 @@ class DeclarationScopeParser
 public:
     DeclarationScopeParser(Diagnostics& dgn,
                            lexer::Scanner& scanner,
-                           ast::DeclarationScope& scope);
+                           ast::Scope& scope);
     virtual ~DeclarationScopeParser();
 
 public:
@@ -69,13 +69,13 @@ public:
     lexer::Scanner& scanner();
     lexer::Scanner const& scanner() const;
 
-    ast::DeclarationScope& scope();
-    ast::DeclarationScope const& scope() const;
+    ast::Scope& scope();
+    ast::Scope const& scope() const;
 
 protected:
     Diagnostics* myDiagnostics = nullptr;
     lexer::Scanner* myScanner = nullptr;
-    ast::DeclarationScope* myScope = nullptr;
+    ast::Scope* myScope = nullptr;
     std::vector<Box<ast::Expression>> myAttributes;
     std::vector<Box<ast::Expression>> myParameterContext;
 };

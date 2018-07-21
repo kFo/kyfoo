@@ -208,7 +208,7 @@ void Module::parse(Diagnostics& dgn, std::istream& stream)
     lexer::Scanner scanner(stream);
 
     if ( !myScope )
-        myScope = mk<ast::DeclarationScope>(*this);
+        myScope = mk<ast::Scope>(*this);
 
     parseScope(mk<parser::DeclarationScopeParser>(dgn, scanner, *myScope));
 }
@@ -294,12 +294,12 @@ Slice<Module*> Module::imports() const
     return myImports;
 }
 
-DeclarationScope* Module::scope()
+Scope* Module::scope()
 {
     return myScope.get();
 }
 
-DeclarationScope const* Module::scope() const
+Scope const* Module::scope() const
 {
     return myScope.get();
 }

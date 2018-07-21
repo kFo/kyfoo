@@ -16,7 +16,7 @@ namespace kyfoo {
     namespace ast {
 
 class AxiomsModule;
-class DeclarationScope;
+class Scope;
 class Statement;
 class Declaration;
 class Expression;
@@ -37,8 +37,8 @@ public:
     using options_t = Options;
 
 public:
-    explicit Resolver(DeclarationScope& scope, Options opts = None);
-    explicit Resolver(DeclarationScope const& scope, Options opts = None);
+    explicit Resolver(Scope& scope, Options opts = None);
+    explicit Resolver(Scope const& scope, Options opts = None);
 
     Resolver(Resolver&& rhs);
     Resolver& operator = (Resolver&& rhs);
@@ -49,8 +49,8 @@ public:
 
     // Resolver
 public:
-    DeclarationScope const& scope() const;
-    DeclarationScope& scope();
+    Scope const& scope() const;
+    Scope& scope();
 
     Lookup matchEquivalent(SymbolReference const& symbol) const;
     Lookup matchOverload(Context& ctx, SymbolReference const& symbol);
@@ -60,7 +60,7 @@ public:
     Lookup matchSupplementary(SymbolReference const& symbol) const;
 
 private:
-    DeclarationScope* myScope = nullptr;
+    Scope* myScope = nullptr;
     Options myOptions = None;
     std::vector<PatternsPrototype*> mySupplementaryPrototypes;
 };
@@ -102,11 +102,11 @@ public:
     Error& error(Declaration const& decl);
     uz errorCount() const;
 
-    Lookup matchOverload(DeclarationScope const& scope,
+    Lookup matchOverload(Scope const& scope,
                          Resolver::Options options,
                          SymbolReference const& sym);
     Lookup matchOverload(SymbolReference const& sym);
-    Lookup matchOverloadUsingImplicitConversions(DeclarationScope const& scope,
+    Lookup matchOverloadUsingImplicitConversions(Scope const& scope,
                                                  Resolver::Options options,
                                                  std::string_view name,
                                                  Slice<Box<Expression>> args);
@@ -121,10 +121,10 @@ public:
     SymRes rewrite(std::function<Box<Expression>(Box<Expression>&)> func);
 
     SymRes resolveDeclaration(Declaration& declaration);
-    SymRes resolveScopeDeclarations(DeclarationScope& scope);
-    SymRes resolveScopeDefinitions(DeclarationScope& scope);
-    SymRes resolveScope(DeclarationScope& scope);
-    SymRes resolveScopeAttributes(DeclarationScope& scope);
+    SymRes resolveScopeDeclarations(Scope& scope);
+    SymRes resolveScopeDefinitions(Scope& scope);
+    SymRes resolveScope(Scope& scope);
+    SymRes resolveScopeAttributes(Scope& scope);
 
     SymRes resolveExpression(Expression& expression);
     SymRes resolveExpression(Box<Expression>& expression);
@@ -139,8 +139,8 @@ public:
 
     bool isTopLevel() const;
 
-    void appendInstantiatedDefinition(DeclarationScope& defn);
-    std::vector<DeclarationScope*>&& takeInstantiatedDefinitions();
+    void appendInstantiatedDefinition(Scope& defn);
+    std::vector<Scope*>&& takeInstantiatedDefinitions();
 
 public:
     operator DiagnosticsContext();
@@ -158,7 +158,7 @@ private:
     std::function<Box<Expression>(Box<Expression>&)> myLazyRewrite;
     int myExpressionDepth = -1;
     std::vector<Declaration*> myInstantiatedDeclarations;
-    std::vector<DeclarationScope*> myInstantiatedDefinitions;
+    std::vector<Scope*> myInstantiatedDefinitions;
 };
 
 class [[nodiscard]] ResolverReverter

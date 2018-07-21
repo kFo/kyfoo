@@ -23,7 +23,7 @@ namespace kyfoo::parser {
 
 DeclarationScopeParser::DeclarationScopeParser(Diagnostics& dgn,
                                                lexer::Scanner& scanner,
-                                               ast::DeclarationScope& scope)
+                                               ast::Scope& scope)
     : myDiagnostics(&dgn)
     , myScanner(&scanner)
     , myScope(&scope)
@@ -216,12 +216,12 @@ lexer::Scanner const& DeclarationScopeParser::scanner() const
     return *myScanner;
 }
 
-ast::DeclarationScope& DeclarationScopeParser::scope()
+ast::Scope& DeclarationScopeParser::scope()
 {
     return *myScope;
 }
 
-ast::DeclarationScope const& DeclarationScopeParser::scope() const
+ast::Scope const& DeclarationScopeParser::scope() const
 {
     return *myScope;
 }
@@ -483,7 +483,7 @@ ProcedureScopeParser::parseNext()
             auto var = mk<ast::VariableDeclaration>(ast::Symbol(v.token),
                                                                   scope(),
                                                                   std::move(v.constraints));
-            static_cast<ast::DeclarationScope&>(scope()).append(std::move(var));
+            static_cast<ast::Scope&>(scope()).append(std::move(var));
             if ( v.initializer ) {
                 auto p = mk<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
                 auto expr = mk<ast::AssignExpression>(std::move(p), std::move(v.initializer));

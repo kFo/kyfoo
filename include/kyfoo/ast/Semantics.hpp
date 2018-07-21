@@ -298,7 +298,7 @@ Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 bool isReference(Declaration const& decl);
 bool isReference(Expression const& expr);
-DeclarationScope const* memberScope(Declaration const& decl);
+Scope const* memberScope(Declaration const& decl);
 TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc);
 Declaration const* outerDataDeclaration(Declaration const& decl);
 Declaration* outerDataDeclaration(Declaration& decl);
