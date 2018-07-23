@@ -657,7 +657,6 @@ Expression const* getType(Declaration const& decl);
 bool hasIndirection(DeclKind kind);
 bool hasIndirection(Expression const& expr);
 TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc);
-bool isCtor(ProcedureDeclaration const& proc);
 bool isDtor(ProcedureDeclaration const& proc);
 bool isDefinableDeclaration(DeclKind kind);
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl);

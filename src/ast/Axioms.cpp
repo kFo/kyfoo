@@ -65,7 +65,7 @@ s128 := signed<128>
     card : uz
 
     // todo: removeme
-    ctor(this : ref slice<T>, p : ptr T, c : uz) =>
+    ctor(this : ref slice<T>, p : ptr T, c : uz) -> () =>
         this.base = p
         this.card = c
         :.

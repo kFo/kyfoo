@@ -842,9 +842,9 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
     // Resolve return
     // todo: return type deduction
-    if ( isCtor(*this) || isDtor(*this) ) {
+    if ( isDtor(*this) ) {
         if ( myReturnExpression ) {
-            ctx.error(*myReturnExpression) << "ctor/dtor cannot have a return type";
+            ctx.error(*myReturnExpression) << "destructor cannot have a return type";
             return SymRes::Fail;
         }
 
@@ -1234,15 +1234,6 @@ Expression const* getType(Declaration const& decl)
 TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc)
 {
     return proc.scope().declaration()->as<TemplateDeclaration>();
-}
-
-bool isCtor(ProcedureDeclaration const& proc)
-{
-    auto templ = parentTemplate(proc);
-    if ( !templ )
-        return false;
-
-    return templ->symbol().token().lexeme() == "ctor";
 }
 
 bool isDtor(ProcedureDeclaration const& proc)
