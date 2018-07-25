@@ -432,8 +432,9 @@ Token Scanner::readNext()
         case '|': nextChar(); return TOK2(ColonPipe     , ":|");
         case '&': nextChar(); return TOK2(ColonAmpersand, ":&");
         case '=': nextChar(); return TOK2(ColonEqual    , ":=");
-        case '?': nextChar(); return TOK2(ColonQuestion , ":?");
-        case '/': nextChar(); return TOK2(ColonSlash    , ":/");
+        case '*': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return TOK2(ColonStarAngle    , ":*<"); } return TOK2(ColonStar     , ":*");
+        case '?': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return TOK2(ColonQuestionAngle, ":?<"); } return TOK2(ColonQuestion , ":?");
+        case '/': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return TOK2(ColonSlashAngle   , ":/<"); } return TOK2(ColonSlash    , ":/");
         case '+': nextChar(); return TOK2(ColonPlus     , ":+");
         case '-': nextChar(); return TOK2(ColonMinus    , ":-");
         case '.': nextChar(); return TOK2(ColonDot      , ":.");

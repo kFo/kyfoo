@@ -316,9 +316,9 @@ ProcedureScopeParser::ProcedureScopeParser(Diagnostics& dgn,
 ProcedureScopeParser::ProcedureScopeParser(Diagnostics& dgn,
                                            lexer::Scanner& scanner,
                                            ast::ProcedureScope& scope,
-                                           bool isLoop)
+                                           ast::BasicBlock* loopBlock)
     : DeclarationScopeParser(dgn, scanner, scope)
-    , myIsLoop(isLoop)
+    , myLoopBlock(loopBlock)
 {
 }
 
@@ -326,8 +326,8 @@ ProcedureScopeParser::~ProcedureScopeParser()
 {
     auto bb = scope().basicBlocks().back();
     if ( !bb->junction() ) {
-        if ( myIsLoop )
-            bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, scope().basicBlocks().front()));
+        if ( myLoopBlock )
+            bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, myLoopBlock));
         else if ( auto m = scope().mergeBlock() )
             bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, m));
     }
@@ -353,32 +353,29 @@ ProcedureScopeParser::parseNext()
             return declParse;
     }
 
-    {
-        BlockDeclaration grammar;
-        if ( parse(scanner(), grammar) ) {
-            auto bdecl = grammar.make(*this);
-            auto b = scope().basicBlocks().back();
-            auto m = scope().createBasicBlock();
-            auto s = scope().createChildScope(m, bdecl.open, bdecl.id);
+    if ( BlockDeclaration grammar; parse(scanner(), grammar) ) {
+        auto bdecl = grammar.make(*this);
+        auto b = scope().basicBlocks().back();
+        auto m = scope().createBasicBlock();
+        auto s = scope().createChildScope(m, bdecl.open, bdecl.label);
+
+        if ( bdecl.expr ) {
+            auto br = mk<ast::BranchJunction>(bdecl.open, bdecl.label, std::move(bdecl.expr));
+            br->setBranch(0, s->basicBlocks().front());
+            br->setBranch(1, m);
+            b->setJunction(std::move(br));
+        }
+        else {
             b->setJunction(mk<ast::JumpJunction>(
                 ast::JumpJunction::JumpKind::Break, s->basicBlocks().front()));
-
-            bool isLoop = false;
-            if ( bdecl.expr ) {
-                isLoop = true;
-                auto br = mk<ast::BranchJunction>(bdecl.open, std::move(bdecl.expr));
-                br->setBranch(0, s->createBasicBlock());
-                br->setBranch(1, m);
-                s->basicBlocks().front()->setJunction(std::move(br));
-            }
-
-            if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
-                scanner().next();
-                return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s, isLoop)};
-            }
-
-            return {false, nullptr};
         }
+
+        if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner().next();
+            return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
+        }
+
+        return {false, nullptr};
     }
 
     auto lastBranch = [this](ast::Junction& j) -> ast::BranchJunction* {
@@ -428,10 +425,10 @@ ProcedureScopeParser::parseNext()
         if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
             scanner().next();
             auto m = scope().basicBlocks().back();
-            auto s = scope().createChildScope(m);
+            auto s = scope().createChildScope(m, elseJunc->token(), elseJunc->label());
             br->setBranch(1, s->basicBlocks().front());
             if ( elseJunc->condition() ) {
-                auto ss = s->createChildScope(m);
+                auto ss = s->createChildScope(m, lexer::Token(), lexer::Token());
                 elseJunc->setBranch(0, ss->basicBlocks().front());
                 s->basicBlocks().front()->setJunction(std::move(elseJunc));
                 return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *ss)};
@@ -445,19 +442,52 @@ ProcedureScopeParser::parseNext()
 
     if ( auto branchJunc = parse<BranchJunction>(*this) ) {
         auto br = branchJunc.get();
-        scope().basicBlocks().back()->setJunction(std::move(branchJunc));
+        auto s = &scope();
+        auto b = s->basicBlocks().back();
+        auto m = s->createBasicBlock();
+
+        if ( !branchJunc->label().lexeme().empty() ) {
+            s = s->createChildScope(m, branchJunc->token(), branchJunc->label());
+            b->setJunction(mk<ast::JumpJunction>(
+                ast::JumpJunction::JumpKind::Break, s->basicBlocks().front()));
+            b = s->basicBlocks().front();
+        }
+
+        b->setJunction(std::move(branchJunc));
 
         if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
             scanner().next();
-            auto m = scope().createBasicBlock();
-            auto s = scope().createChildScope(m);
+            s = s->createChildScope(m, lexer::Token(), lexer::Token());
             br->setBranch(0, s->basicBlocks().front());
             return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
         }
 
         return {false, nullptr};
     }
-    else if ( auto retJunc = parse<ReturnJunction>(*this) ) {
+
+    if ( auto loopJunc = parse<LoopJunction>(*this) ) {
+        auto br = loopJunc.get();
+        auto b = scope().basicBlocks().back();
+
+        auto m = scope().createBasicBlock();
+        auto loopScope = scope().createChildScope(m, loopJunc->token(), loopJunc->label());
+        b->setJunction(mk<ast::JumpJunction>(
+            ast::JumpJunction::JumpKind::Break, loopScope->basicBlocks().front()));
+        b = loopScope->basicBlocks().front();
+
+        b->setJunction(std::move(loopJunc));
+
+        if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
+            scanner().next();
+            auto s = loopScope->createChildScope(m, lexer::Token(), lexer::Token());
+            br->setBranch(0, s->basicBlocks().front());
+            return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s, loopScope->basicBlocks().front())};
+        }
+
+        return {false, nullptr};
+    }
+
+    if ( auto retJunc = parse<ReturnJunction>(*this) ) {
         auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
             diagnostics().error(scope().module(), *retJunc) << "statement is unreachable";
@@ -466,7 +496,8 @@ ProcedureScopeParser::parseNext()
         b->setJunction(std::move(retJunc));
         return {true, nullptr};
     }
-    else if ( auto jmpJunc = parse<JumpJunction>(*this) ) {
+
+    if ( auto jmpJunc = parse<JumpJunction>(*this) ) {
         auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
             diagnostics().error(scope().module(), *jmpJunc) << "statement is unreachable";
@@ -476,25 +507,23 @@ ProcedureScopeParser::parseNext()
         return {true, nullptr};
     }
 
-    {
-        VariableDeclaration varGrammar;
-        if ( parse(scanner(), varGrammar) ) {
-            auto v = varGrammar.make(*this);
-            auto var = mk<ast::VariableDeclaration>(ast::Symbol(v.token),
-                                                                  scope(),
-                                                                  std::move(v.constraints));
-            static_cast<ast::Scope&>(scope()).append(std::move(var));
-            if ( v.initializer ) {
-                auto p = mk<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
-                auto expr = mk<ast::AssignExpression>(std::move(p), std::move(v.initializer));
-                scope().append(std::move(expr));
-            }
-            return {true, nullptr};
-        }
-        else if ( auto expr = parse<Expression>(*this) ) {
+    if ( VariableDeclaration varGrammar; parse(scanner(), varGrammar) ) {
+        auto v = varGrammar.make(*this);
+        auto var = mk<ast::VariableDeclaration>(ast::Symbol(v.token),
+                                                                scope(),
+                                                                std::move(v.constraints));
+        static_cast<ast::Scope&>(scope()).append(std::move(var));
+        if ( v.initializer ) {
+            auto p = mk<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
+            auto expr = mk<ast::AssignExpression>(std::move(p), std::move(v.initializer));
             scope().append(std::move(expr));
-            return {true, nullptr};
         }
+        return {true, nullptr};
+    }
+
+    if ( auto expr = parse<Expression>(*this) ) {
+        scope().append(std::move(expr));
+        return {true, nullptr};
     }
 
     return {false, nullptr};

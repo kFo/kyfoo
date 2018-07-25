@@ -132,6 +132,7 @@ class BranchJunction : public Junction
 {
 public:
     BranchJunction(lexer::Token const& token,
+                   lexer::Token const& label,
                    Box<Expression> condition);
 
 protected:
@@ -155,6 +156,7 @@ public:
 
 public:
     lexer::Token const& token() const;
+    lexer::Token const& label() const;
 
     Statement const* statement() const;
     Statement* statement();
@@ -168,6 +170,7 @@ public:
 
 private:
     lexer::Token myToken;
+    lexer::Token myLabel;
     Box<Statement> myCondition;
     BasicBlock* myBranch[2]{ nullptr };
 };

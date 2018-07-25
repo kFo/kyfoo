@@ -13,16 +13,17 @@ namespace kyfoo {
     }
 
     namespace ast {
-        class Module;
-        class Declaration;
-        class Scope;
-        class DataSumScope;
-        class DataProductScope;
-        class ProcedureScope;
-        class DataSumDeclaration;
+        class BasicBlock;
         class DataProductDeclaration;
-        class ProcedureDeclaration;
+        class DataProductScope;
+        class DataSumDeclaration;
+        class DataSumScope;
+        class Declaration;
         class Expression;
+        class ProcedureDeclaration;
+        class ProcedureScope;
+        class Scope;
+        class Module;
     }
 
     namespace parser {
@@ -113,7 +114,7 @@ public:
     ProcedureScopeParser(Diagnostics& dgn,
                          lexer::Scanner& scanner,
                          ast::ProcedureScope& scope,
-                         bool isLoop);
+                         ast::BasicBlock* loopBlock);
     ~ProcedureScopeParser() override;
 
 public:
@@ -124,7 +125,7 @@ protected:
     ParseResult parseNext() override;
 
 private:
-    bool myIsLoop = false;
+    ast::BasicBlock* myLoopBlock= nullptr;
 };
 
 template <typename T>

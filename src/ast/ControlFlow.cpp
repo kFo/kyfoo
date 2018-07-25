@@ -217,9 +217,11 @@ Junction::Kind Junction::kind() const
 // BranchJunction
 
 BranchJunction::BranchJunction(lexer::Token const& token,
-                                 Box<Expression> condition)
+                               lexer::Token const& label,
+                               Box<Expression> condition)
     : Junction(Kind::Branch)
     , myToken(token)
+    , myLabel(label)
     , myCondition(mk<Statement>(std::move(condition)))
 {
 }
@@ -286,6 +288,11 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 lexer::Token const& BranchJunction::token() const
 {
     return myToken;
+}
+
+lexer::Token const& BranchJunction::label() const
+{
+    return myLabel;
 }
 
 Statement const* BranchJunction::statement() const

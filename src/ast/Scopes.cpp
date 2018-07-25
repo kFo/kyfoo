@@ -712,11 +712,6 @@ ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
     return myChildScopes.back().get();
 }
 
-ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock)
-{
-    return createChildScope(mergeBlock, lexer::Token(), lexer::Token());
-}
-
 namespace {
 template <typename Dispatcher>
 struct Sequencer

@@ -31,9 +31,13 @@ using colon          = g::Terminal<lexer::TokenKind::Colon>;
 using colonPipe      = g::Terminal<lexer::TokenKind::ColonPipe>;
 using colonAmpersand = g::Terminal<lexer::TokenKind::ColonAmpersand>;
 using colonEqual     = g::Terminal<lexer::TokenKind::ColonEqual>;
-using colonOpenAngle = g::Terminal<lexer::TokenKind::ColonOpenAngle>;
+using colonStar      = g::Terminal<lexer::TokenKind::ColonStar>;
 using colonQuestion  = g::Terminal<lexer::TokenKind::ColonQuestion>;
 using colonSlash     = g::Terminal<lexer::TokenKind::ColonSlash>;
+using colonStarAngle     = g::Terminal<lexer::TokenKind::ColonStarAngle>;
+using colonQuestionAngle = g::Terminal<lexer::TokenKind::ColonQuestionAngle>;
+using colonSlashAngle    = g::Terminal<lexer::TokenKind::ColonSlashAngle>;
+using colonOpenAngle = g::Terminal<lexer::TokenKind::ColonOpenAngle>;
 using colonPlus      = g::Terminal<lexer::TokenKind::ColonPlus>;
 using colonMinus     = g::Terminal<lexer::TokenKind::ColonMinus>;
 using colonDot       = g::Terminal<lexer::TokenKind::ColonDot>;
@@ -471,7 +475,7 @@ struct VariableDeclaration :
 struct BlockDecl
 {
     lexer::Token open;
-    lexer::Token id;
+    lexer::Token label;
     Box<ast::Expression> expr;
 };
 
@@ -496,24 +500,88 @@ struct BlockDeclaration :
 };
 
 struct BranchJunction :
-    g::And<colonQuestion, Expression>
-{
-    Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
-    {
-        return mk<ast::BranchJunction>(factor<0>().token(), factor<1>().make(parser));
-    }
-};
-
-struct BranchElseJunction :
-    g::And<colonSlash, g::Opt<Expression>>
+    g::Or<
+        g::And<colonQuestion, Expression>
+      , g::And<colonQuestionAngle, g::Opt<id>, closeAngle, Expression>>
 {
     Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
     {
         Box<ast::Expression> cond;
-        if ( auto e = factor<1>().capture() )
-            cond = e->make(parser);
+        lexer::Token tok;
+        id* label = nullptr;
+        if ( index() == 0 ) {
+            tok = term<0>().factor<0>().token();
+            cond = term<0>().factor<1>().make(parser);
+        }
+        else {
+            tok = term<1>().factor<0>().token();
+            cond = term<1>().factor<3>().make(parser);
+            label = term<1>().factor<1>().capture();
+        }
 
-        return mk<ast::BranchJunction>(factor<0>().token(), std::move(cond));
+        return mk<ast::BranchJunction>(tok,
+                                       label ? label->token() : lexer::Token(),
+                                       std::move(cond));
+    }
+};
+
+struct BranchElseJunction :
+    g::Or<
+        g::And<colonSlash, g::Opt<Expression>>
+      , g::And<colonSlashAngle, g::Opt<id>, closeAngle, g::Opt<Expression>>
+    >
+{
+    Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
+    {
+        Box<ast::Expression> cond;
+        id* label = nullptr;
+        lexer::Token tok;
+        if ( index() == 0 ) {
+            tok = term<0>().factor<0>().token();
+            if ( auto e = term<0>().factor<1>().capture() )
+                cond = e->make(parser);
+        }
+        else {
+            tok = term<1>().factor<0>().token();
+            if ( auto e = term<1>().factor<3>().capture() )
+                cond = e->make(parser);
+
+            label = term<1>().factor<1>().capture();
+        }
+
+        return mk<ast::BranchJunction>(tok,
+                                       label ? label->token() : lexer::Token(),
+                                       std::move(cond));
+    }
+};
+
+struct LoopJunction :
+    g::Or<
+        g::And<colonStar, g::Opt<Expression>>
+      , g::And<colonStarAngle, g::Opt<id>, closeAngle, g::Opt<Expression>>
+    >
+{
+    Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
+    {
+        Box<ast::Expression> cond;
+        id* label = nullptr;
+        lexer::Token tok;
+        if ( index() == 0 ) {
+            tok = term<0>().factor<0>().token();
+            if ( auto e = term<0>().factor<1>().capture() )
+                cond = e->make(parser);
+        }
+        else {
+            tok = term<1>().factor<0>().token();
+            if ( auto e = term<1>().factor<3>().capture() )
+                cond = e->make(parser);
+
+            label = term<1>().factor<1>().capture();
+        }
+
+        return mk<ast::BranchJunction>(tok,
+                                       label ? label->token() : lexer::Token(),
+                                       std::move(cond));
     }
 };
 

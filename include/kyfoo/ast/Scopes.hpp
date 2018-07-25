@@ -285,7 +285,6 @@ public:
     ProcedureScope* createChildScope(BasicBlock* mergeBlock,
                                      lexer::Token const& openToken,
                                      lexer::Token const& label);
-    ProcedureScope* createChildScope(BasicBlock* mergeBlock);
 
 private:
     SymRes cacheVariableExtents(Context& ctx);

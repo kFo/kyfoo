@@ -33,15 +33,20 @@ namespace kyfoo::lexer {
     X(Semicolon     , "semicolon"     ) \
     X(Pipe          , "pipe"          ) \
     X(Comma         , "comma"         ) \
-    X(ColonPipe     , "colonPipe"     ) \
-    X(ColonAmpersand, "colonAmpersand") \
-    X(ColonEqual    , "colonEqual"    ) \
-    X(ColonOpenAngle, "colonOpenAngle") \
-    X(ColonQuestion , "colonQuestion" ) \
-    X(ColonSlash    , "colonSlash"    ) \
-    X(ColonPlus     , "colonPlus"     ) \
-    X(ColonMinus    , "colonMinus"    ) \
-    X(ColonDot      , "colonDot"      ) \
+    \
+    X(ColonPipe         , "colonPipe"         ) \
+    X(ColonAmpersand    , "colonAmpersand"    ) \
+    X(ColonEqual        , "colonEqual"        ) \
+    X(ColonStar         , "colonStar"         ) \
+    X(ColonQuestion     , "colonQuestion"     ) \
+    X(ColonSlash        , "colonSlash"        ) \
+    X(ColonOpenAngle    , "colonOpenAngle"    ) \
+    X(ColonStarAngle    , "colonStarAngle"    ) \
+    X(ColonQuestionAngle, "colonQuestionAngle") \
+    X(ColonSlashAngle   , "colonSlashAngle"   ) \
+    X(ColonPlus         , "colonPlus"         ) \
+    X(ColonMinus        , "colonMinus"        ) \
+    X(ColonDot          , "colonDot"          ) \
     \
     X(Yield, "yield") \
     X(Arrow, "arrow") \

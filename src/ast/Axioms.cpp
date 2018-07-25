@@ -75,7 +75,7 @@ s128 := signed<128>
 
     (this : ref slice<T>, f : (ref T) -> ()) -> () =>
         := i : uz = 0
-        :<> lt i this.card
+        :* lt i this.card
             f (this i)
             i = add i 1
         :.
