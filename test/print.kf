@@ -48,18 +48,36 @@ HEAP_ZERO_MEMORY         := 8 // 0x00000008
 
 NULL := null
 
+not(x : u1) -> u1 =>
+    :. eq x 0
+
 put(c : u8) -> () =>
     := a : u8 = c
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL
     :. 42
 
-put(n : u32) -> () =>
+pow<\T>(base : T, exp : u32) -> T =>
+    := ret : T = 1
+    := i : u32 = exp
+    :* ne i 0
+        ret = mul ret base
+        i = sub i 1
+    :. ret
+
+put(num : u32) -> () =>
     := digits : ascii = "0123456789"
-    := i : u32 = n
-    :<> ne i 0
-        := digit : u32 = rem i 10
-        put (u8(digits digit))
-        i = div i 10
+    := buffer : u8..10
+    := n : u32 = num
+    := i : uz = 0
+    :* ge n 10
+        buffer i = digits (rem n 10)
+        n = div n 10
+        i = add i 1
+
+    buffer i = digits n
+    :* ne i -1
+        put(buffer i)
+        i = sub i 1
     :.
 
 put(s : ascii) -> () =>
@@ -81,7 +99,7 @@ bubble(arr : ref slice<\T>) -> u32 =>
     := ret : u32 = 0
     := i : uz = 0
     :* lt(i, sub arr.card 1)
-        :<> lt(arr i, arr (add i 1))
+        :<> not(lt(arr i, arr (add i 1)))
             swap(arr i, arr (add i 1))
             ret = add ret 1
         i = add i 1
@@ -142,8 +160,17 @@ htest() -> () =>
     
     arr (c : ref u32) -> () => :. put(c)
     putLine
+    put "card: "
+    put(trunc<u32> arr.card)
+    putLine
     put "bubble: "
     put(bubble arr)
+    putLine
+    put(u32 23)
+    put " "
+    put(pow<u32> 2 3)
+    put " "
+    put(u32 -1)
     putLine
     arr (c : ref u32) -> () => :. put c
     

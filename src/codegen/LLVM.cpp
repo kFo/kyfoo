@@ -60,6 +60,24 @@ template<>
 struct LLVMCustomData<ast::Module> : public CustomData
 {
     Box<llvm::Module> module;
+    std::map<std::string_view, llvm::GlobalVariable*> strings;
+
+    llvm::GlobalVariable* interpretString(Diagnostics& dgn,
+                                          llvm::IRBuilder<>& builder,
+                                          ast::Module const& mod,
+                                          lexer::Token const& token)
+    {
+        return getString(builder, mod.interpretString(dgn, token));
+    }
+
+    llvm::GlobalVariable* getString(llvm::IRBuilder<>& builder, std::string_view str)
+    {
+        auto e = strings.lower_bound(str);
+        if ( e != end(strings) && e->first == str )
+            return e->second;
+
+        return strings.emplace_hint(e, std::make_pair(str, builder.CreateGlobalString(strRef(str))))->second;
+    }
 };
 
 template<>
@@ -68,12 +86,56 @@ struct LLVMCustomData<ast::VariableDeclaration> : public CustomData
     llvm::AllocaInst* inst = nullptr;
 };
 
+llvm::Function* cloneFunction(llvm::Module* mod, llvm::Function const* func)
+{
+    return llvm::Function::Create(func->getFunctionType(),
+                                  func->getLinkage(),
+                                  func->getName(),
+                                  mod);
+}
+
 template<>
 struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
-    llvm::FunctionType* type = nullptr;
+    void define(llvm::Module* mod, llvm::Function* func)
+    {
+        defn = func;
+        functions.insert({mod, func});
+    }
+
+    bool isDefined() const
+    {
+        return defn;
+    }
+
+    llvm::Function* getFunction(llvm::Module* mod)
+    {
+        auto e = functions.lower_bound(mod);
+        if ( e != end(functions) && e->first == mod )
+            return e->second;
+
+        return functions.emplace_hint(e, std::make_pair(mod, cloneFunction(mod, defn)))->second;
+    }
+
+    llvm::FunctionType* getType()
+    {
+        return defn->getFunctionType();
+    }
+
+    llvm::AllocaInst* getReturnVariable()
+    {
+        return returnInst;
+    }
+
+    void setReturnVariable(llvm::AllocaInst* inst)
+    {
+        returnInst = inst;
+    }
+
+private:
     llvm::Function* defn = nullptr;
     llvm::AllocaInst* returnInst = nullptr;
+    std::map<llvm::Module*, llvm::Function*> functions;
 };
 
 template<>
@@ -419,14 +481,11 @@ struct CodeGenPass
         if ( isIntrinsic(decl) )
             return;
 
-        auto fun = customData(decl);
-        if ( fun->defn ) {
+        auto fdata = customData(decl);
+        if ( fdata->isDefined() ) {
             error(decl.symbol().token()) << "defined more than once";
             die();
         }
-
-        if ( fun->type )
-            return;
 
         auto returnType = toType(*decl.returnType());
         if ( !returnType ) {
@@ -446,7 +505,7 @@ struct CodeGenPass
             params.push_back(paramType);
         }
 
-        fun->type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
+        auto type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
         std::string name;
         if ( decl.scope().declaration() )
@@ -454,18 +513,20 @@ struct CodeGenPass
 
         auto defn = decl.definition();
         if ( !defn ) {
-            fun->defn = llvm::Function::Create(fun->type,
-                                               llvm::Function::ExternalLinkage,
-                                               name,
-                                               module);
+            fdata->define(module, llvm::Function::Create(type,
+                                                         llvm::Function::ExternalLinkage,
+                                                         name,
+                                                         module));
             return;
         }
 
-        auto linkage = llvm::Function::InternalLinkage;
+        // todo: function export
+        /*auto linkage = llvm::Function::InternalLinkage;
         if ( !name.empty() )
-            linkage = llvm::Function::ExternalLinkage;
+            linkage = llvm::Function::ExternalLinkage;*/
+        auto linkage = llvm::Function::ExternalLinkage;
 
-        fun->defn = llvm::Function::Create(fun->type, linkage, name, module);
+        fdata->define(module, llvm::Function::Create(type, linkage, name, module));
         procBodiesToCodegen.push_back(&decl);
     }
 
@@ -487,20 +548,21 @@ struct CodeGenPass
         for ( auto l : defn->childLambdas() )
             dispatch(*l);
 
-        auto fun = customData(decl);
+        auto fdata = customData(decl);
+        auto fun = fdata->getFunction(module);
         {
-            auto arg = fun->defn->arg_begin();
+            auto arg = fun->arg_begin();
             for ( auto const& p : decl.parameters() )
                 customData(*p)->arg = &*(arg++);
         }
 
-        auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun->defn);
+        auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun);
         llvm::IRBuilder<> builder(entryBlock);
 
         // todo: comply with calling convention
         auto returnType = toType(*decl.returnType());
         if ( !returnType->isVoidTy() )
-            fun->returnInst = builder.CreateAlloca(returnType);
+            fdata->setReturnVariable(builder.CreateAlloca(returnType));
 
         std::function<void(ast::ProcedureScope const&)> gatherAllocas =
         [&](ast::ProcedureScope const& scope) {
@@ -537,10 +599,10 @@ struct CodeGenPass
         };
         gatherAllocas(*defn);
 
-        toBlock(*defn, *defn->basicBlocks().front(), fun->defn, entryBlock, nullptr);
-        if ( llvm::verifyFunction(*fun->defn, &llvm::errs()) ) {
+        toBlock(*defn, *defn->basicBlocks().front(), fun, entryBlock, nullptr);
+        if ( llvm::verifyFunction(*fun, &llvm::errs()) ) {
 #ifndef NDEBUG
-            fun->defn->dump();
+            fun->dump();
 #endif
             die("verify failure");
         }
@@ -630,15 +692,15 @@ struct CodeGenPass
 
         if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
             if ( retJunc->expression() ) {
-                auto retVal = toValue(builder, fdata->type->getReturnType(), *retJunc->expression());
-                if ( fdata->returnInst )
-                    builder.CreateStore(retVal, fdata->returnInst);
+                auto retVal = toValue(builder, fdata->getType()->getReturnType(), *retJunc->expression());
+                if ( auto retVar = fdata->getReturnVariable() )
+                    builder.CreateStore(retVal, retVar);
             }
 
             /*createCleanupBlock(retJunc->token(), true);
             builder.CreateBr(cleanupBlocks.back());*/
-            if ( fdata->returnInst )
-                builder.CreateRet(builder.CreateLoad(fdata->returnInst));
+            if ( auto retVar = fdata->getReturnVariable() )
+                builder.CreateRet(builder.CreateLoad(retVar));
             else
                 builder.CreateRetVoid();
 
@@ -646,8 +708,11 @@ struct CodeGenPass
         }
 
         if ( auto brJunc = block.junction()->as<ast::BranchJunction>() ) {
-            auto cond = toValue(builder, nullptr, *brJunc->condition());
-            auto cmp = builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+            // todo: conditional trait
+            auto cond = toValue(builder, builder.getInt1Ty(), *brJunc->condition());
+            auto cmp = cond->getType() == builder.getInt1Ty() ?
+                cond :
+                builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
 
             auto trueBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
             auto falseBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
@@ -773,8 +838,7 @@ private:
             if ( destType != strType )
                 return nullptr;
 
-            auto const& str = sourceModule.interpretString(dgn, token);
-            return builder.CreateGlobalString(strRef(str));
+            return customData(sourceModule)->interpretString(dgn, builder, sourceModule, token);
         }
         }
 
@@ -933,7 +997,7 @@ private:
 
             if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
                 auto pdata = customData(*proc);
-                return builder.CreateCall(pdata->defn);
+                return builder.CreateCall(pdata->getFunction(module));
             }
 
             die("unhandled identifier");
@@ -980,7 +1044,7 @@ private:
             }
 
             if ( proc )
-                return builder.CreateCall(customData(*proc)->defn, args);
+                return builder.CreateCall(customData(*proc)->getFunction(module), args);
 
             return builder.CreateCall(fptr, args);
         }
@@ -1000,7 +1064,7 @@ private:
 
         if ( auto l = expr.as<ast::LambdaExpression>() ) {
             auto pdata = customData(l->procedure());
-            return pdata->defn;
+            return pdata->getFunction(module);
         }
 
         return nullptr;
@@ -1031,8 +1095,20 @@ private:
                 die("expected one argument");
 
             auto proc = getProcedure(*a->arguments()[0]);
-            if ( !proc )
+            if ( !proc ) {
+                if ( a->expressions().size() == 2 ) {
+                    // assume it's indexing into the tuple
+                    auto arr = toRef(builder, *subj);
+                    auto idx = toValue(builder, builder.getInt64Ty(), *a->expressions()[1]);
+                    llvm::Value* idxList[] = {
+                        llvm::ConstantInt::get(idx->getType(), 0),
+                        idx,
+                    };
+                    return builder.CreateGEP(arr, idxList);
+                }
+
                 die("expected procedure argument");
+            }
 
             if ( tup->elementsCount() <= 1 )
                 die("apply is not implemented for tuples");
@@ -1061,7 +1137,7 @@ private:
             };
             auto elemPtr = builder.CreateGEP(arr, idxList);
             llvm::Value* args[] = { elemPtr };
-            builder.CreateCall(customData(*proc)->defn, args);
+            builder.CreateCall(customData(*proc)->getFunction(module), args);
 
             auto next = builder.CreateAdd(idx, one);
             builder.CreateStore(next, idxPtr);
@@ -1112,7 +1188,7 @@ private:
         {
             auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::ascii))->type);
             auto const& str = sourceModule.interpretString(dgn, exprs[1]->as<ast::LiteralExpression>()->token());
-            llvm::GlobalVariable* gv = builder.CreateGlobalString(strRef(str));
+            auto gv = customData(sourceModule)->getString(builder, str);
             auto zero = builder.getInt32(0);
             llvm::Constant* idx[] = { zero, zero };
             llvm::Constant* s[2] = {

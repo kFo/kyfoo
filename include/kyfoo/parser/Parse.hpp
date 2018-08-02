@@ -125,7 +125,7 @@ protected:
     ParseResult parseNext() override;
 
 private:
-    ast::BasicBlock* myLoopBlock= nullptr;
+    ast::BasicBlock* myLoopBlock = nullptr;
 };
 
 template <typename T>
