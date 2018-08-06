@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <optional>
 
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Utilities.hpp>
@@ -18,6 +19,44 @@
 #include <kyfoo/codegen/Codegen.hpp>
 
 namespace kyfoo::ast {
+
+namespace {
+    std::optional<SymRes> resolveMemberExpression(Context& ctx,
+                                                  Expression const& lhs,
+                                                  IdentifierExpression& rhs)
+    {
+        SymbolReference sym(rhs.token().lexeme());
+        if ( auto symExpr = rhs.as<SymbolExpression>() ) {
+            auto ret = symExpr->resolveSubExpressions(ctx);
+            if ( !ret )
+                return ret;
+
+            sym = SymbolReference(symExpr->token().lexeme(), symExpr->expressions());
+        }
+
+        if ( auto lhsDecl = resolveIndirections(getDeclaration(lhs)) ) {
+            auto lhsScope = memberScope(*lhsDecl);
+            if ( !lhsScope ) {
+                ctx.error(lhs) << "does not have any members";
+                return SymRes::Fail;
+            }
+
+            if ( auto hit = ctx.matchOverload(*lhsScope, Resolver::Narrow, sym) ) {
+                auto rhsDecl = hit.single();
+                if ( !rhsDecl ) {
+                    ctx.error(rhs) << "is ambiguous";
+                    // todo: enumerate ambiguities
+                    return SymRes::Fail;
+                }
+
+                rhs.setDeclaration(*rhsDecl);
+                return SymRes::Success;
+            }
+        }
+
+        return {};
+    }
+}
 
 //
 // Strata
@@ -423,13 +462,7 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
         return SymRes::Fail;
     }
 
-    ProcedureDeclaration* proc = nullptr;
-    {
-        Resolver templResolver(*defn, Resolver::Narrow);
-        REVERT = ctx.pushResolver(templResolver);
-        proc = ctx.matchOverload("").singleAs<ProcedureDeclaration>();
-    }
-
+    auto proc = ctx.matchOverload(*defn, Resolver::Narrow, "").singleAs<ProcedureDeclaration>();
     if ( !proc ) {
         ctx.error(*this) << "does not refer to any procedure";
         return SymRes::Fail;
@@ -781,19 +814,41 @@ L_restart:
         }
     }
 
-    ret |= ctx.resolveExpression(myExpressions.front());
-    if ( !ret )
-        return ret;
-
     if ( auto dot = subject()->as<DotExpression>() ) {
-        auto decl = getDeclaration(dot->top());
-        if ( decl && (decl->kind() == DeclKind::Procedure || decl->kind() == DeclKind::Template) ) {
-            auto thisDecl = getDeclaration(dot->top(1));
-            if ( !thisDecl || !isDefinableDeclaration(thisDecl->kind()) ) {
-                myExpressions.emplace(begin(myExpressions), dot->takeTop());
-                goto L_restart;
+        ret |= dot->resolveSymbols(ctx, dot->expressions().size() - 1);
+        if ( !ret )
+            return ret;
+
+        auto rhs = identify(*dot->top());
+        if ( !rhs )
+            goto L_notMethod;
+
+        if ( auto o = resolveMemberExpression(ctx, *dot->top(1), *rhs) ) {
+            ret |= *o;
+            if ( !ret )
+                return ret;
+
+            auto decl = getDeclaration(dot->top());
+            if ( decl && (decl->kind() == DeclKind::Procedure || decl->kind() == DeclKind::Template) ) {
+                auto thisDecl = getDeclaration(dot->top(1));
+                if ( !thisDecl || !isDefinableDeclaration(thisDecl->kind()) ) {
+                    myExpressions.emplace(begin(myExpressions), dot->takeTop());
+                    goto L_restart;
+                }
             }
         }
+        else {
+            myExpressions.emplace(begin(myExpressions), dot->takeTop());
+            goto L_restart;
+        }
+
+        goto L_notMethod;
+    }
+    else {
+L_notMethod:
+        ret |= ctx.resolveExpression(myExpressions.front());
+        if ( !ret )
+            return ret;
     }
 
     auto const subjType = myExpressions.front()->type();
@@ -852,13 +907,14 @@ SymRes ApplyExpression::lowerToApplicable(Context& ctx)
         return SymRes::Fail;
     }
 
-    while ( auto ds = applicable->as<DataSumDeclaration>() ) {
-        if ( isReference(*ds) ) {
-            applicable = resolveIndirections(getDeclaration(ds->symbol().prototype().pattern().front()));
-            if ( !applicable ) {
-                ctx.error(subj) << "does not refer to an applicable type";
-                return SymRes::Fail;
-            }
+    for ( auto ds = applicable->as<DataSumDeclaration>();
+         ds && isReference(*ds);
+         ds = applicable->as<DataSumDeclaration>() )
+    {
+        applicable = resolveIndirections(getDeclaration(ds->symbol().prototype().pattern().front()));
+        if ( !applicable ) {
+            ctx.error(subj) << "does not refer to an applicable type";
+            return SymRes::Fail;
         }
     }
 
@@ -1177,6 +1233,11 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
     return SymRes::Success;
 }
 
+SymRes SymbolExpression::resolveSubExpressions(Context& ctx)
+{
+    return ctx.resolveExpressions(begin(myExpressions), end(myExpressions));
+}
+
 Slice<Expression*> SymbolExpression::expressions()
 {
     return myExpressions;
@@ -1215,8 +1276,8 @@ DotExpression::DotExpression(bool modScope,
 
 DotExpression::DotExpression(DotExpression const& rhs)
     : Expression(rhs)
+    , myModScope(rhs.myModScope)
 {
-    // myFirst, mySecond cloned
 }
 
 DotExpression& DotExpression::operator = (DotExpression const& rhs)
@@ -1225,15 +1286,14 @@ DotExpression& DotExpression::operator = (DotExpression const& rhs)
     return *this;
 }
 
-DotExpression::~DotExpression()
-{
-}
+DotExpression::~DotExpression() = default;
 
 void DotExpression::swap(DotExpression& rhs) noexcept
 {
     Expression::swap(rhs);
     using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
+    swap(myModScope, rhs.myModScope);
 }
 
 void DotExpression::io(IStream& stream) const
@@ -1251,6 +1311,11 @@ IMPL_CLONE_REMAP_END
 
 SymRes DotExpression::resolveSymbols(Context& ctx)
 {
+    return resolveSymbols(ctx, myExpressions.size());
+}
+
+SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
+{
     if ( myType )
         return SymRes::Success;
 
@@ -1262,26 +1327,33 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    auto updateContext = [&ctx, &resolver](Expression const& expr)
-    {
-        auto decl = resolveIndirections(getDeclaration(expr));
-        if ( !decl )
-            return;
+    for ( uz i = 1; i < subExpressionLimit; ++i ) {
+        if ( myExpressions[i]->type() )
+            continue;
 
-        if ( auto scope = memberScope(*decl) ) {
-            resolver = Resolver(*scope);
-            ctx.changeResolver(resolver);
+        auto lhs = myExpressions[i - 1].get();
+
+        auto failedAsMember = false;
+        if ( auto rhs = identify(*myExpressions[i]) ) {
+            if ( auto o = resolveMemberExpression(ctx, *lhs, *rhs) ) {
+                ret |= *o;
+                if ( !ret )
+                    return ret;
+
+                continue;
+            }
+
+            failedAsMember = true;
         }
-    };
+        else {
+            ret = ctx.resolveExpression(myExpressions[i]);
+        }
 
-    updateContext(*myExpressions.front());
-
-    for ( uz i = 1; i < myExpressions.size(); ++i ) {
-        ret = ctx.resolveExpression(myExpressions[i]);
         if ( !ret )
             return ret;
 
-        auto e = resolveIndirections(myExpressions[i].get());
+        auto rhs = myExpressions[i].get();
+        auto e = resolveIndirections(rhs);
 
         if ( auto lit = e->as<LiteralExpression>() ) {
             if ( lit->token().kind() != lexer::TokenKind::Integer ) {
@@ -1295,7 +1367,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
                 return SymRes::Fail;
             }
 
-            auto const* composite = resolveIndirections(myExpressions[i - 1].get());
+            auto const* composite = resolveIndirections(lhs);
             bool binder = false;
             if ( auto decl = getDeclaration(*composite) ) {
                 if ( auto b = getBinder(*decl) ) {
@@ -1329,7 +1401,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
                 myExpressions[i] = createIdentifier(makeToken(tok.lexeme(),
                                                               tok.location()),
                                                     *defn->fields()[index]);
-                e = myExpressions[i].get();
+                e = rhs;
             }
             else if ( auto tup = composite->as<TupleExpression>() ) {
                 if ( index >= tup->elementsCount() ) {
@@ -1346,9 +1418,30 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
                 ctx.error(*e) << "cannot be indexed";
                 return SymRes::Fail;
             }
+
+            continue;
         }
 
-        updateContext(*myExpressions[i]);
+        std::vector<Box<Expression>> lhsExprs(i);
+        move(begin(myExpressions), begin(myExpressions) + i, begin(lhsExprs));
+        rotate(begin(myExpressions), begin(myExpressions) + i, end(myExpressions));
+        subExpressionLimit -= i;
+        myExpressions.resize(myExpressions.size() - i);
+        i = 0;
+        auto subj = std::move(myExpressions.front());
+        auto arg = mk<DotExpression>(isModuleScope(), std::move(lhsExprs));
+        auto app = mk<ApplyExpression>(createPtrList<Expression>(std::move(subj), std::move(arg)));
+        myExpressions.front() = std::move(app);
+        ret = ctx.resolveExpression(myExpressions.front());
+        if ( !ret ) {
+            if ( failedAsMember ) {
+                auto appExpr = myExpressions[i]->as<ApplyExpression>();
+                ctx.error(*appExpr->subject()) << "does not match any members of "
+                                               << *appExpr->arguments()[0];
+            }
+
+            return ret;
+        }
     }
 
     if ( myExpressions.empty() )
@@ -1356,7 +1449,8 @@ SymRes DotExpression::resolveSymbols(Context& ctx)
     else if ( myExpressions.size() == 1 )
         return ctx.rewrite(std::move(myExpressions.front()));
 
-    setType(myExpressions.back()->type());
+    if ( subExpressionLimit == myExpressions.size() )
+        setType(myExpressions.back()->type());
 
     return SymRes::Success;
 }
@@ -1371,12 +1465,17 @@ Slice<Expression const*> DotExpression::expressions() const
     return myExpressions;
 }
 
-Expression const* DotExpression::top(uz index) const
+Expression* DotExpression::top(uz index)
 {
     if ( index >= myExpressions.size() )
         return nullptr;
 
     return myExpressions[myExpressions.size() - index - 1].get();
+}
+
+Expression const* DotExpression::top(uz index) const
+{
+    return const_cast<DotExpression*>(this)->top(index);
 }
 
 bool DotExpression::isModuleScope() const
@@ -1531,6 +1630,8 @@ LambdaExpression::LambdaExpression(lexer::Token const& yieldToken,
 
 LambdaExpression::LambdaExpression(LambdaExpression const& rhs)
     : Expression(rhs)
+    , myYieldToken(rhs.myYieldToken)
+    , myProc(rhs.myProc)
 {
 }
 

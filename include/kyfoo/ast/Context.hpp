@@ -29,9 +29,9 @@ class Resolver
 public:
     enum Options
     {
-        None                    = 0,
-        Narrow                  = 1 << 0,
-        SkipImports             = 1 << 1,
+        None        = 0,
+        Narrow      = 1 << 0,
+        SkipImports = 1 << 1,
     };
 
     using options_t = Options;
@@ -39,9 +39,6 @@ public:
 public:
     explicit Resolver(Scope& scope, Options opts = None);
     explicit Resolver(Scope const& scope, Options opts = None);
-
-    Resolver(Resolver&& rhs);
-    Resolver& operator = (Resolver&& rhs);
 
     ~Resolver();
 

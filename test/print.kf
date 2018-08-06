@@ -95,16 +95,36 @@ swap(a b : ref \T) -> () =>
     b = tmp
     :.
 
-bubble(arr : ref slice<\T>) -> u32 =>
+bubble(arr : ref slice<\T>, c : (T, T)->u1) -> u32 =>
     := ret : u32 = 0
     := i : uz = 0
     :* lt(i, sub arr.card 1)
-        :<> not(lt(arr i, arr (add i 1)))
+        :<> not(c(arr i, arr (add i 1)))
             swap(arr i, arr (add i 1))
             ret = add ret 1
         i = add i 1
-        
+    
     :. ret
+
+bubbleSort(arr : ref slice<\T>, c : (T, T)->u1) -> () =>
+/*
+    :<loop>
+        := n:u32 = bubble arr c
+        //:<> ne n 0
+        :<> ne 0 n
+        //:<> n.ne 0
+        //:<> 0.ne n
+        //:<> (n, 0).ne
+        //:<> (0, n).ne
+        //:<> (0 n).ne
+            :+ loop
+            */
+    :* (bubble arr c).ne 0
+        :+
+    :.
+
+bubbleSort(arr : ref slice<\T>) -> () =>
+    :. bubbleSort arr (x y:T)->u1=>:.lt x y
 
 @"WriteWrapper"
 WriteWrapper(str : ascii) -> () =>
@@ -161,10 +181,7 @@ htest() -> () =>
     arr (c : ref u32) -> () => :. put(c)
     putLine
     put "card: "
-    put(trunc<u32> arr.card)
-    putLine
-    put "bubble: "
-    put(bubble arr)
+    put arr.card.trunc<u32>
     putLine
     put(u32 23)
     put " "
@@ -172,6 +189,7 @@ htest() -> () =>
     put " "
     put(u32 -1)
     putLine
+    bubbleSort arr
     arr (c : ref u32) -> () => :. put c
     
     HeapFree GetProcessHeap 0 (cast<LPVOID> p)

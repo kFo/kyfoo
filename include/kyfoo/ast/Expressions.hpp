@@ -472,6 +472,8 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
+    SymRes resolveSubExpressions(Context& ctx);
+
     Slice<Expression*> expressions();
     Slice<Expression const*> expressions() const;
 
@@ -516,9 +518,12 @@ protected:
     SymRes resolveSymbols(Context& ctx) override;
 
 public:
+    SymRes resolveSymbols(Context& ctx, uz subExpressionLimit);
+
     Slice<Expression*> expressions();
     Slice<Expression const*> expressions() const;
 
+    Expression* top(uz index = 0);
     Expression const* top(uz index = 0) const;
 
     bool isModuleScope() const;

@@ -25,25 +25,13 @@ Resolver::Resolver(Scope const& scope, Options opts)
 {
 }
 
-Resolver::Resolver(Resolver&& rhs)
-    : myScope(rhs.myScope)
-    , mySupplementaryPrototypes(std::move(rhs.mySupplementaryPrototypes))
-{
-    rhs.myScope = nullptr;
-}
-
-Resolver& Resolver::operator = (Resolver&& rhs)
-{
-    Resolver(std::move(rhs)).swap(*this);
-    return *this;
-}
-
 Resolver::~Resolver() = default;
 
 void Resolver::swap(Resolver& rhs) noexcept
 {
     using kyfoo::swap;
     swap(myScope, rhs.myScope);
+    swap(myOptions, rhs.myOptions);
     swap(mySupplementaryPrototypes, rhs.mySupplementaryPrototypes);
 }
 
