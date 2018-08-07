@@ -107,20 +107,7 @@ bubble(arr : ref slice<\T>, c : (T, T)->u1) -> u32 =>
     :. ret
 
 bubbleSort(arr : ref slice<\T>, c : (T, T)->u1) -> () =>
-/*
-    :<loop>
-        := n:u32 = bubble arr c
-        //:<> ne n 0
-        :<> ne 0 n
-        //:<> n.ne 0
-        //:<> 0.ne n
-        //:<> (n, 0).ne
-        //:<> (0, n).ne
-        //:<> (0 n).ne
-            :+ loop
-            */
     :* (bubble arr c).ne 0
-        :+
     :.
 
 bubbleSort(arr : ref slice<\T>) -> () =>

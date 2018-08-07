@@ -477,11 +477,18 @@ ProcedureScopeParser::parseNext()
 
         b->setJunction(std::move(loopJunc));
 
+        auto s = loopScope->createChildScope(m, lexer::Token(), lexer::Token());
+        br->setBranch(0, s->basicBlocks().front());
+
         if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
             scanner().next();
-            auto s = loopScope->createChildScope(m, lexer::Token(), lexer::Token());
-            br->setBranch(0, s->basicBlocks().front());
             return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s, loopScope->basicBlocks().front())};
+        }
+        else if ( scanner().peek().kind() == lexer::TokenKind::IndentEQ
+               || scanner().peek().kind() == lexer::TokenKind::IndentLT )
+        {
+            s->basicBlocks().front()->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, loopScope->basicBlocks().front()));
+            return {true, nullptr};
         }
 
         return {false, nullptr};
