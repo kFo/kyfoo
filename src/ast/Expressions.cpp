@@ -807,7 +807,7 @@ L_restart:
         return ctx.rewrite(mk<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
 
     if ( auto id = subject()->as<IdentifierExpression>() ) {
-        if ( !id->token().lexeme().empty() ) {
+        if ( !id->token().lexeme().empty() && !id->declaration() ) {
             auto hit = ctx.matchOverload(id->token().lexeme());
             if ( !hit )
                 return ctx.rewrite(mk<SymbolExpression>(std::move(myExpressions)));

@@ -159,7 +159,7 @@ htest() -> () =>
     := four : uz = 4
     := p : ptr u32 = cast<ptr u32>(HeapAlloc GetProcessHeap 0 (mul four 6))
     := arr : slice u32
-    arr.ctor<> p 6
+    arr.ctor p 6
     := i : u32 = 0
     :* ne i 6
         arr i = sub 6 i
