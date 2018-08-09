@@ -122,19 +122,8 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
         return defn->getFunctionType();
     }
 
-    llvm::AllocaInst* getReturnVariable()
-    {
-        return returnInst;
-    }
-
-    void setReturnVariable(llvm::AllocaInst* inst)
-    {
-        returnInst = inst;
-    }
-
 private:
     llvm::Function* defn = nullptr;
-    llvm::AllocaInst* returnInst = nullptr;
     std::map<llvm::Module*, llvm::Function*> functions;
 };
 
@@ -559,11 +548,6 @@ struct CodeGenPass
         auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun);
         llvm::IRBuilder<> builder(entryBlock);
 
-        // todo: comply with calling convention
-        auto returnType = toType(*decl.returnType());
-        if ( !returnType->isVoidTy() )
-            fdata->setReturnVariable(builder.CreateAlloca(returnType));
-
         std::function<void(ast::ProcedureScope const&)> gatherAllocas =
         [&](ast::ProcedureScope const& scope) {
             for ( auto const& d : scope.childDeclarations() ) {
@@ -692,17 +676,19 @@ struct CodeGenPass
 
         if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
             if ( retJunc->expression() ) {
-                auto retVal = toValue(builder, fdata->getType()->getReturnType(), *retJunc->expression());
-                if ( auto retVar = fdata->getReturnVariable() )
-                    builder.CreateStore(retVal, retVar);
+                auto retType = fdata->getType()->getReturnType();
+                auto retVal = toValue(builder, retType, *retJunc->expression());
+                if ( retType->isVoidTy() )
+                    builder.CreateRetVoid();
+                else
+                    builder.CreateRet(retVal);
+
+                return;
             }
 
             /*createCleanupBlock(retJunc->token(), true);
             builder.CreateBr(cleanupBlocks.back());*/
-            if ( auto retVar = fdata->getReturnVariable() )
-                builder.CreateRet(builder.CreateLoad(retVar));
-            else
-                builder.CreateRetVoid();
+            builder.CreateRetVoid();
 
             return;
         }
