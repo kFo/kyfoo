@@ -16,6 +16,9 @@
 
 namespace kyfoo::parser {
 
+using vacuum   = g::Terminal<lexer::TokenKind::Vacuum>;
+using hyphen   = g::Terminal<lexer::TokenKind::Hyphen>;
+
 using id       = g::Terminal<lexer::TokenKind::Identifier>;
 using meta     = g::Terminal<lexer::TokenKind::MetaVariable>;
 using integer  = g::Terminal<lexer::TokenKind::Integer>;
@@ -283,12 +286,12 @@ struct TupleClosed :
 };
 
 struct SymbolExpression :
-    g::And<id, openAngle, g::Repeat2<Expression, comma>, closeAngle>
+    g::And<id, g::Opt<vacuum>, openAngle, g::Repeat2<Expression, comma>, closeAngle>
 {
     Box<ast::SymbolExpression> make(DeclarationScopeParser& parser)
     {
         return mk<ast::SymbolExpression>(factor<0>().token(),
-                                                       expressions(parser, factor<2>().captures()));
+                                         expressions(parser, factor<3>().captures()));
     }
 };
 
@@ -311,22 +314,71 @@ struct BasicExpression :
     }
 };
 
-template <typename T>
-struct DotExpression :
-    g::And<g::Opt<dot>, g::OneOrMore2<BasicExpression<T>, dot>>
+template <typename Mixin>
+struct ApplyMixin :
+    Mixin
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        bool global = factor<0>().capture() != nullptr;
-        auto& list = factor<1>().captures();
-        std::vector<Box<ast::Expression>> exprs;
-        for ( auto& be : list )
-            exprs.emplace_back(be.make(parser));
+        if ( captures().size() == 1 )
+            return captures().front().make(parser);
 
-        if ( !global && exprs.size() == 1 )
+        std::vector<Box<ast::Expression>> exprs;
+        exprs.reserve(captures().size());
+        for ( auto& c : captures() )
+            exprs.emplace_back(c.make(parser));
+
+        return mk<ast::ApplyExpression>(std::move(exprs));
+    }
+};
+
+template <typename T>
+struct ApplyHyphenExpression :
+    ApplyMixin<g::OneOrMore2<BasicExpression<T>, hyphen>>
+{
+};
+
+template <typename T>
+struct DotExpression :
+    g::And<g::Opt<dot>
+         , ApplyHyphenExpression<T>
+         , g::Repeat<g::And<g::Or<dot, vacuum>, ApplyHyphenExpression<T>>>>
+{
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
+    {
+        auto global = factor<0>().capture() != nullptr;
+        std::vector<Box<ast::Expression>> exprs;
+        exprs.emplace_back(factor<1>().make(parser));
+
+        enum { Dot = 0, Apply = 1, Unknown = 2 };
+        uz current = global ? Dot : Unknown;
+
+        for ( auto& e : factor<2>().captures() ) {
+            auto const index = e.factor<0>().index();
+            if ( current != Unknown && index != current ) {
+                Box<ast::Expression> prev;
+                if ( current == Dot ) {
+                    prev = mk<ast::DotExpression>(global, std::move(exprs));
+                    global = false;
+                }
+                else {
+                    prev = mk<ast::ApplyExpression>(std::move(exprs));
+                }
+
+                exprs.emplace_back(std::move(prev));
+            }
+
+            exprs.emplace_back(e.factor<1>().make(parser));
+            current = index;
+        }
+
+        if ( exprs.size() == 1 )
             return std::move(exprs.front());
 
-        return mk<ast::DotExpression>(global, std::move(exprs));
+        if ( current == Dot )
+            return mk<ast::DotExpression>(false, std::move(exprs));
+
+        return mk<ast::ApplyExpression>(std::move(exprs));
     }
 };
 
@@ -372,20 +424,8 @@ struct RangeExpression :
 
 template <typename T>
 struct ApplyExpression :
-    g::OneOrMore<RangeExpression<T>>
+    ApplyMixin<g::OneOrMore<RangeExpression<T>>>
 {
-    Box<ast::Expression> make(DeclarationScopeParser& parser)
-    {
-        if ( captures().size() == 1 )
-            return captures().front().make(parser);
-
-        std::vector<Box<ast::Expression>> exprs;
-        exprs.reserve(captures().size());
-        for ( auto& c : captures() )
-            exprs.emplace_back(c.make(parser));
-
-        return mk<ast::ApplyExpression>(std::move(exprs));
-    }
 };
 
 template <typename T>
@@ -437,11 +477,11 @@ struct ImplicitProcDecl
 };
 
 struct ImplicitProcedureTemplateDeclaration :
-    g::And<Symbol, ProcedureDeclaration>
+    g::And<Symbol, g::Opt<vacuum>, ProcedureDeclaration>
 {
     ImplicitProcDecl make(DeclarationScopeParser& parser)
     {
-        return { factor<0>().make(parser), factor<1>().make(parser) };
+        return { factor<0>().make(parser), factor<2>().make(parser) };
     }
 };
 
@@ -483,6 +523,7 @@ struct BlockDeclaration :
     g::And<colonOpenAngle
          , g::Opt<id>
          , closeAngle
+         , g::Opt<vacuum>
          , g::Opt<Expression>>
 {
     BlockDecl make(DeclarationScopeParser& parser)
@@ -492,7 +533,7 @@ struct BlockDeclaration :
             id = c->token();
 
         Box<ast::Expression> expr;
-        if ( auto c = factor<3>().capture() )
+        if ( auto c = factor<4>().capture() )
             expr = c->make(parser);
 
         return { factor<0>().token(), id, std::move(expr) };
@@ -502,7 +543,7 @@ struct BlockDeclaration :
 struct BranchJunction :
     g::Or<
         g::And<colonQuestion, Expression>
-      , g::And<colonQuestionAngle, g::Opt<id>, closeAngle, Expression>>
+      , g::And<colonQuestionAngle, g::Opt<id>, closeAngle, g::Opt<vacuum>, Expression>>
 {
     Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
     {
@@ -515,7 +556,7 @@ struct BranchJunction :
         }
         else {
             tok = term<1>().factor<0>().token();
-            cond = term<1>().factor<3>().make(parser);
+            cond = term<1>().factor<4>().make(parser);
             label = term<1>().factor<1>().capture();
         }
 
@@ -528,7 +569,7 @@ struct BranchJunction :
 struct BranchElseJunction :
     g::Or<
         g::And<colonSlash, g::Opt<Expression>>
-      , g::And<colonSlashAngle, g::Opt<id>, closeAngle, g::Opt<Expression>>
+      , g::And<colonSlashAngle, g::Opt<id>, closeAngle, g::Opt<vacuum>, g::Opt<Expression>>
     >
 {
     Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
@@ -543,7 +584,7 @@ struct BranchElseJunction :
         }
         else {
             tok = term<1>().factor<0>().token();
-            if ( auto e = term<1>().factor<3>().capture() )
+            if ( auto e = term<1>().factor<4>().capture() )
                 cond = e->make(parser);
 
             label = term<1>().factor<1>().capture();
@@ -558,7 +599,7 @@ struct BranchElseJunction :
 struct LoopJunction :
     g::Or<
         g::And<colonStar, g::Opt<Expression>>
-      , g::And<colonStarAngle, g::Opt<id>, closeAngle, g::Opt<Expression>>
+      , g::And<colonStarAngle, g::Opt<id>, closeAngle, g::Opt<vacuum>, g::Opt<Expression>>
     >
 {
     Box<ast::BranchJunction> make(DeclarationScopeParser& parser)
@@ -573,7 +614,7 @@ struct LoopJunction :
         }
         else {
             tok = term<1>().factor<0>().token();
-            if ( auto e = term<1>().factor<3>().capture() )
+            if ( auto e = term<1>().factor<4>().capture() )
                 cond = e->make(parser);
 
             label = term<1>().factor<1>().capture();
@@ -645,7 +686,7 @@ struct DataSumDeclaration :
 };
 
 struct DataSumConstructor :
-    g::And<Symbol, g::Opt<g::And<openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
+    g::And<Symbol, g::Opt<g::And<g::Opt<vacuum>, openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
 {
     Box<ast::DataSumDeclaration::Constructor> make(DeclarationScopeParser&)
     {

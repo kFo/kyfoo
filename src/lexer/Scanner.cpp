@@ -74,7 +74,6 @@ namespace
     bool isIdentifierStart(char c)
     {
         switch ( c ) {
-        case '-':
         case '_':
         case '+':
         case '*':
@@ -109,6 +108,24 @@ namespace
             return e->second;
         
         return TokenKind::Identifier;
+    }
+
+    bool precedesVacuum(TokenKind kind)
+    {
+        switch (kind) {
+        case TokenKind::Identifier:
+        case TokenKind::MetaVariable:
+        case TokenKind::Integer:
+        case TokenKind::Rational:
+        case TokenKind::String:
+        case TokenKind::CloseParen:
+        case TokenKind::CloseBracket:
+        case TokenKind::CloseAngle:
+        case TokenKind::CloseBrace:
+            return true;
+        }
+
+        return false;
     }
 }
 
@@ -231,25 +248,29 @@ void Scanner::putback(char c)
 
 Token Scanner::indent(SourceLocation loc, indent_width_t indent)
 {
+    auto token = [this, &loc](TokenKind kind) {
+        myLastTokenKind = kind;
+        return Token(kind, "", loc);
+    };
+
     indent_width_t current = 0;
     if ( !myIndents.empty() )
         current = myIndents.back();
 
     if ( indent == current )
-        return Token(TokenKind::IndentEQ, "", loc);
+        return token(TokenKind::IndentEQ);
 
     if ( indent > current ) {
         myIndents.push_back(indent);
-        return Token(TokenKind::IndentGT, "", loc);
+        return token(TokenKind::IndentGT);
     }
 
-    Token ret(TokenKind::IndentLT, "", loc);
     myIndents.pop_back();
 
     while ( !myIndents.empty() && myIndents.back() != indent ) {
         if ( myIndents.back() < indent ) {
             myError = true;
-            return Token(TokenKind::IndentError, "", loc);
+            return token(TokenKind::IndentError);
         }
         
         myBuffer.push_back(Token(TokenKind::IndentLT, "", loc));
@@ -258,10 +279,10 @@ Token Scanner::indent(SourceLocation loc, indent_width_t indent)
 
     if ( myIndents.empty() && indent != 0 ) {
         myError = true;
-        return Token(TokenKind::IndentError, "", loc);
+        return token(TokenKind::IndentError);
     }
 
-    return ret;
+    return token(TokenKind::IndentLT);
 }
 
 void Scanner::bumpLine()
@@ -287,19 +308,32 @@ int Scanner::nestings() const
 
 Token Scanner::readNext()
 {
-#define TOK(t) Token(TokenKind::##t, lexeme, {myLoc.line, column})
-#define TOK2(t, l) Token(TokenKind::##t, l, {myLoc.line, column})
+#define TryEmitVacuum(c)                               \
+    if ( vacuum && precedesVacuum(myLastTokenKind) ) { \
+        putback(c);                                    \
+        return token2(TokenKind::Vacuum, "");          \
+    }
 
     char c = nextChar();
     std::string lexeme;
     column_index_t column = myLoc.column;
 
+    auto token = [&, this](TokenKind kind) {
+        myLastTokenKind = kind;
+        return Token(kind, lexeme, {myLoc.line, column});
+    };
+
+    auto token2 = [&, this](TokenKind kind, std::string const& l) {
+        myLastTokenKind = kind;
+        return Token(kind, l, {myLoc.line, column});
+    };
+
     if ( myStream.eof() ) {
-        return TOK(EndOfFile);
+        return token(TokenKind::EndOfFile);
     }
     else if ( myStream.bad() ) {
         myError = true;
-        return TOK2(Undefined, "");
+        return token2(TokenKind::Undefined, "");
     }
     else if ( myStream.fail() ) {
         throw std::runtime_error("lexing failure");
@@ -367,9 +401,10 @@ Token Scanner::readNext()
 
     auto spaces = takeSpaces();
     auto lineBreaks = takeLineBreaks();
+    bool vacuum = !spaces && !lineBreaks;
 
     if ( myStream.eof() )
-        return TOK(EndOfFile);
+        return token(TokenKind::EndOfFile);
 
     if ( lineBreaks ) {
         do {
@@ -378,7 +413,7 @@ Token Scanner::readNext()
         } while ( lineBreaks );
 
         if ( myStream.eof() )
-            return TOK(EndOfFile);
+            return token(TokenKind::EndOfFile);
 
         if ( !nestings() ) {
             putback(c);
@@ -394,70 +429,79 @@ Token Scanner::readNext()
     column = myLoc.column;
 
     if ( c == '\'' ) {
+        TryEmitVacuum(c)
+
         lexeme += c;
         while ( peekChar() != '\'' )
             lexeme += nextChar();
 
         lexeme += nextChar();
 
-        return TOK(String);
+        return token(TokenKind::String);
     }
     else if ( c == '"' ) {
+        TryEmitVacuum(c)
+
         lexeme += c;
         while ( peekChar() != '"' )
             lexeme += nextChar();
 
         lexeme += nextChar();
 
-        return TOK(String);
+        return token(TokenKind::String);
     }
     else if ( c == '.' ) {
         if ( peekChar() == '.' ) {
             nextChar();
-            return TOK2(DotDot, "..");
+            return token2(TokenKind::DotDot, "..");
         }
 
-        return TOK2(Dot, ".");
+        return token2(TokenKind::Dot, ".");
     }
     else if ( c == '=' ) {
         if ( peekChar() == '>' ) {
             nextChar();
-            return TOK2(Yield, "=>");
+            return token2(TokenKind::Yield, "=>");
         }
 
-        return TOK2(Equal, "=");
+        return token2(TokenKind::Equal, "=");
     }
     else if ( c == ':' ) {
         switch ( peekChar() ) {
-        case '|': nextChar(); return TOK2(ColonPipe     , ":|");
-        case '&': nextChar(); return TOK2(ColonAmpersand, ":&");
-        case '=': nextChar(); return TOK2(ColonEqual    , ":=");
-        case '*': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return TOK2(ColonStarAngle    , ":*<"); } return TOK2(ColonStar     , ":*");
-        case '?': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return TOK2(ColonQuestionAngle, ":?<"); } return TOK2(ColonQuestion , ":?");
-        case '/': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return TOK2(ColonSlashAngle   , ":/<"); } return TOK2(ColonSlash    , ":/");
-        case '+': nextChar(); return TOK2(ColonPlus     , ":+");
-        case '-': nextChar(); return TOK2(ColonMinus    , ":-");
-        case '.': nextChar(); return TOK2(ColonDot      , ":.");
+        case '|': nextChar(); return token2(TokenKind::ColonPipe     , ":|");
+        case '&': nextChar(); return token2(TokenKind::ColonAmpersand, ":&");
+        case '=': nextChar(); return token2(TokenKind::ColonEqual    , ":=");
+        case '*': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return token2(TokenKind::ColonStarAngle    , ":*<"); } return token2(TokenKind::ColonStar     , ":*");
+        case '?': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return token2(TokenKind::ColonQuestionAngle, ":?<"); } return token2(TokenKind::ColonQuestion , ":?");
+        case '/': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return token2(TokenKind::ColonSlashAngle   , ":/<"); } return token2(TokenKind::ColonSlash    , ":/");
+        case '+': nextChar(); return token2(TokenKind::ColonPlus     , ":+");
+        case '-': nextChar(); return token2(TokenKind::ColonMinus    , ":-");
+        case '.': nextChar(); return token2(TokenKind::ColonDot      , ":.");
         case '<': nextChar();
-                  addNest();  return TOK2(ColonOpenAngle, ":<");
+                  addNest();  return token2(TokenKind::ColonOpenAngle, ":<");
         }
 
-        return TOK2(Colon, ":");
+        return token2(TokenKind::Colon, ":");
     }
     else if ( isMetaVariable(c) ) {
         if ( !isIdentifierStart(peekChar()) )
-            return TOK2(Undefined, "\\");
+            return token2(TokenKind::Undefined, "\\");
+
+        TryEmitVacuum(c)
 
         do lexeme += nextChar();
         while ( isIdentifierMid(peekChar()) );
 
-        return TOK(MetaVariable);
+        return token(TokenKind::MetaVariable);
     }
     else if ( c == '-' ) {
         switch ( peekChar() ) {
-        case '>': nextChar(); return TOK2(Arrow     , "->");
-        case '-': nextChar(); return TOK2(MinusMinus, "--");
+        case '>': nextChar(); return token2(TokenKind::Arrow     , "->");
+        case '-': nextChar(); return token2(TokenKind::MinusMinus, "--");
         }
+
+        if ( vacuum )
+            return token2(TokenKind::Hyphen, "-");
 
         if ( isNumber(peekChar()) ) {
             lexeme += c;
@@ -465,29 +509,31 @@ Token Scanner::readNext()
             goto L_lexNumber;
         }
 
-        goto L_lexIdentifier;
+        goto L_undefined;
     }
     else if ( isIdentifierStart(c) ) {
-L_lexIdentifier:
+        TryEmitVacuum(c)
+
         lexeme += c;
         while ( isIdentifierMid(peekChar()) )
             lexeme += nextChar();
 
-        return Token(identifierKind(lexeme), lexeme, {myLoc.line, column});
+        return token(identifierKind(lexeme));
     }
     else if ( isNumber(c) ) {
+        TryEmitVacuum(c)
 L_lexNumber:
         lexeme += c;
         while ( isNumber(peekChar()) )
             lexeme += nextChar();
 
         if ( peekChar() != '.' )
-            return TOK(Integer);
+            return token(TokenKind::Integer);
 
         c = nextChar();
         if ( !isNumber(peekChar()) ) {
             putback(c);
-            return TOK(Integer);
+            return token(TokenKind::Integer);
         }
 
         lexeme += '.';
@@ -501,14 +547,14 @@ L_lexNumber:
             if ( !isNumber(c) ) {
                 if ( c != '-' && c != '+' ) {
                     putback(e);
-                    return TOK(Rational);
+                    return token(TokenKind::Rational);
                 }
 
                 c = nextChar();
                 if ( !isNumber(peekChar()) ) {
                     putback(e);
                     putback(c);
-                    return TOK(Rational);
+                    return token(TokenKind::Rational);
                 }
 
                 lexeme += e;
@@ -521,34 +567,41 @@ L_lexNumber:
             do lexeme += nextChar();
             while ( isNumber(peekChar()) );
 
-            return TOK(Rational);
+            return token(TokenKind::Rational);
         }
 
-        return TOK(Rational);
+        return token(TokenKind::Rational);
     }
 
     // Single characters
 
     switch ( c ) {
-    case '(': addNest(); return TOK2(OpenParen  , "(");
-    case '[': addNest(); return TOK2(OpenBracket, "[");
-    case '<': addNest(); return TOK2(OpenAngle  , "<");
-    case ')': removeNest();  return TOK2(CloseParen  , ")");
-    case ']': removeNest();  return TOK2(CloseBracket, "]");
-    case '>': removeNest();  return TOK2(CloseAngle  , ">");
-    case '{': return TOK2(OpenBrace   , "{");
-    case '}': return TOK2(CloseBrace  , "}");
-    case '|': return TOK2(Pipe        , "|");
-    case ',': return TOK2(Comma       , ",");
-    case '@': return TOK2(At          , "@");
-    case ';': return TOK2(Semicolon   , ";");
+    case '(':
+    case '[':
+    case '<':
+        TryEmitVacuum(c)
     }
 
-    myError = true;
-    return TOK2(Undefined, "");
+    switch ( c ) {
+    case '(': addNest(); return token2(TokenKind::OpenParen  , "(");
+    case '[': addNest(); return token2(TokenKind::OpenBracket, "[");
+    case '<': addNest(); return token2(TokenKind::OpenAngle  , "<");
+    case ')': removeNest(); return token2(TokenKind::CloseParen  , ")");
+    case ']': removeNest(); return token2(TokenKind::CloseBracket, "]");
+    case '>': removeNest(); return token2(TokenKind::CloseAngle  , ">");
+    case '{': return token2(TokenKind::OpenBrace   , "{");
+    case '}': return token2(TokenKind::CloseBrace  , "}");
+    case '|': return token2(TokenKind::Pipe        , "|");
+    case ',': return token2(TokenKind::Comma       , ",");
+    case '@': return token2(TokenKind::At          , "@");
+    case ';': return token2(TokenKind::Semicolon   , ";");
+    }
 
-#undef TOK2
-#undef TOK
+L_undefined:
+    myError = true;
+    return token2(TokenKind::Undefined, "");
+
+#undef TryEmitVacuum
 }
 
 } // namespace kyfoo::lexer

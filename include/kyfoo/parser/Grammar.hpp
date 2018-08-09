@@ -446,7 +446,7 @@ public:
         myCaptures.clear();
 
         uz m = 0;
-        T pattern
+        T pattern;
         while ( pattern.match(scan, m) ) {
             matches += m;
             m = 0;
@@ -457,6 +457,11 @@ public:
     }
 
     std::vector<T> const& captures() const
+    {
+        return myCaptures;
+    }
+
+    std::vector<T>& captures()
     {
         return myCaptures;
     }

@@ -11,6 +11,9 @@ namespace kyfoo::lexer {
     X(IndentGT   , "indent(>)"  ) \
     X(IndentError, "indent(err)") \
     \
+    X(Vacuum     , "vacuum") \
+    X(Hyphen     , "hyphen") \
+    \
     X(Identifier  , "identifier"  ) \
     X(MetaVariable, "metaVariable") \
     X(Integer     , "integer"     ) \

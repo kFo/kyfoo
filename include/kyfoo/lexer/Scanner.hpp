@@ -63,6 +63,7 @@ private:
 
     SourceLocation myLoc = { 1, 1 };
     int myNestings = 0;
+    TokenKind myLastTokenKind = TokenKind::Undefined;
     bool myError = false;
 };
 
