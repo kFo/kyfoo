@@ -185,7 +185,7 @@ htest() -> () =>
     bubbleSort arr
     arr (c : ref u32) -> () => :. put c
     
-    delete arr
+    arr.delete
     :.
 
 start() -> () =>

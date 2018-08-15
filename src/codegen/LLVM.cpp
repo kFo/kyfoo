@@ -559,7 +559,9 @@ struct CodeGenPass
             auto gatherStatement = [this, &builder](ast::Statement const& stmt) {
                 for ( auto const& v : stmt.unnamedVariables() ) {
                     auto vdata = mk<LLVMCustomData<ast::VariableDeclaration>>();
-                    vdata->inst = builder.CreateAlloca(toType(*v->type()));
+                    auto type = toType(*v->type());
+                    if ( !type->isVoidTy() )
+                        vdata->inst = builder.CreateAlloca(type);
                     v->setCodegenData(std::move(vdata));
                 }
             };
@@ -649,17 +651,10 @@ struct CodeGenPass
         //};
 
         for ( auto const& stmt : block.statements() ) {
-            for ( auto ass : stmt->assignExpressions() ) {
-                if ( !toValue(builder, builder.getVoidTy(), *ass) ) {
-                    error(*ass) << "invalid instruction";
-                    die();
-                }
-            }
+            for ( auto ass : stmt->assignExpressions() )
+                toValue(builder, builder.getVoidTy(), *ass);
 
-            if ( !toValue(builder, builder.getVoidTy(), stmt->expression()) ) {
-                error(stmt->expression()) << "invalid instruction";
-                die();
-            }
+            toValue(builder, builder.getVoidTy(), stmt->expression());
 
             //auto u = stmt->unnamedVariables();
             //if ( u.length() ) {
@@ -678,7 +673,7 @@ struct CodeGenPass
             if ( retJunc->expression() ) {
                 auto retType = fdata->getType()->getReturnType();
                 auto retVal = toValue(builder, retType, *retJunc->expression());
-                if ( retType->isVoidTy() )
+                if ( !retVal || retType->isVoidTy() )
                     builder.CreateRetVoid();
                 else
                     builder.CreateRet(retVal);
@@ -978,6 +973,9 @@ private:
                 if ( destType && destType->isPointerTy() )
                     return vdata->inst;
 
+                if ( !vdata->inst )
+                    return nullptr;
+
                 return builder.CreateLoad(vdata->inst);
             }
 
@@ -1037,14 +1035,18 @@ private:
 
         if ( auto assign = expr.as<ast::AssignExpression>() ) {
             auto ref = toRef(builder, assign->left());
-            if ( !ref ) {
+            if ( !ref )
                 ref = toValue(builder, nullptr, assign->left());
-                if ( !ref )
-                    die("cannot determine reference");
-            }
 
-            builder.CreateStore(toValue(builder, ref->getType()->getPointerElementType(), assign->right()),
-                                ref);
+            auto leftType = ref ? ref->getType()->getPointerElementType() : builder.getVoidTy();
+            auto val = toValue(builder, leftType, assign->right());
+            if ( val->getType()->isVoidTy() )
+                return nullptr;
+
+            if ( !ref || !val )
+                die("cannot determine reference");
+
+            builder.CreateStore(val, ref);
             return builder.CreateLoad(ref);
         }
 
