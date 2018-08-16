@@ -224,13 +224,13 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Overloading.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\ast\Node.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Clone.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Variance.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Visitors.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Box.hpp" />
     <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp" />
     <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp" />

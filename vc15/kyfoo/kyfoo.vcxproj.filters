@@ -63,12 +63,6 @@
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp">
       <Filter>include\kyfoo\parser</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\ast\Node.hpp">
-      <Filter>include\kyfoo\ast</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\ast\IO.hpp">
-      <Filter>include\kyfoo\ast</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
@@ -124,6 +118,12 @@
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\ast\Variance.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Visitors.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Clone.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
   </ItemGroup>

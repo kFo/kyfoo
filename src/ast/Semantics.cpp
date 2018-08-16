@@ -14,6 +14,7 @@
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/Variance.hpp>
+#include <kyfoo/ast/Visitors.hpp>
 
 namespace kyfoo::ast {
 
@@ -383,23 +384,6 @@ SymRes traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
     DeepApply<SymbolDependencyBuilder> op(tracker, decl);
     tracker.add(decl);
     return op(decl);
-}
-
-template <typename O>
-auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
-{
-    auto other = [&o, &rhs](auto l) {
-#define RHS(a,b) if ( auto r = rhs.as<b>() ) return o(*l, *r);
-        EXPRESSION_KINDS(RHS)
-#undef RHS
-        throw std::runtime_error("invalid dispatch");
-    };
-
-#define LHS(a,b) if ( auto l = lhs.as<b>() ) return other(l);
-    EXPRESSION_KINDS(LHS)
-#undef LHS
-
-    throw std::runtime_error("invalid dispatch");
 }
 
 struct MatchEquivalent

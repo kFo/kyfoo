@@ -15,6 +15,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Overloading.hpp>
+#include <kyfoo/ast/Visitors.hpp>
 
 namespace kyfoo::ast {
 
@@ -73,11 +74,6 @@ void Scope::swap(Scope& rhs) noexcept
     swap(myImports, rhs.myImports);
 }
 
-void Scope::io(IStream& stream) const
-{
-    stream.next("declarations", myDeclarations);
-}
-
 IMPL_CLONE_NOBASE_BEGIN(Scope, Scope)
 IMPL_CLONE_CHILD(myDeclarations)
 IMPL_CLONE_CHILD(myDefinitions)
@@ -102,14 +98,6 @@ void Scope::resolveImports(Diagnostics& dgn)
 
     for ( auto& defn : myDefinitions )
         defn->resolveImports(dgn);
-}
-
-SymRes Scope::resolveSymbols(Context& ctx)
-{
-    auto ret = resolveDeclarations(ctx);
-    ret |= resolveDefinitions(ctx);
-
-    return ret;
 }
 
 SymRes Scope::resolveDeclarations(Context& ctx)
@@ -313,6 +301,11 @@ SymbolSpace* Scope::findSymbolSpace(std::string_view name) const
     return nullptr;
 }
 
+Scope::Kind Scope::kind() const
+{
+    return myKind;
+}
+
 Module& Scope::module()
 {
     return *myModule;
@@ -386,11 +379,6 @@ void DataSumScope::swap(DataSumScope& rhs) noexcept
     Scope::swap(rhs);
 }
 
-void DataSumScope::io(IStream& stream) const
-{
-    Scope::io(stream);
-}
-
 IMPL_CLONE_BEGIN(DataSumScope, Scope, Scope)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumScope, Scope)
@@ -458,11 +446,6 @@ void DataProductScope::swap(DataProductScope& rhs) noexcept
     Scope::swap(rhs);
     using kyfoo::swap;
     swap(myFields, rhs.myFields);
-}
-
-void DataProductScope::io(IStream& stream) const
-{
-    Scope::io(stream);
 }
 
 IMPL_CLONE_BEGIN(DataProductScope, Scope, Scope)
@@ -567,21 +550,6 @@ void ProcedureScope::swap(ProcedureScope& rhs) noexcept
     swap(myLabel, rhs.myLabel);
     swap(myBasicBlocks, rhs.myBasicBlocks);
     swap(myChildScopes, rhs.myChildScopes);
-}
-
-void ProcedureScope::io(IStream& stream) const
-{
-    Scope::io(stream);
-    if ( myLabel.kind() != lexer::TokenKind::Undefined )
-        stream.next("name", myLabel.lexeme());
-
-    stream.openArray("blocks");
-    for ( auto& bb : myBasicBlocks )
-        bb->io(stream);
-    stream.closeArray();
-
-    for ( auto& s : myChildScopes )
-        s->io(stream);
 }
 
 IMPL_CLONE_BEGIN(ProcedureScope, Scope, Scope)
@@ -965,11 +933,6 @@ TemplateScope::~TemplateScope() = default;
 void TemplateScope::swap(TemplateScope& rhs) noexcept
 {
     Scope::swap(rhs);
-}
-
-void TemplateScope::io(IStream& stream) const
-{
-    Scope::io(stream);
 }
 
 IMPL_CLONE_BEGIN(TemplateScope, Scope, Scope)

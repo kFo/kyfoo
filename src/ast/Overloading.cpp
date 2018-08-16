@@ -149,8 +149,10 @@ Declaration* Via::instantiate(Context& ctx)
 
     // create new instantiation
     clone_map_t cloneMap;
-    myProto->ownDeclarations.emplace_back(ast::clone(myProto->proto.decl, cloneMap));
+    myProto->ownDeclarations.emplace_back(ast::beginClone(myProto->proto.decl, cloneMap));
     auto instanceDecl = myProto->ownDeclarations.back().get();
+    remap(*instanceDecl, cloneMap);
+
     instanceDecl->symbol().prototype().bindVariables(mySubsts);
     auto res = ctx.resolveDeclaration(*instanceDecl);
     if ( res.error() )
@@ -162,8 +164,9 @@ Declaration* Via::instantiate(Context& ctx)
         return instanceDecl;
 
     if ( auto defn = getDefinition(*myProto->proto.decl) ) {
-        myProto->ownDefinitions.emplace_back(ast::clone(defn, cloneMap));
+        myProto->ownDefinitions.emplace_back(ast::beginClone(defn, cloneMap));
         auto instanceDefn = myProto->ownDefinitions.back().get();
+        remap(*instanceDefn, cloneMap);
         define(*instanceDecl, *instanceDefn);
 
         if ( instanceDecl != instanceDefn->declaration() )

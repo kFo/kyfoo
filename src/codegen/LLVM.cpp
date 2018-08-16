@@ -37,10 +37,9 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Visitors.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
-
-#include <iostream>
 
 namespace {
     llvm::StringRef strRef(std::string_view s)

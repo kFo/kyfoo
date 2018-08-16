@@ -112,22 +112,22 @@ public:
 
     Resolver* changeResolver(Resolver& resolver);
     ResolverReverter pushResolver(Resolver& resolver);
-    Statement* changeStatement(Statement* statement);
+    Statement* changeStatement(Statement* stmt);
 
     SymRes rewrite(Box<Expression> expr);
     SymRes rewrite(std::function<Box<Expression>(Box<Expression>&)> func);
 
-    SymRes resolveDeclaration(Declaration& declaration);
+    SymRes resolveDeclaration(Declaration& decl);
     SymRes resolveScopeDeclarations(Scope& scope);
     SymRes resolveScopeDefinitions(Scope& scope);
     SymRes resolveScope(Scope& scope);
     SymRes resolveScopeAttributes(Scope& scope);
 
-    SymRes resolveExpression(Expression& expression);
-    SymRes resolveExpression(Box<Expression>& expression);
+    SymRes resolveExpression(Expression& expr);
+    SymRes resolveExpression(Box<Expression>& expr);
     SymRes resolveExpressions(std::vector<Box<Expression>>::iterator left,
                               std::vector<Box<Expression>>::iterator right);
-    SymRes resolveExpressions(std::vector<Box<Expression>>& expressions);
+    SymRes resolveExpressions(std::vector<Box<Expression>>& exprs);
 
     SymRes resolveStatement(Statement& stmt);
     SymRes resolveStatements(std::vector<Statement>::iterator left,
@@ -143,6 +143,7 @@ public:
     operator DiagnosticsContext();
 
 protected:
+    SymRes resolveSymbols(Expression& expr);
     Lookup trackForModule(Lookup&& hit);
 
 private:

@@ -271,10 +271,10 @@ ResolverReverter Context::pushResolver(Resolver& resolver)
     return { *this, changeResolver(resolver) };
 }
 
-Statement* Context::changeStatement(Statement* statement)
+Statement* Context::changeStatement(Statement* stmt)
 {
     auto ret = myStatement;
-    myStatement = statement;
+    myStatement = stmt;
     return ret;
 }
 
@@ -290,18 +290,32 @@ SymRes Context::rewrite(std::function<Box<Expression>(Box<Expression>&)> func)
     return SymRes::Rewrite;
 }
 
-SymRes Context::resolveDeclaration(Declaration& declaration)
+SymRes Context::resolveDeclaration(Declaration& decl)
 {
-    Resolver resolver(declaration.scope());
+    Resolver resolver(decl.scope());
     REVERT = pushResolver(resolver);
-    return declaration.resolveSymbols(*this);
+    switch (decl.kind()) {
+#define X(a,b,c) case DeclKind::a: return static_cast<c&>(decl).resolveSymbols(*this);
+        DECLARATION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("unhandled declaration");
 }
 
 SymRes Context::resolveScopeDeclarations(Scope& scope)
 {
     Resolver resolver(scope);
     REVERT = pushResolver(resolver);
-    auto ret = scope.resolveDeclarations(*this);
+    SymRes ret;
+    switch (scope.kind()) {
+#define X(a,b) case Scope::Kind::a: ret = static_cast<b&>(scope).resolveDeclarations(*this); break;
+    SCOPE_KINDS(X)
+#undef X
+    default:
+        throw std::runtime_error("unhandled scope");
+    }
+
     if ( !myInstantiatedDeclarations.empty() )
         throw std::runtime_error("instantiated declarations not elaborated");
 
@@ -312,7 +326,14 @@ SymRes Context::resolveScopeDefinitions(Scope& scope)
 {
     Resolver resolver(scope);
     REVERT = pushResolver(resolver);
-    auto ret = scope.resolveDefinitions(*this);
+    SymRes ret;
+    switch (scope.kind()) {
+#define X(a,b) case Scope::Kind::a: ret = static_cast<b&>(scope).resolveDefinitions(*this); break;
+    SCOPE_KINDS(X)
+#undef X
+    default:
+        throw std::runtime_error("unhandled scope");
+    }
     
     // Resolve any accrued definitions
     for ( auto defns = takeInstantiatedDefinitions(); !defns.empty(); defns = takeInstantiatedDefinitions() )
@@ -325,9 +346,9 @@ SymRes Context::resolveScopeDefinitions(Scope& scope)
 
 SymRes Context::resolveScope(Scope& scope)
 {
-    Resolver resolver(scope);
-    REVERT = pushResolver(resolver);
-    return scope.resolveSymbols(*this);
+    auto ret = resolveScopeDeclarations(scope);
+    ret |= resolveScopeDefinitions(scope);
+    return ret;
 }
 
 SymRes Context::resolveScopeAttributes(Scope& scope)
@@ -337,14 +358,14 @@ SymRes Context::resolveScopeAttributes(Scope& scope)
     return scope.resolveAttributes(*this);
 }
 
-SymRes Context::resolveExpression(Expression& expression)
+SymRes Context::resolveExpression(Expression& expr)
 {
     auto originalResolver = myResolver;
     myRewrite.reset();
     ++myExpressionDepth;
-    auto ret = expression.resolveSymbols(*this);
+    auto ret = resolveSymbols(expr);
     --myExpressionDepth;
-    if ( ret && !expression.type() )
+    if ( ret && !expr.type() )
         throw std::runtime_error("successful elaboration did not type an expression");
 
     if ( ret == SymRes::Rewrite || myRewrite || myLazyRewrite )
@@ -352,41 +373,41 @@ SymRes Context::resolveExpression(Expression& expression)
 
     myResolver = originalResolver;
 
-    ret |= resolveExpressions(expression.myConstraints);
+    ret |= resolveExpressions(expr.myConstraints);
     return ret;
 }
 
-SymRes Context::resolveExpression(Box<Expression>& expression)
+SymRes Context::resolveExpression(Box<Expression>& expr)
 {
     auto originalResolver = myResolver;
     myRewrite.reset();
     ++myExpressionDepth;
-    auto ret = expression->resolveSymbols(*this);
+    auto ret = resolveSymbols(*expr);
     --myExpressionDepth;
-    if ( ret && !expression->type() )
+    if ( ret && !expr->type() )
         throw std::runtime_error("successful elaboration did not type an expression");
 
     while ( myRewrite || myLazyRewrite ) {
         if ( ret != SymRes::Rewrite )
             throw std::runtime_error("inconsistent rewrite request");
 
-        auto c = std::move(expression->myConstraints);
+        auto c = std::move(expr->myConstraints);
 
         if ( myLazyRewrite ) {
             if ( myRewrite )
                 throw std::runtime_error("cannot have both a rewrite and lazy rewrite");
 
-            myRewrite = myLazyRewrite(expression);
+            myRewrite = myLazyRewrite(expr);
             myLazyRewrite = nullptr;
         }
 
-        if ( expression && myDiagnostics->errorCount() )
-            myDiagnostics->bunkExpression(std::move(expression));
+        if ( expr && myDiagnostics->errorCount() )
+            myDiagnostics->bunkExpression(std::move(expr));
 
-        expression = std::move(myRewrite);
-        expression->addConstraints(std::move(c));
+        expr = std::move(myRewrite);
+        expr->addConstraints(std::move(c));
         myResolver = originalResolver;
-        ret = expression->resolveSymbols(*this);
+        ret = resolveSymbols(*expr);
     }
 
     myResolver = originalResolver;
@@ -394,7 +415,7 @@ SymRes Context::resolveExpression(Box<Expression>& expression)
     if ( ret == SymRes::Rewrite )
         throw std::runtime_error("unhandled rewrite request");
 
-    ret |= resolveExpressions(expression->myConstraints);
+    ret |= resolveExpressions(expr->myConstraints);
     return ret;
 }
 
@@ -459,6 +480,17 @@ std::vector<Scope*>&& Context::takeInstantiatedDefinitions()
 Context::operator DiagnosticsContext()
 {
     return { *myDiagnostics, *myModule };
+}
+
+SymRes Context::resolveSymbols(Expression& expr)
+{
+    switch (expr.kind()) {
+#define X(a,b) case Expression::Kind::a: return static_cast<b&>(expr).resolveSymbols(*this);
+    EXPRESSION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("unhandled expression");
 }
 
 Lookup Context::trackForModule(Lookup&& hit)

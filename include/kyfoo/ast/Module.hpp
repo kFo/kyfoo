@@ -6,7 +6,7 @@
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/Utilities.hpp>
-#include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/codegen/Codegen.hpp>
 
 namespace kyfoo {
@@ -15,6 +15,7 @@ namespace kyfoo {
 
     namespace lexer {
         class Scanner;
+        class Token;
     }
 
     namespace ast {
@@ -60,7 +61,7 @@ private:
     std::filesystem::path myPath;
 };
 
-class Module : public INode
+class Module
 {
 public:
     Module(ModuleSet* moduleSet,
@@ -68,10 +69,6 @@ public:
     Module(ModuleSet* moduleSet,
            std::filesystem::path const& path);
     ~Module();
-
-    // IIO
-public:
-    void io(IStream& stream) const override;
 
 public:
     std::string_view name() const;

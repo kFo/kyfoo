@@ -2,7 +2,10 @@
 
 #include <kyfoo/Dollar.hpp>
 #include <kyfoo/Slice.hpp>
-#include <kyfoo/ast/Node.hpp>
+
+#include <kyfoo/lexer/Token.hpp>
+
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/ast/Tuples.hpp>
 
 namespace kyfoo {
@@ -106,7 +109,7 @@ private:
     std::vector<Box<TupleExpression>> myTuples;
 };
 
-class Expression : public INode
+class Expression
 {
 public:
     friend class Context;
@@ -130,22 +133,16 @@ protected:
     Expression& operator = (Expression const& rhs) = delete;
 
 public:
+#ifndef NDEBUG
+    virtual
+#endif
     ~Expression();
 
 protected:
     void swap(Expression& rhs) noexcept;
 
-    // IIO
 public:
-    void io(IStream& stream) const override = 0;
-
-public:
-    virtual Expression* clone(clone_map_t& map) const = 0;
-    virtual void cloneChildren(Expression& c, clone_map_t& map) const;
-    virtual void remapReferences(clone_map_t const& map);
-
-protected:
-    virtual SymRes resolveSymbols(Context& ctx) = 0;
+    DECL_CLONE_ALL_NOBASE(Expression);
 
 public:
     void addConstraint(Box<Expression> expr);
@@ -180,6 +177,9 @@ protected:
 class LiteralExpression : public Expression
 {
 public:
+    friend class Context;
+
+public:
     explicit LiteralExpression(lexer::Token const& token);
 
 protected:
@@ -193,14 +193,10 @@ public:
 
     void swap(LiteralExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     lexer::Token const& token() const;
@@ -211,6 +207,9 @@ private:
 
 class IdentifierExpression : public Expression
 {
+public:
+    friend class Context;
+
 public:
     explicit IdentifierExpression(lexer::Token const& token);
     IdentifierExpression(lexer::Token const& token, Declaration const& decl);
@@ -228,14 +227,10 @@ public:
 
     void swap(IdentifierExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     lexer::Token const& token() const;
@@ -333,6 +328,7 @@ inline ExpressionArray::iterator_end end(ExpressionArray const& rhs) { return rh
 class TupleExpression : public Expression
 {
 public:
+    friend class Context;
     friend class ApplyExpression;
 
 public:
@@ -354,14 +350,10 @@ public:
 
     void swap(TupleExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     TupleKind kind() const;
@@ -391,6 +383,7 @@ private:
 class ApplyExpression : public Expression
 {
 public:
+    friend class Context;
     friend class ProcedureDeclaration;
 
 public:
@@ -405,14 +398,10 @@ public:
 
     void swap(ApplyExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     SymRes lowerToApplicable(Context& ctx);
@@ -446,6 +435,9 @@ private:
 class SymbolExpression : public IdentifierExpression
 {
 public:
+    friend class Context;
+
+public:
     SymbolExpression(lexer::Token const& token,
                      std::vector<Box<Expression>>&& expressions);
     SymbolExpression(std::vector<Box<Expression>>&& expressions);
@@ -462,14 +454,10 @@ public:
 
     void swap(SymbolExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     SymRes resolveSubExpressions(Context& ctx);
@@ -493,6 +481,7 @@ private:
 class DotExpression : public Expression
 {
 public:
+    friend class Context;
     friend ApplyExpression;
 
 public:
@@ -508,14 +497,10 @@ public:
 
     void swap(DotExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     SymRes resolveSymbols(Context& ctx, uz subExpressionLimit);
@@ -539,6 +524,9 @@ private:
 class AssignExpression : public Expression
 {
 public:
+    friend class Context;
+
+public:
     AssignExpression(Box<Expression> lhs,
                      Box<Expression> rhs);
     AssignExpression(VariableDeclaration const& var,
@@ -553,14 +541,10 @@ public:
 
     void swap(AssignExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     Expression const& left() const;
@@ -576,6 +560,9 @@ private:
 class LambdaExpression : public Expression
 {
 public:
+    friend class Context;
+
+public:
     LambdaExpression(lexer::Token const& yieldToken,
                      ProcedureDeclaration* proc);
 
@@ -588,14 +575,10 @@ public:
 
     void swap(LambdaExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     lexer::Token const& yieldToken() const;
@@ -611,6 +594,9 @@ private:
 class ArrowExpression : public Expression
 {
 public:
+    friend class Context;
+
+public:
     ArrowExpression(Box<Expression> from,
                     Box<Expression> to);
 
@@ -623,14 +609,10 @@ public:
 
     void swap(ArrowExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     Expression const& from() const;
@@ -651,6 +633,7 @@ private:
 class UniverseExpression : public Expression
 {
 public:
+    friend class Context;
     friend class Strata;
     using natural_t = uz; // todo
 
@@ -666,14 +649,10 @@ public:
 
     void swap(UniverseExpression& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Expression
     DECL_CLONE_ALL(Expression)
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     natural_t level() const;
@@ -689,6 +668,28 @@ EXPRESSION_KINDS(X)
 #define X(a, b) template <> inline b const* Expression::as<b>() const { return myKind == Expression::Kind::a ? static_cast<b const*>(this) : nullptr; }
 EXPRESSION_KINDS(X)
 #undef X
+
+inline Box<Expression> beginClone(Expression const& expr, clone_map_t& map)
+{
+    switch (expr.kind()) {
+#define X(a,b) case Expression::Kind::a: return static_cast<b const&>(expr).beginClone(map);
+    EXPRESSION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid expression type");
+}
+
+inline void remap(Expression& expr, clone_map_t const& map)
+{
+    switch (expr.kind()) {
+#define X(a,b) case Expression::Kind::a: return static_cast<b&>(expr).remapReferences(map);
+    EXPRESSION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid expression type");
+}
 
 std::ostream& operator << (std::ostream& stream, Expression const& expr);
 std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs);

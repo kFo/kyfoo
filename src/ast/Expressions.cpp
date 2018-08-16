@@ -144,16 +144,9 @@ void Expression::swap(Expression& rhs) noexcept
     swap(myType, rhs.myType);
 }
 
-void Expression::io(IStream& /*stream*/) const
-{
-    // todo
-}
-
-void Expression::cloneChildren(Expression& c, clone_map_t& map) const
-{
-    IMPL_CLONE_CHILD(myConstraints)
-}
-
+IMPL_CLONE_NOBASE_BEGIN(Expression, Expression)
+IMPL_CLONE_CHILD(myConstraints)
+IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Expression)
 IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myType)
@@ -260,11 +253,6 @@ void LiteralExpression::swap(LiteralExpression& rhs) noexcept
     swap(myToken, rhs.myToken);
 }
 
-void LiteralExpression::io(IStream& stream) const
-{
-    stream.next("literal", myToken);
-}
-
 IMPL_CLONE_BEGIN(LiteralExpression, Expression, Expression)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(LiteralExpression, Expression)
@@ -347,12 +335,6 @@ void IdentifierExpression::swap(IdentifierExpression& rhs) noexcept
     using kyfoo::swap;
     swap(myToken, rhs.myToken);
     swap(myDeclaration, rhs.myDeclaration);
-}
-
-void IdentifierExpression::io(IStream& stream) const
-{
-    Expression::io(stream);
-    // todo
 }
 
 IMPL_CLONE_BEGIN(IdentifierExpression, Expression, Expression)
@@ -610,14 +592,6 @@ void TupleExpression::swap(TupleExpression& rhs) noexcept
 
 TupleExpression::~TupleExpression() = default;
 
-void TupleExpression::io(IStream& stream) const
-{
-    stream.openArray(to_string(myKind));
-    for ( auto const& e : myExpressions )
-        e->io(stream);
-    stream.closeArray();
-}
-
 IMPL_CLONE_BEGIN(TupleExpression, Expression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
@@ -753,11 +727,6 @@ void ApplyExpression::swap(ApplyExpression& rhs) noexcept
 
     using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
-}
-
-void ApplyExpression::io(IStream& stream) const
-{
-    stream.next("expressions", myExpressions);
 }
 
 IMPL_CLONE_BEGIN(ApplyExpression, Expression, Expression)
@@ -1174,12 +1143,6 @@ void SymbolExpression::swap(SymbolExpression& rhs) noexcept
     swap(myCloseToken, rhs.myCloseToken);
 }
 
-void SymbolExpression::io(IStream& stream) const
-{
-    IdentifierExpression::io(stream);
-    stream.next("expressions", myExpressions);
-}
-
 IMPL_CLONE_BEGIN(SymbolExpression, IdentifierExpression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
@@ -1294,12 +1257,6 @@ void DotExpression::swap(DotExpression& rhs) noexcept
     using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
     swap(myModScope, rhs.myModScope);
-}
-
-void DotExpression::io(IStream& stream) const
-{
-    Expression::io(stream);
-    stream.next("expression", myExpressions);
 }
 
 IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
@@ -1536,12 +1493,6 @@ void AssignExpression::swap(AssignExpression& rhs) noexcept
     swap(myRight, rhs.myRight);
 }
 
-void AssignExpression::io(IStream& stream) const
-{
-    stream.next("left", myLeft);
-    stream.next("right", myRight);
-}
-
 IMPL_CLONE_BEGIN(AssignExpression, Expression, Expression)
 IMPL_CLONE_CHILD(myLeft)
 IMPL_CLONE_CHILD(myRight)
@@ -1650,11 +1601,6 @@ void LambdaExpression::swap(LambdaExpression& rhs) noexcept
     swap(myProc, rhs.myProc);
 }
 
-void LambdaExpression::io(IStream&) const
-{
-    // todo
-}
-
 IMPL_CLONE_BEGIN(LambdaExpression, Expression, Expression)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(LambdaExpression, Expression)
@@ -1718,12 +1664,6 @@ void ArrowExpression::swap(ArrowExpression& rhs) noexcept
     using kyfoo::swap;
     swap(myFrom, rhs.myFrom);
     swap(myTo, rhs.myTo);
-}
-
-void ArrowExpression::io(IStream& stream) const
-{
-    stream.next("from", myFrom);
-    stream.next("to", myTo);
 }
 
 IMPL_CLONE_BEGIN(ArrowExpression, Expression, Expression)
@@ -1807,12 +1747,6 @@ void UniverseExpression::swap(UniverseExpression& rhs) noexcept
     Expression::swap(rhs);
     using kyfoo::swap;
     swap(myLevel, rhs.myLevel);
-}
-
-void UniverseExpression::io(IStream& stream) const
-{
-    Expression::io(stream);
-    stream.next("level", myLevel);
 }
 
 IMPL_CLONE_BEGIN(UniverseExpression, Expression, Expression)

@@ -8,8 +8,7 @@
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/lexer/Token.hpp>
-#include <kyfoo/ast/IO.hpp>
-#include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/ast/Substitutions.hpp>
 
 namespace kyfoo {
@@ -37,7 +36,7 @@ using Pattern = std::vector<Box<Expression>>;
 using pattern_t = Slice<Expression*>;
 using const_pattern_t = Slice<Expression const*>;
 
-class PatternsPrototype : public IIO
+class PatternsPrototype
 {
 public:
     friend class ProcedureDeclaration;
@@ -57,10 +56,6 @@ public:
     ~PatternsPrototype();
 
     void swap(PatternsPrototype& rhs) noexcept;
-
-    // IIO
-public:
-    void io(IStream& stream) const override;
 
 public:
     DECL_CLONE_ALL_NOBASE(PatternsPrototype)
@@ -87,7 +82,7 @@ private:
     std::vector<Box<SymbolVariable>> myVariables;
 };
 
-class Symbol : public IIO
+class Symbol
 {
 public:
     friend class SymbolSpace;
@@ -109,9 +104,6 @@ public:
     ~Symbol();
 
     void swap(Symbol& rhs) noexcept;
-
-public:
-    void io(IStream& stream) const override;
 
 public:
     DECL_CLONE_ALL_NOBASE(Symbol);
@@ -154,6 +146,26 @@ private:
     std::string_view myName;
     const_pattern_t myPattern;
 };
+
+inline Box<PatternsPrototype> beginClone(PatternsPrototype const& proto, clone_map_t& map)
+{
+    return proto.beginClone(map);
+}
+
+inline void remap(PatternsPrototype& proto, clone_map_t const& map)
+{
+    return proto.remapReferences(map);
+}
+
+inline Box<Symbol> beginClone(Symbol const& sym, clone_map_t& map)
+{
+    return sym.beginClone(map);
+}
+
+inline void remap(Symbol& sym, clone_map_t const& map)
+{
+    return sym.remapReferences(map);
+}
 
 std::ostream& print(std::ostream& stream, Symbol const& sym);
 

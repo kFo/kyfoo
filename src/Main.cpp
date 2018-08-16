@@ -12,7 +12,7 @@
 
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Module.hpp>
-#include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
@@ -69,8 +69,8 @@ int runParserTest(std::filesystem::path const& filepath)
     auto main = moduleSet.create(filepath);
     try {
         main->parse(dgn);
-        ast::JsonOutput output(std::cout);
-        main->io(output);
+        // todo
+        throw std::runtime_error("not implemented");
     }
     catch (Diagnostics*) {
         // Handled below
@@ -97,8 +97,8 @@ int analyzeModule(ast::Module& m, bool treeDump)
         if ( treeDump ) {
             std::ofstream fout(std::string(m.name()) + ".astdump.json");
             if ( fout ) {
-                ast::JsonOutput out(fout);
-                m.io(out);
+                // todo
+                throw std::runtime_error("not implemented");
             }
         }
     }

@@ -12,6 +12,7 @@
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
+#include <kyfoo/ast/Visitors.hpp>
 
 namespace kyfoo::ast {
 
@@ -56,18 +57,9 @@ void Declaration::swap(Declaration& rhs) noexcept
     // myCodeGenData does not get copied
 }
 
-void Declaration::io(IStream& stream) const
-{
-    std::string declkind = typeid(*this).name();
-    stream.next("declkind", declkind);
-    stream.next("symbol", mySymbol);
-}
-
-void Declaration::cloneChildren(Declaration& c, clone_map_t& map) const
-{
-    c.mySymbol = ast::clone(mySymbol, map);
-}
-
+IMPL_CLONE_NOBASE_BEGIN(Declaration, Declaration)
+IMPL_CLONE_CHILD(mySymbol)
+IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Declaration)
 IMPL_CLONE_REMAP(mySymbol)
 IMPL_CLONE_REMAP(myScope)
@@ -187,11 +179,6 @@ void DefinableDeclaration::swap(DefinableDeclaration& rhs) noexcept
     swap(myDefinition, rhs.myDefinition);
 }
 
-void DefinableDeclaration::io(IStream& stream) const
-{
-    Declaration::io(stream);
-}
-
 IMPL_CLONE_BEGIN(DefinableDeclaration, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DefinableDeclaration, Declaration)
@@ -233,11 +220,6 @@ void DataSumDeclaration::swap(DataSumDeclaration& rhs) noexcept
     base_t::swap(rhs);
 }
 
-void DataSumDeclaration::io(IStream& stream) const
-{
-    base_t::io(stream);
-}
-
 IMPL_CLONE_BEGIN(DataSumDeclaration, base_t, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, base_t)
@@ -261,8 +243,8 @@ DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
 DataSumDeclaration::Constructor::Constructor(Constructor const& rhs)
     : Declaration(rhs)
     , myParent(rhs.myParent)
-    , myPattern(ast::clone(rhs.myPattern))
 {
+    // clone myPattern
 }
 
 DataSumDeclaration::Constructor& DataSumDeclaration::Constructor::operator = (Constructor const& rhs)
@@ -279,12 +261,6 @@ void DataSumDeclaration::Constructor::swap(Constructor& rhs) noexcept
     using kyfoo::swap;
     swap(myParent, rhs.myParent);
     swap(myPattern, rhs.myPattern);
-}
-
-void DataSumDeclaration::Constructor::io(IStream& stream) const
-{
-    Declaration::io(stream);
-    stream.next("pattern", myPattern);
 }
 
 IMPL_CLONE_BEGIN(DataSumDeclaration::Constructor, Declaration, Declaration)
@@ -362,12 +338,6 @@ void Binder::swap(Binder& rhs) noexcept
     using kyfoo::swap;
     swap(myConstraints, rhs.myConstraints);
     swap(myType, rhs.myType);
-}
-
-void Binder::io(IStream& stream) const
-{
-    Declaration::io(stream);
-    stream.next("constraint", myConstraints);
 }
 
 IMPL_CLONE_BEGIN(Binder, Declaration, Declaration)
@@ -452,13 +422,6 @@ void DataProductDeclaration::swap(DataProductDeclaration& rhs) noexcept
     swap(myDefinition, rhs.myDefinition);
 }
 
-void DataProductDeclaration::io(IStream& stream) const
-{
-    base_t::io(stream);
-    if ( definition() )
-        definition()->io(stream);
-}
-
 IMPL_CLONE_BEGIN(DataProductDeclaration, base_t, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, base_t)
@@ -501,11 +464,6 @@ void DataProductDeclaration::Field::swap(Field& rhs) noexcept
     Binder::swap(rhs);
     using kyfoo::swap;
     swap(myParent, rhs.myParent);
-}
-
-void DataProductDeclaration::Field::io(IStream& stream) const
-{
-    Binder::io(stream);
 }
 
 IMPL_CLONE_BEGIN(DataProductDeclaration::Field, Binder, Declaration)
@@ -579,12 +537,6 @@ void SymbolDeclaration::swap(SymbolDeclaration& rhs) noexcept
     swap(myExpression, rhs.myExpression);
 }
 
-void SymbolDeclaration::io(IStream& stream) const
-{
-    Declaration::io(stream);
-    myExpression->io(stream);
-}
-
 IMPL_CLONE_BEGIN(SymbolDeclaration, Declaration, Declaration)
 IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_END
@@ -649,11 +601,6 @@ void VariableDeclaration::swap(VariableDeclaration& rhs) noexcept
     Binder::swap(rhs);
 }
 
-void VariableDeclaration::io(IStream& stream) const
-{
-    Binder::io(stream);
-}
-
 IMPL_CLONE_BEGIN(VariableDeclaration, Binder, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(VariableDeclaration, Binder)
@@ -699,11 +646,6 @@ void ProcedureParameter::swap(ProcedureParameter& rhs) noexcept
     Binder::swap(rhs);
 }
 
-void ProcedureParameter::io(IStream& stream) const
-{
-    Binder::io(stream);
-}
-
 IMPL_CLONE_BEGIN(ProcedureParameter, Binder, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ProcedureParameter, Binder)
@@ -747,16 +689,6 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs) noexcept
     swap(myOrdinals, rhs.myOrdinals);
     swap(myResult, rhs.myResult);
     swap(myDefinition, rhs.myDefinition);
-}
-
-void ProcedureDeclaration::io(IStream& stream) const
-{
-    Declaration::io(stream);
-    stream.next("params", myParameters);
-    stream.next("return", myResult);
-
-    if ( myDefinition )
-        stream.next("definition", myDefinition);
 }
 
 IMPL_CLONE_BEGIN(ProcedureDeclaration, base_t, Declaration)
@@ -966,11 +898,6 @@ void ImportDeclaration::swap(ImportDeclaration& rhs) noexcept
     Declaration::swap(rhs);
 }
 
-void ImportDeclaration::io(IStream& stream) const
-{
-    Declaration::io(stream);
-}
-
 IMPL_CLONE_BEGIN(ImportDeclaration, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ImportDeclaration, Declaration)
@@ -1026,11 +953,6 @@ void SymbolVariable::swap(SymbolVariable& rhs) noexcept
     swap(myPrototype, rhs.myPrototype);
     swap(myConstraints, rhs.myConstraints);
     swap(myBoundExpression, rhs.myBoundExpression);
-}
-
-void SymbolVariable::io(IStream& stream) const
-{
-    Declaration::io(stream);
 }
 
 IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
@@ -1095,13 +1017,6 @@ void TemplateDeclaration::swap(TemplateDeclaration& rhs) noexcept
     base_t::swap(rhs);
     using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
-}
-
-void TemplateDeclaration::io(IStream& stream) const
-{
-    base_t::io(stream);
-    if ( myDefinition )
-        stream.next("definition", myDefinition);
 }
 
 IMPL_CLONE_BEGIN(TemplateDeclaration, base_t, Declaration)

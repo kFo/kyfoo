@@ -61,18 +61,6 @@ void PatternsPrototype::swap(PatternsPrototype& rhs) noexcept
     swap(myVariables, rhs.myVariables);
 }
 
-void PatternsPrototype::io(IStream& stream) const
-{
-    stream.openArray("params");
-    for ( auto const& p : myPattern )
-        p->io(stream);
-    stream.closeArray();
-    stream.openArray("vars");
-    for ( auto const& v : myVariables )
-        v->io(stream);
-    stream.closeArray();
-}
-
 IMPL_CLONE_NOBASE_BEGIN(PatternsPrototype, PatternsPrototype)
 IMPL_CLONE_CHILD(myPattern)
 IMPL_CLONE_CHILD(myVariables)
@@ -222,12 +210,6 @@ void Symbol::swap(Symbol& rhs) noexcept
     swap(myToken, rhs.myToken);
     swap(myPrototype, rhs.myPrototype);
     swap(myPrototypeParent, rhs.myPrototypeParent);
-}
-
-void Symbol::io(IStream& stream) const
-{
-    stream.next("symbol", myToken);
-    myPrototype->io(stream);
 }
 
 IMPL_CLONE_NOBASE_BEGIN(Symbol, Symbol)

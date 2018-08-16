@@ -4,7 +4,7 @@
 
 #include <kyfoo/lexer/Token.hpp>
 
-#include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 
@@ -49,7 +49,7 @@ class Statement;
 class TemplateScope;
 class ValueExpression;
 
-class Declaration : public INode
+class Declaration
 {
 public:
     friend class Context;
@@ -66,21 +66,18 @@ protected:
     void operator = (Declaration&&) = delete;
 
 public:
+#ifndef NDEBUG
+    virtual
+#endif
     ~Declaration();
 
     void swap(Declaration& rhs) noexcept;
 
-    // IIO
 public:
-    void io(IStream& stream) const override;
-
-public:
-    virtual Declaration* clone(clone_map_t& map) const = 0;
-    virtual void cloneChildren(Declaration& c, clone_map_t& map) const;
-    virtual void remapReferences(clone_map_t const& map);
+    DECL_CLONE_ALL_NOBASE(Declaration)
 
 protected:
-    virtual SymRes resolveSymbols(Context& ctx) = 0;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     SymRes resolveAttributes(Context& ctx);
@@ -129,16 +126,12 @@ public:
 
     void swap(DefinableDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     Scope* definition();
@@ -178,10 +171,14 @@ class DataSumDeclaration : public DefinableMixin<DataSumScope>
 {
 public:
     using base_t = DefinableMixin;
+    friend class Context;
 
 public:
     class Constructor : public Declaration
     {
+    public:
+        friend class Context;
+
     public:
         Constructor(Symbol&& symbol,
                     std::vector<Box<VariableDeclaration>>&& pattern);
@@ -197,16 +194,12 @@ public:
 
         void swap(Constructor& rhs) noexcept;
 
-        // IIO
-    public:
-        void io(IStream& stream) const override;
-
         // Declaration
     public:
         DECL_CLONE_ALL(Declaration)
 
     protected:
-        SymRes resolveSymbols(Context& ctx) override;
+        SymRes resolveSymbols(Context& ctx);
 
     public:
         void setParent(DataSumDeclaration* parent);
@@ -232,16 +225,12 @@ public:
 
     void swap(DataSumDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 };
 
 class Binder : public Declaration
@@ -267,16 +256,12 @@ public:
 
     void swap(Binder& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     void addConstraint(Box<Expression> c);
@@ -296,10 +281,14 @@ class DataProductDeclaration : public DefinableMixin<DataProductScope>
 {
 public:
     using base_t = DefinableMixin;
+    friend class Context;
 
 public:
     class Field : public Binder
     {
+    public:
+        friend class Context;
+
     public:
         Field(Symbol&& symbol,
               std::vector<Box<Expression>> constraints,
@@ -316,16 +305,12 @@ public:
 
         void swap(Field& rhs) noexcept;
 
-        // IIO
-    public:
-        void io(IStream& stream) const override;
-
         // Declaration
     public:
         DECL_CLONE_ALL(Declaration)
 
     protected:
-        SymRes resolveSymbols(Context& ctx) override;
+        SymRes resolveSymbols(Context& ctx);
 
     public:
         void setParent(DataProductDeclaration* dpDecl);
@@ -351,20 +336,19 @@ public:
 
     void swap(DataProductDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 };
 
 class SymbolDeclaration : public Declaration
 {
+public:
+    friend class Context;
+
 public:
     SymbolDeclaration(Symbol&& symbol,
                       Box<Expression> expression);
@@ -380,16 +364,12 @@ public:
 
     void swap(SymbolDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     Expression* expression();
@@ -401,6 +381,9 @@ private:
 
 class VariableDeclaration : public Binder
 {
+public:
+    friend class Context;
+
 public:
     VariableDeclaration(Symbol&& symbol,
                         ProcedureScope& scope,
@@ -421,22 +404,19 @@ public:
 
     void swap(VariableDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 };
 
 class ProcedureDeclaration;
 class ProcedureParameter : public Binder
 {
 public:
+    friend class Context;
     friend class ProcedureDeclaration;
 
 public:
@@ -459,22 +439,19 @@ public:
 
     void swap(ProcedureParameter& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 };
 
 class ProcedureDeclaration : public DefinableMixin<ProcedureScope>
 {
 public:
     using base_t = DefinableMixin;
+    friend class Context;
 
 public:
     ProcedureDeclaration(Symbol&& symbol,
@@ -491,16 +468,12 @@ public:
 
     void swap(ProcedureDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     ArrowExpression const* type() const;
@@ -531,6 +504,9 @@ private:
 class ImportDeclaration : public Declaration
 {
 public:
+    friend class Context;
+
+public:
     explicit ImportDeclaration(Symbol&& sym);
     explicit ImportDeclaration(std::vector<lexer::Token>&& modulePath);
 
@@ -545,16 +521,12 @@ public:
 
     void swap(ImportDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 private:
     std::vector<lexer::Token> myModulePath;
@@ -562,6 +534,9 @@ private:
 
 class SymbolVariable : public Declaration
 {
+public:
+    friend class Context;
+
 public:
     SymbolVariable(IdentifierExpression const& id,
                    Scope* scope,
@@ -581,10 +556,6 @@ public:
     ~SymbolVariable();
 
     void swap(SymbolVariable& rhs) noexcept;
-
-    // IIO
-public:
-    void io(IStream& stream) const;
 
     // Declaration
 public:
@@ -610,6 +581,7 @@ class TemplateDeclaration : public DefinableMixin<TemplateScope>
 {
 public:
     using base_t = DefinableMixin;
+    friend class Context;
 
 public:
     explicit TemplateDeclaration(Symbol&& sym);
@@ -625,16 +597,12 @@ public:
 
     void swap(TemplateDeclaration& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Declaration
 public:
     DECL_CLONE_ALL(Declaration)
 
 protected:
-    SymRes resolveSymbols(Context& ctx) override;
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     void merge(TemplateDeclaration& rhs);
@@ -647,6 +615,28 @@ public:
 #define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == DeclKind::a ? static_cast<c const*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
+
+inline Box<Declaration> beginClone(Declaration const& decl, clone_map_t& map)
+{
+    switch (decl.kind()) {
+#define X(a,b,c) case DeclKind::a: return static_cast<c const&>(decl).beginClone(map);
+    DECLARATION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid declaration type");
+}
+
+inline void remap(Declaration& decl, clone_map_t const& map)
+{
+    switch (decl.kind()) {
+#define X(a,b,c) case DeclKind::a: return static_cast<c&>(decl).remapReferences(map);
+    DECLARATION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid declaration type");
+}
 
 bool isDataDeclaration(DeclKind kind);
 bool isBinder(DeclKind kind);

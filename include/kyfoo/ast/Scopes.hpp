@@ -12,7 +12,7 @@
 
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
-#include <kyfoo/ast/Node.hpp>
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
@@ -31,7 +31,7 @@ class Module;
     X(DataProduct, DataProductScope) \
     X(Template   , TemplateScope   )
 
-class Scope : public INode
+class Scope
 {
 public:
     enum class Kind
@@ -49,8 +49,8 @@ public:
 
 protected:
     Scope(Kind kind,
-                     Module* module,
-                     Scope* parent);
+          Module* module,
+          Scope* parent);
 public:
     explicit Scope(Module& module);
     explicit Scope(Scope* parent);
@@ -67,21 +67,14 @@ public:
 
     void swap(Scope& rhs) noexcept;
 
-    // IIO
 public:
-    void io(IStream& stream) const override;
-
-public:
-    virtual Scope* clone(clone_map_t& map) const;
-    virtual void cloneChildren(Scope& c, clone_map_t& map) const;
-    virtual void remapReferences(clone_map_t const& map);
+    DECL_CLONE_ALL_NOBASE(Scope)
 
 protected:
-    virtual void resolveImports(Diagnostics& dgn);
-    SymRes resolveSymbols(Context& ctx);
-    virtual SymRes resolveDeclarations(Context& ctx);
-    virtual SymRes resolveDefinitions(Context& ctx);
-    virtual SymRes resolveAttributes(Context& ctx);
+    void resolveImports(Diagnostics& dgn);
+    SymRes resolveDeclarations(Context& ctx);
+    SymRes resolveDefinitions(Context& ctx);
+    SymRes resolveAttributes(Context& ctx);
 
 public:
     void append(Box<Declaration> declaration);
@@ -106,6 +99,8 @@ protected:
     SymbolSpace* findSymbolSpace(std::string_view name) const;
 
 public:
+    Kind kind() const;
+
     Module& module();
     Module const& module() const;
 
@@ -138,6 +133,9 @@ protected:
 class DataSumScope : public Scope
 {
 public:
+    friend class Context;
+
+public:
     DataSumScope(Scope& parent,
                  DataSumDeclaration& declaration);
 
@@ -152,17 +150,13 @@ public:
 
     void swap(DataSumScope& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // DeclarationScope
 public:
     DECL_CLONE_ALL(Scope)
 
 protected:
-    SymRes resolveDeclarations(Context& ctx) override;
-    SymRes resolveDefinitions(Context& ctx) override;
+    SymRes resolveDeclarations(Context& ctx);
+    SymRes resolveDefinitions(Context& ctx);
 
 public:
     DataSumDeclaration* declaration();
@@ -176,6 +170,9 @@ private:
 
 class DataProductScope : public Scope
 {
+public:
+    friend class Context;
+
 public:
     DataProductScope(Scope& parent,
                      DataProductDeclaration& declaration);
@@ -191,17 +188,13 @@ public:
 
     void swap(DataProductScope& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // DeclarationScope
 public:
     DECL_CLONE_ALL(Scope)
 
 protected:
-    SymRes resolveDeclarations(Context& ctx) override;
-    SymRes resolveDefinitions(Context& ctx) override;
+    SymRes resolveDeclarations(Context& ctx);
+    SymRes resolveDefinitions(Context& ctx);
 
 public:
     DataProductDeclaration* declaration();
@@ -216,6 +209,7 @@ private:
 class ProcedureScope : public Scope
 {
 public:
+    friend class Context;
     using declaration_t = ProcedureDeclaration;
 
 public:
@@ -247,17 +241,13 @@ public:
 
     void swap(ProcedureScope& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // DeclarationScope
 public:
     DECL_CLONE_ALL(Scope)
 
 protected:
-    SymRes resolveDeclarations(Context& ctx) override;
-    SymRes resolveDefinitions(Context& ctx) override;
+    SymRes resolveDeclarations(Context& ctx);
+    SymRes resolveDefinitions(Context& ctx);
 
 public:
     bool isJumpTarget() const;
@@ -303,6 +293,9 @@ private:
 class TemplateScope : public Scope
 {
 public:
+    friend class Context;
+
+public:
     TemplateScope(Scope& parent,
                   TemplateDeclaration& declaration);
 
@@ -316,10 +309,6 @@ public:
     ~TemplateScope();
 
     void swap(TemplateScope& rhs) noexcept;
-
-    // IIO
-public:
-    void io(IStream& stream) const override;
 
     // DeclarationScope
 public:
@@ -340,5 +329,27 @@ SCOPE_KINDS(X)
 #define X(a, b) template <> inline b const* Scope::as<b>() const { return myKind == Scope::Kind::a ? static_cast<b const*>(this) : nullptr; }
 SCOPE_KINDS(X)
 #undef X
+
+inline Box<Scope> beginClone(Scope const& scope, clone_map_t& map)
+{
+    switch (scope.kind()) {
+#define X(a,b) case Scope::Kind::a: return static_cast<b const&>(scope).beginClone(map);
+    SCOPE_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid scope type");
+}
+
+inline void remap(Scope& scope, clone_map_t const& map)
+{
+    switch (scope.kind()) {
+#define X(a,b) case Scope::Kind::a: return static_cast<b&>(scope).remapReferences(map);
+    SCOPE_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid scope type");
+}
 
 } // namespace kyfoo::ast

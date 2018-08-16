@@ -174,14 +174,6 @@ Module::Module(ModuleSet* moduleSet,
 
 Module::~Module() = default;
 
-void Module::io(IStream& stream) const
-{
-    stream.openGroup("module");
-    stream.next("name", myName);
-    stream.next("scope", myScope);
-    stream.closeGroup();
-}
-
 std::string_view Module::name() const
 {
     return myName;

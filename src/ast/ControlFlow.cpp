@@ -105,12 +105,6 @@ void Statement::swap(Statement& rhs) noexcept
     swap(myUnnamedVariables, rhs.myUnnamedVariables);
 }
 
-void Statement::io(IStream& stream) const
-{
-    stream.next("kind", to_string(myKind));
-    stream.next("expr", myExpression);
-}
-
 IMPL_CLONE_NOBASE_BEGIN(Statement, Statement)
 IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_CHILD(myUnnamedVariables)
@@ -193,20 +187,10 @@ void Junction::swap(Junction& rhs) noexcept
     swap(myKind, rhs.myKind);
 }
 
-void Junction::io(IStream& stream) const
-{
-    stream.next("kind", to_string(myKind));
-}
-
-void Junction::cloneChildren(Junction&, clone_map_t&) const
-{
-    // nop
-}
-
-void Junction::remapReferences(clone_map_t const&)
-{
-    // nop
-}
+IMPL_CLONE_NOBASE_BEGIN(Junction, Junction)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_NOBASE_BEGIN(Junction)
+IMPL_CLONE_REMAP_END
 
 Junction::Kind Junction::kind() const
 {
@@ -249,11 +233,6 @@ void BranchJunction::swap(BranchJunction& rhs) noexcept
     swap(myCondition, rhs.myCondition);
     swap(myBranch[0], rhs.myBranch[0]);
     swap(myBranch[1], rhs.myBranch[1]);
-}
-
-void BranchJunction::io(IStream& stream) const
-{
-    stream.next("condition", myCondition);
 }
 
 IMPL_CLONE_BEGIN(BranchJunction, Junction, Junction)
@@ -368,11 +347,6 @@ void ReturnJunction::swap(ReturnJunction& rhs) noexcept
     swap(myExpression, rhs.myExpression);
 }
 
-void ReturnJunction::io(IStream& stream) const
-{
-    stream.next("expr", myExpression);
-}
-
 IMPL_CLONE_BEGIN(ReturnJunction, Junction, Junction)
 IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_END
@@ -463,12 +437,6 @@ void JumpJunction::swap(JumpJunction& rhs) noexcept
     using kyfoo::swap;
     swap(myTargetLabel, rhs.myTargetLabel);
     swap(myTargetBlock, rhs.myTargetBlock);
-}
-
-void JumpJunction::io(IStream& stream) const
-{
-    stream.next("kind", myJumpKind == JumpKind::Loop ? "loop" : "break");
-    stream.next("target", myTargetLabel);
 }
 
 IMPL_CLONE_BEGIN(JumpJunction, Junction, Junction)
@@ -569,16 +537,6 @@ void BasicBlock::swap(BasicBlock& rhs) noexcept
     swap(myJunction, rhs.myJunction);
 }
 
-void BasicBlock::io(IStream& stream) const
-{
-    stream.openArray("statements");
-    for ( auto const& e : myStatements ) {
-        if ( auto exprStmt = e->as<Statement>() )
-            stream.next("", exprStmt->expression());
-    }
-    stream.closeArray();
-}
-
 IMPL_CLONE_NOBASE_BEGIN(BasicBlock, BasicBlock)
 IMPL_CLONE_CHILD(myStatements)
 IMPL_CLONE_CHILD(myJunction)
@@ -601,9 +559,13 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
-    ret |= junction()->resolveSymbols(ctx, *this);
+    switch (junction()->kind()) {
+#define X(a,b) case Junction::Kind::a: ret |= static_cast<b*>(junction())->resolveSymbols(ctx, *this); return ret;
+        JUNCTION_KINDS(X)
+#undef X
+    }
 
-    return ret;
+    throw std::runtime_error("invalid junction");
 }
 
 ProcedureScope const* BasicBlock::scope() const

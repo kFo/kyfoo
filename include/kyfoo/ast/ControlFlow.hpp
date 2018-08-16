@@ -4,8 +4,8 @@
 
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
-#include <kyfoo/ast/Node.hpp>
-
+#include <kyfoo/lexer/Token.hpp>
+#include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/codegen/Codegen.hpp>
 
 namespace kyfoo::ast {
@@ -22,7 +22,7 @@ class VariableDeclaration;
 #define STATEMENT_KINDS(X)    \
     X(Expression  , Statement)
 
-class Statement : public IIO
+class Statement
 {
 public:
     enum class Kind {
@@ -48,17 +48,11 @@ public:
     ~Statement();
     void swap(Statement& rhs) noexcept;
 
-    // IIO
 public:
-    void io(IStream& stream) const override;
-
-public:
-    virtual Statement* clone(clone_map_t& map) const;
-    virtual void cloneChildren(Statement& c, clone_map_t& map) const;
-    virtual void remapReferences(clone_map_t const& map);
+    DECL_CLONE_ALL_NOBASE(Statement)
 
 protected:
-    virtual SymRes resolveSymbols(Context& ctx);
+    SymRes resolveSymbols(Context& ctx);
 
 public:
     Kind kind() const;
@@ -89,9 +83,11 @@ private:
     X(Return, ReturnJunction) \
     X(Jump  , JumpJunction  )
 
-class Junction : public IIO
+class Junction
 {
 public:
+    friend class BasicBlock;
+
     enum class Kind
     {
 #define X(a,b) a,
@@ -107,16 +103,13 @@ protected:
     void swap(Junction& rhs) noexcept;
 
 public:
+#ifndef NDEBUG
+    virtual
+#endif
     ~Junction();
 
 public:
-    void io(IStream& stream) const override;
-
-    virtual Junction* clone(clone_map_t& map) const = 0;
-    virtual void cloneChildren(Junction& c, clone_map_t& map) const;
-    virtual void remapReferences(clone_map_t const& map);
-
-    virtual SymRes resolveSymbols(Context& ctx, BasicBlock& bb) = 0;
+    DECL_CLONE_ALL_NOBASE(Junction)
 
 public:
     Kind kind() const;
@@ -131,6 +124,9 @@ protected:
 class BranchJunction : public Junction
 {
 public:
+    friend class BasicBlock;
+
+public:
     BranchJunction(lexer::Token const& token,
                    lexer::Token const& label,
                    Box<Expression> condition);
@@ -144,15 +140,12 @@ public:
 
     void swap(BranchJunction& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
     // Junction
 public:
     DECL_CLONE_ALL(Junction)
 
-    SymRes resolveSymbols(Context& ctx, BasicBlock& bb) override;
+protected:
+    SymRes resolveSymbols(Context& ctx, BasicBlock& bb);
 
 public:
     lexer::Token const& token() const;
@@ -178,6 +171,9 @@ private:
 class ReturnJunction : public Junction
 {
 public:
+    friend class BasicBlock;
+
+public:
     ReturnJunction(lexer::Token const& token,
                    Box<Expression> expression);
 
@@ -190,15 +186,12 @@ public:
 
     void swap(ReturnJunction& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
-    // Statement
+    // Junction
 public:
     DECL_CLONE_ALL(Junction)
 
-    SymRes resolveSymbols(Context& ctx, BasicBlock& bb) override;
+protected:
+    SymRes resolveSymbols(Context& ctx, BasicBlock& bb);
 
 public:
     lexer::Token const& token() const;
@@ -217,6 +210,8 @@ private:
 class JumpJunction : public Junction
 {
 public:
+    friend class BasicBlock;
+
     enum class JumpKind
     {
         Loop,
@@ -239,15 +234,12 @@ public:
 
     void swap(JumpJunction& rhs) noexcept;
 
-    // IIO
-public:
-    void io(IStream& stream) const override;
-
-    // Statement
+    // Junction
 public:
     DECL_CLONE_ALL(Junction)
 
-    SymRes resolveSymbols(Context& ctx, BasicBlock& bb) override;
+protected:
+    SymRes resolveSymbols(Context& ctx, BasicBlock& bb);
 
 public:
     lexer::Token const& token() const;
@@ -265,7 +257,7 @@ private:
     BasicBlock* myTargetBlock = nullptr;
 };
 
-class BasicBlock : public IIO
+class BasicBlock
 {
 public:
     explicit BasicBlock(ProcedureScope* scope);
@@ -273,14 +265,10 @@ public:
     ~BasicBlock();
     void swap(BasicBlock& rhs) noexcept;
 
-    // IIO
 public:
-    void io(IStream& stream) const override;
+    DECL_CLONE_ALL_NOBASE(BasicBlock)
 
-    BasicBlock* clone(clone_map_t& map) const;
-    void cloneChildren(BasicBlock& c, clone_map_t& map) const;
-    void remapReferences(clone_map_t const& map);
-
+public:
     SymRes resolveSymbols(Context& ctx);
 
 public:
@@ -423,6 +411,16 @@ STATEMENT_KINDS(X)
 STATEMENT_KINDS(X)
 #undef X
 
+inline Box<Statement> beginClone(Statement const& stmt, clone_map_t& map)
+{
+    return stmt.beginClone(map);
+}
+
+inline void remap(Statement& stmt, clone_map_t const& map)
+{
+    return stmt.remapReferences(map);
+}
+
 #define X(a, b) template <> inline b* Junction::as<b>() { return myKind == Junction::Kind::a ? static_cast<b*>(this) : nullptr; }
 JUNCTION_KINDS(X)
 #undef X
@@ -430,5 +428,37 @@ JUNCTION_KINDS(X)
 #define X(a, b) template <> inline b const* Junction::as<b>() const { return myKind == Junction::Kind::a ? static_cast<b const*>(this) : nullptr; }
 JUNCTION_KINDS(X)
 #undef X
+
+inline Box<Junction> beginClone(Junction const& junc, clone_map_t& map)
+{
+    switch (junc.kind()) {
+#define X(a,b) case Junction::Kind::a: return static_cast<b const&>(junc).beginClone(map);
+    JUNCTION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid junction type");
+}
+
+inline void remap(Junction& junc, clone_map_t const& map)
+{
+    switch (junc.kind()) {
+#define X(a,b) case Junction::Kind::a: return static_cast<b&>(junc).remapReferences(map);
+    JUNCTION_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid junction type");
+}
+
+inline Box<BasicBlock> beginClone(BasicBlock const& bb, clone_map_t& map)
+{
+    return bb.beginClone(map);
+}
+
+inline void remap(BasicBlock& bb, clone_map_t const& map)
+{
+    return bb.remapReferences(map);
+}
 
 } // namespace kyfoo::ast
