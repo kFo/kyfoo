@@ -60,6 +60,77 @@ using closeAngle   = g::Terminal<lexer::TokenKind::CloseAngle>;
 
 using _import = g::Terminal<lexer::TokenKind::_import>;
 
+template <typename T>
+class Defer
+{
+public:
+    Defer();
+
+    Defer(Defer const& rhs);
+    Defer& operator = (Defer const& rhs);
+
+    Defer(Defer&& rhs);
+    Defer& operator = (Defer&& rhs);
+
+    ~Defer();
+
+    void swap(Defer& rhs) noexcept;
+
+public:
+    bool match(kyfoo::lexer::ScanPoint scan, uz& matches);
+    Box<ast::Expression> make(DeclarationScopeParser& parser);
+
+private:
+    Box<T> myGrammar;
+};
+
+enum ExpressionProperties
+{
+    Default,
+    DisallowLambda,
+};
+
+template <ExpressionProperties Prop, template<ExpressionProperties> typename T>
+struct pred_expr {};
+
+#define PRECEDES(A,B) \
+    template <ExpressionProperties> struct A; \
+    template <ExpressionProperties> struct B; \
+    template <ExpressionProperties Prop> struct pred_expr<Prop, B> { \
+        using expr = A; \
+        using type = A<Prop>; };
+
+PRECEDES(BasicExpression      , BasicExpression      )
+PRECEDES(BasicExpression      , ApplyHyphenExpression)
+PRECEDES(ApplyHyphenExpression, DotExpression        )
+PRECEDES(DotExpression        , RangeExpression      )
+PRECEDES(RangeExpression      , TightArrowExpression )
+PRECEDES(TightArrowExpression , TightLambdaExpression)
+PRECEDES(TightLambdaExpression, ApplyExpression      )
+PRECEDES(ApplyExpression      , ArrowExpression      )
+PRECEDES(ArrowExpression      , LambdaExpression     )
+PRECEDES(LambdaExpression     , ConstraintExpression )
+PRECEDES(ConstraintExpression , AssignExpression     )
+
+template <ExpressionProperties Prop, template<ExpressionProperties> typename T>
+struct Filter
+{
+    using H = typename pred_expr<Prop, T>::type;
+
+    using type = std::conditional_t<Prop==DisallowLambda,
+        std::conditional_t<std::is_same_v<LambdaExpression<Prop>, H>,
+            typename pred_expr<Prop, pred_expr<Prop, T>::expr>::type,
+            H>,
+        H>;
+};
+
+template <ExpressionProperties Prop, template<ExpressionProperties> typename T>
+using pred_expr_t = typename Filter<Prop, T>::type;
+
+// Recursive expressions
+using Expression = Defer<AssignExpression<Default>>;
+using NonLambdaExpression = Defer<AssignExpression<DisallowLambda>>;
+
 class DeclarationScopeParser;
 
 struct Literal :
@@ -89,77 +160,10 @@ struct Primary :
     }
 };
 
-template <typename T>
-class Defer
-{
-public:
-    Defer();
-
-    Defer(Defer const& rhs);
-    Defer& operator = (Defer const& rhs);
-
-    Defer(Defer&& rhs);
-    Defer& operator = (Defer&& rhs);
-
-    ~Defer();
-
-    void swap(Defer& rhs) noexcept;
-
-public:
-    bool match(kyfoo::lexer::ScanPoint scan, uz& matches);
-    Box<ast::Expression> make(DeclarationScopeParser& parser);
-
-private:
-    Box<T> myGrammar;
-};
-
-template <typename T>
-struct AssignExpression;
-struct Lambda;
-using Expression = Defer<AssignExpression<Lambda>>;
-
-inline std::vector<Box<ast::Expression>>
-expressions(DeclarationScopeParser& parser, std::vector<Expression>& rhs)
-{
-    std::vector<Box<ast::Expression>> ret;
-    for ( auto& e : rhs )
-        ret.emplace_back(e.make(parser));
-
-    return ret;
-}
-
-inline Box<ast::TupleExpression>
-createTuple(ast::TupleKind kind,
-            std::vector<Box<ast::Expression>>&& expressions)
-{
-    return mk<ast::TupleExpression>(kind, std::move(expressions));
-}
-
-inline Box<ast::TupleExpression>
-createTuple(lexer::Token& open,
-            lexer::Token& close,
-            std::vector<Box<ast::Expression>>&& expressions)
-{
-    return mk<ast::TupleExpression>(open, close, std::move(expressions));
-}
-
-struct TupleOpen :
-    g::And<openParen, g::Repeat2<Expression, comma>, closeParen>
-{
-    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
-    {
-        return createTuple(factor<0>().token(),
-                           factor<2>().token(),
-                           expressions(parser, factor<1>().captures()));
-    }
-};
-
-using NonLambdaExpression = Defer<AssignExpression<TupleOpen>>;
-
 Box<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& parser,
-                                                    lexer::Token& start,
-                                                    std::vector<Expression>& paramExprs,
-                                                    NonLambdaExpression* returnExpr)
+                                        lexer::Token& start,
+                                        std::vector<Expression>& paramExprs,
+                                        NonLambdaExpression* returnExpr)
 {
     ast::Pattern pattern = parser.parameterContext();
     for ( auto& e : paramExprs )
@@ -203,84 +207,41 @@ struct Scope :
     }
 };
 
-struct Lambda :
-    g::And<openParen
-         , g::Repeat2<Expression, comma>
-         , closeParen
-         , g::Opt<g::And<arrow, NonLambdaExpression>>
-         , g::Opt<g::And<yield, g::Or<g::And<g::Opt<colonDot>, Expression>, Scope<ast::ProcedureScope>>>>>
+inline std::vector<Box<ast::Expression>>
+expressions(DeclarationScopeParser& parser, std::vector<Expression>& rhs)
 {
-    Box<ast::Expression> make(DeclarationScopeParser& parser)
-    {
-        auto arrow = factor<3>().capture();
-        auto yield = factor<4>().capture();
-        if ( yield ) {
-            auto procDecl = makeProc(parser,
-                                     factor<0>().token(),
-                                     factor<1>().captures(),
-                                     arrow ? &arrow->factor<1>() : nullptr);
+    std::vector<Box<ast::Expression>> ret;
+    for ( auto& e : rhs )
+        ret.emplace_back(e.make(parser));
 
-            Box<ast::ProcedureScope> procScope;
-            if ( yield->factor<1>().index() == 0 ) {
-                procScope = mk<ast::ProcedureScope>(parser.scope(), *procDecl);
-                auto expr = yield->factor<1>().term<0>().factor<1>().make(parser);
-                lexer::Token tok;
-                if ( auto retTok = yield->factor<1>().term<0>().factor<0>().capture() )
-                    tok = retTok->token();
-                else
-                    tok = front(*expr);
+    return ret;
+}
 
-                procScope->basicBlocks().back()->setJunction(mk<ast::ReturnJunction>(tok, std::move(expr)));
-            }
-            else {
-                procScope = yield->factor<1>().term<1>().make(parser, *procDecl);
-            }
+inline Box<ast::TupleExpression>
+createTuple(ast::TupleKind kind,
+            std::vector<Box<ast::Expression>>&& expressions)
+{
+    return mk<ast::TupleExpression>(kind, std::move(expressions));
+}
 
-            auto proc = procDecl.get();
-            parser.scope().appendLambda(std::move(procDecl), std::move(procScope));
-            return mk<ast::LambdaExpression>(yield->factor<0>().token(), proc);
-        }
+inline Box<ast::TupleExpression>
+createTuple(lexer::Token const& open,
+            lexer::Token const& close,
+            std::vector<Box<ast::Expression>>&& expressions)
+{
+    return mk<ast::TupleExpression>(open, close, std::move(expressions));
+}
 
-        auto tuple = createTuple(factor<0>().token(),
-                                 factor<2>().token(),
-                                 expressions(parser, factor<1>().captures()));
-        if ( arrow )
-            return mk<ast::ArrowExpression>(std::move(tuple),
-                                                          arrow->factor<1>().make(parser));
-
-        return std::move(tuple);
-    }
-};
-
-struct TupleOpenRight :
-    g::And<openBracket, g::Repeat2<Expression, comma>, closeParen>
+struct TupleExpression :
+    g::And<
+        g::Or<openParen, openBracket>
+      , g::Repeat2<Expression, comma>
+      , g::Or<closeParen, closeBracket>>
 {
     Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
     {
-        return createTuple(factor<0>().token(),
-                           factor<2>().token(),
-                           expressions(parser, factor<1>().captures()));
-    }
-};
-
-struct TupleOpenLeft :
-    g::And<openParen, g::Repeat2<Expression, comma>, closeBracket>
-{
-    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
-    {
-        return createTuple(factor<0>().token(),
-                           factor<2>().token(),
-                           expressions(parser, factor<1>().captures()));
-    }
-};
-
-struct TupleClosed :
-    g::And<openBracket, g::Repeat2<Expression, comma>, closeBracket>
-{
-    Box<ast::TupleExpression> make(DeclarationScopeParser& parser)
-    {
-        return createTuple(factor<0>().token(),
-                           factor<2>().token(),
+        return createTuple(factor<0>().monoMake<lexer::Token>(parser),
+                           factor<2>().monoMake<lexer::Token>(parser),
                            expressions(parser, factor<1>().captures()));
     }
 };
@@ -296,7 +257,7 @@ struct SymbolExpression :
 };
 
 struct Tuple :
-    g::Or<TupleOpenLeft, TupleOpenRight, TupleClosed, SymbolExpression>
+    g::Or<TupleExpression, SymbolExpression>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -304,9 +265,9 @@ struct Tuple :
     }
 };
 
-template <typename T>
+template <ExpressionProperties Prop>
 struct BasicExpression :
-    g::Or<T, Tuple, Primary>
+    g::Or<Tuple, Primary>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -332,17 +293,17 @@ struct ApplyMixin :
     }
 };
 
-template <typename T>
+template <ExpressionProperties Prop>
 struct ApplyHyphenExpression :
-    ApplyMixin<g::OneOrMore2<BasicExpression<T>, hyphen>>
+    ApplyMixin<g::OneOrMore2<pred_expr_t<Prop, ApplyHyphenExpression>, hyphen>>
 {
 };
 
-template <typename T>
+template <ExpressionProperties Prop>
 struct DotExpression :
     g::And<g::Opt<dot>
-         , ApplyHyphenExpression<T>
-         , g::Repeat<g::And<g::Or<dot, vacuum>, ApplyHyphenExpression<T>>>>
+         , pred_expr_t<Prop, DotExpression>
+         , g::Repeat<g::And<g::Or<dot, vacuum>, pred_expr_t<Prop, DotExpression>>>>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -382,11 +343,11 @@ struct DotExpression :
     }
 };
 
-template <typename T>
+template <ExpressionProperties Prop>
 struct RangeExpression :
     g::Or<
-        g::And<g::OneOrMore2<DotExpression<T>, dotdot>, g::Opt<dotdot>>
-      , g::And<dotdot, g::OneOrMore2<DotExpression<T>, dotdot>, g::Opt<dotdot>>
+        g::And<g::OneOrMore2<pred_expr_t<Prop, RangeExpression>, dotdot>, g::Opt<dotdot>>
+      , g::And<dotdot, g::OneOrMore2<pred_expr_t<Prop, RangeExpression>, dotdot>, g::Opt<dotdot>>
       , dotdot
     >
 {
@@ -422,15 +383,108 @@ struct RangeExpression :
     }
 };
 
-template <typename T>
+template <ExpressionProperties Prop>
 struct ApplyExpression :
-    ApplyMixin<g::OneOrMore<RangeExpression<T>>>
+    ApplyMixin<g::OneOrMore<pred_expr_t<Prop, ApplyExpression>>>
 {
 };
 
-template <typename T>
+template <ExpressionProperties Prop>
+struct TightArrowExpression :
+    g::OneOrMore2<pred_expr_t<Prop, TightArrowExpression>, g::And<vacuum, arrow>>
+{
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
+    {
+        auto& c = captures();
+        auto ret = c.front().make(parser);
+        for ( uz i = 1, size = c.size(); i < size; ++i )
+            ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
+
+        return ret;
+    }
+};
+
+template <ExpressionProperties Prop>
+struct ArrowExpression :
+    g::OneOrMore2<pred_expr_t<Prop, ArrowExpression>, arrow>
+{
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
+    {
+        auto& c = captures();
+        auto ret = c.front().make(parser);
+        for ( uz i = 1, size = c.size(); i < size; ++i )
+            ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
+
+        return ret;
+    }
+};
+
+Box<ast::ProcedureDeclaration> mkProc(Box<ast::Expression> expr)
+{
+    Box<ast::Expression> paramExpr;
+    Box<ast::Expression> returnExpr;
+    if ( auto arrow = expr->as<ast::ArrowExpression>() ) {
+        paramExpr = arrow->takeFrom();
+        returnExpr = arrow->takeTo();
+    }
+    else {
+        paramExpr = std::move(expr);
+    }
+
+    auto tok = ast::makeToken("", front(*paramExpr).location());
+    auto symParams = ast::createPtrList<ast::Expression>(std::move(paramExpr));
+    return mk<ast::ProcedureDeclaration>(ast::Symbol(tok, std::move(symParams)),
+                                         std::move(returnExpr));
+}
+
+Box<ast::LambdaExpression> mkLambda(DeclarationScopeParser& parser,
+                                    Box<ast::Expression> params,
+                                    Box<ast::Expression> body)
+{
+    auto proc = mkProc(std::move(params));
+    auto ret = mk<ast::LambdaExpression>(*proc);
+    auto defn = mk<ast::ProcedureScope>(parser.scope(), *proc);
+    defn->basicBlocks().back()->setJunction(mk<ast::ReturnJunction>(front(*body), std::move(body)));
+    parser.scope().appendLambda(std::move(proc), std::move(defn));
+
+    return ret;
+}
+
+using LambdaSingleLine = g::And<yield, g::Opt<colonDot>>;
+
+template <ExpressionProperties Prop>
+struct TightLambdaExpression :
+    g::And<pred_expr_t<Prop, TightLambdaExpression>
+         , g::Opt<g::And<vacuum, LambdaSingleLine, Expression>>>
+{
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
+    {
+        auto ret = factor<0>().make(parser);
+        if ( auto c = factor<1>().capture() )
+            ret = mkLambda(parser, std::move(ret), c->factor<2>().make(parser));
+
+        return ret;
+    }
+};
+
+template <ExpressionProperties Prop>
+struct LambdaExpression :
+    g::And<pred_expr_t<Prop, LambdaExpression>
+         , g::Opt<g::And<LambdaSingleLine, Expression>>>
+{
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
+    {
+        auto ret = factor<0>().make(parser);
+        if ( auto c = factor<1>().capture() )
+            ret = mkLambda(parser, std::move(ret), c->factor<1>().make(parser));
+
+        return ret;
+    }
+};
+
+template <ExpressionProperties Prop>
 struct ConstraintExpression :
-    g::OneOrMore2<ApplyExpression<T>, colon>
+    g::OneOrMore2<pred_expr_t<Prop, ConstraintExpression>, colon>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -442,20 +496,51 @@ struct ConstraintExpression :
     }
 };
 
-template <typename T>
-struct AssignExpression :
-    g::OneOrMore2<ConstraintExpression<T>, equal>
+template <ExpressionProperties Prop>
+struct AssignWithLambdaExpression :
+    g::And<g::OneOrMore2<pred_expr_t<Prop, AssignExpression>, equal>
+         , g::Opt<g::And<yield, Scope<ast::ProcedureScope>>>>
+{
+    Box<ast::Expression> make(DeclarationScopeParser& parser)
+    {
+        auto& c = factor<0>().captures();
+
+        Box<ast::Expression> ret = c.back().make(parser);
+        if ( auto tailBlock = factor<1>().capture() ) {
+            auto proc = mkProc(std::move(ret));
+            auto defn = tailBlock->factor<1>().make(parser, *proc);
+            ret = mk<ast::LambdaExpression>(*proc);
+            parser.scope().appendLambda(std::move(proc), std::move(defn));
+        }
+
+        for ( uz i = c.size() - 2; ~i; --i )
+            ret = mk<ast::AssignExpression>(c[i].make(parser), std::move(ret));
+
+        return ret;
+    }
+};
+
+template <ExpressionProperties Prop>
+struct AssignNoLambdaExpression :
+    g::OneOrMore2<pred_expr_t<Prop, AssignExpression>, equal>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto& c = captures();
-        Box<ast::Expression> ret = c.back().make(parser);
+        auto ret = c.back().make(parser);
         for ( uz i = c.size() - 2; ~i; --i )
-            ret = mk<ast::AssignExpression>(c[i].make(parser),
-                                                          std::move(ret));
+            ret = mk<ast::AssignExpression>(c[i].make(parser), std::move(ret));
 
         return ret;
     }
+};
+
+template <ExpressionProperties Prop>
+struct AssignExpression :
+    std::conditional_t<Prop==DisallowLambda,
+        AssignNoLambdaExpression<Prop>,
+        AssignWithLambdaExpression<Prop>>
+{
 };
 
 struct Symbol :
@@ -495,8 +580,8 @@ struct VarDecl
 struct VariableDeclaration :
     g::And<colonEqual
          , id
-         , g::Opt<g::And<colon, ConstraintExpression<Lambda>>>
-         , g::Opt<g::And<equal, AssignExpression<Lambda>>>>
+         , g::Opt<g::And<colon, ConstraintExpression<Default>>>
+         , g::Opt<g::And<equal, AssignExpression<Default>>>>
 {
     VarDecl make(DeclarationScopeParser& parser)
     {

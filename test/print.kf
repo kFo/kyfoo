@@ -111,13 +111,12 @@ bubbleSort(arr : ref slice<\T>, c : (T, T)->u1) -> () =>
     :.
 
 bubbleSort(arr : ref slice<\T>) -> () =>
-    :. bubbleSort arr (x y:T)->u1=>:.lt x y
+    :. bubbleSort arr (x y:T)->u1=>lt x y
 
 @"WriteWrapper"
 WriteWrapper(str : ascii) -> () =>
     := written : u32 = 0
     WriteFile(GetStdHandle STD_OUTPUT_HANDLE, str.base, trunc<u32> str.card, addr written, NULL)
-    WriteFile (GetStdHandle STD_OUTPUT_HANDLE) str.base (trunc<u32> str.card) (addr written) NULL
     :.
 
 ftest (x y : s32) -> s32 =>
@@ -162,6 +161,10 @@ delete(s:slice \T) -> () =>
     HeapFree GetProcessHeap 0 cast<LPVOID>(s.base)
     :.
 
+printLambda(a : u32->u32) -> () =>
+    put (a 23.u32)
+    :.
+
 htest() -> () =>
     //:= arr : u32..6 = [1, 2, 3, 4, 5, 6]
     //:= arr : u32..6
@@ -171,7 +174,7 @@ htest() -> () =>
         arr i = sub 6 i
         i = add i 1
     
-    arr (c : ref u32) -> () => :. put(c)
+    arr (c : ref u32)->()=>put c
     putLine
     put "card: "
     put arr.card.trunc<u32>
@@ -183,9 +186,14 @@ htest() -> () =>
     put -1.u32
     putLine
     bubbleSort arr
-    arr (c : ref u32) -> () => :. put c
+    arr (c : ref u32)->()=>put c
     
-    arr.delete
+    putLine
+    delete arr
+    //arr.delete
+    
+    printLambda (c:u32)->u32=>c.mul 2
+    putLine
     :.
 
 start() -> () =>

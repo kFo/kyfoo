@@ -63,6 +63,9 @@ public:
     Scope(Scope&&) = delete;
     void operator = (Scope&&) = delete;
 
+#ifndef NDEBUG
+    virtual
+#endif
     ~Scope();
 
     void swap(Scope& rhs) noexcept;

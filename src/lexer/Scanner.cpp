@@ -460,6 +460,7 @@ Token Scanner::readNext()
     }
     else if ( c == '=' ) {
         if ( peekChar() == '>' ) {
+            TryEmitVacuum(c)
             nextChar();
             return token2(TokenKind::Yield, "=>");
         }
@@ -496,8 +497,11 @@ Token Scanner::readNext()
     }
     else if ( c == '-' ) {
         switch ( peekChar() ) {
-        case '>': nextChar(); return token2(TokenKind::Arrow     , "->");
         case '-': nextChar(); return token2(TokenKind::MinusMinus, "--");
+        case '>':
+            TryEmitVacuum(c)
+            nextChar();
+            return token2(TokenKind::Arrow     , "->");
         }
 
         if ( vacuum )

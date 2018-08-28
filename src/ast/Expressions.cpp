@@ -633,7 +633,7 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
             return ctx.rewrite(std::move(myExpressions[0]));
     }
 
-    flattenOpenTuples();
+    flattenOpenTuples(myExpressions);
 
     // myType is generated lazily
     return SymRes::Success;
@@ -677,25 +677,48 @@ uz TupleExpression::elementsCount() const
 /**
  * Flatten open-tuples
  */
-void TupleExpression::flattenOpenTuples()
+
+std::optional<std::vector<Box<Expression>>::iterator>
+tryExpandTuple(std::vector<Box<Expression>>& exprs,
+               std::vector<Box<Expression>>::iterator i)
 {
-    for ( auto i = begin(myExpressions); i != end(myExpressions); ) {
-        if ( (*i)->kind() == Expression::Kind::Tuple ) {
-            auto tuple = static_cast<TupleExpression*>(i->get());
-            if ( tuple->kind() == TupleKind::Open && tuple->myCard == 1 ) {
-                auto index = distance(begin(myExpressions), i) + tuple->myExpressions.size();
-                move(begin(tuple->myExpressions), end(tuple->myExpressions),
-                     std::inserter(myExpressions, i));
-                i = next(begin(myExpressions), index);
-                goto L_removeItem;
-            }
-        }
+    if ( auto tup = (*i)->as<TupleExpression>() )
+        if ( tup->kind() == TupleKind::Open )
+            if ( tup->myCard == 1 || !tup->myCardExpression )
+                return expandTuple(exprs, i);
 
-        ++i;
-        continue;
+    return {};
+}
 
-    L_removeItem:
-        i = myExpressions.erase(i);
+std::vector<Box<Expression>>::iterator
+expandTuple(std::vector<Box<Expression>>& exprs,
+            std::vector<Box<Expression>>::iterator i)
+{
+    auto& tup = static_cast<TupleExpression&>(**i);
+    auto const size = tup.myExpressions.size();
+    auto const index = distance(begin(exprs), i);
+    return exprs.erase(expandIntoList(tup, exprs, i));
+}
+
+std::vector<Box<Expression>>::iterator
+expandIntoList(TupleExpression& tup,
+               std::vector<Box<Expression>>& exprs,
+               std::vector<Box<Expression>>::iterator i)
+{
+    auto const index = distance(begin(exprs), i);
+    auto const size = tup.myExpressions.size();
+    move(begin(tup.myExpressions), end(tup.myExpressions),
+         std::inserter(exprs, i));
+    return next(begin(exprs), index + size);
+}
+
+void flattenOpenTuples(std::vector<Box<Expression>>& exprs)
+{
+    for ( auto i = begin(exprs); i != end(exprs); ) {
+        if ( auto o = tryExpandTuple(exprs, i) )
+            i = *o;
+        else
+            ++i;
     }
 }
 
@@ -1571,17 +1594,14 @@ Expression& AssignExpression::right()
 //
 // LambdaExpression
 
-LambdaExpression::LambdaExpression(lexer::Token const& yieldToken,
-                                   ProcedureDeclaration* proc)
+LambdaExpression::LambdaExpression(ProcedureDeclaration& proc)
     : Expression(Kind::Lambda)
-    , myYieldToken(yieldToken)
-    , myProc(proc)
+    , myProc(&proc)
 {
 }
 
 LambdaExpression::LambdaExpression(LambdaExpression const& rhs)
     : Expression(rhs)
-    , myYieldToken(rhs.myYieldToken)
     , myProc(rhs.myProc)
 {
 }
@@ -1617,11 +1637,6 @@ SymRes LambdaExpression::resolveSymbols(Context& /*ctx*/)
         return SymRes::Fail;
 
     return SymRes::Success;
-}
-
-lexer::Token const& LambdaExpression::yieldToken() const
-{
-    return myYieldToken;
 }
 
 ProcedureDeclaration const& LambdaExpression::procedure() const
@@ -1717,6 +1732,16 @@ Expression& ArrowExpression::to()
 Slice<Expression const*> ArrowExpression::sliceTo() const
 {
     return sliceBox(myTo);
+}
+
+Box<Expression> ArrowExpression::takeFrom()
+{
+    return std::move(myFrom);
+}
+
+Box<Expression> ArrowExpression::takeTo()
+{
+    return std::move(myTo);
 }
 
 //

@@ -1054,7 +1054,11 @@ struct FrontToken
         if ( !l.procedure().parameters().empty() )
             return l.procedure().parameters().front()->symbol().token();
 
-        return l.yieldToken();
+        auto bb = l.procedure().definition()->as<ProcedureScope>()->basicBlocks().front();
+        if ( bb->statements().empty() )
+            return dispatch(*bb->junction());
+
+        return dispatch(bb->statements().front()->expression());
     }
 
     result_t exprArrow(ArrowExpression const& a)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <kyfoo/Dollar.hpp>
 #include <kyfoo/Slice.hpp>
 
@@ -366,8 +368,22 @@ public:
     ExpressionArray elements() const;
     uz elementsCount() const;
 
-private:
-    void flattenOpenTuples();
+public:
+    friend std::optional<std::vector<Box<Expression>>::iterator>
+    tryExpandTuple(std::vector<Box<Expression>>& exprs,
+                   std::vector<Box<Expression>>::iterator i);
+
+    friend std::vector<Box<Expression>>::iterator
+    expandTuple(std::vector<Box<Expression>>& exprs,
+                std::vector<Box<Expression>>::iterator i);
+
+    friend std::vector<Box<Expression>>::iterator
+    expandIntoList(TupleExpression& tup,
+                   std::vector<Box<Expression>>& exprs,
+                   std::vector<Box<Expression>>::iterator i);
+
+    friend void
+    flattenOpenTuples(std::vector<Box<Expression>>& exprs);
 
 private:
     // AST state
@@ -563,8 +579,7 @@ public:
     friend class Context;
 
 public:
-    LambdaExpression(lexer::Token const& yieldToken,
-                     ProcedureDeclaration* proc);
+    explicit LambdaExpression(ProcedureDeclaration& proc);
 
 protected:
     LambdaExpression(LambdaExpression const& rhs);
@@ -581,13 +596,10 @@ protected:
     SymRes resolveSymbols(Context& ctx);
 
 public:
-    lexer::Token const& yieldToken() const;
-
     ProcedureDeclaration const& procedure() const;
     ProcedureDeclaration& procedure();
 
 private:
-    lexer::Token myYieldToken;
     ProcedureDeclaration* myProc = nullptr;
 };
 
@@ -624,6 +636,9 @@ public:
     Expression& to();
 
     Slice<Expression const*> sliceTo() const;
+
+    Box<Expression> takeFrom();
+    Box<Expression> takeTo();
 
 private:
     Box<Expression> myFrom;

@@ -725,8 +725,11 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
         };
 
         for ( uz i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
+            auto& protoPattern = mySymbol->prototype().myPattern;
+            while ( tryExpandTuple(protoPattern, next(begin(protoPattern), i)) )
+                continue;
+
             if ( auto app = mySymbol->prototype().pattern()[i]->as<ApplyExpression>() ) {
-                auto& protoPattern = mySymbol->prototype().myPattern;
                 auto a = std::move(reinterpret_cast<Box<ApplyExpression>&>(protoPattern[i]));
                 protoPattern[i] = std::move(a->myExpressions[0]);
                 for ( uz j = 1; j < a->myExpressions.size(); ++j ) {
