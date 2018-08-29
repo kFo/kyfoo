@@ -568,6 +568,9 @@ public:
     Expression const& right() const;
     Expression& right();
 
+    Box<Expression> takeLeft();
+    Box<Expression> takeRight();
+
 private:
     Box<Expression> myLeft;
     Box<Expression> myRight;

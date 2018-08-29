@@ -1591,6 +1591,16 @@ Expression& AssignExpression::right()
     return *myRight;
 }
 
+Box<Expression> AssignExpression::takeLeft()
+{
+    return std::move(myLeft);
+}
+
+Box<Expression> AssignExpression::takeRight()
+{
+    return std::move(myRight);
+}
+
 //
 // LambdaExpression
 

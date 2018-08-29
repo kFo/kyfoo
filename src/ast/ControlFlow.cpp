@@ -122,6 +122,21 @@ SymRes Statement::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
+    if ( auto ass = myExpression->as<AssignExpression>() ) {
+        if ( auto id = ass->left().as<IdentifierExpression>() ) {
+            if ( id->token().kind() == lexer::TokenKind::Undefined ) {
+                auto e = find_if(begin(myUnnamedVariables), end(myUnnamedVariables),
+                                 [&](auto const& rhs) { return rhs.get() == id->declaration(); });
+                if ( e != end(myUnnamedVariables) ) {
+                    myUnnamedVariables.erase(e);
+                    myAssignExpressions.erase(find(begin(myAssignExpressions), end(myAssignExpressions),
+                                                   ass));
+                    myExpression = std::move(ass->takeRight());
+                }
+            }
+        }
+    }
+
     return SymRes::Success;
 }
 

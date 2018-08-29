@@ -189,8 +189,7 @@ htest() -> () =>
     arr (c : ref u32)->()=>put c
     
     putLine
-    delete arr
-    //arr.delete
+    arr.delete
     
     printLambda (c:u32)->u32=>c.mul 2
     putLine
