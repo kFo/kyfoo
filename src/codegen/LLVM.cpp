@@ -650,9 +650,6 @@ struct CodeGenPass
         //};
 
         for ( auto const& stmt : block.statements() ) {
-            for ( auto ass : stmt->assignExpressions() )
-                toValue(builder, builder.getVoidTy(), *ass);
-
             toValue(builder, builder.getVoidTy(), stmt->expression());
 
             //auto u = stmt->unnamedVariables();
