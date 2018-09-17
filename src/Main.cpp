@@ -11,8 +11,9 @@
 #include <kyfoo/lexer/Scanner.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
-#include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Clone.hpp>
+#include <kyfoo/ast/DotWriter.hpp>
+#include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
@@ -62,15 +63,16 @@ int runScannerDump(std::filesystem::path const& file)
     return EXIT_SUCCESS;
 }
 
-int runParserTest(std::filesystem::path const& filepath)
+int runParserDump(std::filesystem::path const& filepath)
 {
     Diagnostics dgn;
     ast::ModuleSet moduleSet;
     auto main = moduleSet.create(filepath);
     try {
         main->parse(dgn);
-        // todo
-        throw std::runtime_error("not implemented");
+        auto outFilepath = filepath;
+        outFilepath.replace_extension(".dot");
+        writeDot(*main, outFilepath);
     }
     catch (Diagnostics*) {
         // Handled below
@@ -95,11 +97,9 @@ int analyzeModule(ast::Module& m, bool treeDump)
     try {
         m.semantics(dgn);
         if ( treeDump ) {
-            std::ofstream fout(std::string(m.name()) + ".astdump.json");
-            if ( fout ) {
-                // todo
-                throw std::runtime_error("not implemented");
-            }
+            auto path = m.path();
+            path.replace_extension(".astdump.dot");
+            writeDot(m, path);
         }
     }
     catch (Diagnostics*) {
@@ -336,7 +336,7 @@ int main(int argc, char* argv[])
                 return EXIT_FAILURE;
             }
 
-            return runParserTest(file);
+            return runParserDump(file);
         }
         else if ( command == "semantics" || command == "sem" || command == "semdump" ) {
             std::vector<std::filesystem::path> files;

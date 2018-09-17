@@ -126,6 +126,9 @@
     <ClInclude Include="..\..\include\kyfoo\ast\Clone.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\DotWriter.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -186,6 +189,9 @@
       <Filter>src\ast</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ast\Variance.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\DotWriter.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
   </ItemGroup>
