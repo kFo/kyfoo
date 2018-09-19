@@ -1066,7 +1066,7 @@ private:
     }
 
     llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
-                                      llvm::Type* destType,
+                                      llvm::Type* /*destType*/,
                                       ast::Expression const& expr)
     {
         auto a = expr.as<ast::ApplyExpression>();
@@ -1217,7 +1217,7 @@ private:
     X(Ltu, ICmpULT) \
     X(Lts, ICmpSLT) \
     X(Leu, ICmpULE) \
-    X(Les, ICmpSLE) \
+    X(Les, ICmpSLE)
 
 #define X(ID,LLVMSUFFIX)                                                                             \
         else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::ID)->symbol(), proc->symbol()) ) { \
@@ -1234,56 +1234,37 @@ private:
 #undef X_INSTR
 #undef US
 
-        else if ( proc == axioms.intrinsic(ast::Truncu1u8)
-                || proc == axioms.intrinsic(ast::Truncu1u16)
-                || proc == axioms.intrinsic(ast::Truncu1u32)
-                || proc == axioms.intrinsic(ast::Truncu1u64)
-                || proc == axioms.intrinsic(ast::Truncu1u128) )
+        else if ( proc == axioms.intrinsic(ast::Not) )
         {
-            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt1Ty(builder.getContext()));
+            return builder.CreateNot(toValue(builder, toType(*proc->parameters()[0]->type()), *exprs[1]));
         }
-        else if ( proc == axioms.intrinsic(ast::Truncu8u16)
-                || proc == axioms.intrinsic(ast::Truncu8u32)
-                || proc == axioms.intrinsic(ast::Truncu8u64)
-                || proc == axioms.intrinsic(ast::Truncu8u128)
-                || proc == axioms.intrinsic(ast::Trunci8i16)
-                || proc == axioms.intrinsic(ast::Trunci8i32)
-                || proc == axioms.intrinsic(ast::Trunci8i64)
-                || proc == axioms.intrinsic(ast::Trunci8i128) )
+        else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Truncu)->symbol(), proc->symbol())
+               || ast::descendsFromTemplate(axioms.intrinsic(ast::Truncs)->symbol(), proc->symbol()) )
         {
-            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt8Ty(builder.getContext()));
-        }
-        else if ( proc == axioms.intrinsic(ast::Truncu16u32)
-                || proc == axioms.intrinsic(ast::Truncu16u64)
-                || proc == axioms.intrinsic(ast::Truncu16u128)
-                || proc == axioms.intrinsic(ast::Trunci16i32)
-                || proc == axioms.intrinsic(ast::Trunci16i64)
-                || proc == axioms.intrinsic(ast::Trunci16i128) )
-        {
-            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt16Ty(builder.getContext()));
-        }
-        else if ( proc == axioms.intrinsic(ast::Truncu32u64)
-                || proc == axioms.intrinsic(ast::Truncu32u128)
-                || proc == axioms.intrinsic(ast::Trunci32i64)
-                || proc == axioms.intrinsic(ast::Trunci32i128) )
-        {
-            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt32Ty(builder.getContext()));
-        }
-        else if ( proc == axioms.intrinsic(ast::Truncu64u128)
-                || proc == axioms.intrinsic(ast::Trunci64i128) )
-        {
-            return builder.CreateTrunc(toValue(builder, destType, *exprs[1]), llvm::Type::getInt128Ty(builder.getContext()));
-        }
+            auto srcType = toType(*proc->parameters()[0]->type());
+            auto dstType = toType(*proc->returnType());
 
-        if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {
+            {
+                auto srcInt = llvm::dyn_cast_or_null<llvm::IntegerType>(srcType);
+                auto dstInt = llvm::dyn_cast_or_null<llvm::IntegerType>(dstType);
+                if ( !srcInt || !dstInt )
+                    die("trunc instruction parameter is not an integer");
+
+                if ( dstInt->getBitWidth() > srcInt->getBitWidth() )
+                    die("trunc instruction destination width is greater than source width (extension)");
+            }
+
+            auto p = toValue(builder, srcType, *exprs[1]);
+            return builder.CreateTrunc(p, dstType);
+        }
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {
             auto ret = toRef(builder, *resolveIndirections(exprs[1]));
             if ( !ret )
                 die("missing identity for addr");
 
             return ret;
         }
-
-        if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Cast)->symbol() ) {
+        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Cast)->symbol() ) {
             auto templ = procTemplate(*proc);
             return builder.CreatePointerCast(toValue(builder, nullptr, *resolveIndirections(exprs[1])), toType(*templ->symbol().prototype().pattern()[0]));
         }

@@ -109,32 +109,9 @@ enum DataProductIntrinsics
     X(Leu ) \
     X(Les ) \
     \
-    X(Truncu1u8   ) \
-    X(Truncu1u16  ) \
-    X(Truncu1u32  ) \
-    X(Truncu1u64  ) \
-    X(Truncu1u128 ) \
-    X(Truncu8u16  ) \
-    X(Truncu8u32  ) \
-    X(Truncu8u64  ) \
-    X(Truncu8u128 ) \
-    X(Truncu16u32 ) \
-    X(Truncu16u64 ) \
-    X(Truncu16u128) \
-    X(Truncu32u64 ) \
-    X(Truncu32u128) \
-    X(Truncu64u128) \
-    X(Trunci8i16  ) \
-    X(Trunci8i32  ) \
-    X(Trunci8i64  ) \
-    X(Trunci8i128 ) \
-    X(Trunci16i32 ) \
-    X(Trunci16i64 ) \
-    X(Trunci16i128) \
-    X(Trunci32i64 ) \
-    X(Trunci32i128) \
-    X(Trunci64i128) \
-    \
+    X(Not ) \
+    X(Truncu) \
+    X(Truncs) \
     X(Addr) \
     X(Cast)
 

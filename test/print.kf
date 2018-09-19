@@ -48,9 +48,6 @@ HEAP_ZERO_MEMORY         := 8 // 0x00000008
 
 NULL := null
 
-not(x : u1) -> u1 =>
-    :. eq x 0
-
 put(c : u8) -> () =>
     := a : u8 = c
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL

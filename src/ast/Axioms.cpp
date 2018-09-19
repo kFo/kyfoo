@@ -186,31 +186,14 @@ le(x y : unsigned<\n>) -> u1
 @"intrininst" "Les"
 le(x y : signed<\n>) -> u1
 
-trunc<unsigned<1 >>(x : unsigned<8  >) -> unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<16 >) -> unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<32 >) -> unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<64 >) -> unsigned<1 >
-trunc<unsigned<1 >>(x : unsigned<128>) -> unsigned<1 >
-trunc<unsigned<8 >>(x : unsigned<16 >) -> unsigned<8 >
-trunc<unsigned<8 >>(x : unsigned<32 >) -> unsigned<8 >
-trunc<unsigned<8 >>(x : unsigned<64 >) -> unsigned<8 >
-trunc<unsigned<8 >>(x : unsigned<128>) -> unsigned<8 >
-trunc<unsigned<16>>(x : unsigned<32 >) -> unsigned<16>
-trunc<unsigned<16>>(x : unsigned<64 >) -> unsigned<16>
-trunc<unsigned<16>>(x : unsigned<128>) -> unsigned<16>
-trunc<unsigned<32>>(x : unsigned<64 >) -> unsigned<32>
-trunc<unsigned<32>>(x : unsigned<128>) -> unsigned<32>
-trunc<unsigned<64>>(x : unsigned<128>) -> unsigned<64>
-trunc<signed<8 >>(x : signed<16 >) -> signed<8 >
-trunc<signed<8 >>(x : signed<32 >) -> signed<8 >
-trunc<signed<8 >>(x : signed<64 >) -> signed<8 >
-trunc<signed<8 >>(x : signed<128>) -> signed<8 >
-trunc<signed<16>>(x : signed<32 >) -> signed<16>
-trunc<signed<16>>(x : signed<64 >) -> signed<16>
-trunc<signed<16>>(x : signed<128>) -> signed<16>
-trunc<signed<32>>(x : signed<64 >) -> signed<32>
-trunc<signed<32>>(x : signed<128>) -> signed<32>
-trunc<signed<64>>(x : signed<128>) -> signed<64>
+@"intrininst" "Not"
+not(x : u1) -> u1
+
+@"intrininst" "Truncu"
+trunc<unsigned<\n>>(x : unsigned<\m>) -> unsigned<n>
+
+@"intrininst" "Truncs"
+trunc<signed<\n>>(x : signed<\m>) -> signed<n>
 
 @"intrininst" "Addr"
 addr(p : ref \T) -> ptr T
@@ -434,22 +417,6 @@ bool AxiomsModule::init(Diagnostics& dgn)
 
         myDataProductDecls[ascii ] = resolveIndirections(scope()->findEquivalent("ascii").single())->as<DataProductDeclaration>();
         myDataProductDecls[size_t] = resolveIndirections(scope()->findEquivalent("uz").single())->as<DataProductDeclaration>();
-
-        auto childDecls = scope()->childDeclarations();
-        auto decl = begin(childDecls);
-
-        while ( (*decl)->symbol().token().lexeme() != "trunc" )
-            ++decl;
-
-        int i = Truncu1u8;
-        while ( (*decl)->symbol().token().lexeme() == "trunc" ) {
-            auto defn = (*decl)->as<TemplateDeclaration>()->definition();
-            for ( auto& d : defn->childDeclarations() ) {
-                myInstructionDecls[i] = d->as<ProcedureDeclaration>();
-                ++i;
-                ++decl;
-            }
-        }
 
         buildMetaData();
 
