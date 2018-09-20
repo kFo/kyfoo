@@ -420,6 +420,7 @@ protected:
     SymRes resolveSymbols(Context& ctx);
 
 public:
+    Declaration const* resolveSubjectAsUFCSMethod(Context& ctx, IdentifierExpression& id);
     SymRes lowerToApplicable(Context& ctx);
     SymRes lowerToStaticCall(Context& ctx);
     SymRes elaborateTuple(Context& ctx);

@@ -98,7 +98,7 @@ bubble(arr : ref slice<\T>, c : (T, T)->u1) -> u32 =>
     :* lt(i, sub arr.card 1)
         :<> not(c(arr i, arr (add i 1)))
             swap(arr i, arr (add i 1))
-            ret.inc
+            inc ret
         i.inc
     
     :. ret

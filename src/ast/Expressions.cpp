@@ -798,9 +798,11 @@ L_restart:
 
     if ( auto id = subject()->as<IdentifierExpression>() ) {
         if ( !id->token().lexeme().empty() && !id->declaration() ) {
-            auto hit = ctx.matchOverload(id->token().lexeme());
-            if ( !hit )
-                return ctx.rewrite(mk<SymbolExpression>(std::move(myExpressions)));
+            if ( !resolveSubjectAsUFCSMethod(ctx, *id) ) {
+                auto hit = ctx.matchOverload(id->token().lexeme());
+                if ( !hit )
+                    return ctx.rewrite(mk<SymbolExpression>(std::move(myExpressions)));
+            }
         }
     }
 
@@ -886,6 +888,27 @@ L_notMethod:
     }
 
     return ret;
+}
+
+Declaration const* ApplyExpression::resolveSubjectAsUFCSMethod(Context& ctx, IdentifierExpression& id)
+{
+    // Look for method on first argument (UFCS)
+    if ( !arguments() )
+        return nullptr;
+
+    auto selfExpr = arguments().front();
+    auto selfType = selfExpr->type();
+    auto scope = staticAccessorScope(*selfType);
+    if ( !scope )
+        return nullptr;
+
+    auto hit = ctx.matchOverload(*scope, Resolver::Narrow, SymbolReference(id.token().lexeme()));
+    if ( auto templ = hit.singleAs<TemplateDeclaration>() ) {
+        id.setDeclaration(*resolveIndirections(templ));
+        return id.declaration();
+    }
+
+    return nullptr;
 }
 
 SymRes ApplyExpression::lowerToApplicable(Context& ctx)
