@@ -1140,27 +1140,46 @@ private:
         const auto& axioms = sourceModule.axioms();
         auto const& exprs = a->expressions();
 
-        if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::UnsignedFromInteger)->symbol()
-          || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::SignedFromInteger)->symbol()
-          || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
-          || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
+        auto const rootTempl = rootTemplate(proc->symbol());
+        if ( rootTempl == &axioms.intrinsic(ast::UnsignedFromInteger      )->symbol()
+          || rootTempl == &axioms.intrinsic(ast::SignedFromInteger        )->symbol()
+          || rootTempl == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
+          || rootTempl == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
         {
             return toLiteral(builder,
                              toType(*proc->result()->type()),
                              exprs[1]->as<ast::LiteralExpression>()->token());
         }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::UnsignedFromUnsigned)->symbol() )
+        else if ( rootTempl == &axioms.intrinsic(ast::UnsignedFromUnsigned)->symbol() )
         {
             return builder.CreateZExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
                                       toType(*proc->parameters()[0]->type()));
         }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::SignedFromSigned)->symbol() )
+        else if ( rootTempl == &axioms.intrinsic(ast::SignedFromSigned)->symbol() )
         {
             return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
                                       toType(*proc->parameters()[0]->type()));
         }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Array_idx)->symbol()
-               || rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Slice_idx)->symbol() )
+        else if ( rootTempl == &axioms.intrinsic(ast::UnsignedInc)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::SignedInc  )->symbol()
+               || rootTempl == &axioms.intrinsic(ast::UnsignedDec)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::SignedDec  )->symbol() )
+        {
+            auto selfType = toType(removeReference(*getDeclaration(*proc->parameters()[0]->type())));
+            auto selfRef = toRef(builder, *exprs[1]);
+            auto val = builder.CreateLoad(selfRef);
+
+            auto const isInc = rootTempl == &axioms.intrinsic(ast::UnsignedInc)->symbol()
+                            || rootTempl == &axioms.intrinsic(ast::SignedInc)->symbol();
+            auto nextVal = isInc
+                ? builder.CreateAdd(val, llvm::ConstantInt::get(selfType, 1))
+                : builder.CreateSub(val, llvm::ConstantInt::get(selfType, 1));
+
+            builder.CreateStore(nextVal, selfRef);
+            return selfRef;
+        }
+        else if ( rootTempl == &axioms.intrinsic(ast::Array_idx)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::Slice_idx)->symbol() )
         {
             auto arr = toRef(builder, *exprs[1]);
             auto basePtr = builder.CreateStructGEP(nullptr, arr, 0);
@@ -1168,7 +1187,7 @@ private:
             auto idx = toValue(builder, toType(*proc->parameters()[1]->type()), *exprs[2]);
             return builder.CreateGEP(baseVal, idx);
         }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::implicitStringToAscii)->symbol() )
+        else if ( rootTempl == &axioms.intrinsic(ast::implicitStringToAscii)->symbol() )
         {
             auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::ascii))->type);
             auto const& str = sourceModule.interpretString(dgn, exprs[1]->as<ast::LiteralExpression>()->token());
@@ -1220,7 +1239,7 @@ private:
     X(Les, ICmpSLE)
 
 #define X(ID,LLVMSUFFIX)                                                                             \
-        else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::ID)->symbol(), proc->symbol()) ) { \
+        else if ( rootTempl == &axioms.intrinsic(ast::ID)->symbol() ) { \
             auto t1 = toType(*proc->parameters()[0]->type());                                        \
             auto t2 = toType(*proc->parameters()[1]->type());                                        \
             auto p1 = toValue(builder, t1, *exprs[1]);                                               \
@@ -1238,8 +1257,8 @@ private:
         {
             return builder.CreateNot(toValue(builder, toType(*proc->parameters()[0]->type()), *exprs[1]));
         }
-        else if ( ast::descendsFromTemplate(axioms.intrinsic(ast::Truncu)->symbol(), proc->symbol())
-               || ast::descendsFromTemplate(axioms.intrinsic(ast::Truncs)->symbol(), proc->symbol()) )
+        else if ( rootTempl == &axioms.intrinsic(ast::Truncu)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::Truncs)->symbol() )
         {
             auto srcType = toType(*proc->parameters()[0]->type());
             auto dstType = toType(*proc->returnType());
@@ -1257,14 +1276,14 @@ private:
             auto p = toValue(builder, srcType, *exprs[1]);
             return builder.CreateTrunc(p, dstType);
         }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Addr)->symbol() ) {
+        else if ( rootTempl == &axioms.intrinsic(ast::Addr)->symbol() ) {
             auto ret = toRef(builder, *resolveIndirections(exprs[1]));
             if ( !ret )
                 die("missing identity for addr");
 
             return ret;
         }
-        else if ( rootTemplate(proc->symbol()) == &axioms.intrinsic(ast::Cast)->symbol() ) {
+        else if ( rootTempl == &axioms.intrinsic(ast::Cast)->symbol() ) {
             auto templ = procTemplate(*proc);
             return builder.CreatePointerCast(toValue(builder, nullptr, *resolveIndirections(exprs[1])), toType(*templ->symbol().prototype().pattern()[0]));
         }

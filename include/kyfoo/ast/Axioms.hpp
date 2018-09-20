@@ -62,17 +62,22 @@ enum DataProductIntrinsics
 };
 
 #define INTRINSIC_INSTRUCTIONS(X) \
-    X(UnsignedFromInteger)        \
-    X(UnsignedFromUnsigned)       \
+    X(UnsignedFromInteger       ) \
+    X(UnsignedFromUnsigned      ) \
     X(implicitIntegerToUnsigned ) \
     X(implicitUnsignedToUnsigned) \
-    X(SignedFromInteger)          \
-    X(SignedFromSigned)           \
+    X(SignedFromInteger         ) \
+    X(SignedFromSigned          ) \
     X(implicitIntegerToSigned   ) \
     X(implicitSignedToSigned    ) \
     \
-    X(Array_idx   )          \
-    X(Slice_idx   )          \
+    X(UnsignedInc               ) \
+    X(UnsignedDec               ) \
+    X(SignedInc                 ) \
+    X(SignedDec                 ) \
+    \
+    X(Array_idx            ) \
+    X(Slice_idx            ) \
     X(implicitStringToAscii) \
     \
     X(Addu   ) \
@@ -98,8 +103,8 @@ enum DataProductIntrinsics
     \
     X(Equ ) \
     X(Eqs ) \
-    X(Neu)  \
-    X(Nes)  \
+    X(Neu ) \
+    X(Nes ) \
     X(Gtu ) \
     X(Gts ) \
     X(Geu ) \
@@ -109,11 +114,11 @@ enum DataProductIntrinsics
     X(Leu ) \
     X(Les ) \
     \
-    X(Not ) \
+    X(Not   ) \
     X(Truncu) \
     X(Truncs) \
-    X(Addr) \
-    X(Cast)
+    X(Addr  ) \
+    X(Cast  )
 
 enum InstructionIntrinsics
 {

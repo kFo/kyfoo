@@ -101,11 +101,26 @@ Expression const* resolveIndirections(Expression const& expr);
 bool needsSubstitution(Expression const& expr);
 bool needsSubstitution(Declaration const& decl);
 bool hasSubstitutions(Symbol const& sym);
+
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
+
 bool isReference(Declaration const& decl);
 bool isReference(Expression const& expr);
-Scope const* memberScope(Declaration const& decl);
+Expression const& removeReference(Declaration const& decl);
+Declaration const* removeAllReferences(Declaration const& decl);
+
+Scope const* staticAccessorScope(Expression const& expr);
+Scope const* staticAccessorScope(Declaration const& decl);
+
+struct AccessorScope
+{
+    Expression const* instance;
+    Scope const* scope;
+};
+
+AccessorScope instanceAccessorScope(Expression const& expr);
+
 TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc);
 Declaration const* outerDataDeclaration(Declaration const& decl);
 Declaration* outerDataDeclaration(Declaration& decl);

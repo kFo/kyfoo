@@ -583,7 +583,10 @@ SymRes ProcedureScope::resolveDefinitions(Context& ctx)
     if ( !isTop() )
         return ret;
 
-    return cacheVariableExtents(ctx);
+    return ret;
+
+    // todo: revisit flow analysis
+    //return cacheVariableExtents(ctx);
 }
 
 bool ProcedureScope::isJumpTarget() const

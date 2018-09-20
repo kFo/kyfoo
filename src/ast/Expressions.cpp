@@ -21,9 +21,9 @@
 namespace kyfoo::ast {
 
 namespace {
-    std::optional<SymRes> resolveMemberExpression(Context& ctx,
-                                                  Expression const& lhs,
-                                                  IdentifierExpression& rhs)
+    std::optional<SymRes> resolveAsAccessorExpression(Context& ctx,
+                                                      Expression const& lhs,
+                                                      IdentifierExpression& rhs)
     {
         SymbolReference sym(rhs.token().lexeme());
         if ( auto symExpr = rhs.as<SymbolExpression>() ) {
@@ -34,13 +34,8 @@ namespace {
             sym = SymbolReference(symExpr->token().lexeme(), symExpr->expressions());
         }
 
-        if ( auto lhsDecl = resolveIndirections(getDeclaration(lhs)) ) {
-            auto lhsScope = memberScope(*lhsDecl);
-            if ( !lhsScope ) {
-                ctx.error(lhs) << "does not have any members";
-                return SymRes::Fail;
-            }
-
+        auto [lhsInstance, lhsScope] = instanceAccessorScope(lhs);
+        if ( lhsScope ) {
             if ( auto hit = ctx.matchOverload(*lhsScope, Resolver::Narrow, sym) ) {
                 auto rhsDecl = hit.single();
                 if ( !rhsDecl ) {
@@ -50,6 +45,9 @@ namespace {
                 }
 
                 rhs.setDeclaration(*rhsDecl);
+                if ( lhsInstance && rhsDecl->as<TemplateDeclaration>() )
+                    return {};
+
                 return SymRes::Success;
             }
         }
@@ -815,7 +813,7 @@ L_restart:
         if ( !rhs )
             goto L_notMethod;
 
-        if ( auto o = resolveMemberExpression(ctx, *dot->top(1), *rhs) ) {
+        if ( auto o = resolveAsAccessorExpression(ctx, *dot->top(1), *rhs) ) {
             ret |= *o;
             if ( !ret )
                 return ret;
@@ -1313,9 +1311,9 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
 
         auto lhs = myExpressions[i - 1].get();
 
-        auto failedAsMember = false;
+        auto failedAsAccessor = false;
         if ( auto rhs = identify(*myExpressions[i]) ) {
-            if ( auto o = resolveMemberExpression(ctx, *lhs, *rhs) ) {
+            if ( auto o = resolveAsAccessorExpression(ctx, *lhs, *rhs) ) {
                 ret |= *o;
                 if ( !ret )
                     return ret;
@@ -1323,7 +1321,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                 continue;
             }
 
-            failedAsMember = true;
+            failedAsAccessor = true;
         }
         else {
             ret = ctx.resolveExpression(myExpressions[i]);
@@ -1414,7 +1412,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
         myExpressions.front() = std::move(app);
         ret = ctx.resolveExpression(myExpressions.front());
         if ( !ret ) {
-            if ( failedAsMember ) {
+            if ( failedAsAccessor ) {
                 auto appExpr = myExpressions[i]->as<ApplyExpression>();
                 ctx.error(*appExpr->subject()) << "does not match any members of "
                                                << *appExpr->arguments()[0];

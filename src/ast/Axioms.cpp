@@ -7,6 +7,12 @@ auto source = R"axioms(
     @"intrininst" "UnsignedFromUnsigned"
     (i : unsigned<\m>) -> unsigned<n>
 
+    @"intrininst" "UnsignedInc"
+    inc(this : ref unsigned<n>) -> ref unsigned<n>
+
+    @"intrininst" "UnsignedDec"
+    dec(this : ref unsigned<n>) -> ref unsigned<n>
+
 @"intrininst" "implicitIntegerToUnsigned"
 implicitTo<unsigned<\D>>(i : integer) -> unsigned<D>
 
@@ -28,6 +34,12 @@ u128 := unsigned<128>
 
     @"intrininst" "SignedFromSigned"
     (i : signed<\m>) -> signed<n>
+
+    @"intrininst" "SignedInc"
+    inc(x : ref signed<n>) -> ref signed<n>
+
+    @"intrininst" "SignedDec"
+    dec(x : ref signed<n>) -> ref signed<n>
 
 @"intrininst" "implicitIntegerToSigned"
 implicitTo<signed<\D>>(i : integer) -> signed<D>

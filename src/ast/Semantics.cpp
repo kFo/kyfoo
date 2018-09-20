@@ -621,7 +621,7 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
 
 bool isReference(Declaration const& decl)
 {
-    return descendsFromTemplate(decl.scope().module().axioms().intrinsic(ReferenceTemplate)->symbol(), decl.symbol());
+    return rootTemplate(decl.symbol()) == &decl.scope().module().axioms().intrinsic(ReferenceTemplate)->symbol();
 }
 
 bool isReference(Expression const& expr)
@@ -632,28 +632,40 @@ bool isReference(Expression const& expr)
     return false;
 }
 
-Scope const* memberScope(Declaration const& decl_)
+Expression const& removeReference(Declaration const& decl)
 {
-    auto decl = resolveIndirections(decl_);
-    if ( auto b = getBinder(*decl) ) {
-        auto d = resolveIndirections(getDeclaration(b->type()));
-        if ( !d )
-            return nullptr;
+    return *decl.symbol().prototype().pattern().front();
+}
 
-        return memberScope(*d);
-    }
+Declaration const* removeAllReferences(Declaration const& decl)
+{
+    auto ret = &decl;
+    while ( ret && isReference(*ret) )
+        ret = resolveIndirections(getDeclaration(removeReference(*ret)));
 
-    while ( isReference(*decl) )
-        decl = resolveIndirections(getDeclaration(decl->symbol().prototype().pattern().front()));
+    return ret;
+}
 
-    if ( auto ds = decl->as<DataSumDeclaration>() )
-        return ds->definition();
+Scope const* staticAccessorScope(Expression const& expr)
+{
+    if ( auto decl = resolveIndirections(getDeclaration(expr)) )
+        return staticAccessorScope(*decl);
 
-    if ( auto dp = decl->as<DataProductDeclaration>() )
-        return dp->definition();
-
-    // todo: imports
     return nullptr;
+}
+
+Scope const* staticAccessorScope(Declaration const& decl)
+{
+    return getDefinition(*removeAllReferences(*resolveIndirections(decl)));
+}
+
+AccessorScope instanceAccessorScope(Expression const& expr)
+{
+    auto e = resolveIndirections(expr);
+    if ( auto scope = staticAccessorScope(*e) )
+        return { nullptr, scope };
+
+    return { e, staticAccessorScope(*e->type()) };
 }
 
 TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc)
