@@ -237,7 +237,7 @@ Box<DeclarationScopeParser> DeclarationScopeParser::next()
         }
         
         if ( newScopeParser )
-            return newScopeParser;
+            return move(newScopeParser);
 
         if ( scanner().peek().kind() != lexer::TokenKind::IndentEQ )
             return nullptr;
@@ -309,7 +309,7 @@ DataProductScopeParser::parseNext()
 ProcedureScopeParser::ProcedureScopeParser(Diagnostics& dgn,
                                            lexer::Scanner& scanner,
                                            ast::ProcedureScope& scope)
-    : ProcedureScopeParser(dgn, scanner, scope, false)
+    : ProcedureScopeParser(dgn, scanner, scope, nullptr)
 {
 }
 

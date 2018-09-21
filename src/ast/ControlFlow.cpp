@@ -11,6 +11,7 @@
 
 namespace kyfoo::ast {
 
+#if 0
     namespace {
         const char* to_string(Statement::Kind kind)
         {
@@ -55,6 +56,7 @@ namespace kyfoo::ast {
             return nullptr;
         }
     } // namespace
+#endif
 
 //
 // Statement
@@ -131,7 +133,7 @@ SymRes Statement::resolveSymbols(Context& ctx)
                     myUnnamedVariables.erase(e);
                     myAssignExpressions.erase(find(begin(myAssignExpressions), end(myAssignExpressions),
                                                    ass));
-                    myExpression = std::move(ass->takeRight());
+                    myExpression = ass->takeRight();
                 }
             }
         }
@@ -694,7 +696,7 @@ Slice<Extent::Block*> Extent::blocks()
 
 void Extent::appendBlock(BasicBlock const& bb)
 {
-    myBlocks.emplace_back(mk<Block>(Block{&bb, {}, {}}));
+    myBlocks.emplace_back(mk<Block>(&bb));
 }
 
 void Extent::appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind)

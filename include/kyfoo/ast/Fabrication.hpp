@@ -159,7 +159,7 @@ createReturn(lexer::SourceLocation loc,
              Box<Expression> expr)
 {
     return mk<ReturnJunction>(makeToken("", loc),
-                              createEmptyExpression());
+                              std::move(expr));
 }
 
 inline Box<ReturnJunction>

@@ -117,22 +117,21 @@ private:
     bool subMatch(lexer::ScanPoint& scan,
                   uz& matches)
     {
-        uz m0 = 0;
-        if ( std::get<N>(myFactors).match(scan, m0) ) {
-            uz m1 = 0;
-            if ( subMatch<N + 1>(scan, m1) ) {
-                matches += m0 + m1;
-                return true;
-            }
+        if constexpr( N == sizeof...(T) ) {
+            return true;
         }
+        else {
+            uz m0 = 0;
+            if ( std::get<N>(myFactors).match(scan, m0) ) {
+                uz m1 = 0;
+                if ( subMatch<N + 1>(scan, m1) ) {
+                    matches += m0 + m1;
+                    return true;
+                }
+            }
 
-        return false;
-    }
-
-    template<>
-    bool subMatch<sizeof...(T)>(lexer::ScanPoint&, uz&)
-    {
-        return true;
+            return false;
+        }
     }
 
 private:
@@ -144,22 +143,21 @@ struct MonomorphicMaker
 {
     static T make(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
-        return make<0>(parser, rhs);
+        return makeImpl<0>(parser, rhs);
     }
 
     template <uz N>
-    static T make(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
+    static T makeImpl(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
-        if ( rhs.index() == N )
-            return rhs.term<N>().make(parser);
+        if constexpr (N == sizeof...(Branches)) {
+            throw std::runtime_error("invalid or make");
+        }
+        else {
+            if ( rhs.index() == N )
+                return rhs.template term<N>().make(parser);
 
-        return make<N+1>(parser, rhs);
-    }
-
-    template <>
-    static T make<sizeof...(Branches)>(parser::DeclarationScopeParser&, G<Branches...>&)
-    {
-        throw std::runtime_error("invalid or make");
+            return makeImpl<N+1>(parser, rhs);
+        }
     }
 };
 
@@ -199,7 +197,7 @@ public:
     bool match(lexer::ScanPoint scan, uz& matches)
     {
         uz m = 0;
-        myTerms.emplace<0>();
+        myTerms.template emplace<0>();
         if ( std::get<0>(myTerms).match(scan, m) ) {
             matches += m;
             return scan.commit();
@@ -234,35 +232,34 @@ public:
     template <typename AST>
     AST monoMake(parser::DeclarationScopeParser& parser)
     {
-        return MonomorphicMaker<AST, g::Or, T...>::make<0>(parser, *this);
+        return MonomorphicMaker<AST, g::Or, T...>::make(parser, *this);
     }
 
     template <typename AST>
     Box<AST> monoMakePtr(parser::DeclarationScopeParser& parser)
     {
-        return MonomorphicMaker<Box<AST>, g::Or, T...>::make<0>(parser, *this);
+        return MonomorphicMaker<Box<AST>, g::Or, T...>::make(parser, *this);
     }
 
 private:
     template <int N>
     bool subMatch(lexer::ScanPoint& scan, uz& matches)
     {
-        scan.restart();
-
-        uz m = 0;
-        myTerms.emplace<N>();
-        if ( std::get<N>(myTerms).match(scan, m) ) {
-            matches += m;
-            return true;
+        if constexpr( N == sizeof...(T) ) {
+            return false;
         }
+        else {
+            scan.restart();
 
-        return subMatch<N + 1>(scan, matches);
-    }
+            uz m = 0;
+            myTerms.template emplace<N>();
+            if ( std::get<N>(myTerms).match(scan, m) ) {
+                matches += m;
+                return true;
+            }
 
-    template <>
-    bool subMatch<sizeof...(T)>(lexer::ScanPoint&, uz&)
-    {
-        return false;
+            return subMatch<N + 1>(scan, matches);
+        }
     }
 
 private:
@@ -634,6 +631,9 @@ public:
 
             case Close:
                 --nest;
+                break;
+
+            default:
                 break;
             }
         }

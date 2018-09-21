@@ -97,7 +97,6 @@ struct pred_expr {};
     template <ExpressionProperties> struct A; \
     template <ExpressionProperties> struct B; \
     template <ExpressionProperties Prop> struct pred_expr<Prop, B> { \
-        using expr = A; \
         using type = A<Prop>; };
 
 PRECEDES(BasicExpression      , BasicExpression      )
@@ -119,7 +118,7 @@ struct Filter
 
     using type = std::conditional_t<Prop==DisallowLambda,
         std::conditional_t<std::is_same_v<LambdaExpression<Prop>, H>,
-            typename pred_expr<Prop, pred_expr<Prop, T>::expr>::type,
+            typename pred_expr<Prop, LambdaExpression>::type,
             H>,
         H>;
 };
@@ -281,12 +280,12 @@ struct ApplyMixin :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        if ( captures().size() == 1 )
-            return captures().front().make(parser);
+        if ( this->captures().size() == 1 )
+            return this->captures().front().make(parser);
 
         std::vector<Box<ast::Expression>> exprs;
-        exprs.reserve(captures().size());
-        for ( auto& c : captures() )
+        exprs.reserve(this->captures().size());
+        for ( auto& c : this->captures() )
             exprs.emplace_back(c.make(parser));
 
         return mk<ast::ApplyExpression>(std::move(exprs));
@@ -307,15 +306,15 @@ struct DotExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto global = factor<0>().capture() != nullptr;
+        auto global = this->template factor<0>().capture() != nullptr;
         std::vector<Box<ast::Expression>> exprs;
-        exprs.emplace_back(factor<1>().make(parser));
+        exprs.emplace_back(this->template factor<1>().make(parser));
 
         enum { Dot = 0, Apply = 1, Unknown = 2 };
         uz current = global ? Dot : Unknown;
 
-        for ( auto& e : factor<2>().captures() ) {
-            auto const index = e.factor<0>().index();
+        for ( auto& e : this->template factor<2>().captures() ) {
+            auto const index = e.template factor<0>().index();
             if ( current != Unknown && index != current ) {
                 Box<ast::Expression> prev;
                 if ( current == Dot ) {
@@ -329,7 +328,7 @@ struct DotExpression :
                 exprs.emplace_back(std::move(prev));
             }
 
-            exprs.emplace_back(e.factor<1>().make(parser));
+            exprs.emplace_back(e.template factor<1>().make(parser));
             current = index;
         }
 
@@ -353,26 +352,26 @@ struct RangeExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        if ( index() == 0 ) {
-            auto& c = term<0>().factor<0>().captures();
+        if ( this->index() == 0 ) {
+            auto& c = this->template term<0>().template factor<0>().captures();
             Box<ast::Expression> from = c[0].make(parser);
             for ( uz i = 1; i < c.size(); ++i )
                 from = mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               c[i].make(parser));
 
-            if ( auto cc = term<0>().factor<1>().capture() )
+            if ( auto cc = this->template term<0>().template factor<1>().capture() )
                 return mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               nullptr);
 
             return std::move(from);
         }
-        else if ( index() == 1 ) {
+        else if ( this->index() == 1 ) {
             Box<ast::Expression> from;
-            for ( auto& c : term<1>().factor<1>().captures() )
+            for ( auto& c : this->template term<1>().template factor<1>().captures() )
                 from = mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               c.make(parser));
 
-            if ( auto c = term<1>().factor<2>().capture() )
+            if ( auto c = this->template term<1>().template factor<2>().capture() )
                 return mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               nullptr);
 
@@ -395,7 +394,7 @@ struct TightArrowExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto& c = captures();
+        auto& c = this->captures();
         auto ret = c.front().make(parser);
         for ( uz i = 1, size = c.size(); i < size; ++i )
             ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
@@ -410,7 +409,7 @@ struct ArrowExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto& c = captures();
+        auto& c = this->captures();
         auto ret = c.front().make(parser);
         for ( uz i = 1, size = c.size(); i < size; ++i )
             ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
@@ -459,9 +458,9 @@ struct TightLambdaExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto ret = factor<0>().make(parser);
-        if ( auto c = factor<1>().capture() )
-            ret = mkLambda(parser, std::move(ret), c->factor<2>().make(parser));
+        auto ret = this->template factor<0>().make(parser);
+        if ( auto c = this->template factor<1>().capture() )
+            ret = mkLambda(parser, std::move(ret), c->template factor<2>().make(parser));
 
         return ret;
     }
@@ -474,9 +473,9 @@ struct LambdaExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto ret = factor<0>().make(parser);
-        if ( auto c = factor<1>().capture() )
-            ret = mkLambda(parser, std::move(ret), c->factor<1>().make(parser));
+        auto ret = this->template factor<0>().make(parser);
+        if ( auto c = this->template factor<1>().capture() )
+            ret = mkLambda(parser, std::move(ret), c->template factor<1>().make(parser));
 
         return ret;
     }
@@ -488,9 +487,9 @@ struct ConstraintExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto ret = captures().front().make(parser);
-        for ( uz i = 1; i < captures().size(); ++i )
-            ret->addConstraint(captures()[i].make(parser));
+        auto ret = this->captures().front().make(parser);
+        for ( uz i = 1; i < this->captures().size(); ++i )
+            ret->addConstraint(this->captures()[i].make(parser));
 
         return ret;
     }
@@ -503,12 +502,12 @@ struct AssignWithLambdaExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto& c = factor<0>().captures();
+        auto& c = this->template factor<0>().captures();
 
         Box<ast::Expression> ret = c.back().make(parser);
-        if ( auto tailBlock = factor<1>().capture() ) {
+        if ( auto tailBlock = this->template factor<1>().capture() ) {
             auto proc = mkProc(std::move(ret));
-            auto defn = tailBlock->factor<1>().make(parser, *proc);
+            auto defn = tailBlock->template factor<1>().make(parser, *proc);
             ret = mk<ast::LambdaExpression>(*proc);
             parser.scope().appendLambda(std::move(proc), std::move(defn));
         }
@@ -526,7 +525,7 @@ struct AssignNoLambdaExpression :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        auto& c = captures();
+        auto& c = this->captures();
         auto ret = c.back().make(parser);
         for ( uz i = c.size() - 2; ~i; --i )
             ret = mk<ast::AssignExpression>(c[i].make(parser), std::move(ret));

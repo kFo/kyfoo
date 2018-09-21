@@ -176,6 +176,11 @@ struct PatternsDecl {
 };
 
 struct Prototype {
+    Prototype(PatternsPrototype const& proto, Declaration& decl)
+        : proto({&proto, &decl})
+    {
+    }
+
     PatternsDecl proto;
     std::vector<PatternsDecl> instances;
 

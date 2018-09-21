@@ -1,5 +1,3 @@
-#pragma once
-
 #include <kyfoo/lexer/TokenKind.hpp>
 
 namespace kyfoo::lexer {

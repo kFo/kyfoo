@@ -330,7 +330,8 @@ int main(int argc, char* argv[])
 
             return runScannerDump(file);
         }
-        else if ( command == "parse" || command == "grammar" ) {
+
+        if ( command == "parse" || command == "grammar" ) {
             if ( argc != 3 ) {
                 printHelp(argv[0]);
                 return EXIT_FAILURE;
@@ -338,10 +339,11 @@ int main(int argc, char* argv[])
 
             return runParserDump(file);
         }
-        else if ( command == "semantics" || command == "sem" || command == "semdump" ) {
+
+        if ( command == "semantics" || command == "sem" || command == "semdump" ) {
             std::vector<std::filesystem::path> files;
             for ( int i = 2; i != argc; ++i )
-                files.push_back(argv[i]);
+                files.emplace_back(argv[i]);
 
             u32 options = SemanticsOnly;
             if ( command == "semdump" )
@@ -349,10 +351,11 @@ int main(int argc, char* argv[])
 
             return compile(files, options);
         }
-        else if ( command == "compile" || command == "c" || command == "ir" ) {
+
+        if ( command == "compile" || command == "c" || command == "ir" ) {
             std::vector<std::filesystem::path> files;
             for ( int i = 2; i != argc; ++i )
-                files.push_back(argv[i]);
+                files.emplace_back(argv[i]);
 
             return compile(files, command == "ir" ? IR : None);
         }

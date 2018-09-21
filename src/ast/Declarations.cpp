@@ -33,9 +33,9 @@ const char* to_string(DeclKind kind)
 Declaration::Declaration(DeclKind kind,
                          Symbol&& symbol,
                          Scope* scope)
-    : myScope(scope)
-    , myKind(kind)
+    : myKind(kind)
     , mySymbol(mk<Symbol>(std::move(symbol)))
+    , myScope(scope)
 {
 }
 
@@ -726,7 +726,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
         for ( uz i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
             auto& protoPattern = mySymbol->prototype().myPattern;
-            while ( tryExpandTuple(protoPattern, next(begin(protoPattern), i)) )
+            while ( TupleExpression::tryExpandTuple(protoPattern, next(begin(protoPattern), i)) )
                 continue;
 
             if ( auto app = mySymbol->prototype().pattern()[i]->as<ApplyExpression>() ) {
@@ -1048,9 +1048,10 @@ bool isDataDeclaration(DeclKind kind)
     case DeclKind::DataProduct:
     case DeclKind::DataSum:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 bool isBinder(DeclKind kind)
@@ -1060,9 +1061,10 @@ bool isBinder(DeclKind kind)
     case DeclKind::ProcedureParameter:
     case DeclKind::Variable:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 Binder const* getBinder(Declaration const& decl)
@@ -1081,9 +1083,10 @@ bool isCallableDeclaration(DeclKind kind)
     case DeclKind::DataSumCtor:
     case DeclKind::Procedure:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 bool isMacroDeclaration(DeclKind kind)
@@ -1091,9 +1094,10 @@ bool isMacroDeclaration(DeclKind kind)
     switch (kind) {
     case DeclKind::Symbol:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 bool hasIndirection(DeclKind kind)
@@ -1172,9 +1176,10 @@ bool isDefinableDeclaration(DeclKind kind)
     case DeclKind::Procedure:
     case DeclKind::Template:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl)

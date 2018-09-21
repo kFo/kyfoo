@@ -58,10 +58,10 @@ public:
     };
 
 private:
-    Resolution myRes;
+    Resolution myRes = Success;
 
 public:
-    SymRes() : myRes(Success) {}
+    SymRes() = default;
     /*implicit*/ SymRes(Resolution rhs) : myRes(rhs) {}
 
     explicit operator bool() const { return myRes == Success; }
@@ -191,7 +191,7 @@ protected:
     LiteralExpression& operator = (LiteralExpression const& rhs);
 
 public:
-    ~LiteralExpression();
+    ~LiteralExpression() override;
 
     void swap(LiteralExpression& rhs) noexcept;
 
@@ -225,7 +225,7 @@ protected:
     IdentifierExpression& operator = (IdentifierExpression const& rhs);
 
 public:
-    ~IdentifierExpression();
+    ~IdentifierExpression() override;
 
     void swap(IdentifierExpression& rhs) noexcept;
 
@@ -348,7 +348,7 @@ protected:
     TupleExpression& operator = (TupleExpression const& rhs);
 
 public:
-    ~TupleExpression();
+    ~TupleExpression() override;
 
     void swap(TupleExpression& rhs) noexcept;
 
@@ -369,21 +369,20 @@ public:
     uz elementsCount() const;
 
 public:
-    friend std::optional<std::vector<Box<Expression>>::iterator>
+    static std::optional<std::vector<Box<Expression>>::iterator>
     tryExpandTuple(std::vector<Box<Expression>>& exprs,
                    std::vector<Box<Expression>>::iterator i);
 
-    friend std::vector<Box<Expression>>::iterator
+    static std::vector<Box<Expression>>::iterator
     expandTuple(std::vector<Box<Expression>>& exprs,
                 std::vector<Box<Expression>>::iterator i);
 
-    friend std::vector<Box<Expression>>::iterator
+    static std::vector<Box<Expression>>::iterator
     expandIntoList(TupleExpression& tup,
                    std::vector<Box<Expression>>& exprs,
                    std::vector<Box<Expression>>::iterator i);
 
-    friend void
-    flattenOpenTuples(std::vector<Box<Expression>>& exprs);
+    static void flattenOpenTuples(std::vector<Box<Expression>>& exprs);
 
 private:
     // AST state
@@ -410,7 +409,7 @@ protected:
     ApplyExpression& operator = (ApplyExpression const& rhs);
 
 public:
-    ~ApplyExpression();
+    ~ApplyExpression() override;
 
     void swap(ApplyExpression& rhs) noexcept;
 
@@ -467,7 +466,7 @@ protected:
     SymbolExpression& operator = (SymbolExpression const& rhs);
 
 public:
-    ~SymbolExpression();
+    ~SymbolExpression() override;
 
     void swap(SymbolExpression& rhs) noexcept;
 
@@ -510,7 +509,7 @@ protected:
     DotExpression& operator = (DotExpression const& rhs);
 
 public:
-    ~DotExpression();
+    ~DotExpression() override;
 
     void swap(DotExpression& rhs) noexcept;
 
@@ -554,7 +553,7 @@ protected:
     AssignExpression& operator = (AssignExpression const& rhs);
 
 public:
-    ~AssignExpression();
+    ~AssignExpression() override;
 
     void swap(AssignExpression& rhs) noexcept;
 
@@ -590,7 +589,7 @@ protected:
     LambdaExpression& operator = (LambdaExpression const& rhs);
 
 public:
-    ~LambdaExpression();
+    ~LambdaExpression() override;
 
     void swap(LambdaExpression& rhs) noexcept;
 
@@ -621,7 +620,7 @@ protected:
     ArrowExpression& operator = (ArrowExpression const& rhs);
 
 public:
-    ~ArrowExpression();
+    ~ArrowExpression() override;
 
     void swap(ArrowExpression& rhs) noexcept;
 
@@ -664,7 +663,7 @@ protected:
     UniverseExpression& operator = (UniverseExpression const& rhs);
 
 public:
-    ~UniverseExpression();
+    ~UniverseExpression() override;
 
     void swap(UniverseExpression& rhs) noexcept;
 

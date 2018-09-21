@@ -122,7 +122,7 @@ protected:
     DefinableDeclaration(DefinableDeclaration const& rhs);
 
 public:
-    ~DefinableDeclaration();
+    ~DefinableDeclaration() override;
 
     void swap(DefinableDeclaration& rhs) noexcept;
 
@@ -190,7 +190,7 @@ public:
     public:
         Constructor(Constructor&&) = delete;
 
-        ~Constructor();
+        ~Constructor() override;
 
         void swap(Constructor& rhs) noexcept;
 
@@ -216,12 +216,12 @@ public:
 
 protected:
     DataSumDeclaration(DataSumDeclaration const& rhs);
-    void operator = (DataSumDeclaration const& rhs);
+    void operator = (DataSumDeclaration const& rhs) = delete;
 
 public:
     DataSumDeclaration(DataSumDeclaration&&) = delete;
 
-    ~DataSumDeclaration();
+    ~DataSumDeclaration() override;
 
     void swap(DataSumDeclaration& rhs) noexcept;
 
@@ -252,7 +252,7 @@ protected:
     Binder(Binder&&) = delete;
 
 public:
-    ~Binder();
+    ~Binder() override;
 
     void swap(Binder& rhs) noexcept;
 
@@ -301,7 +301,7 @@ public:
     public:
         Field(Field&&) = delete;
 
-        ~Field();
+        ~Field() override;
 
         void swap(Field& rhs) noexcept;
 
@@ -332,7 +332,7 @@ protected:
 public:
     DataProductDeclaration(DataProductDeclaration&&) = delete;
 
-    ~DataProductDeclaration();
+    ~DataProductDeclaration() override;
 
     void swap(DataProductDeclaration& rhs) noexcept;
 
@@ -360,7 +360,7 @@ protected:
 public:
     SymbolDeclaration(SymbolDeclaration&&) = delete;
 
-    ~SymbolDeclaration();
+    ~SymbolDeclaration() override;
 
     void swap(SymbolDeclaration& rhs) noexcept;
 
@@ -400,7 +400,7 @@ protected:
 public:
     VariableDeclaration(VariableDeclaration&&) = delete;
 
-    ~VariableDeclaration();
+    ~VariableDeclaration() override;
 
     void swap(VariableDeclaration& rhs) noexcept;
 
@@ -435,7 +435,7 @@ protected:
 public:
     ProcedureParameter(ProcedureParameter&&) = delete;
 
-    ~ProcedureParameter();
+    ~ProcedureParameter() override;
 
     void swap(ProcedureParameter& rhs) noexcept;
 
@@ -464,7 +464,7 @@ protected:
 public:
     ProcedureDeclaration(ProcedureDeclaration&&) = delete;
 
-    ~ProcedureDeclaration();
+    ~ProcedureDeclaration() override;
 
     void swap(ProcedureDeclaration& rhs) noexcept;
 
@@ -517,7 +517,7 @@ protected:
 public:
     ImportDeclaration(ImportDeclaration&&) = delete;
 
-    ~ImportDeclaration();
+    ~ImportDeclaration() override;
 
     void swap(ImportDeclaration& rhs) noexcept;
 
@@ -553,7 +553,7 @@ protected:
 public:
     SymbolVariable(SymbolVariable&&) = delete;
 
-    ~SymbolVariable();
+    ~SymbolVariable() override;
 
     void swap(SymbolVariable& rhs) noexcept;
 
@@ -593,7 +593,7 @@ protected:
 public:
     TemplateDeclaration(TemplateDeclaration&&) = delete;
 
-    ~TemplateDeclaration();
+    ~TemplateDeclaration() override;
 
     void swap(TemplateDeclaration& rhs) noexcept;
 

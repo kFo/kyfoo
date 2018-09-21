@@ -187,9 +187,10 @@ public:
             return addDep(p.token().lexeme(), 0);
         case lexer::TokenKind::MetaVariable:
             pushName(p.token().lexeme());
-        }
 
-        return SymRes::Success;
+        default:
+            return SymRes::Success;
+        }
     }
 
     result_t exprTuple(TupleExpression const& t)
@@ -553,6 +554,9 @@ Expression const* resolveIndirections(Expression const* expr)
             break;
         case DeclKind::SymbolVariable:
             next = static_cast<SymbolVariable const*>(decl)->boundExpression();
+            break;
+
+        default:
             break;
         }
 

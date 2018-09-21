@@ -371,7 +371,7 @@ Slice<Prototype const> SymbolSpace::prototypes() const
 void SymbolSpace::append(PatternsPrototype const& prototype,
                          Declaration& declaration)
 {
-    myPrototypes.push_back(Prototype{ {&prototype, &declaration}, std::vector<PatternsDecl>() });
+    myPrototypes.emplace_back(prototype, declaration);
 }
 
 Declaration const* SymbolSpace::findEquivalent(Slice<Expression const*> paramlist) const

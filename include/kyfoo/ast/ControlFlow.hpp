@@ -136,7 +136,7 @@ protected:
     BranchJunction& operator = (BranchJunction const& rhs);
 
 public:
-    ~BranchJunction();
+    ~BranchJunction() override;
 
     void swap(BranchJunction& rhs) noexcept;
 
@@ -182,7 +182,7 @@ protected:
     ReturnJunction& operator = (ReturnJunction const& rhs);
 
 public:
-    ~ReturnJunction();
+    ~ReturnJunction() override;
 
     void swap(ReturnJunction& rhs) noexcept;
 
@@ -230,7 +230,7 @@ protected:
     JumpJunction& operator = (JumpJunction const& rhs);
 
 public:
-    ~JumpJunction();
+    ~JumpJunction() override;
 
     void swap(JumpJunction& rhs) noexcept;
 
@@ -333,12 +333,17 @@ public:
     };
 
     struct Block {
+        Block(BasicBlock const* bb)
+            : bb(bb)
+        {
+        }
+
         BasicBlock const* bb;
         std::vector<Usage> uses;
         std::vector<Block*> pred;
         std::vector<Block*> succ;
-        Requirement in;
-        Provision out;
+        Requirement in = Requirement::None;
+        Provision out = Provision::None;
     };
 
 public:

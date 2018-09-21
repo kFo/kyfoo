@@ -175,7 +175,7 @@ public:
 
     result_t operator()(Slice<Expression*> exprs)
     {
-        result_t ret;
+        auto ret = result_t();
         for ( ; exprs; exprs.popFront() )
             ret |= operator()(*exprs.front());
 

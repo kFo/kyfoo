@@ -2,6 +2,8 @@
 
 #include <filesystem>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma warning(push, 0)
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/STLExtras.h>
@@ -24,6 +26,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #pragma warning(pop)
+#pragma GCC diagnostic pop
 
 #include <kyfoo/Diagnostics.hpp>
 
@@ -817,10 +820,11 @@ private:
 
             return customData(sourceModule)->interpretString(dgn, builder, sourceModule, token);
         }
-        }
 
-        die("invalid literal");
-        return nullptr;
+        default:
+            die("invalid literal");
+            return nullptr;
+        }
     }
 
     llvm::Value* toRef(llvm::IRBuilder<>& builder, ast::Expression const& expr_)

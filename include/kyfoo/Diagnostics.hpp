@@ -174,7 +174,7 @@ public:
 private:
     Kind myKind;
     union Ctx {
-        Ctx(){}
+        Ctx() {};
 
         Ctx(ast::Declaration const* decl) : decl(decl) {}
         ast::Declaration const* decl;
@@ -230,7 +230,7 @@ public:
     Error& operator << (lexer::Token const& token);
 
     template <typename T>
-    friend Error& operator << (Error&, T&&);
+    friend Error& operator << (Error& err, T&& rhs);
 
 private:
     ast::Module const* myModule = nullptr;

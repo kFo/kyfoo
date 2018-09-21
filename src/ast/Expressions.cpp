@@ -280,9 +280,10 @@ SymRes LiteralExpression::resolveSymbols(Context& ctx)
         setType(*ctx.axioms().intrinsic(StringLiteralType));
         return SymRes::Success;
     }
-    }
 
-    throw std::runtime_error("unhandled literal-expression");
+    default:
+        throw std::runtime_error("unhandled literal-expression");
+    }
 }
 
 lexer::Token const& LiteralExpression::token() const
@@ -677,8 +678,8 @@ uz TupleExpression::elementsCount() const
  */
 
 std::optional<std::vector<Box<Expression>>::iterator>
-tryExpandTuple(std::vector<Box<Expression>>& exprs,
-               std::vector<Box<Expression>>::iterator i)
+TupleExpression::tryExpandTuple(std::vector<Box<Expression>>& exprs,
+                                std::vector<Box<Expression>>::iterator i)
 {
     if ( auto tup = (*i)->as<TupleExpression>() )
         if ( tup->kind() == TupleKind::Open )
@@ -689,19 +690,17 @@ tryExpandTuple(std::vector<Box<Expression>>& exprs,
 }
 
 std::vector<Box<Expression>>::iterator
-expandTuple(std::vector<Box<Expression>>& exprs,
-            std::vector<Box<Expression>>::iterator i)
+TupleExpression::expandTuple(std::vector<Box<Expression>>& exprs,
+                             std::vector<Box<Expression>>::iterator i)
 {
     auto& tup = static_cast<TupleExpression&>(**i);
-    auto const size = tup.myExpressions.size();
-    auto const index = distance(begin(exprs), i);
     return exprs.erase(expandIntoList(tup, exprs, i));
 }
 
 std::vector<Box<Expression>>::iterator
-expandIntoList(TupleExpression& tup,
-               std::vector<Box<Expression>>& exprs,
-               std::vector<Box<Expression>>::iterator i)
+TupleExpression::expandIntoList(TupleExpression& tup,
+                                std::vector<Box<Expression>>& exprs,
+                                std::vector<Box<Expression>>::iterator i)
 {
     auto const index = distance(begin(exprs), i);
     auto const size = tup.myExpressions.size();
@@ -710,7 +709,7 @@ expandIntoList(TupleExpression& tup,
     return next(begin(exprs), index + size);
 }
 
-void flattenOpenTuples(std::vector<Box<Expression>>& exprs)
+void TupleExpression::flattenOpenTuples(std::vector<Box<Expression>>& exprs)
 {
     for ( auto i = begin(exprs); i != end(exprs); ) {
         if ( auto o = tryExpandTuple(exprs, i) )
@@ -1392,7 +1391,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                     return SymRes::Fail;
                 }
 
-                if ( index >= defn->fields().size() ) {
+                if ( uz(index) >= defn->fields().size() ) {
                     (ctx.error(*e) << "field accessor out of bounds")
                         .see(*dp);
                     return SymRes::Fail;
@@ -1402,10 +1401,9 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                 myExpressions[i] = createIdentifier(makeToken(tok.lexeme(),
                                                               tok.location()),
                                                     *defn->fields()[index]);
-                e = rhs;
             }
             else if ( auto tup = composite->as<TupleExpression>() ) {
-                if ( index >= tup->elementsCount() ) {
+                if ( uz(index) >= tup->elementsCount() ) {
                     ctx.error(*e) << "field index out of bounds";
                     return SymRes::Fail;
                 }
@@ -1875,9 +1873,10 @@ bool hasDeclaration(Expression const& expr)
     case Expression::Kind::Symbol:
     case Expression::Kind::Dot:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 IdentifierExpression* identify(Expression& expr)

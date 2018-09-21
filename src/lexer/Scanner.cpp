@@ -123,9 +123,10 @@ namespace
         case TokenKind::CloseAngle:
         case TokenKind::CloseBrace:
             return true;
-        }
 
-        return false;
+        default:
+            return false;
+        }
     }
 }
 

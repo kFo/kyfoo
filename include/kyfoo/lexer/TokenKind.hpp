@@ -101,9 +101,10 @@ inline bool isIndent(TokenKind kind)
     case TokenKind::IndentEQ:
     case TokenKind::IndentGT:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 inline bool isBreak(TokenKind kind)
@@ -117,9 +118,10 @@ inline bool isIdentifier(TokenKind kind)
     case TokenKind::Identifier:
     case TokenKind::MetaVariable:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 inline bool isLiteral(TokenKind kind)
@@ -129,9 +131,10 @@ inline bool isLiteral(TokenKind kind)
     case TokenKind::Rational:
     case TokenKind::String:
         return true;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 } // namespace kyfoo::lexer

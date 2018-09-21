@@ -169,5 +169,5 @@ inline void remap(Symbol& sym, clone_map_t const& map)
 
 std::ostream& print(std::ostream& stream, Symbol const& sym);
 
-    } // namesapce ast
+    } // namespace ast
 } // namespace kyfoo
