@@ -1,7 +1,7 @@
 #include <kyfoo/ast/Variance.hpp>
 
-#include <boost/multiprecision/cpp_int.hpp>
-#include <boost/numeric/interval.hpp>
+#include <kyfoo/BigInt.hpp>
+#include <kyfoo/Interval.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Declarations.hpp>
@@ -10,18 +10,14 @@
 
 namespace kyfoo::ast {
 
-using boost::multiprecision::cpp_int;
-using boost::numeric::interval;
-using bounds_t = interval<cpp_int>;
-
 namespace {
-    bounds_t bitsToBounds(int bits)
+    Interval<BigInt> bitsToBounds(int bits)
     {
-        cpp_int const c(pow(cpp_int(2), std::abs(bits)));
+        BigInt const c = BigInt(1) << std::abs(bits);
         if ( bits < 0 )
-            return bounds_t(-c / 2, c / 2 - 1);
+            return Interval<BigInt>(-(c >> 1), (c >> 1) - BigInt(1));
 
-        return bounds_t(0, c - 1);
+        return Interval<BigInt>(BigInt(0), c - BigInt(1));
     }
 
     AxiomsModule const& getAxioms(Declaration const& decl)

@@ -129,6 +129,12 @@
     <ClInclude Include="..\..\include\kyfoo\ast\DotWriter.hpp">
       <Filter>include\kyfoo\ast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Interval.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\BigInt.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">

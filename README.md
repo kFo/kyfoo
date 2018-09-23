@@ -6,15 +6,15 @@ Kyfoo is compiled, statically typed, and far from complete. Did I mention that k
 # Building
 ## Requirements
 - [LLVM 6.0.0](http://releases.llvm.org/download.html#6.0.0)
-- [Boost 1.67.0](https://www.boost.org/users/history/version_1_67_0.html)
 - [Visual Studio 2017](https://www.visualstudio.com/downloads)
+    - [LLVM Compiler Toolchain Extension](https://marketplace.visualstudio.com/items?itemName=LLVMExtensions.llvm-toolchain)
 
 ## Instructions
 1. [Build LLVM 6.0.0](http://llvm.org/docs/CMake.html).
-2. Build Boost 1.67.0.
-3. Change vc15/local.props properties *LLVM_LIB_PATH* and *LLVM_INCLUDE_PATH* to point to your local LLVM lib and include directories.
-4. Change vc15/local.props properties *BOOST_LIB_PATH* and *BOOST_INCLUDE_PATH* to point to your local Boost lib and include directories.
-5. Build with vc15/kyfoo.sln solution from Visual Studio 2017.
+2. Change vc15/local.props properties *LLVM_LIB_PATH* and *LLVM_INCLUDE_PATH* to point to your local LLVM lib and include directories.
+3. Install LLVM Compiler Toolchain Extension for Visual Studio.
+    - Must have LLVM tools, including clang, installed.
+4. Build with vc15/kyfoo.sln solution from Visual Studio 2017.
 
 # Development
 Kyfoo is in flux with many deferred decisions. Read the philosophy page for a general understanding of what to expect from the language.

@@ -27,17 +27,17 @@ struct BindRight {
 };
 
 #define DOLLAR_DEFINE_OPS(X) \
-    X(Add, +) \
-    X(Sub, -) \
-    X(Mul, *) \
-    X(Div, /) \
-    X(Rem, %) \
-    X(Eq, ==) \
-    X(Ne, !=) \
-    X(Lt, <)  \
-    X(Le, <=) \
-    X(Gt, >)  \
-    X(Ge, >=)
+    X(Add, + ) \
+    X(Sub, - ) \
+    X(Mul, * ) \
+    X(Div, / ) \
+    X(Rem, % ) \
+    X( Eq, ==) \
+    X( Ne, !=) \
+    X( Lt, < ) \
+    X( Le, <=) \
+    X( Gt, > ) \
+    X( Ge, >=)
 
 #define X(a,b)                                                                                                                \
     struct a { template <typename L, typename R> static auto op(L const& lhs, R const& rhs) noexcept { return lhs b rhs; } };          \
