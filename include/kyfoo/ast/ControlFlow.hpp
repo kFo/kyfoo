@@ -4,6 +4,8 @@
 
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
+#include <kyfoo/Utilities.hpp>
+
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/codegen/Codegen.hpp>
@@ -103,10 +105,7 @@ protected:
     void swap(Junction& rhs) noexcept;
 
 public:
-#ifndef NDEBUG
-    virtual
-#endif
-    ~Junction();
+    KYFOO_DEBUG_VIRTUAL ~Junction();
 
 public:
     DECL_CLONE_ALL_NOBASE(Junction)
@@ -136,7 +135,7 @@ protected:
     BranchJunction& operator = (BranchJunction const& rhs);
 
 public:
-    ~BranchJunction() override;
+    ~BranchJunction() KYFOO_DEBUG_OVERRIDE;
 
     void swap(BranchJunction& rhs) noexcept;
 
@@ -182,7 +181,7 @@ protected:
     ReturnJunction& operator = (ReturnJunction const& rhs);
 
 public:
-    ~ReturnJunction() override;
+    ~ReturnJunction() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ReturnJunction& rhs) noexcept;
 
@@ -230,7 +229,7 @@ protected:
     JumpJunction& operator = (JumpJunction const& rhs);
 
 public:
-    ~JumpJunction() override;
+    ~JumpJunction() KYFOO_DEBUG_OVERRIDE;
 
     void swap(JumpJunction& rhs) noexcept;
 

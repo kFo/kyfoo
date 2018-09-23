@@ -4,6 +4,14 @@
 #include <type_traits>
 #include <utility>
 
+#ifndef NDEBUG
+#define KYFOO_DEBUG_VIRTUAL virtual
+#define KYFOO_DEBUG_OVERRIDE override
+#else
+#define KYFOO_DEBUG_VIRTUAL
+#define KYFOO_DEBUG_OVERRIDE
+#endif
+
 namespace kyfoo {
 
 // todo: cpp17 replace with deduction guides

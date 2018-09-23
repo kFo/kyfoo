@@ -1380,7 +1380,7 @@ struct LLVMGenerator::LLVMState
         }
 
         llvm::legacy::PassManager pass;
-        if ( targetMachine->addPassesToEmitFile(pass, outFile, llvm::TargetMachine::CGFT_ObjectFile) ) {
+        if ( targetMachine->addPassesToEmitFile(pass, outFile, nullptr, llvm::TargetMachine::CGFT_ObjectFile) ) {
             dgn.error(module) << "cannot emit a file of this type for target machine " << targetTriple;
             return;
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kyfoo/Types.hpp>
+#include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
 
@@ -66,10 +67,7 @@ protected:
     void operator = (Declaration&&) = delete;
 
 public:
-#ifndef NDEBUG
-    virtual
-#endif
-    ~Declaration();
+    KYFOO_DEBUG_VIRTUAL ~Declaration();
 
     void swap(Declaration& rhs) noexcept;
 
@@ -122,7 +120,7 @@ protected:
     DefinableDeclaration(DefinableDeclaration const& rhs);
 
 public:
-    ~DefinableDeclaration() override;
+    ~DefinableDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(DefinableDeclaration& rhs) noexcept;
 
@@ -190,7 +188,7 @@ public:
     public:
         Constructor(Constructor&&) = delete;
 
-        ~Constructor() override;
+        ~Constructor() KYFOO_DEBUG_OVERRIDE;
 
         void swap(Constructor& rhs) noexcept;
 
@@ -221,7 +219,7 @@ protected:
 public:
     DataSumDeclaration(DataSumDeclaration&&) = delete;
 
-    ~DataSumDeclaration() override;
+    ~DataSumDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(DataSumDeclaration& rhs) noexcept;
 
@@ -252,7 +250,7 @@ protected:
     Binder(Binder&&) = delete;
 
 public:
-    ~Binder() override;
+    ~Binder() KYFOO_DEBUG_OVERRIDE;
 
     void swap(Binder& rhs) noexcept;
 
@@ -301,7 +299,7 @@ public:
     public:
         Field(Field&&) = delete;
 
-        ~Field() override;
+        ~Field() KYFOO_DEBUG_OVERRIDE;
 
         void swap(Field& rhs) noexcept;
 
@@ -332,7 +330,7 @@ protected:
 public:
     DataProductDeclaration(DataProductDeclaration&&) = delete;
 
-    ~DataProductDeclaration() override;
+    ~DataProductDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(DataProductDeclaration& rhs) noexcept;
 
@@ -360,7 +358,7 @@ protected:
 public:
     SymbolDeclaration(SymbolDeclaration&&) = delete;
 
-    ~SymbolDeclaration() override;
+    ~SymbolDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(SymbolDeclaration& rhs) noexcept;
 
@@ -400,7 +398,7 @@ protected:
 public:
     VariableDeclaration(VariableDeclaration&&) = delete;
 
-    ~VariableDeclaration() override;
+    ~VariableDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(VariableDeclaration& rhs) noexcept;
 
@@ -435,7 +433,7 @@ protected:
 public:
     ProcedureParameter(ProcedureParameter&&) = delete;
 
-    ~ProcedureParameter() override;
+    ~ProcedureParameter() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ProcedureParameter& rhs) noexcept;
 
@@ -464,7 +462,7 @@ protected:
 public:
     ProcedureDeclaration(ProcedureDeclaration&&) = delete;
 
-    ~ProcedureDeclaration() override;
+    ~ProcedureDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ProcedureDeclaration& rhs) noexcept;
 
@@ -517,7 +515,7 @@ protected:
 public:
     ImportDeclaration(ImportDeclaration&&) = delete;
 
-    ~ImportDeclaration() override;
+    ~ImportDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ImportDeclaration& rhs) noexcept;
 
@@ -553,7 +551,7 @@ protected:
 public:
     SymbolVariable(SymbolVariable&&) = delete;
 
-    ~SymbolVariable() override;
+    ~SymbolVariable() KYFOO_DEBUG_OVERRIDE;
 
     void swap(SymbolVariable& rhs) noexcept;
 
@@ -593,7 +591,7 @@ protected:
 public:
     TemplateDeclaration(TemplateDeclaration&&) = delete;
 
-    ~TemplateDeclaration() override;
+    ~TemplateDeclaration() KYFOO_DEBUG_OVERRIDE;
 
     void swap(TemplateDeclaration& rhs) noexcept;
 

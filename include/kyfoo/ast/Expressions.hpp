@@ -4,6 +4,7 @@
 
 #include <kyfoo/Dollar.hpp>
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
 
@@ -135,10 +136,7 @@ protected:
     Expression& operator = (Expression const& rhs) = delete;
 
 public:
-#ifndef NDEBUG
-    virtual
-#endif
-    ~Expression();
+    KYFOO_DEBUG_VIRTUAL ~Expression();
 
 protected:
     void swap(Expression& rhs) noexcept;
@@ -191,7 +189,7 @@ protected:
     LiteralExpression& operator = (LiteralExpression const& rhs);
 
 public:
-    ~LiteralExpression() override;
+    ~LiteralExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(LiteralExpression& rhs) noexcept;
 
@@ -225,7 +223,7 @@ protected:
     IdentifierExpression& operator = (IdentifierExpression const& rhs);
 
 public:
-    ~IdentifierExpression() override;
+    ~IdentifierExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(IdentifierExpression& rhs) noexcept;
 
@@ -348,7 +346,7 @@ protected:
     TupleExpression& operator = (TupleExpression const& rhs);
 
 public:
-    ~TupleExpression() override;
+    ~TupleExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(TupleExpression& rhs) noexcept;
 
@@ -409,7 +407,7 @@ protected:
     ApplyExpression& operator = (ApplyExpression const& rhs);
 
 public:
-    ~ApplyExpression() override;
+    ~ApplyExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ApplyExpression& rhs) noexcept;
 
@@ -466,7 +464,7 @@ protected:
     SymbolExpression& operator = (SymbolExpression const& rhs);
 
 public:
-    ~SymbolExpression() override;
+    ~SymbolExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(SymbolExpression& rhs) noexcept;
 
@@ -509,7 +507,7 @@ protected:
     DotExpression& operator = (DotExpression const& rhs);
 
 public:
-    ~DotExpression() override;
+    ~DotExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(DotExpression& rhs) noexcept;
 
@@ -553,7 +551,7 @@ protected:
     AssignExpression& operator = (AssignExpression const& rhs);
 
 public:
-    ~AssignExpression() override;
+    ~AssignExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(AssignExpression& rhs) noexcept;
 
@@ -589,7 +587,7 @@ protected:
     LambdaExpression& operator = (LambdaExpression const& rhs);
 
 public:
-    ~LambdaExpression() override;
+    ~LambdaExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(LambdaExpression& rhs) noexcept;
 
@@ -620,7 +618,7 @@ protected:
     ArrowExpression& operator = (ArrowExpression const& rhs);
 
 public:
-    ~ArrowExpression() override;
+    ~ArrowExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ArrowExpression& rhs) noexcept;
 
@@ -663,7 +661,7 @@ protected:
     UniverseExpression& operator = (UniverseExpression const& rhs);
 
 public:
-    ~UniverseExpression() override;
+    ~UniverseExpression() KYFOO_DEBUG_OVERRIDE;
 
     void swap(UniverseExpression& rhs) noexcept;
 

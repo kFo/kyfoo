@@ -63,10 +63,7 @@ public:
     Scope(Scope&&) = delete;
     void operator = (Scope&&) = delete;
 
-#ifndef NDEBUG
-    virtual
-#endif
-    ~Scope();
+    KYFOO_DEBUG_VIRTUAL ~Scope();
 
     void swap(Scope& rhs) noexcept;
 
@@ -149,7 +146,7 @@ protected:
 public:
     DataSumScope(DataSumScope&&) = delete;
 
-    ~DataSumScope();
+    ~DataSumScope() KYFOO_DEBUG_OVERRIDE;
 
     void swap(DataSumScope& rhs) noexcept;
 
@@ -187,7 +184,7 @@ protected:
 public:
     DataProductScope(DataProductScope&&) = delete;
 
-    ~DataProductScope();
+    ~DataProductScope() KYFOO_DEBUG_OVERRIDE;
 
     void swap(DataProductScope& rhs) noexcept;
 
@@ -240,7 +237,7 @@ protected:
 public:
     ProcedureScope(ProcedureScope&&) = delete;
 
-    ~ProcedureScope();
+    ~ProcedureScope() KYFOO_DEBUG_OVERRIDE;
 
     void swap(ProcedureScope& rhs) noexcept;
 
@@ -309,7 +306,7 @@ protected:
 public:
     TemplateScope(TemplateScope&&) = delete;
 
-    ~TemplateScope();
+    ~TemplateScope() KYFOO_DEBUG_OVERRIDE;
 
     void swap(TemplateScope& rhs) noexcept;
 
