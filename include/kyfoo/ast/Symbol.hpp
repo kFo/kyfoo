@@ -88,9 +88,9 @@ public:
     friend class SymbolSpace;
 
 public:
-    Symbol(lexer::Token const& token,
+    Symbol(lexer::Token token,
            PatternsPrototype&& params);
-    explicit Symbol(lexer::Token const& token);
+    explicit Symbol(lexer::Token token);
     Symbol(Box<SymbolExpression> symExpr);
 
 protected:

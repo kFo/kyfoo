@@ -87,8 +87,8 @@ Variance variance(DiagnosticsContext dgn, Declaration const& target, Declaration
 }
 
 Variance variance(DiagnosticsContext dgn,
-                        Expression const& target,
-                        Expression const& query)
+                  Expression const& target,
+                  Expression const& query)
 {
     auto t = lookThrough(&target);
     auto q = lookThrough(&query);

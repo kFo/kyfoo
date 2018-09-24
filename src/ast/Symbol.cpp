@@ -17,9 +17,7 @@ namespace kyfoo::ast {
 //
 // PatternsPrototype
 
-PatternsPrototype::PatternsPrototype()
-{
-}
+PatternsPrototype::PatternsPrototype() = default;
 
 PatternsPrototype::PatternsPrototype(std::vector<Box<Expression>>&& pattern)
     : myPattern(std::move(pattern))
@@ -126,9 +124,9 @@ void PatternsPrototype::bindVariables(Substitutions const& substs)
 
 SymbolVariable* PatternsPrototype::findVariable(std::string_view token)
 {
-    for ( uz i = 0; i < myVariables.size(); ++i )
-        if ( myVariables[i]->token().lexeme() == token )
-            return myVariables[i].get();
+    for ( auto& e : myVariables )
+        if ( e->token().lexeme() == token )
+            return e.get();
 
     return nullptr;
 }
@@ -156,15 +154,15 @@ uz PatternsPrototype::metaVariableCount() const
 //
 // Symbol
 
-Symbol::Symbol(lexer::Token const& token,
+Symbol::Symbol(lexer::Token token,
                PatternsPrototype&& params)
-    : myToken(token)
+    : myToken(std::move(token))
     , myPrototype(mk<PatternsPrototype>(std::move(params)))
 {
 }
 
-Symbol::Symbol(lexer::Token const& token)
-    : Symbol(token, PatternsPrototype())
+Symbol::Symbol(lexer::Token token)
+    : Symbol(std::move(token), PatternsPrototype())
 {
 }
 

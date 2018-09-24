@@ -22,7 +22,7 @@ public:
 
 public:
     Token next();
-    Token peek(uz = 0);
+    Token peek(uz lookAhead = 0);
 
     void beginScan();
     void endScan();

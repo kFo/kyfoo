@@ -36,7 +36,7 @@ public:
     Substitutions(BYOS, Declaration const& target, Slice<Expression const*> exprs);
 
     Substitutions(Declaration const& target, Slice<Expression const*> query);
-    Substitutions(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
+    Substitutions(Slice<Expression const*> target, Slice<Expression const*> query);
 
     Substitutions(Substitutions const&) = default;
     Substitutions& operator = (Substitutions const&) = default;
@@ -47,10 +47,10 @@ public:
     ~Substitutions();
 
 public:
-    bool deduce(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
+    bool deduce(Slice<Expression const*> target, Slice<Expression const*> query);
     bool deduce(Slice<Expression const*> target, Expression const& query);
     bool deduce(Expression const& target, Slice<Expression const*> query);
-    bool deduce(Expression const& lhs, Expression const& rhs);
+    bool deduce(Expression const& target, Expression const& query);
 
     bool empty() const;
     uz size() const;

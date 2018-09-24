@@ -164,11 +164,7 @@ DefinableDeclaration::DefinableDeclaration(DeclKind kind, Symbol&& symbol)
 {
 }
 
-DefinableDeclaration::DefinableDeclaration(DefinableDeclaration const& rhs)
-    : Declaration(rhs)
-    , myDefinition(rhs.myDefinition)
-{
-}
+DefinableDeclaration::DefinableDeclaration(DefinableDeclaration const&) = default;
 
 DefinableDeclaration::~DefinableDeclaration() = default;
 
@@ -208,10 +204,7 @@ DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
 {
 }
 
-DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const& rhs)
-    : base_t(rhs)
-{
-}
+DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const&) = default;
 
 DataSumDeclaration::~DataSumDeclaration() = default;
 
@@ -408,10 +401,7 @@ DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
 {
 }
 
-DataProductDeclaration::DataProductDeclaration(DataProductDeclaration const& rhs)
-    : base_t(rhs)
-{
-}
+DataProductDeclaration::DataProductDeclaration(DataProductDeclaration const&) = default;
 
 DataProductDeclaration::~DataProductDeclaration() = default;
 
@@ -583,10 +573,7 @@ VariableDeclaration::VariableDeclaration(Symbol&& symbol,
 {
 }
 
-VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs)
-    : Binder(rhs)
-{
-}
+VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs) = default;
 
 VariableDeclaration& VariableDeclaration::operator = (VariableDeclaration const& rhs)
 {
@@ -628,10 +615,7 @@ ProcedureParameter::ProcedureParameter(Symbol&& symbol,
 {
 }
 
-ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs)
-    : Binder(rhs)
-{
-}
+ProcedureParameter::ProcedureParameter(ProcedureParameter const& rhs) = default;
 
 ProcedureParameter& ProcedureParameter::operator = (ProcedureParameter const& rhs)
 {
@@ -933,13 +917,7 @@ SymbolVariable::SymbolVariable(IdentifierExpression const& id,
 {
 }
 
-SymbolVariable::SymbolVariable(SymbolVariable const& rhs)
-    : Declaration(rhs)
-    , myPrototype(rhs.myPrototype)
-    , myConstraints(rhs.myConstraints)
-    , myBoundExpression(rhs.myBoundExpression)
-{
-}
+SymbolVariable::SymbolVariable(SymbolVariable const& rhs) = default;
 
 SymbolVariable& SymbolVariable::operator = (SymbolVariable const& rhs)
 {
@@ -1002,10 +980,7 @@ TemplateDeclaration::TemplateDeclaration(Symbol&& sym)
 {
 }
 
-TemplateDeclaration::TemplateDeclaration(TemplateDeclaration const& rhs)
-    : base_t(rhs)
-{
-}
+TemplateDeclaration::TemplateDeclaration(TemplateDeclaration const& rhs) = default;
 
 TemplateDeclaration& TemplateDeclaration::operator = (TemplateDeclaration const& rhs)
 {

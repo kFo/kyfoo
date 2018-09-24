@@ -180,10 +180,10 @@ public:
     friend class Context;
 
 public:
-    explicit LiteralExpression(lexer::Token const& token);
+    explicit LiteralExpression(lexer::Token token);
 
 protected:
-    LiteralExpression(Kind kind, lexer::Token const& token);
+    LiteralExpression(Kind kind, lexer::Token token);
 
     LiteralExpression(LiteralExpression const& rhs);
     LiteralExpression& operator = (LiteralExpression const& rhs);
@@ -211,12 +211,12 @@ public:
     friend class Context;
 
 public:
-    explicit IdentifierExpression(lexer::Token const& token);
-    IdentifierExpression(lexer::Token const& token, Declaration const& decl);
+    explicit IdentifierExpression(lexer::Token token);
+    IdentifierExpression(lexer::Token token, Declaration const& decl);
 
 protected:
     IdentifierExpression(Kind kind,
-                         lexer::Token const& token,
+                         lexer::Token token,
                          Declaration const* decl);
 
     IdentifierExpression(IdentifierExpression const& rhs);
@@ -452,11 +452,11 @@ public:
     friend class Context;
 
 public:
-    SymbolExpression(lexer::Token const& token,
+    SymbolExpression(lexer::Token token,
                      std::vector<Box<Expression>>&& expressions);
     SymbolExpression(std::vector<Box<Expression>>&& expressions);
-    SymbolExpression(lexer::Token const& open,
-                     lexer::Token const& close,
+    SymbolExpression(lexer::Token open,
+                     lexer::Token close,
                      std::vector<Box<Expression>>&& expressions);
 
 protected:

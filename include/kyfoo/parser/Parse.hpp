@@ -99,7 +99,7 @@ public:
     DataProductScopeParser(Diagnostics& dgn,
                            lexer::Scanner& scanner,
                            ast::DataProductScope& scope);
-    ~DataProductScopeParser();
+    ~DataProductScopeParser() override;
 
 protected:
     ParseResult parseNext() override;

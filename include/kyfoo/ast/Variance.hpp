@@ -47,7 +47,7 @@ private:
 Variance variance(lexer::Token const& target, lexer::Token const& query);
 Variance variance(DiagnosticsContext dgn, Declaration const&       target, lexer::Token     const&  query);
 Variance variance(DiagnosticsContext dgn, Declaration const&       target, Declaration      const&  query);
-Variance variance(DiagnosticsContext dgn, Expression  const&       lhs   , Expression       const&  rhs);
+Variance variance(DiagnosticsContext dgn, Expression  const&       target, Expression       const&  query);
 Variance variance(DiagnosticsContext dgn, Slice<Expression const*> lhs   , Slice<Expression const*> rhs);
 Variance variance(DiagnosticsContext dgn, Expression const&        lhs   , Slice<Expression const*> rhs);
 Variance variance(DiagnosticsContext dgn, Slice<Expression const*> lhs   , Expression       const&  rhs);

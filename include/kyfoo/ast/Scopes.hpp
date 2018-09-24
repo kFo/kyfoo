@@ -223,13 +223,13 @@ protected:
     ProcedureScope(Scope& parent,
                    ProcedureDeclaration& declaration,
                    BasicBlock* mergeBlock,
-                   lexer::Token const& openToken,
-                   lexer::Token const& label);
+                   lexer::Token openToken,
+                   lexer::Token label);
 
     ProcedureScope(ProcedureScope& parent,
                    BasicBlock* mergeBlock,
-                   lexer::Token const& openToken,
-                   lexer::Token const& label);
+                   lexer::Token openToken,
+                   lexer::Token label);
 
     ProcedureScope(ProcedureScope const& rhs);
     ProcedureScope& operator = (ProcedureScope const& rhs);

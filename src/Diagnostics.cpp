@@ -31,16 +31,16 @@ Error::Error(ast::Module const& module)
 }
 
 Error::Error(ast::Module const& module,
-             lexer::Token const& token)
-    : Error(module, token, General)
+             lexer::Token token)
+    : Error(module, std::move(token), General)
 {
 }
 
 Error::Error(ast::Module const& module,
-             lexer::Token const& token,
+             lexer::Token token,
              Error::Code code)
     : myModule(&module)
-    , myToken(token)
+    , myToken(std::move(token))
     , myCode(code)
 {
 }

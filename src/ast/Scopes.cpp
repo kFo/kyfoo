@@ -501,12 +501,12 @@ ProcedureScope::ProcedureScope(Scope& parent,
 ProcedureScope::ProcedureScope(Scope& parent,
                                ProcedureDeclaration& declaration,
                                BasicBlock* mergeBlock,
-                               lexer::Token const& openToken,
-                               lexer::Token const& label)
+                               lexer::Token openToken,
+                               lexer::Token label)
     : Scope(Kind::Procedure, &parent.module(), &parent)
     , myMergeBlock(mergeBlock)
-    , myOpenToken(openToken)
-    , myLabel(label)
+    , myOpenToken(std::move(openToken))
+    , myLabel(std::move(label))
 {
     declaration.define(*this);
     createBasicBlock();
@@ -514,12 +514,12 @@ ProcedureScope::ProcedureScope(Scope& parent,
 
 ProcedureScope::ProcedureScope(ProcedureScope& parent,
                                BasicBlock* mergeBlock,
-                               lexer::Token const& openToken,
-                               lexer::Token const& label)
+                               lexer::Token openToken,
+                               lexer::Token label)
     : Scope(Kind::Procedure, &parent.module(), &parent)
     , myMergeBlock(mergeBlock)
-    , myOpenToken(openToken)
-    , myLabel(label)
+    , myOpenToken(std::move(openToken))
+    , myLabel(std::move(label))
 {
     myDeclaration = parent.declaration();
     createBasicBlock();

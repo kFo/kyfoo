@@ -54,7 +54,7 @@ namespace {
 
         return {};
     }
-}
+} // namespace
 
 //
 // Strata
@@ -218,22 +218,18 @@ std::vector<Box<Expression>>&& Expression::takeConstraints()
 //
 // LiteralExpression
 
-LiteralExpression::LiteralExpression(lexer::Token const& token)
-    : LiteralExpression(Expression::Kind::Literal, token)
+LiteralExpression::LiteralExpression(lexer::Token token)
+    : LiteralExpression(Expression::Kind::Literal, std::move(token))
 {
 }
 
-LiteralExpression::LiteralExpression(Kind kind, lexer::Token const& token)
+LiteralExpression::LiteralExpression(Kind kind, lexer::Token token)
     : Expression(kind)
-    , myToken(token)
+    , myToken(std::move(token))
 {
 }
 
-LiteralExpression::LiteralExpression(LiteralExpression const& rhs)
-    : Expression(rhs)
-    , myToken(rhs.myToken)
-{
-}
+LiteralExpression::LiteralExpression(LiteralExpression const& rhs) = default;
 
 LiteralExpression& LiteralExpression::operator = (LiteralExpression const& rhs)
 {
@@ -294,30 +290,25 @@ lexer::Token const& LiteralExpression::token() const
 //
 // IdentifierExpression
 
-IdentifierExpression::IdentifierExpression(lexer::Token const& token)
-    : IdentifierExpression(Kind::Identifier, token, nullptr)
+IdentifierExpression::IdentifierExpression(lexer::Token token)
+    : IdentifierExpression(Kind::Identifier, std::move(token), nullptr)
 {
 }
 
-IdentifierExpression::IdentifierExpression(lexer::Token const& token, Declaration const& decl)
-    : IdentifierExpression(Kind::Identifier, token, &decl)
+IdentifierExpression::IdentifierExpression(lexer::Token token, Declaration const& decl)
+    : IdentifierExpression(Kind::Identifier, std::move(token), &decl)
 {
 }
 
-IdentifierExpression::IdentifierExpression(Kind kind, lexer::Token const& token, Declaration const* decl)
+IdentifierExpression::IdentifierExpression(Kind kind, lexer::Token token, Declaration const* decl)
     : Expression(kind)
-    , myToken(token)
+    , myToken(std::move(token))
 {
     if ( decl )
         setDeclaration(*decl);
 }
 
-IdentifierExpression::IdentifierExpression(IdentifierExpression const& rhs)
-    : Expression(rhs)
-    , myToken(rhs.myToken)
-    , myDeclaration(rhs.myDeclaration)
-{
-}
+IdentifierExpression::IdentifierExpression(IdentifierExpression const& rhs) = default;
 
 IdentifierExpression& IdentifierExpression::operator = (IdentifierExpression const& rhs)
 {
@@ -1138,9 +1129,9 @@ Slice<Box<Expression>> ApplyExpression::mutableArgs()
 //
 // SymbolExpression
 
-SymbolExpression::SymbolExpression(lexer::Token const& token,
+SymbolExpression::SymbolExpression(lexer::Token token,
                                    std::vector<Box<Expression>>&& expressions)
-    : IdentifierExpression(Expression::Kind::Symbol, token, nullptr)
+    : IdentifierExpression(Expression::Kind::Symbol, std::move(token), nullptr)
     , myExpressions(std::move(expressions))
 {
 }
@@ -1151,13 +1142,13 @@ SymbolExpression::SymbolExpression(std::vector<Box<Expression>>&& expressions)
 {
 }
 
-SymbolExpression::SymbolExpression(lexer::Token const& open,
-                                   lexer::Token const& close,
+SymbolExpression::SymbolExpression(lexer::Token open,
+                                   lexer::Token close,
                                    std::vector<Box<Expression>>&& expressions)
     : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
-    , myOpenToken(open)
-    , myCloseToken(close)
+    , myOpenToken(std::move(open))
+    , myCloseToken(std::move(close))
 {
 }
 
@@ -1629,11 +1620,7 @@ LambdaExpression::LambdaExpression(ProcedureDeclaration& proc)
 {
 }
 
-LambdaExpression::LambdaExpression(LambdaExpression const& rhs)
-    : Expression(rhs)
-    , myProc(rhs.myProc)
-{
-}
+LambdaExpression::LambdaExpression(LambdaExpression const& rhs) = default;
 
 LambdaExpression& LambdaExpression::operator = (LambdaExpression const& rhs)
 {
@@ -1782,11 +1769,7 @@ UniverseExpression::UniverseExpression(natural_t level)
 {
 }
 
-UniverseExpression::UniverseExpression(UniverseExpression const& rhs)
-    : Expression(rhs)
-    , myLevel(rhs.myLevel)
-{
-}
+UniverseExpression::UniverseExpression(UniverseExpression const& rhs) = default;
 
 UniverseExpression& UniverseExpression::operator = (UniverseExpression const& rhs)
 {

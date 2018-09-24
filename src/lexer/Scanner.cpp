@@ -99,8 +99,8 @@ namespace
     {
         static std::map<std::string_view, TokenKind> map;
         static struct _init_map { _init_map(std::map<std::string_view, TokenKind>& map) {
-            for ( int i = (int)TokenKind::_keywordStart + 1; i != (int)TokenKind::_keywordEnd; ++i )
-                map[to_string((TokenKind)i)] = (TokenKind)i;
+            for ( auto i = int(TokenKind::_keywordStart) + 1; i != int(TokenKind::_keywordEnd); ++i )
+                map[to_string(TokenKind(i))] = TokenKind(i);
         } } init_map(map);
 
         auto e = map.find(lexeme);
@@ -128,7 +128,7 @@ namespace
             return false;
         }
     }
-}
+} // namespace
 
 Scanner::Scanner(std::istream& stream)
     : myStream(stream)
@@ -274,7 +274,7 @@ Token Scanner::indent(SourceLocation loc, indent_width_t indent)
             return token(TokenKind::IndentError);
         }
         
-        myBuffer.push_back(Token(TokenKind::IndentLT, "", loc));
+        myBuffer.emplace_back(TokenKind::IndentLT, "", loc);
         myIndents.pop_back();
     }
 

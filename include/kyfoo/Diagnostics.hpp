@@ -205,8 +205,8 @@ public:
 
 public:
     explicit Error(ast::Module const& module);
-    Error(ast::Module const& module, lexer::Token const& token);
-    Error(ast::Module const& module, lexer::Token const& token, Code code);
+    Error(ast::Module const& module, lexer::Token token);
+    Error(ast::Module const& module, lexer::Token token, Code code);
     Error(ast::Module const& module, ast::Expression const& expr, Code code);
     Error(Error& rhs) = delete;
 

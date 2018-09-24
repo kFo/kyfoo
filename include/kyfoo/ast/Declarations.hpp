@@ -92,7 +92,7 @@ public:
 public:
     Scope& scope();
     Scope const& scope() const;
-    void setScope(Scope& parent);
+    void setScope(Scope& scope);
 
     void setAttributes(std::vector<Box<Expression>>&& exprs);
     Slice<Statement const> attributes() const;
@@ -200,7 +200,7 @@ public:
         SymRes resolveSymbols(Context& ctx);
 
     public:
-        void setParent(DataSumDeclaration* parent);
+        void setParent(DataSumDeclaration* dsDecl);
         DataSumDeclaration* parent();
         DataSumDeclaration const* parent() const;
 

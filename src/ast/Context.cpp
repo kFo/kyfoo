@@ -430,9 +430,9 @@ SymRes Context::resolveExpressions(std::vector<Box<Expression>>::iterator left,
     return ret;
 }
 
-SymRes Context::resolveExpressions(std::vector<Box<Expression>>& expressions)
+SymRes Context::resolveExpressions(std::vector<Box<Expression>>& exprs)
 {
-    return resolveExpressions(begin(expressions), end(expressions));
+    return resolveExpressions(begin(exprs), end(exprs));
 }
 
 SymRes Context::resolveStatement(Statement& stmt)

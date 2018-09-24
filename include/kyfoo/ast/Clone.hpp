@@ -180,7 +180,7 @@ void remap(T*& rhs, clone_map_t const& map)
 {
     auto e = map.find(rhs);
     if ( e != end(map) )
-        rhs = (T*)e->second;
+        rhs = reinterpret_cast<T*>(e->second);
 }
 
 } // namespace kyfoo::ast

@@ -43,7 +43,7 @@ public:
         static_assert(sizeof(rhs) >= sizeof(limb_t));
 
         auto const size = sizeof(rhs) / sizeof(limb_t);
-        limb_t* first = reinterpret_cast<limb_t*>(&rhs);
+        auto first = reinterpret_cast<limb_t*>(&rhs);
         auto last = first + size;
 
         myLimbs.assign(first, last);
