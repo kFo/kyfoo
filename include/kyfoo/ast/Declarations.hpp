@@ -536,15 +536,17 @@ public:
     friend class Context;
 
 public:
-    SymbolVariable(IdentifierExpression const& id,
-                   Scope* scope,
-                   PatternsPrototype& prototype,
-                   Expression const* bindExpr);
-    SymbolVariable(IdentifierExpression const& id,
-                   Scope* scope,
-                   PatternsPrototype& prototype);
+    SymbolVariable(lexer::Token tok,
+                   Scope& scope,
+                   Expression const& expr);
+    SymbolVariable(lexer::Token tok,
+                   Scope& scope);
 
 protected:
+    SymbolVariable(lexer::Token tok,
+                   Scope* scope,
+                   Expression const* expr);
+
     SymbolVariable(SymbolVariable const& rhs);
     SymbolVariable& operator = (SymbolVariable const& rhs);
 
@@ -563,16 +565,16 @@ protected:
     SymRes resolveSymbols(Context& ctx);
 
 public:
-    PatternsPrototype const& prototype() const;
-    lexer::Token const& token() const;
-
-    void bindExpression(Expression const* expr);
     Expression const* boundExpression() const;
+    Slice<Expression const*> constraints() const;
+
+public:
+    void bindExpression(Expression const* expr);
+    void appendConstraint(Expression const& expr);
 
 private:
-    PatternsPrototype* myPrototype = nullptr;
-    std::vector<Expression const*> myConstraints;
     Expression const* myBoundExpression = nullptr;
+    std::vector<Expression const*> myConstraints;
 };
 
 class TemplateDeclaration : public DefinableMixin<TemplateScope>

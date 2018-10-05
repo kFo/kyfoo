@@ -733,7 +733,7 @@ struct JumpJunction :
             label = c->token();
 
         auto anchor = factor<0>().index() == 0 ? factor<0>().term<0>().token() : factor<0>().term<1>().token();
-        auto kind = factor<0>().index() == 0 ? ast::JumpJunction::JumpKind::Loop : ast::JumpJunction::JumpKind::Break;
+        auto kind = factor<0>().index() == 0 ? ast::JumpJunction::JumpKind::Continue : ast::JumpJunction::JumpKind::Break;
         return mk<ast::JumpJunction>(anchor, kind, label);
     }
 };

@@ -281,6 +281,7 @@
     <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Dollar.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Interval.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />

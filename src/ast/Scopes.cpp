@@ -583,10 +583,10 @@ SymRes ProcedureScope::resolveDefinitions(Context& ctx)
     if ( !isTop() )
         return ret;
 
-    return ret;
+    cacheDominators();
+    ret |= cacheVariableExtents(ctx);
 
-    // todo: revisit flow analysis
-    //return cacheVariableExtents(ctx);
+    return ret;
 }
 
 bool ProcedureScope::isJumpTarget() const
@@ -655,6 +655,16 @@ Slice<BasicBlock const*> ProcedureScope::basicBlocks() const
     return myBasicBlocks;
 }
 
+BasicBlock* ProcedureScope::entryBlock()
+{
+    return myBasicBlocks.front().get();
+}
+
+BasicBlock const* ProcedureScope::entryBlock() const
+{
+    return myBasicBlocks.front().get();
+}
+
 void ProcedureScope::append(Box<Expression> expr)
 {
     if ( myBasicBlocks.back()->junction() )
@@ -675,12 +685,61 @@ void ProcedureScope::popBasicBlock()
 }
 
 ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
-                                                 lexer::Token const& openToken,
-                                                 lexer::Token const& label)
+                                                 lexer::Token openToken,
+                                                 lexer::Token label)
 {
-    Box<ProcedureScope> child(new ProcedureScope(*this, mergeBlock, openToken, label));
+    Box<ProcedureScope> child(new ProcedureScope(*this, mergeBlock, std::move(openToken), std::move(label)));
     myChildScopes.push_back(std::move(child));
     return myChildScopes.back().get();
+}
+
+void ProcedureScope::cacheDominators()
+{
+    entryBlock()->myDominators.insert(entryBlock());
+
+    FlatSet<BasicBlock*> all;
+    ycomb([&all](auto rec, ProcedureScope& scope) -> void {
+        for ( auto b : scope.basicBlocks() )
+            all.insert(b);
+
+        for ( auto c : scope.childScopes() )
+            rec(*c);
+    })(*this);
+
+    auto allButEntry = all;
+    allButEntry.remove(entryBlock());
+
+    for ( auto b : allButEntry )
+        b->myDominators = all;
+
+    for ( bool change = true; change; ) {
+        change = false;
+        for ( auto b : allButEntry ) {
+            auto oldSize = b->myDominators.size();
+            for ( auto p : b->incoming() )
+                b->myDominators.intersectWith(p->myDominators);
+
+            b->myDominators.insert(b);
+            if ( b->myDominators.size() != oldSize )
+                change = true;
+        }
+    }
+
+    for ( auto b : allButEntry ) {
+        auto idom = b->myDominators;
+        idom.remove(b);
+        for ( auto d : b->myDominators ) {
+            if ( d == b )
+                continue;
+
+            auto dd = d->myDominators;
+            dd.remove(d);
+            idom.diffWith(dd);
+        }
+
+        assert(idom.size() == 1);
+        b->myImmediateDominator = idom[0];
+    }
 }
 
 namespace {
@@ -857,7 +916,7 @@ SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
     for ( auto& ext : myExtents )
         extents.insert(&ext);
 
-    for ( FlowTracer trace(*myBasicBlocks.front()); ; ) {
+    for ( FlowTracer trace(*entryBlock()); ; ) {
         auto bb = trace.currentBlock();
         for ( auto& ext : myExtents )
             ext.appendBlock(*bb);
@@ -877,7 +936,7 @@ SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
 
         if ( trace.advanceBlock() != FlowTracer::Forward ) {
             auto flow = trace.advancePath();
-            while ( flow == FlowTracer::Loop )
+            while ( flow == FlowTracer::Repeat )
                 flow = trace.advancePath();
 
             if ( flow == FlowTracer::None )

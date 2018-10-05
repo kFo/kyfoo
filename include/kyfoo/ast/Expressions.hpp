@@ -707,9 +707,9 @@ inline void remap(Expression& expr, clone_map_t const& map)
     throw std::runtime_error("invalid expression type");
 }
 
-std::ostream& operator << (std::ostream& stream, Expression const& expr);
+std::ostream& operator << (std::ostream& stream, Expression        const& expr );
 std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs);
-std::ostream& operator << (std::ostream& stream, Slice<Expression*> exprs);
+std::ostream& operator << (std::ostream& stream, Slice<Expression      *> exprs);
 
 struct get_types {
     Slice<Expression const*> exprs;
@@ -720,6 +720,7 @@ struct get_types {
 
 std::ostream& operator << (std::ostream& stream, get_types&& types);
 
+lexer::SourceLocation getSourceLocation(Expression const& expr);
 Expression const* createInferredType(Expression& expr, Declaration const& decl);
 IdentifierExpression* identify(Expression& expr);
 IdentifierExpression const* identify(Expression const& expr);

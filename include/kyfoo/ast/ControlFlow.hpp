@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include <kyfoo/FlatSet.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/Utilities.hpp>
@@ -126,8 +127,8 @@ public:
     friend class BasicBlock;
 
 public:
-    BranchJunction(lexer::Token const& token,
-                   lexer::Token const& label,
+    BranchJunction(lexer::Token token,
+                   lexer::Token label,
                    Box<Expression> condition);
 
 protected:
@@ -173,7 +174,7 @@ public:
     friend class BasicBlock;
 
 public:
-    ReturnJunction(lexer::Token const& token,
+    ReturnJunction(lexer::Token token,
                    Box<Expression> expression);
 
 protected:
@@ -213,16 +214,15 @@ public:
 
     enum class JumpKind
     {
-        Loop,
+        Continue,
         Break,
     };
 
 public:
-    JumpJunction(lexer::Token const& token,
+    JumpJunction(lexer::Token token,
                  JumpKind kind,
-                 lexer::Token const& targetLabel);
-    JumpJunction(JumpKind kind,
-                 BasicBlock* target);
+                 lexer::Token targetLabel);
+    JumpJunction(BasicBlock* target);
 
 protected:
     JumpJunction(JumpJunction const& rhs);
@@ -258,6 +258,9 @@ private:
 
 class BasicBlock
 {
+public:
+    friend class ProcedureScope;
+
 public:
     explicit BasicBlock(ProcedureScope* scope);
     BasicBlock(BasicBlock const& rhs);
@@ -303,6 +306,8 @@ private:
     std::vector<Box<Statement>> myStatements;
     Box<Junction> myJunction;
 
+    mutable FlatSet<BasicBlock*> myDominators;
+    mutable BasicBlock* myImmediateDominator = nullptr;
     mutable Box<codegen::CustomData> myCodeGenData;
 };
 
@@ -315,7 +320,6 @@ public:
             Read,
             Write,
             Ref,
-            Move,
         } kind;
     };
 
@@ -327,8 +331,6 @@ public:
     enum class Provision {
         None,
         Defines,
-        Moves,
-        Refers,
     };
 
     struct Block {
@@ -352,6 +354,7 @@ public:
     Declaration const& declaration() const;
     Slice<Block const*> blocks() const;
     Slice<Block*> blocks();
+    Slice<Block*> firstUses();
 
 public:
     void appendBlock(BasicBlock const& bb);
@@ -363,6 +366,7 @@ public:
 private:
     Declaration const* myDeclaration = nullptr;
     std::vector<Box<Block>> myBlocks;
+    std::vector<Block*> myFirstUses;
 };
 
 class FlowTracer
@@ -371,7 +375,7 @@ public:
     enum Shape {
         None,
         Forward,
-        Loop,
+        Repeat,
     };
 
 public:
@@ -385,7 +389,7 @@ public:
     Slice<BasicBlock const*> currentPath() const;
 
 private:
-    Shape checkLoop();
+    Shape checkRepetition();
 
 private:
     std::vector<BasicBlock const*> myPath;

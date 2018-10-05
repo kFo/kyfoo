@@ -32,29 +32,6 @@ namespace kyfoo::ast {
             }
             return "";
         }
-
-        BasicBlock* next(BasicBlock& bb)
-        {
-            auto s = bb.scope();
-            auto blocks = s->basicBlocks();
-            for ( uz i = 0; i < blocks.size() - 1; ++i )
-                if ( blocks[i] == &bb )
-                    return blocks[i + 1];
-
-            return nullptr;
-        }
-
-        BasicBlock* prev(BasicBlock& bb)
-        {
-            auto s = bb.scope();
-            auto blocks = s->basicBlocks();
-            if ( blocks.front() != &bb )
-                for ( uz i = 1; i < blocks.size(); ++i )
-                    if ( blocks[i] == &bb )
-                        return blocks[i - 1];
-
-            return nullptr;
-        }
     } // namespace
 #endif
 
@@ -217,12 +194,12 @@ Junction::Kind Junction::kind() const
 //
 // BranchJunction
 
-BranchJunction::BranchJunction(lexer::Token const& token,
-                               lexer::Token const& label,
+BranchJunction::BranchJunction(lexer::Token token,
+                               lexer::Token label,
                                Box<Expression> condition)
     : Junction(Kind::Branch)
-    , myToken(token)
-    , myLabel(label)
+    , myToken(std::move(token))
+    , myLabel(std::move(label))
     , myCondition(mk<Statement>(std::move(condition)))
 {
 }
@@ -335,10 +312,10 @@ void BranchJunction::setBranch(uz index, BasicBlock* bb)
 //
 // ReturnJunction
 
-ReturnJunction::ReturnJunction(lexer::Token const& token,
+ReturnJunction::ReturnJunction(lexer::Token token,
                                Box<Expression> expression)
     : Junction(Kind::Return)
-    , myToken(token)
+    , myToken(std::move(token))
 {
     if ( expression )
         myExpression = mk<Statement>(std::move(expression));
@@ -413,20 +390,19 @@ Expression* ReturnJunction::expression()
 //
 // JumpJunction
 
-JumpJunction::JumpJunction(lexer::Token const& token,
+JumpJunction::JumpJunction(lexer::Token token,
                            JumpKind kind,
-                           lexer::Token const& targetLabel)
+                           lexer::Token targetLabel)
     : Junction(Kind::Jump)
-    , myToken(token)
-    , myJumpKind(kind)
+    , myToken(std::move(token))
+    , myJumpKind(std::move(kind))
     , myTargetLabel(targetLabel)
 {
 }
 
-JumpJunction::JumpJunction(JumpKind kind,
-                           BasicBlock* target)
+JumpJunction::JumpJunction(BasicBlock* target)
     : Junction(Kind::Jump)
-    , myJumpKind(kind)
+    , myJumpKind(JumpKind::Continue)
     , myTargetBlock(target)
 {
 }
@@ -694,9 +670,18 @@ Slice<Extent::Block*> Extent::blocks()
     return myBlocks;
 }
 
+Slice<Extent::Block*> Extent::firstUses()
+{
+    return myFirstUses;
+}
+
 void Extent::appendBlock(BasicBlock const& bb)
 {
     myBlocks.emplace_back(mk<Block>(&bb));
+
+    // assumes graph construction begins at the entry
+    if ( myFirstUses.empty() )
+        myFirstUses.emplace_back(myBlocks.back().get());
 }
 
 void Extent::appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind)
@@ -729,6 +714,12 @@ void Extent::pruneEmptyBlocks()
         for ( auto s : (*b)->succ )
             s->pred.erase(find(s->pred.begin(), s->pred.end(), b->get()));
 
+        if ( auto e = find(begin(myFirstUses), end(myFirstUses), b->get()); e != end(myFirstUses) ) {
+            myFirstUses.erase(e);
+            for ( auto s : (*b)->succ )
+                myFirstUses.push_back(&*s);
+        }
+
         b = myBlocks.erase(b);
     }
 }
@@ -741,101 +732,81 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
     }
 
     for ( auto& b : myBlocks ) {
-        switch( b->uses[0].kind ) {
-        case Usage::Read:
-        case Usage::Move:
-            b->in = Requirement::Defined;
-            break;
-        
-        default:
-            b->in = Requirement::None;
-        }
-
-        bool hasValue = true;
-        auto provision = Provision::None;
-        for ( uz i = 1; i < b->uses.size(); ++i ) {
-            auto const& u = b->uses[i];
+        bool hasValue = false;
+        b->in = Requirement::None;
+        for ( auto& u : b->uses ) {
             switch (u.kind) {
             case Usage::Read:
-                if ( !hasValue ) {
-                    ctx.error(*u.expr) << "use of undefined value";
-                    return SymRes::Fail;
-                }
+                if ( !hasValue )
+                    b->in = Requirement::Defined;
+
                 break;
 
             case Usage::Write:
-                hasValue = true;
-                provision = Provision::Defines;
-                break;
-
+            // liberal assumption that the ref defines it
+            // todo: interprocedural analysis
             case Usage::Ref:
-                // liberal assumption that the ref defines it
-                // todo: interprocedural analysis
                 hasValue = true;
-                provision = Provision::Refers;
-                break;
-
-            case Usage::Move:
-                if ( !hasValue ) {
-                    ctx.error(*u.expr) << "use of moved value";
-                    return SymRes::Fail;
-                }
-                hasValue = false;
-                provision = Provision::Moves;
+                b->out = Provision::Defines;
                 break;
             }
         }
-
-        b->out = provision;
     }
 
-    std::set<Extent::Block*> visited;
-    std::vector<Extent::Block*> topo;
-    topo.reserve(myBlocks.size());
-    for ( auto& b : myBlocks ) {
-        if ( b->pred.empty() )
-            topo.push_back(b.get());
-    }
+    // Live value propagation
 
+    auto providesValue = [](Block* b) {
+        return b->out == Provision::Defines;
+    };
+
+    // Parameters are considered as defined
     if ( auto param = myDeclaration->as<ProcedureParameter>() ) {
-        for ( auto b : topo )
-            b->in = Requirement::None;
-    }
-
-    for ( uz i = 0, len = topo.size(); i != len; ++i ) {
-        for ( auto s : topo[i]->succ ) {
-            auto iter = visited.lower_bound(s);
-            if ( iter == end(visited) || *iter != s ) {
-                visited.insert(iter, s);
-                topo.push_back(s);
-            }
+        for ( auto e : myFirstUses ) {
+            e->in = Requirement::None;
+            e->out = Provision::Defines;
         }
-
-        len = topo.size();
     }
 
-    for ( auto b : topo ) {
-        if ( b->in == Requirement::Defined ) {
-            for ( auto p : b->pred ) {
-                if ( p->out != Provision::Defines && p->out != Provision::Refers ) {
-                    if ( p == b ) {
-                        if ( p->out == Provision::Moves ) {
-                            ctx.error(*p->uses.back().expr) << "is not defined on all loop iterations";
-                            return SymRes::Fail;
-                        }
+    FlatSet<Block*> visited;
+    std::vector<Block*> stack;
+    std::vector<Block*> frontier;
+    for ( auto entryBlock : myFirstUses ) {
+        frontier.emplace_back(entryBlock);
+        while ( !frontier.empty() ) {
+            stack.emplace_back(frontier.back());
+            frontier.pop_back();
 
-                        continue;
-                    }
+            auto b = stack.back();
+            if ( auto [_, isNew] = visited.insert(b); !isNew )
+                continue;
 
-                    (ctx.error(*b->uses[0].expr) << "is not defined on all incoming paths")
-                        .see(*p->bb->scope(), *p->uses[0].expr);
-                    return SymRes::Fail;
+            auto const pv = providesValue(b);
+            for ( auto s : b->succ ) {
+                if ( pv && !providesValue(s) )
+                    s->out = Provision::Defines;
+
+                if ( find(begin(stack), end(stack), s) != end(stack) ) {
+                    // cycle -- skip
+                    continue;
                 }
+
+                frontier.emplace_back(s);
             }
         }
+    }
 
-        if ( b->out == Provision::None ) {
-            b->out = Provision::Defines;
+    // Live value check
+
+    for ( auto& b : myBlocks ) {
+        if ( b->in != Requirement::Defined )
+            continue;
+
+        for ( auto p : b->pred ) {
+            if ( !providesValue(p) ) {
+                (ctx.error(*b->uses[0].expr) << "is not defined on all incoming paths")
+                    .see(*p->bb->scope(), *p->uses[0].expr);
+                return SymRes::Fail;
+            }
         }
     }
 
@@ -860,14 +831,14 @@ FlowTracer::Shape FlowTracer::advanceBlock()
     auto bb = myPath.back();
     if ( auto br = bb->junction()->as<BranchJunction>() ) {
         myPath.push_back(br->branch(0));
-        return checkLoop();
+        return checkRepetition();
     }
     else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {
         return None;
     }
     else if ( auto j = bb->junction()->as<JumpJunction>() ) {
         myPath.push_back(j->targetBlock());
-        return checkLoop();
+        return checkRepetition();
     }
 
     throw std::runtime_error("invalid junction");
@@ -881,7 +852,7 @@ FlowTracer::Shape FlowTracer::advancePath()
         if ( auto br = pred->junction()->as<BranchJunction>() ) {
             if ( bb == br->branch(0) ) {
                 myPath.back() = br->branch(1);
-                return checkLoop();
+                return checkRepetition();
             }
         }
 
@@ -896,12 +867,12 @@ Slice<BasicBlock const*> FlowTracer::currentPath() const
     return myPath;
 }
 
-FlowTracer::Shape FlowTracer::checkLoop()
+FlowTracer::Shape FlowTracer::checkRepetition()
 {
     auto bb = myPath.back();
     for ( auto i = myPath.size() - 2; ~i; --i )
         if ( myPath[i] == bb )
-            return Loop;
+            return Repeat;
 
     return Forward;
 }

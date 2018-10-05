@@ -1,5 +1,7 @@
 #include <kyfoo/ast/DotWriter.hpp>
 
+#include <cassert>
+
 #include <array>
 #include <fstream>
 #include <map>
@@ -121,26 +123,6 @@ public:
     result_t exprUniverse(UniverseExpression const& univ)
     {
         stream << "[universe" << univ.level() << "]";
-    }
-
-    result_t stmtExpression(Statement const& stmt)
-    {
-        dispatch(stmt.expression());
-    }
-
-    result_t juncBranch(BranchJunction const&)
-    {
-        stream << "branch";
-    }
-
-    result_t juncReturn(ReturnJunction const&)
-    {
-        stream << "return";
-    }
-
-    result_t juncJump(JumpJunction const&)
-    {
-        stream << "jump";
     }
 };
 
@@ -411,6 +393,19 @@ struct DotWriter
     NodeKind node_kind(Junction    const&) { return NJunction;    };
     NodeKind node_kind(Expression  const&) { return NExpression;  };
 
+    NodeID head(BasicBlock const& bb)
+    {
+        if ( !bb.statements().empty() )
+            return id(*bb.statements().front());
+
+        return id(*bb.junction());
+    }
+
+    NodeID tail(BasicBlock const& bb)
+    {
+        return id(*bb.junction());
+    }
+
     template <typename T>
     NodeID id(T const& item)
     {
@@ -532,7 +527,7 @@ struct DotWriter
             stream << "\"]\n";
         }
         else {
-            stream << node.id << " [label=\"[]\"]\n";
+            stream << node.id << " [label=\"[?]\"]\n";
         }
 
         return node.id;
@@ -558,7 +553,7 @@ struct DotWriter
     {
         auto node = id(jmp);
         stream << node.id << " [label=\"["
-            << (jmp.jumpKind() == JumpJunction::JumpKind::Loop ? "+" : "-")
+            << (jmp.jumpKind() == JumpJunction::JumpKind::Continue ? "+" : "-")
             << "]\"]\n";
 
         return node.id;
@@ -622,22 +617,59 @@ struct DotWriter
                   "node [shape=record]\n"
                   "label=" << quoted(proc.scope().declaration()->symbol().token().lexeme()) << "\n";
 
-        for ( auto bb : defn->basicBlocks() ) {
-            std::string_view pred;
-            for ( auto stmt : bb->statements() ) {
-                auto succ = dispatch(*stmt);
-                if ( !pred.empty() )
-                    mkEdge(pred, succ);
-                pred = succ;
+        ycomb([this](auto rec, ProcedureScope const& scope) -> void {
+            for ( auto bb : scope.basicBlocks() ) {
+                std::string_view pred;
+                if ( bb->statements() ) {
+                    pred = dispatch(*bb->statements().front());
+                    for ( auto stmt : bb->statements()(1, $) ) {
+                        auto succ = dispatch(*stmt);
+                        mkEdge(pred, succ);
+                        pred = succ;
+                    }
+                }
+
+                if ( bb->junction() ) {
+                    auto succ = dispatch(*bb->junction());
+                    if ( !pred.empty() )
+                        mkEdge(pred, succ);
+                }
             }
 
-            if ( bb->junction() ) {
-                auto succ = dispatch(*bb->junction());
-                if ( !pred.empty() )
-                    mkEdge(pred, succ);
-                pred = succ;
+            for ( auto c : scope.childScopes() )
+                rec(*c);
+
+            for ( auto bb : scope.basicBlocks() ) {
+                auto junc = bb->junction();
+                if ( !junc )
+                    continue;
+
+                auto bbNode = tail(*bb);
+                if ( auto br = junc->as<BranchJunction>() ) {
+                    assert(br->branch(0));
+                    mkEdge(bbNode.id, head(*br->branch(0)).id);
+
+                    std::string_view mb;
+                    if ( auto b = br->branch(1) )
+                        mb = head(*b).id;
+                    else
+                        mb = head(*bb->scope()->mergeBlock()).id;
+
+                    stream << bbNode.id << ":w -> " << mb << ":w\n";
+                }
+                else if ( auto j = junc->as<JumpJunction>() ) {
+                    if ( auto b = j->targetBlock() ) {
+                        if ( j->jumpKind() == JumpJunction::JumpKind::Break ) {
+                            if ( auto m = b->scope()->mergeBlock() )
+                                mkEdge(bbNode.id, head(*m).id);
+                        }
+                        else {
+                            mkEdge(bbNode.id, head(*b).id);
+                        }
+                    }
+                }
             }
-        }
+        })(*defn);
 
         stream << "}\n";
 

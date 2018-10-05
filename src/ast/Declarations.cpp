@@ -898,22 +898,24 @@ SymRes ImportDeclaration::resolveSymbols(Context& ctx)
 //
 // SymbolVariable
 
-SymbolVariable::SymbolVariable(IdentifierExpression const& id,
-                               Scope* scope,
-                               PatternsPrototype& prototype,
-                               Expression const* bindExpr)
-    : Declaration(DeclKind::SymbolVariable, Symbol(id.token()), scope)
-    , myPrototype(&prototype)
-    , myBoundExpression(bindExpr)
+SymbolVariable::SymbolVariable(lexer::Token tok,
+                               Scope& scope,
+                               Expression const& expr)
+    : SymbolVariable(std::move(tok), &scope, &expr)
 {
-    for ( auto const& c : id.constraints() )
-        myConstraints.push_back(c);
 }
 
-SymbolVariable::SymbolVariable(IdentifierExpression const& id,
+SymbolVariable::SymbolVariable(lexer::Token tok,
+                               Scope& scope)
+    : SymbolVariable(std::move(tok), &scope, nullptr)
+{
+}
+
+SymbolVariable::SymbolVariable(lexer::Token tok,
                                Scope* scope,
-                               PatternsPrototype& prototype)
-    : SymbolVariable(id, scope, prototype, nullptr)
+                               Expression const* expr)
+    : Declaration(DeclKind::SymbolVariable, Symbol(std::move(tok)), scope)
+    , myBoundExpression(expr)
 {
 }
 
@@ -931,22 +933,25 @@ void SymbolVariable::swap(SymbolVariable& rhs) noexcept
 {
     Declaration::swap(rhs);
     using kyfoo::swap;
-    swap(myPrototype, rhs.myPrototype);
-    swap(myConstraints, rhs.myConstraints);
     swap(myBoundExpression, rhs.myBoundExpression);
+    swap(myConstraints, rhs.myConstraints);
 }
 
 IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(SymbolVariable, Declaration)
-IMPL_CLONE_REMAP(myPrototype)
-IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myBoundExpression)
+IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP_END
 
 SymRes SymbolVariable::resolveSymbols(Context&)
 {
     throw std::runtime_error("symbol variables should not be resolved");
+}
+
+void SymbolVariable::appendConstraint(Expression const& expr)
+{
+    myConstraints.emplace_back(&expr);
 }
 
 void SymbolVariable::bindExpression(Expression const* expr)
@@ -962,14 +967,9 @@ Expression const* SymbolVariable::boundExpression() const
     return myBoundExpression;
 }
 
-lexer::Token const& SymbolVariable::token() const
+Slice<Expression const*> SymbolVariable::constraints() const
 {
-    return symbol().token();
-}
-
-PatternsPrototype const& SymbolVariable::prototype() const
-{
-    return *myPrototype;
+    return myConstraints;
 }
 
 //

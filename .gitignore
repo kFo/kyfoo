@@ -1,5 +1,4 @@
 bin/*
 doc/_build/*
-vc15/*/*/*
-*.vcxproj.user
+vc15/*
 .vscode

@@ -74,8 +74,10 @@ void PatternsPrototype::resolveVariables(Scope const& scope)
         for ( auto const& param : myPattern ) {
             auto fv = gatherMetaVariables(*param);
             for ( auto& p : fv ) {
-                myVariables.push_back(mk<SymbolVariable>(*p, const_cast<Scope*>(&scope), *this));
+                myVariables.emplace_back(mk<SymbolVariable>(p->token(), const_cast<Scope&>(scope)));
                 p->setDeclaration(*myVariables.back());
+                for ( auto c : p->constraints() )
+                    myVariables.back()->appendConstraint(*c);
             }
         }
     }

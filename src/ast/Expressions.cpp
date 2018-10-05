@@ -1389,7 +1389,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                 }
 
                 auto const tok = lit->token();
-                myExpressions[i] = createIdentifier(makeToken(tok.lexeme(),
+                myExpressions[i] = createIdentifier(makeToken(std::string(tok.lexeme()),
                                                               tok.location()),
                                                     *defn->fields()[index]);
             }
@@ -1839,6 +1839,11 @@ std::ostream& operator << (std::ostream& stream, get_types&& types)
     }
 
     return stream;
+}
+
+lexer::SourceLocation getSourceLocation(Expression const& expr)
+{
+    return front(expr).location();
 }
 
 Expression const* createInferredType(Expression& expr, Declaration const& decl)

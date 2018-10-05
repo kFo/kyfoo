@@ -11,9 +11,9 @@
 namespace kyfoo::ast {
 
 inline lexer::Token
-makeToken(std::string_view id, lexer::SourceLocation loc = lexer::SourceLocation())
+makeToken(std::string id, lexer::SourceLocation loc = {})
 {
-    return lexer::Token(lexer::TokenKind::Identifier, std::string(id), loc);
+    return lexer::Token(lexer::TokenKind::Identifier, std::move(id), loc);
 }
 
 inline Symbol

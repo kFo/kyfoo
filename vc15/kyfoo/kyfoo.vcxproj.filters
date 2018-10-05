@@ -135,6 +135,9 @@
     <ClInclude Include="..\..\include\kyfoo\BigInt.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">

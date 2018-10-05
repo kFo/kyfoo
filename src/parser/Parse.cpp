@@ -327,9 +327,9 @@ ProcedureScopeParser::~ProcedureScopeParser()
     auto bb = scope().basicBlocks().back();
     if ( !bb->junction() ) {
         if ( myLoopBlock )
-            bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, myLoopBlock));
+            bb->setJunction(mk<ast::JumpJunction>(myLoopBlock));
         else if ( auto m = scope().mergeBlock() )
-            bb->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Break, m));
+            bb->setJunction(mk<ast::JumpJunction>(m));
     }
 }
 
@@ -366,8 +366,7 @@ ProcedureScopeParser::parseNext()
             b->setJunction(std::move(br));
         }
         else {
-            b->setJunction(mk<ast::JumpJunction>(
-                ast::JumpJunction::JumpKind::Break, s->basicBlocks().front()));
+            b->setJunction(mk<ast::JumpJunction>(s->basicBlocks().front()));
         }
 
         if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
@@ -448,8 +447,7 @@ ProcedureScopeParser::parseNext()
 
         if ( !branchJunc->label().lexeme().empty() ) {
             s = s->createChildScope(m, branchJunc->token(), branchJunc->label());
-            b->setJunction(mk<ast::JumpJunction>(
-                ast::JumpJunction::JumpKind::Break, s->basicBlocks().front()));
+            b->setJunction(mk<ast::JumpJunction>(s->basicBlocks().front()));
             b = s->basicBlocks().front();
         }
 
@@ -471,8 +469,7 @@ ProcedureScopeParser::parseNext()
 
         auto m = scope().createBasicBlock();
         auto loopScope = scope().createChildScope(m, loopJunc->token(), loopJunc->label());
-        b->setJunction(mk<ast::JumpJunction>(
-            ast::JumpJunction::JumpKind::Break, loopScope->basicBlocks().front()));
+        b->setJunction(mk<ast::JumpJunction>(loopScope->basicBlocks().front()));
         b = loopScope->basicBlocks().front();
 
         b->setJunction(std::move(loopJunc));
@@ -487,7 +484,7 @@ ProcedureScopeParser::parseNext()
         else if ( scanner().peek().kind() == lexer::TokenKind::IndentEQ
                || scanner().peek().kind() == lexer::TokenKind::IndentLT )
         {
-            s->basicBlocks().front()->setJunction(mk<ast::JumpJunction>(ast::JumpJunction::JumpKind::Loop, loopScope->basicBlocks().front()));
+            s->basicBlocks().front()->setJunction(mk<ast::JumpJunction>(loopScope->basicBlocks().front()));
             return {true, nullptr};
         }
 
@@ -517,8 +514,8 @@ ProcedureScopeParser::parseNext()
     if ( VariableDeclaration varGrammar; parse(scanner(), varGrammar) ) {
         auto v = varGrammar.make(*this);
         auto var = mk<ast::VariableDeclaration>(ast::Symbol(v.token),
-                                                                scope(),
-                                                                std::move(v.constraints));
+                                                scope(),
+                                                std::move(v.constraints));
         static_cast<ast::Scope&>(scope()).append(std::move(var));
         if ( v.initializer ) {
             auto p = mk<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());

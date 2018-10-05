@@ -268,15 +268,19 @@ public:
     Slice<BasicBlock*> basicBlocks();
     Slice<BasicBlock const*> basicBlocks() const;
 
+    BasicBlock* entryBlock();
+    BasicBlock const* entryBlock() const;
+
 public:
     void append(Box<Expression> expr);
     BasicBlock* createBasicBlock();
     void popBasicBlock();
     ProcedureScope* createChildScope(BasicBlock* mergeBlock,
-                                     lexer::Token const& openToken,
-                                     lexer::Token const& label);
+                                     lexer::Token openToken,
+                                     lexer::Token label);
 
 private:
+    void cacheDominators();
     SymRes cacheVariableExtents(Context& ctx);
 
 private:
