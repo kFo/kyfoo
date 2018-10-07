@@ -49,13 +49,13 @@ HEAP_ZERO_MEMORY         := 8 // 0x00000008
 NULL := null
 
 put(c : u8) -> () =>
-    := a : u8 = c
+    := a = c
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL
     :. 42
 
 pow<\T>(base : T, exp : u32) -> T =>
     := ret : T = 1
-    := i : u32 = exp
+    := i = exp
     :* ne i 0
         ret = mul ret base
         i.dec
@@ -64,8 +64,8 @@ pow<\T>(base : T, exp : u32) -> T =>
 put(num : u32) -> () =>
     := digits : ascii = "0123456789"
     := buffer : u8..10
-    := n : u32 = num
-    := i : uz = 0
+    := n = num
+    := i = 0.uz
     :* ge n 10
         buffer i = digits (rem n 10)
         n = div n 10
@@ -93,8 +93,8 @@ swap(a b : ref \T) -> () =>
     :.
 
 bubble(arr : ref slice<\T>, c : (T, T)->u1) -> u32 =>
-    := ret : u32 = 0
-    := i : uz = 0
+    := ret = 0.u32
+    := i = 0.uz
     :* lt(i, sub arr.card 1)
         :<> not(c(arr i, arr (add i 1)))
             swap(arr i, arr (add i 1))
@@ -131,13 +131,13 @@ ftest (x y : s32) -> s32 =>
     :. 55
 
 gtest(n : s32) -> () =>
-    := p : LPVOID = HeapAlloc GetProcessHeap 0 512
-    := bytes : DWORD = 0
+    := p = HeapAlloc GetProcessHeap 0 512
+    := bytes = 0.DWORD
     := arr : u8..256
     ReadFile GetStdHandle-STD_INPUT_HANDLE arr-bytes.addr 256 bytes.addr NULL
     WriteFile GetStdHandle-STD_OUTPUT_HANDLE arr.0.addr bytes NULL NULL
     :<outer>
-        := i : s32 = 0
+        := i = 0.s32
         :* lt i n
             WriteWrapper "wut\n"
             i.inc
@@ -166,7 +166,7 @@ htest() -> () =>
     //:= arr : u32..6 = [1, 2, 3, 4, 5, 6]
     //:= arr : u32..6
     := arr : slice u32 = mkArray<u32> 6
-    := i : u32 = 0
+    := i = 0.u32
     :* ne i 6
         arr i = sub 6 i
         i.inc

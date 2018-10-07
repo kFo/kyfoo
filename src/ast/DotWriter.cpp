@@ -220,9 +220,17 @@ struct NodeWriter
         endAttrs();
     }
 
-    result_t stmtExpression(Statement const&)
+    result_t stmtExpression(ExpressionStatement const&)
     {
         beginAttrs("stmt");
+        endAttrs();
+        stream << "subgraph " << id << " {\n";
+        stream << "}\n";
+    }
+
+    result_t stmtVariable(VariableStatement const&)
+    {
+        beginAttrs("stmt-var");
         endAttrs();
         stream << "subgraph " << id << " {\n";
         stream << "}\n";
@@ -506,13 +514,28 @@ struct DotWriter
         return mkNode(univ);
     }
 
-    result_t stmtExpression(Statement const& stmt)
+    result_t stmtExpression(ExpressionStatement const& stmt)
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(stmt);
         stream << node.id << " [label=\"";
         op(stmt.expression());
         stream << "\"]\n";
+
+        return node.id;
+    }
+
+    result_t stmtVariable(VariableStatement const& stmt)
+    {
+        ShallowApply<ExprStructWriter> op(stream);
+        auto node = id(stmt);
+        stream << node.id << " [label=\"[=] | {";
+        stream << stmt.variable().symbol().token().lexeme();
+        if ( auto expr = stmt.initializer() ) {
+            stream << " | ";
+            op(*expr);
+        }
+        stream << "}\"]\n";
 
         return node.id;
     }

@@ -200,6 +200,11 @@ Error& Context::error(Expression const& expr)
     return myDiagnostics->error(resolver().scope().module(), expr);
 }
 
+Error& Context::error(Statement const& stmt)
+{
+    return myDiagnostics->error(resolver().scope().module(), stmt);
+}
+
 Error& Context::error(Declaration const& decl)
 {
     return myDiagnostics->error(resolver().scope().module(), decl.symbol().token());
@@ -438,7 +443,7 @@ SymRes Context::resolveExpressions(std::vector<Box<Expression>>& exprs)
 SymRes Context::resolveStatement(Statement& stmt)
 {
     changeStatement(&stmt);
-    auto ret = stmt.resolveSymbols(*this);
+    SymRes ret = resolveSymbols(stmt);
     changeStatement(nullptr);
 
     return ret;
@@ -450,7 +455,7 @@ SymRes Context::resolveStatements(std::vector<Statement>::iterator left,
     SymRes ret = SymRes::Success;
     for ( ; left != right; ++left ) {
         changeStatement(&*left);
-        ret |= left->resolveSymbols(*this);
+        ret |= resolveSymbols(*left);
     }
     changeStatement(nullptr);
 
@@ -491,6 +496,17 @@ SymRes Context::resolveSymbols(Expression& expr)
     }
 
     throw std::runtime_error("unhandled expression");
+}
+
+SymRes Context::resolveSymbols(Statement& stmt)
+{
+    switch (stmt.kind()) {
+#define X(a,b) case Statement::Kind::a: return static_cast<b&>(stmt).resolveSymbols(*this);
+    STATEMENT_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("unhandled statement");
 }
 
 Lookup Context::trackForModule(Lookup&& hit)

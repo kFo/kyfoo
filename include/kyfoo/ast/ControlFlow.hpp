@@ -22,8 +22,9 @@ class SymRes;
 class AssignExpression;
 class VariableDeclaration;
 
-#define STATEMENT_KINDS(X)    \
-    X(Expression  , Statement)
+#define STATEMENT_KINDS(X)             \
+    X(Expression, ExpressionStatement) \
+    X(Variable  , VariableStatement  )
 
 class Statement
 {
@@ -36,11 +37,8 @@ public:
 
     friend class Context;
 
-public:
-    explicit Statement(Box<Expression> expr);
-
 protected:
-    Statement(Kind kind, Box<Expression> expr);
+    explicit Statement(Kind kind);
     Statement(Statement const& rhs);
     Statement& operator = (Statement const& rhs);
 
@@ -48,7 +46,7 @@ public:
     Statement(Statement&& rhs);
     Statement& operator = (Statement&& rhs);
 
-    ~Statement();
+    KYFOO_DEBUG_VIRTUAL ~Statement();
     void swap(Statement& rhs) noexcept;
 
 public:
@@ -63,22 +61,88 @@ public:
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
 
-    Expression const& expression() const;
-    Expression& expression();
-
     Slice<VariableDeclaration const*> unnamedVariables() const;
     Slice<AssignExpression const*> assignExpressions() const;
 
     VariableDeclaration const* createUnnamedVariable(ProcedureScope& scope,
                                                      Expression const& type);
     Box<AssignExpression> appendUnnamedExpression(ProcedureScope& scope,
-                                                              Box<Expression> expr);
+                                                  Box<Expression> expr);
 
-private:
+protected:
+    void flattenTopSubexpression(Box<Expression>& topExpr) noexcept;
+
+protected:
     Kind myKind;
-    Box<Expression> myExpression;
     std::vector<Box<VariableDeclaration>> myUnnamedVariables;
     std::vector<AssignExpression const*> myAssignExpressions;
+};
+
+class ExpressionStatement : public Statement
+{
+public:
+    friend class Context;
+
+public:
+    explicit ExpressionStatement(Box<Expression> expr);
+
+protected:
+    ExpressionStatement(ExpressionStatement const& rhs);
+    ExpressionStatement& operator = (ExpressionStatement const& rhs);
+
+public:
+    ExpressionStatement(ExpressionStatement&& rhs);
+    ExpressionStatement& operator = (ExpressionStatement&& rhs);
+
+    KYFOO_DEBUG_VIRTUAL ~ExpressionStatement();
+    void swap(ExpressionStatement& rhs) noexcept;
+
+public:
+    DECL_CLONE_ALL_NOBASE(Statement)
+
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    Expression const& expression() const;
+    Expression& expression();
+
+private:
+    Box<Expression> myExpression;
+};
+
+class VariableStatement : public Statement
+{
+public:
+    friend class Context;
+
+public:
+    VariableStatement(VariableDeclaration& var, Box<Expression> expr);
+
+protected:
+    VariableStatement(VariableStatement const& rhs);
+    VariableStatement& operator = (VariableStatement const& rhs);
+
+public:
+    VariableStatement(VariableStatement&& rhs);
+    VariableStatement& operator = (VariableStatement&& rhs);
+
+    ~VariableStatement() KYFOO_DEBUG_OVERRIDE;
+    void swap(VariableStatement& rhs) noexcept;
+
+public:
+    DECL_CLONE_ALL(Statement)
+
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    VariableDeclaration const& variable() const;
+    Expression const* initializer() const;
+
+private:
+    VariableDeclaration* myVariable = nullptr;
+    Box<Expression> myInitializer;
 };
 
 #define JUNCTION_KINDS(X)     \
@@ -164,7 +228,7 @@ public:
 private:
     lexer::Token myToken;
     lexer::Token myLabel;
-    Box<Statement> myCondition;
+    Box<ExpressionStatement> myCondition;
     BasicBlock* myBranch[2]{ nullptr };
 };
 
@@ -204,7 +268,7 @@ public:
 
 private:
     lexer::Token myToken;
-    Box<Statement> myExpression;
+    Box<ExpressionStatement> myExpression;
 };
 
 class JumpJunction : public Junction
@@ -290,7 +354,7 @@ public:
 
     void appendIncoming(BasicBlock& from);
 
-    void append(Box<Expression> expr);
+    void append(Box<Statement> stmt);
 
     void setJunction(Box<Junction> junction);
     
@@ -315,6 +379,7 @@ class Extent
 {
 public:
     struct Usage {
+        Statement const* stmt;
         Expression const* expr;
         enum Kind {
             Read,
@@ -334,7 +399,7 @@ public:
     };
 
     struct Block {
-        Block(BasicBlock const* bb)
+        explicit Block(BasicBlock const* bb)
             : bb(bb)
         {
         }
@@ -358,10 +423,14 @@ public:
 
 public:
     void appendBlock(BasicBlock const& bb);
-    void appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind);
+    void appendUsage(BasicBlock const& bb, Statement const& stmt, Usage::Kind kind);
+    void appendUsage(BasicBlock const& bb, Statement const& stmt, Expression const& expr, Usage::Kind kind);
 
     void pruneEmptyBlocks();
     SymRes cacheLocalFlows(Context& ctx);
+
+private:
+    void ensureBlock(BasicBlock const& bb);
 
 private:
     Declaration const* myDeclaration = nullptr;
@@ -421,12 +490,24 @@ STATEMENT_KINDS(X)
 
 inline Box<Statement> beginClone(Statement const& stmt, clone_map_t& map)
 {
-    return stmt.beginClone(map);
+    switch (stmt.kind()) {
+#define X(a,b) case Statement::Kind::a: return static_cast<b const&>(stmt).beginClone(map);
+    STATEMENT_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid statement kind");
 }
 
 inline void remap(Statement& stmt, clone_map_t const& map)
 {
-    return stmt.remapReferences(map);
+    switch (stmt.kind()) {
+#define X(a,b) case Statement::Kind::a: return static_cast<b&>(stmt).remapReferences(map);
+    STATEMENT_KINDS(X)
+#undef X
+    }
+
+    throw std::runtime_error("invalid statement kind");
 }
 
 #define X(a, b) template <> inline b* Junction::as<b>() { return myKind == Junction::Kind::a ? static_cast<b*>(this) : nullptr; }
@@ -468,5 +549,7 @@ inline void remap(BasicBlock& bb, clone_map_t const& map)
 {
     return bb.remapReferences(map);
 }
+
+SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, std::vector<Extent>& extents);
 
 } // namespace kyfoo::ast

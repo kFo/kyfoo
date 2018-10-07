@@ -44,9 +44,9 @@ const char* to_string(DeclKind kind);
 class Scope;
 class DataSumScope;
 class DataProductScope;
+class ExpressionStatement;
 class Module;
 class ProcedureScope;
-class Statement;
 class TemplateScope;
 class ValueExpression;
 
@@ -95,8 +95,8 @@ public:
     void setScope(Scope& scope);
 
     void setAttributes(std::vector<Box<Expression>>&& exprs);
-    Slice<Statement const> attributes() const;
-    Slice<Statement> attributes();
+    Slice<ExpressionStatement const> attributes() const;
+    Slice<ExpressionStatement> attributes();
 
     codegen::CustomData* codegenData();
     codegen::CustomData* codegenData() const;
@@ -107,7 +107,7 @@ protected:
     DeclKind myKind;
     Box<Symbol> mySymbol;
     Scope* myScope = nullptr;
-    std::vector<Statement> myAttributes;
+    std::vector<ExpressionStatement> myAttributes;
     mutable Box<codegen::CustomData> myCodeGenData;
 };
 
@@ -270,7 +270,7 @@ public:
 
     Expression const* type() const;
 
-private:
+protected:
     std::vector<Box<Expression>> myConstraints;
     Expression const* myType = nullptr;
 };

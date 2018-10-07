@@ -251,20 +251,8 @@ void Scope::merge(Scope& rhs)
     rhs.myDeclarations.clear();
 }
 
-SymbolSpace* Scope::createSymbolSpace(Diagnostics&, std::string_view name)
-{
-    auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
-    auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
-    if ( l != end(mySymbols) && l->name() == name )
-        return &*l;
 
-    l = mySymbols.insert(l, SymbolSpace(this, std::string(name)));
-    return &*l;
-}
-
-bool Scope::addSymbol(Diagnostics& dgn,
-                                 Symbol const& sym,
-                                 Declaration& decl)
+bool Scope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
 {
     auto symSpace = createSymbolSpace(dgn, sym.token().lexeme());
 
@@ -289,6 +277,17 @@ bool Scope::addSymbol(Diagnostics& dgn,
 
     symSpace->append(sym.prototype(), decl);
     return true;
+}
+
+SymbolSpace* Scope::createSymbolSpace(Diagnostics&, std::string_view name)
+{
+    auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
+    auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
+    if ( l != end(mySymbols) && l->name() == name )
+        return &*l;
+
+    l = mySymbols.insert(l, SymbolSpace(this, std::string(name)));
+    return &*l;
 }
 
 SymbolSpace* Scope::findSymbolSpace(std::string_view name) const
@@ -667,10 +666,14 @@ BasicBlock const* ProcedureScope::entryBlock() const
 
 void ProcedureScope::append(Box<Expression> expr)
 {
-    if ( myBasicBlocks.back()->junction() )
-        createBasicBlock();
+    appendStatement(mk<ExpressionStatement>(std::move(expr)));
+}
 
-    myBasicBlocks.back()->append(std::move(expr));
+void ProcedureScope::append(Box<VariableDeclaration> var, Box<Expression> expr)
+{
+    auto p = var.get();
+    Scope::append(std::move(var));
+    appendStatement(mk<VariableStatement>(*p, std::move(expr)));
 }
 
 BasicBlock* ProcedureScope::createBasicBlock()
@@ -691,6 +694,14 @@ ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
     Box<ProcedureScope> child(new ProcedureScope(*this, mergeBlock, std::move(openToken), std::move(label)));
     myChildScopes.push_back(std::move(child));
     return myChildScopes.back().get();
+}
+
+void ProcedureScope::appendStatement(Box<Statement> stmt)
+{
+    if ( myBasicBlocks.back()->junction() )
+        createBasicBlock();
+
+    myBasicBlocks.back()->append(std::move(stmt));
 }
 
 void ProcedureScope::cacheDominators()
@@ -742,231 +753,12 @@ void ProcedureScope::cacheDominators()
     }
 }
 
-namespace {
-template <typename Dispatcher>
-struct Sequencer
-{
-    using result_t = void;
-    using extent_set_t = std::set<Extent*, ExtentCompare>;
-
-    Dispatcher& dispatch;
-
-    Context& ctx;
-    extent_set_t& extents;
-    BasicBlock const& basicBlock;
-    bool refCtx = false;
-    bool writeCtx = false;
-
-    Sequencer(Dispatcher& dispatch,
-              Context& ctx,
-              extent_set_t& extents,
-              BasicBlock const& bb)
-        : dispatch(dispatch)
-        , ctx(ctx)
-        , extents(extents)
-        , basicBlock(bb)
-    {
-    }
-
-    result_t recurse(Slice<Expression const*> exprs)
-    {
-        for ( auto e : exprs )
-            dispatch(*e);
-    }
-
-    Extent::Usage::Kind currentUsage()
-    {
-        if ( writeCtx )
-            return Extent::Usage::Write;
-
-        if ( refCtx )
-            return Extent::Usage::Ref;
-        
-        return Extent::Usage::Read;
-    }
-
-    result_t exprLiteral(LiteralExpression const&)
-    {
-        // nop
-    }
-
-    result_t exprIdentifier(IdentifierExpression const& id)
-    {
-        if ( auto d = id.declaration() ) {
-            auto ext = extents.find(*d);
-            if ( ext != extents.end() )
-                (*ext)->appendUsage(basicBlock, id, currentUsage());
-        }
-    }
-
-    result_t exprTuple(TupleExpression const& t)
-    {
-        recurse(t.expressions());
-    }
-
-    result_t exprApply(ApplyExpression const& a)
-    {
-        check_point writeCtx;
-        writeCtx = false;
-
-        {
-            check_point refCtx;
-            refCtx = true;
-            dispatch(*a.subject());
-        }
-
-        auto args = a.arguments();
-        if ( auto proc = a.procedure() ) {
-            auto o = proc->ordinals();
-            auto p = proc->parameters();
-            check_point refCtx;
-            for ( uz i = 0; i < args.size(); ++i ) {
-                refCtx = o[i] >= 0 && isReference(*p[o[i]]->type());
-                dispatch(*args[i]);
-            }
-
-            return;
-        }
-
-        recurse(args);
-    }
-
-    result_t exprSymbol(SymbolExpression const& s)
-    {
-        check_point refCtx;
-        check_point writeCtx;
-        refCtx = writeCtx = false;
-
-        recurse(s.expressions());
-        exprIdentifier(s);
-    }
-
-    result_t exprDot(DotExpression const& d)
-    {
-        {
-            check_point writeCtx;
-            writeCtx = false;
-
-            check_point refCtx;
-            refCtx = true;
-            for ( auto m : d.expressions()(0, $ - 1) )
-                dispatch(*m);
-        }
-
-        dispatch(*d.expressions().back());
-    }
-
-    result_t exprAssign(AssignExpression const& v)
-    {
-        check_point writeCtx;
-        check_point refCtx;
-
-        dispatch(v.right());
-        
-        writeCtx = true;
-        dispatch(v.left());
-    }
-
-    result_t exprLambda(LambdaExpression const&)
-    {
-        // nop
-    }
-
-    result_t exprArrow(ArrowExpression const& a)
-    {
-        check_point writeCtx;
-        check_point refCtx;
-        refCtx = writeCtx = false;
-
-        dispatch(a.from());
-        dispatch(a.to());
-    }
-
-    result_t exprUniverse(UniverseExpression const&)
-    {
-        // nop
-    }
-};
-
-} // namespace
-
 SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
 {
     if ( myBasicBlocks.empty() )
         return SymRes::Success;
 
-    // todo: crawl over declarations searching for uses
-    /*for ( auto sym : declaration()->symbol().prototype().symbolVariables() )
-        myExtents.emplace_back(*sym);*/
-
-    for ( auto param : declaration()->parameters() )
-        myExtents.emplace_back(*param);
-
-    ycomb(
-        [this](auto rec, ProcedureScope const& scope) -> void {
-            for ( auto d : scope.childDeclarations() )
-                if ( d->kind() == DeclKind::Variable )
-                    myExtents.emplace_back(*d);
-
-            for ( auto s : scope.childScopes() )
-                rec(*s);
-        })(*this);
-
-    Sequencer<ShallowApply<Sequencer>>::extent_set_t extents;
-    for ( auto& ext : myExtents )
-        extents.insert(&ext);
-
-    for ( FlowTracer trace(*entryBlock()); ; ) {
-        auto bb = trace.currentBlock();
-        for ( auto& ext : myExtents )
-            ext.appendBlock(*bb);
-
-        ShallowApply<Sequencer> op(ctx, extents, *bb);
-        for ( auto stmt : bb->statements() )
-            op(stmt->expression());
-
-        if ( auto br = bb->junction()->as<BranchJunction>() ) {
-            if ( br->statement() )
-                op(*br->condition());
-        }
-        else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {
-            if ( ret->statement() )
-                op(*ret->expression());
-        }
-
-        if ( trace.advanceBlock() != FlowTracer::Forward ) {
-            auto flow = trace.advancePath();
-            while ( flow == FlowTracer::Repeat )
-                flow = trace.advancePath();
-
-            if ( flow == FlowTracer::None )
-                break;
-        }
-    }
-
-    // Flow connectivity
-    for ( auto& ext : myExtents ) {
-        for ( auto b : ext.blocks() ) {
-            for ( auto incoming : b->bb->incoming() ) {
-                for ( auto b2 : ext.blocks() ) {
-                    if ( b2->bb == incoming ) {
-                        b2->succ.push_back(b);
-                        b->pred.push_back(b2);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    for ( auto& ext : myExtents )
-        ext.pruneEmptyBlocks();
-
-    SymRes ret;
-    for ( auto& ext : myExtents )
-        ret |= ext.cacheLocalFlows(ctx);
-
-    return ret;
+    return buildVariableExtents(ctx, *this, myExtents);
 }
 
 //

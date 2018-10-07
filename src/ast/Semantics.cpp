@@ -259,7 +259,12 @@ public:
 
     // statements
 public:
-    result_t stmtExpression(Statement const& s)
+    result_t stmtExpression(ExpressionStatement const& s)
+    {
+        return dispatch(s.expression());
+    }
+
+    result_t stmtVariable(VariableStatement const& s)
     {
         return dispatch(s.expression());
     }
@@ -830,9 +835,14 @@ struct MetaVariableVisitor
         return false;
     }
 
-    result_t stmtExpression(Statement& e)
+    result_t stmtExpression(ExpressionStatement& s)
     {
-        return dispatch(e.expression());
+        return dispatch(s.expression());
+    }
+
+    result_t stmtVariable(VariableStatement& s)
+    {
+        return dispatch(s.expression());
     }
 
     result_t juncBranch(BranchJunction& b)
@@ -967,9 +977,14 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t stmtExpression(Statement const& e)
+    result_t stmtExpression(ExpressionStatement const& s)
     {
-        return dispatch(e.expression());
+        return dispatch(s.expression());
+    }
+
+    result_t stmtVariable(VariableStatement const& s)
+    {
+        return dispatch(s.expression());
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -1074,7 +1089,7 @@ struct FrontToken
         if ( bb->statements().empty() )
             return dispatch(*bb->junction());
 
-        return dispatch(bb->statements().front()->expression());
+        return dispatch(*bb->statements().front());
     }
 
     result_t exprArrow(ArrowExpression const& a)
@@ -1087,9 +1102,14 @@ struct FrontToken
         throw std::runtime_error("no front token for universe-expression");
     }
 
-    result_t stmtExpression(Statement const& e)
+    result_t stmtExpression(ExpressionStatement const& s)
     {
-        return dispatch(e.expression());
+        return dispatch(s.expression());
+    }
+
+    result_t stmtVariable(VariableStatement const& s)
+    {
+        return s.variable().symbol().token();
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -1311,9 +1331,20 @@ struct PrintOperator
         return stream << "Universe<" << u.level() << ">";
     }
 
-    result_t stmtExpression(Statement const& s)
+    result_t stmtExpression(ExpressionStatement const& s)
     {
         return dispatch(s.expression());
+    }
+
+    result_t stmtVariable(VariableStatement const& s)
+    {
+        stream << ":= " << s.variable().symbol().token().lexeme();
+        if ( auto e = s.initializer() ) {
+            stream << " = ";
+            dispatch(*e);
+        }
+
+        return stream;
     }
 
     result_t juncBranch(BranchJunction const& b)

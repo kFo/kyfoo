@@ -6,8 +6,11 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Fabrication.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
+#include <kyfoo/ast/Variance.hpp>
+#include <kyfoo/ast/Visitors.hpp>
 
 namespace kyfoo::ast {
 
@@ -38,14 +41,8 @@ namespace kyfoo::ast {
 //
 // Statement
 
-Statement::Statement(Box<Expression> expr)
-    : Statement(Kind::Expression, std::move(expr))
-{
-}
-
-Statement::Statement(Kind kind, Box<Expression> expr)
+Statement::Statement(Kind kind)
     : myKind(kind)
-    , myExpression(std::move(expr))
 {
 }
 
@@ -60,19 +57,9 @@ Statement& Statement::operator = (Statement const& rhs)
     return *this;
 }
 
-Statement::Statement(Statement&& rhs)
-    : myKind(rhs.myKind)
-    , myExpression(std::move(rhs.myExpression))
-    , myUnnamedVariables(std::move(rhs.myUnnamedVariables))
-{
-}
+Statement::Statement(Statement&& rhs) = default;
 
-Statement& Statement::operator = (Statement&& rhs)
-{
-    new (this) Statement(std::move(rhs));
-    rhs.~Statement();
-    return *this;
-}
+Statement& Statement::operator = (Statement&& rhs) = default;
 
 Statement::~Statement() = default;
 
@@ -80,58 +67,26 @@ void Statement::swap(Statement& rhs) noexcept
 {
     using kyfoo::swap;
     swap(myKind, rhs.myKind);
-    swap(myExpression, rhs.myExpression);
     swap(myUnnamedVariables, rhs.myUnnamedVariables);
+    swap(myAssignExpressions, rhs.myAssignExpressions);
 }
 
 IMPL_CLONE_NOBASE_BEGIN(Statement, Statement)
-IMPL_CLONE_CHILD(myExpression)
 IMPL_CLONE_CHILD(myUnnamedVariables)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Statement)
-IMPL_CLONE_REMAP(myExpression)
 IMPL_CLONE_REMAP(myUnnamedVariables)
 IMPL_CLONE_REMAP(myAssignExpressions)
 IMPL_CLONE_REMAP_END
 
-SymRes Statement::resolveSymbols(Context& ctx)
+SymRes Statement::resolveSymbols(Context&)
 {
-    if ( !ctx.resolveExpression(myExpression) ) {
-        ctx.error(*myExpression) << "unresolved symbols in sequence";
-        return SymRes::Fail;
-    }
-
-    if ( auto ass = myExpression->as<AssignExpression>() ) {
-        if ( auto id = ass->left().as<IdentifierExpression>() ) {
-            if ( id->token().kind() == lexer::TokenKind::Undefined ) {
-                auto e = find_if(begin(myUnnamedVariables), end(myUnnamedVariables),
-                                 [&](auto const& rhs) { return rhs.get() == id->declaration(); });
-                if ( e != end(myUnnamedVariables) ) {
-                    myUnnamedVariables.erase(e);
-                    myAssignExpressions.erase(find(begin(myAssignExpressions), end(myAssignExpressions),
-                                                   ass));
-                    myExpression = ass->takeRight();
-                }
-            }
-        }
-    }
-
     return SymRes::Success;
 }
 
 Statement::Kind Statement::kind() const
 {
     return myKind;
-}
-
-Expression const& Statement::expression() const
-{
-    return *myExpression;
-}
-
-Expression& Statement::expression()
-{
-    return *myExpression;
 }
 
 Slice<VariableDeclaration const*> Statement::unnamedVariables() const
@@ -152,12 +107,192 @@ VariableDeclaration const* Statement::createUnnamedVariable(ProcedureScope& scop
 }
 
 Box<AssignExpression> Statement::appendUnnamedExpression(ProcedureScope& scope,
-                                                                     Box<Expression> expr)
+                                                         Box<Expression> expr)
 {
     auto var = createUnnamedVariable(scope, *expr->type());
     auto ret = mk<AssignExpression>(*var, std::move(expr));
     myAssignExpressions.push_back(ret.get());
     return ret;
+}
+
+void Statement::flattenTopSubexpression(Box<Expression>& topExpr) noexcept
+{
+    if ( auto ass = topExpr->as<AssignExpression>() ) {
+        if ( auto id = ass->left().as<IdentifierExpression>() ) {
+            if ( id->token().kind() == lexer::TokenKind::Undefined ) {
+                auto e = find_if(begin(myUnnamedVariables), end(myUnnamedVariables),
+                                 [&](auto const& rhs) { return rhs.get() == id->declaration(); });
+                if ( e != end(myUnnamedVariables) ) {
+                    myUnnamedVariables.erase(e);
+                    myAssignExpressions.erase(find(begin(myAssignExpressions), end(myAssignExpressions),
+                                                   ass));
+                    topExpr = ass->takeRight();
+                }
+            }
+        }
+    }
+}
+
+//
+// ExpressionStatement
+
+ExpressionStatement::ExpressionStatement(Box<Expression> expr)
+    : Statement(Kind::Expression)
+    , myExpression(std::move(expr))
+{
+}
+
+ExpressionStatement::ExpressionStatement(ExpressionStatement const& rhs)
+    : Statement(rhs)
+{
+}
+
+ExpressionStatement& ExpressionStatement::operator = (ExpressionStatement const& rhs)
+{
+    ExpressionStatement(rhs).swap(*this);
+    return *this;
+}
+
+ExpressionStatement::ExpressionStatement(ExpressionStatement&& rhs) = default;
+ExpressionStatement& ExpressionStatement::operator = (ExpressionStatement&& rhs) = default;
+
+ExpressionStatement::~ExpressionStatement() = default;
+
+void ExpressionStatement::swap(ExpressionStatement& rhs) noexcept
+{
+    Statement::swap(rhs);
+    using kyfoo::swap;
+    swap(myExpression, rhs.myExpression);
+}
+
+IMPL_CLONE_BEGIN(ExpressionStatement, Statement, Statement)
+IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(ExpressionStatement, Statement)
+IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP_END
+
+SymRes ExpressionStatement::resolveSymbols(Context& ctx)
+{
+    if ( !ctx.resolveExpression(myExpression) ) {
+        ctx.error(*myExpression) << "unresolved symbols in sequence";
+        return SymRes::Fail;
+    }
+
+    flattenTopSubexpression(myExpression);
+    return SymRes::Success;
+}
+
+Expression const& ExpressionStatement::expression() const
+{
+    return *myExpression;
+}
+
+Expression& ExpressionStatement::expression()
+{
+    return *myExpression;
+}
+
+//
+// VariableStatement
+
+VariableStatement::VariableStatement(VariableDeclaration& var, Box<Expression> expr)
+    : Statement(Kind::Variable)
+    , myVariable(&var)
+    , myInitializer(std::move(expr))
+{
+}
+
+VariableStatement::VariableStatement(VariableStatement const& rhs)
+    : Statement(rhs)
+    , myVariable(rhs.myVariable)
+{
+}
+
+VariableStatement& VariableStatement::operator = (VariableStatement const& rhs)
+{
+    VariableStatement(rhs).swap(*this);
+    return *this;
+}
+
+VariableStatement::VariableStatement(VariableStatement&& rhs) = default;
+
+VariableStatement& VariableStatement::operator = (VariableStatement&& rhs) = default;
+
+VariableStatement::~VariableStatement() = default;
+
+void VariableStatement::swap(VariableStatement& rhs) noexcept
+{
+    Statement::swap(rhs);
+    using kyfoo::swap;
+    swap(myVariable, rhs.myVariable);
+    swap(myInitializer, rhs.myInitializer);
+}
+
+IMPL_CLONE_BEGIN(VariableStatement, Statement, Statement)
+IMPL_CLONE_CHILD(myInitializer)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(VariableStatement, Statement)
+IMPL_CLONE_REMAP(myVariable)
+IMPL_CLONE_REMAP(myInitializer)
+IMPL_CLONE_REMAP_END
+
+SymRes VariableStatement::resolveSymbols(Context& ctx)
+{
+    if ( !myInitializer ) {
+        if ( !myVariable->type() ) {
+            ctx.error(*myVariable) << "is not typed";
+            return SymRes::Fail;
+        }
+
+        return SymRes::Success;
+    }
+
+    auto ret = ctx.resolveExpression(myInitializer);
+    if ( !ret )
+        return ret;
+
+    flattenTopSubexpression(myInitializer);
+
+    if ( myVariable->type() ) {
+        if ( variance(ctx, *myVariable->type(), *myInitializer) )
+            return ret;
+
+        ProcedureDeclaration const* proc = findImplicitConversion(ctx, *myVariable->type(), *myInitializer);
+        if ( proc ) {
+            myInitializer = createApply(createIdentifier(*proc), std::move(myInitializer));
+            if ( !ctx.resolveExpression(myInitializer) )
+                throw std::runtime_error("implicit conversion error");
+
+            if ( variance(ctx, *myVariable->type(), *myInitializer) )
+                return ret;
+        }
+
+        ctx.error(*myVariable) << "cannot convert " << *myInitializer << " to " << *myVariable->type();
+        return SymRes::Fail;
+    }
+
+    myVariable->addConstraint(clone(*myInitializer->type()));
+    ret |= ctx.resolveDeclaration(*myVariable);
+    if ( !ret )
+        return ret;
+
+    if ( !myVariable->type() ) {
+        ctx.error(*myVariable) << "cannot be typed";
+        return SymRes::Fail;
+    }
+
+    return ret;
+}
+
+VariableDeclaration const& VariableStatement::variable() const
+{
+    return *myVariable;
+}
+
+Expression const* VariableStatement::initializer() const
+{
+    return myInitializer.get();
 }
 
 //
@@ -200,7 +335,7 @@ BranchJunction::BranchJunction(lexer::Token token,
     : Junction(Kind::Branch)
     , myToken(std::move(token))
     , myLabel(std::move(label))
-    , myCondition(mk<Statement>(std::move(condition)))
+    , myCondition(mk<ExpressionStatement>(std::move(condition)))
 {
 }
 
@@ -318,7 +453,7 @@ ReturnJunction::ReturnJunction(lexer::Token token,
     , myToken(std::move(token))
 {
     if ( expression )
-        myExpression = mk<Statement>(std::move(expression));
+        myExpression = mk<ExpressionStatement>(std::move(expression));
 }
 
 ReturnJunction::ReturnJunction(ReturnJunction const& rhs)
@@ -614,9 +749,9 @@ void BasicBlock::appendIncoming(BasicBlock& from)
         myIncoming.push_back(&from);
 }
 
-void BasicBlock::append(Box<Expression> expr)
+void BasicBlock::append(Box<Statement> stmt)
 {
-    myStatements.emplace_back(mk<Statement>(std::move(expr)));
+    myStatements.emplace_back(std::move(stmt));
 }
 
 void BasicBlock::setJunction(Box<Junction> junction)
@@ -684,12 +819,16 @@ void Extent::appendBlock(BasicBlock const& bb)
         myFirstUses.emplace_back(myBlocks.back().get());
 }
 
-void Extent::appendUsage(BasicBlock const& bb, Expression const& expr, Usage::Kind kind)
+void Extent::appendUsage(BasicBlock const& bb, Statement const& stmt, Usage::Kind kind)
 {
-    if ( myBlocks.empty() || myBlocks.back()->bb != &bb )
-        appendBlock(bb);
+    ensureBlock(bb);
+    myBlocks.back()->uses.emplace_back(Usage{&stmt, nullptr, kind});
+}
 
-    myBlocks.back()->uses.push_back(Usage{&expr, kind});
+void Extent::appendUsage(BasicBlock const& bb, Statement const& stmt, Expression const& expr, Usage::Kind kind)
+{
+    ensureBlock(bb);
+    myBlocks.back()->uses.emplace_back(Usage{&stmt, &expr, kind});
 }
 
 void Extent::pruneEmptyBlocks()
@@ -703,8 +842,8 @@ void Extent::pruneEmptyBlocks()
         for ( auto p : (*b)->pred ) {
             for ( auto s : (*b)->succ ) {
                 if ( find(p->succ.begin(), p->succ.end(), s) == p->succ.end() ) {
-                    p->succ.push_back(s);
-                    s->pred.push_back(p);
+                    p->succ.emplace_back(s);
+                    s->pred.emplace_back(p);
                 }
             }
 
@@ -716,8 +855,10 @@ void Extent::pruneEmptyBlocks()
 
         if ( auto e = find(begin(myFirstUses), end(myFirstUses), b->get()); e != end(myFirstUses) ) {
             myFirstUses.erase(e);
-            for ( auto s : (*b)->succ )
-                myFirstUses.push_back(&*s);
+            for ( auto s : (*b)->succ ) {
+                if ( find(begin(myFirstUses), end(myFirstUses), s) == end(myFirstUses) )
+                    myFirstUses.emplace_back(s);
+            }
         }
 
         b = myBlocks.erase(b);
@@ -803,14 +944,26 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
 
         for ( auto p : b->pred ) {
             if ( !providesValue(p) ) {
-                (ctx.error(*b->uses[0].expr) << "is not defined on all incoming paths")
-                    .see(*p->bb->scope(), *p->uses[0].expr);
+                auto& err = b->uses[0].expr ? ctx.error(*b->uses[0].expr)
+                                            : ctx.error(*b->uses[0].stmt);
+                err << "is not defined on all incoming paths";
+                if ( p->uses[0].expr )
+                    err.see(*p->bb->scope(), *p->uses[0].expr);
+                else
+                    err.see(*myDeclaration);
+
                 return SymRes::Fail;
             }
         }
     }
 
     return SymRes::Success;
+}
+
+void Extent::ensureBlock(BasicBlock const& bb)
+{
+    if ( myBlocks.empty() || myBlocks.back()->bb != &bb )
+        appendBlock(bb);
 }
 
 //
@@ -875,6 +1028,262 @@ FlowTracer::Shape FlowTracer::checkRepetition()
             return Repeat;
 
     return Forward;
+}
+
+//
+// misc
+
+template <typename Dispatcher>
+struct Sequencer
+{
+    using result_t = void;
+    using extent_set_t = std::set<Extent*, ExtentCompare>;
+
+    Dispatcher& dispatch;
+
+    Context& ctx;
+    extent_set_t& extents;
+    BasicBlock const& basicBlock;
+    Statement const* currentStmt = nullptr;
+    bool refCtx = false;
+    bool writeCtx = false;
+
+    Sequencer(Dispatcher& dispatch,
+              Context& ctx,
+              extent_set_t& extents,
+              BasicBlock const& bb)
+        : dispatch(dispatch)
+        , ctx(ctx)
+        , extents(extents)
+        , basicBlock(bb)
+    {
+    }
+
+    result_t recurse(Slice<Expression const*> exprs)
+    {
+        for ( auto e : exprs )
+            dispatch(*e);
+    }
+
+    Extent::Usage::Kind currentUsage()
+    {
+        if ( writeCtx )
+            return Extent::Usage::Write;
+
+        if ( refCtx )
+            return Extent::Usage::Ref;
+        
+        return Extent::Usage::Read;
+    }
+
+    result_t stmtExpression(ExpressionStatement const& estmt)
+    {
+        currentStmt = &estmt;
+        return dispatch(estmt.expression());
+    }
+
+    result_t stmtVariable(VariableStatement const& vstmt)
+    {
+        if ( auto expr = vstmt.initializer() ) {
+            currentStmt = &vstmt;
+            dispatch(*expr);
+
+            if ( auto ext = extents.find(vstmt.variable()); ext != end(extents) )
+                (*ext)->appendUsage(basicBlock, vstmt, Extent::Usage::Write);
+        }
+    }
+
+    result_t juncBranch(BranchJunction const& br)
+    {
+        if ( br.statement() ) {
+            currentStmt = br.statement();
+            return dispatch(*br.condition());
+        }
+    }
+
+    result_t juncReturn(ReturnJunction const& ret)
+    {
+        if ( ret.statement() ) {
+            currentStmt = ret.statement();
+            return dispatch(*ret.expression());
+        }
+    }
+
+    result_t juncJump(JumpJunction const&)
+    {
+        // nop
+    }
+
+    result_t exprLiteral(LiteralExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprIdentifier(IdentifierExpression const& id)
+    {
+        if ( auto d = id.declaration() ) {
+            auto ext = extents.find(*d);
+            if ( ext != extents.end() )
+                (*ext)->appendUsage(basicBlock, *currentStmt, id, currentUsage());
+        }
+    }
+
+    result_t exprTuple(TupleExpression const& t)
+    {
+        recurse(t.expressions());
+    }
+
+    result_t exprApply(ApplyExpression const& a)
+    {
+        check_point writeCtx;
+        writeCtx = false;
+
+        {
+            check_point refCtx;
+            refCtx = true;
+            dispatch(*a.subject());
+        }
+
+        auto args = a.arguments();
+        if ( auto proc = a.procedure() ) {
+            auto o = proc->ordinals();
+            auto p = proc->parameters();
+            check_point refCtx;
+            for ( uz i = 0; i < args.size(); ++i ) {
+                refCtx = o[i] >= 0 && isReference(*p[o[i]]->type());
+                dispatch(*args[i]);
+            }
+
+            return;
+        }
+
+        recurse(args);
+    }
+
+    result_t exprSymbol(SymbolExpression const& s)
+    {
+        check_point refCtx;
+        check_point writeCtx;
+        refCtx = writeCtx = false;
+
+        recurse(s.expressions());
+        exprIdentifier(s);
+    }
+
+    result_t exprDot(DotExpression const& d)
+    {
+        {
+            check_point writeCtx;
+            writeCtx = false;
+
+            check_point refCtx;
+            refCtx = true;
+            for ( auto m : d.expressions()(0, $ - 1) )
+                dispatch(*m);
+        }
+
+        dispatch(*d.expressions().back());
+    }
+
+    result_t exprAssign(AssignExpression const& v)
+    {
+        check_point writeCtx;
+        check_point refCtx;
+
+        dispatch(v.right());
+        
+        writeCtx = true;
+        dispatch(v.left());
+    }
+
+    result_t exprLambda(LambdaExpression const&)
+    {
+        // nop
+    }
+
+    result_t exprArrow(ArrowExpression const& a)
+    {
+        check_point writeCtx;
+        check_point refCtx;
+        refCtx = writeCtx = false;
+
+        dispatch(a.from());
+        dispatch(a.to());
+    }
+
+    result_t exprUniverse(UniverseExpression const&)
+    {
+        // nop
+    }
+};
+
+SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, std::vector<Extent>& extents)
+{
+    // todo: crawl over declarations searching for uses
+    /*for ( auto sym : declaration()->symbol().prototype().symbolVariables() )
+        myExtents.emplace_back(*sym);*/
+
+    for ( auto param : proc.declaration()->parameters() )
+        extents.emplace_back(*param);
+
+    ycomb(
+        [&extents](auto rec, ProcedureScope const& scope) -> void {
+            for ( auto d : scope.childDeclarations() )
+                if ( d->kind() == DeclKind::Variable )
+                    extents.emplace_back(*d);
+
+            for ( auto s : scope.childScopes() )
+                rec(*s);
+        })(proc);
+
+    Sequencer<ShallowApply<Sequencer>>::extent_set_t extentSet;
+    for ( auto& ext : extents )
+        extentSet.insert(&ext);
+
+    for ( FlowTracer trace(*proc.entryBlock()); ; ) {
+        auto bb = trace.currentBlock();
+        for ( auto& ext : extents )
+            ext.appendBlock(*bb);
+
+        ShallowApply<Sequencer> op(ctx, extentSet, *bb);
+        for ( auto stmt : bb->statements() )
+            op(*stmt);
+
+        op(*bb->junction());
+
+        if ( trace.advanceBlock() != FlowTracer::Forward ) {
+            auto flow = trace.advancePath();
+            while ( flow == FlowTracer::Repeat )
+                flow = trace.advancePath();
+
+            if ( flow == FlowTracer::None )
+                break;
+        }
+    }
+
+    // Flow connectivity
+    for ( auto& ext : extents ) {
+        for ( auto b : ext.blocks() ) {
+            for ( auto incoming : b->bb->incoming() ) {
+                for ( auto b2 : ext.blocks() ) {
+                    if ( b2->bb == incoming ) {
+                        b2->succ.push_back(b);
+                        b->pred.push_back(b2);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for ( auto& ext : extents )
+        ext.pruneEmptyBlocks();
+
+    SymRes ret;
+    for ( auto& ext : extents )
+        ret |= ext.cacheLocalFlows(ctx);
+
+    return ret;
 }
 
 } // namespace kyfoo::ast

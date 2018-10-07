@@ -72,7 +72,11 @@ SymRes Declaration::resolveSymbols(Context& ctx)
 
 SymRes Declaration::resolveAttributes(Context& ctx)
 {
-    return ctx.resolveStatements(myAttributes);
+    SymRes ret;
+    for ( auto& attr : myAttributes )
+        ret |= ctx.resolveStatement(attr);
+
+    return ret;
 }
 
 DeclKind Declaration::kind() const
@@ -123,12 +127,12 @@ void Declaration::setAttributes(std::vector<Box<Expression>>&& exprs)
     exprs.clear();
 }
 
-Slice<Statement const> Declaration::attributes() const
+Slice<ExpressionStatement const> Declaration::attributes() const
 {
     return myAttributes;
 }
 
-Slice<Statement> Declaration::attributes()
+Slice<ExpressionStatement> Declaration::attributes()
 {
     return myAttributes;
 }
@@ -358,11 +362,6 @@ SymRes Binder::resolveSymbols(Context& ctx)
 
             myType = type;
         }
-    }
-
-    if ( !myType ) {
-        ctx.error(*this) << "could not deduce type from constraints";
-        return SymRes::Fail;
     }
 
     return ret;
@@ -637,7 +636,16 @@ IMPL_CLONE_REMAP_END
 
 SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 {
-    return Binder::resolveSymbols(ctx);
+    auto ret = Binder::resolveSymbols(ctx);
+    if ( !ret )
+        return ret;
+
+    if ( !myType ) {
+        ctx.error(*this) << "could not deduce type for parameter";
+        return SymRes::Fail;
+    }
+
+    return ret;
 }
 
 //

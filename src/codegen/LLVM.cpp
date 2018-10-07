@@ -653,7 +653,19 @@ struct CodeGenPass
         //};
 
         for ( auto const& stmt : block.statements() ) {
-            toValue(builder, builder.getVoidTy(), stmt->expression());
+            if ( auto estmt = stmt->as<ast::ExpressionStatement>() ) {
+                toValue(builder, builder.getVoidTy(), estmt->expression());
+            }
+            else if ( auto vstmt = stmt->as<ast::VariableStatement>() ) {
+                if ( auto expr = vstmt->initializer() ) {
+                    auto varType = toType(*vstmt->variable().type());
+                    auto val = toValue(builder, varType, *expr);
+                    if ( val->getType()->isVoidTy() )
+                        continue;
+
+                    builder.CreateStore(val, customData(vstmt->variable())->inst);
+                }
+            }
 
             //auto u = stmt->unnamedVariables();
             //if ( u.length() ) {

@@ -96,6 +96,7 @@ public:
 public:
     Error& error(lexer::Token const& token);
     Error& error(Expression const& expr);
+    Error& error(Statement const& stmt);
     Error& error(Declaration const& decl);
     uz errorCount() const;
 
@@ -144,6 +145,7 @@ public:
 
 protected:
     SymRes resolveSymbols(Expression& expr);
+    SymRes resolveSymbols(Statement& stmt);
     Lookup trackForModule(Lookup&& hit);
 
 private:

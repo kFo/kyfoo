@@ -91,11 +91,8 @@ protected:
 
     Lookup findOverload(Context& ctx, SymbolReference const& sym) const;
 
+    bool addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl);
     SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string_view name);
-    bool addSymbol(Diagnostics& dgn,
-                   Symbol const& sym,
-                   Declaration& decl);
-
     SymbolSpace* findSymbolSpace(std::string_view name) const;
 
 public:
@@ -273,6 +270,8 @@ public:
 
 public:
     void append(Box<Expression> expr);
+    void append(Box<VariableDeclaration> var, Box<Expression> expr);
+
     BasicBlock* createBasicBlock();
     void popBasicBlock();
     ProcedureScope* createChildScope(BasicBlock* mergeBlock,
@@ -280,6 +279,8 @@ public:
                                      lexer::Token label);
 
 private:
+    void appendStatement(Box<Statement> stmt);
+
     void cacheDominators();
     SymRes cacheVariableExtents(Context& ctx);
 

@@ -516,12 +516,7 @@ ProcedureScopeParser::parseNext()
         auto var = mk<ast::VariableDeclaration>(ast::Symbol(v.token),
                                                 scope(),
                                                 std::move(v.constraints));
-        static_cast<ast::Scope&>(scope()).append(std::move(var));
-        if ( v.initializer ) {
-            auto p = mk<ast::IdentifierExpression>(v.token, *scope().childDeclarations().back());
-            auto expr = mk<ast::AssignExpression>(std::move(p), std::move(v.initializer));
-            scope().append(std::move(expr));
-        }
+        scope().append(std::move(var), std::move(v.initializer));
         return {true, nullptr};
     }
 
