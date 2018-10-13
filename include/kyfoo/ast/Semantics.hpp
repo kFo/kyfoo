@@ -100,6 +100,8 @@ Expression* resolveIndirections(Expression* expr);
 Expression const* resolveIndirections(Expression const& expr);
 bool needsSubstitution(Expression const& expr);
 bool needsSubstitution(Declaration const& decl);
+bool needsSubstitutions(Symbol const& sym);
+bool requiresSubstitutions(Symbol const& sym);
 bool hasSubstitutions(Symbol const& sym);
 
 Symbol const* rootTemplate(Symbol const& symbol);
@@ -128,6 +130,13 @@ Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
 DataProductDeclaration const* methodType(ProcedureDeclaration const& proc);
 Expression const* dataType(Expression const& expr);
+
+struct UnificationResult 
+{
+    SymRes resolution;
+    Expression const* type;
+};
+UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression const*> exprs);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs);

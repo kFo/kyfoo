@@ -193,6 +193,16 @@ Expression& ExpressionStatement::expression()
     return *myExpression;
 }
 
+void ExpressionStatement::changeExpression(Box<Expression> expr)
+{
+    myExpression = std::move(expr);
+}
+
+Box<Expression> ExpressionStatement::takeExpression()
+{
+    return std::move(myExpression);
+}
+
 //
 // VariableStatement
 
@@ -451,9 +461,8 @@ ReturnJunction::ReturnJunction(lexer::Token token,
                                Box<Expression> expression)
     : Junction(Kind::Return)
     , myToken(std::move(token))
+    , myStatement(mk<ExpressionStatement>(std::move(expression)))
 {
-    if ( expression )
-        myExpression = mk<ExpressionStatement>(std::move(expression));
 }
 
 ReturnJunction::ReturnJunction(ReturnJunction const& rhs)
@@ -473,20 +482,20 @@ void ReturnJunction::swap(ReturnJunction& rhs) noexcept
 {
     Junction::swap(rhs);
     using kyfoo::swap;
-    swap(myExpression, rhs.myExpression);
+    swap(myStatement, rhs.myStatement);
 }
 
 IMPL_CLONE_BEGIN(ReturnJunction, Junction, Junction)
-IMPL_CLONE_CHILD(myExpression)
+IMPL_CLONE_CHILD(myStatement)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(ReturnJunction, Junction)
-IMPL_CLONE_REMAP(myExpression)
+IMPL_CLONE_REMAP(myStatement)
 IMPL_CLONE_REMAP_END
 
 SymRes ReturnJunction::resolveSymbols(Context& ctx, BasicBlock& /*bb*/)
 {
-    if ( myExpression )
-        return ctx.resolveStatement(*myExpression);
+    if ( myStatement )
+        return ctx.resolveStatement(*myStatement);
 
     return SymRes::Success;
 }
@@ -496,30 +505,24 @@ lexer::Token const& ReturnJunction::token() const
     return myToken;
 }
 
-Statement const* ReturnJunction::statement() const
+ExpressionStatement const& ReturnJunction::statement() const
 {
-    return myExpression.get();
+    return *myStatement;
 }
 
-Statement* ReturnJunction::statement()
+ExpressionStatement& ReturnJunction::statement()
 {
-    return myExpression.get();
+    return *myStatement;
 }
 
-Expression const* ReturnJunction::expression() const
+Expression const& ReturnJunction::expression() const
 {
-    if ( myExpression )
-        return &myExpression->expression();
-
-    return nullptr;
+    return myStatement->expression();
 }
 
-Expression* ReturnJunction::expression()
+Expression& ReturnJunction::expression()
 {
-    if ( myExpression )
-        return &myExpression->expression();
-
-    return nullptr;
+    return myStatement->expression();
 }
 
 //
@@ -1103,10 +1106,8 @@ struct Sequencer
 
     result_t juncReturn(ReturnJunction const& ret)
     {
-        if ( ret.statement() ) {
-            currentStmt = ret.statement();
-            return dispatch(*ret.expression());
-        }
+        currentStmt = &ret.statement();
+        return dispatch(ret.expression());
     }
 
     result_t juncJump(JumpJunction const&)

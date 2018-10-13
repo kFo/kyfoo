@@ -577,8 +577,7 @@ struct CodeGenPass
                         gatherStatement(*brJunc->statement());
                 }
                 else if ( auto retJunc = bb->junction()->as<ast::ReturnJunction>() ) {
-                    if ( retJunc->statement() )
-                        gatherStatement(*retJunc->statement());
+                    gatherStatement(retJunc->statement());
                 }
             }
 
@@ -681,20 +680,15 @@ struct CodeGenPass
         }
 
         if ( auto retJunc = block.junction()->as<ast::ReturnJunction>() ) {
-            if ( retJunc->expression() ) {
-                auto retType = fdata->getType()->getReturnType();
-                auto retVal = toValue(builder, retType, *retJunc->expression());
-                if ( !retVal || retType->isVoidTy() )
-                    builder.CreateRetVoid();
-                else
-                    builder.CreateRet(retVal);
-
-                return;
-            }
-
             /*createCleanupBlock(retJunc->token(), true);
             builder.CreateBr(cleanupBlocks.back());*/
-            builder.CreateRetVoid();
+
+            auto retType = fdata->getType()->getReturnType();
+            auto retVal = toValue(builder, retType, retJunc->expression());
+            if ( !retVal || retType->isVoidTy() )
+                builder.CreateRetVoid();
+            else
+                builder.CreateRet(retVal);
 
             return;
         }

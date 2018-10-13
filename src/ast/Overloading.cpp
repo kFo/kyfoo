@@ -10,25 +10,25 @@
 namespace kyfoo::ast {
 
 //
-// ParameterViability
+// Viability
 
-ParameterViability::ParameterViability(Variance v, ProcedureDeclaration const* conversion)
+Viability::Viability(Variance v, ProcedureDeclaration const* conversion)
     : myVariance(v)
     , myConversion(conversion)
 {
 }
 
-Variance ParameterViability::variance() const
+Variance Viability::variance() const
 {
     return myVariance;
 }
 
-ProcedureDeclaration const* ParameterViability::conversion() const
+ProcedureDeclaration const* Viability::conversion() const
 {
     return myConversion;
 }
 
-ParameterViability::operator bool() const
+Viability::operator bool() const
 {
     return conversion() || myVariance;
 }
@@ -41,22 +41,27 @@ void OverloadViability::append(Variance v, ProcedureDeclaration const* conversio
     myViabilities.emplace_back(v, conversion);
 }
 
-std::vector<ParameterViability>::const_iterator OverloadViability::begin() const
+void OverloadViability::append(Viability pv)
+{
+    myViabilities.emplace_back(std::move(pv));
+}
+
+std::vector<Viability>::const_iterator OverloadViability::begin() const
 {
     return myViabilities.begin();
 }
 
-std::vector<ParameterViability>::iterator OverloadViability::begin()
+std::vector<Viability>::iterator OverloadViability::begin()
 {
     return myViabilities.begin();
 }
 
-std::vector<ParameterViability>::const_iterator OverloadViability::end() const
+std::vector<Viability>::const_iterator OverloadViability::end() const
 {
     return myViabilities.end();
 }
 
-std::vector<ParameterViability>::iterator OverloadViability::end()
+std::vector<Viability>::iterator OverloadViability::end()
 {
     return myViabilities.end();
 }
@@ -71,12 +76,12 @@ uz OverloadViability::size() const
     return myViabilities.empty();
 }
 
-ParameterViability const& OverloadViability::operator [] (uz index) const
+Viability const& OverloadViability::operator [] (uz index) const
 {
     return myViabilities[index];
 }
 
-ParameterViability& OverloadViability::operator [] (uz index)
+Viability& OverloadViability::operator [] (uz index)
 {
     return myViabilities[index];
 }
@@ -119,7 +124,7 @@ Declaration* Via::instantiate(Context& ctx)
 
     for ( uz i = 0; i < mySubsts.size(); ++i ) {
         if ( needsSubstitution(mySubsts.expr(i)) )
-            throw std::runtime_error("cannot instantiate template with unbound symbol variable");
+            throw std::runtime_error("cannot instantiate template without substitution for symbol variable");
     }
 
     // use existing instantiation if it exists
@@ -580,6 +585,17 @@ findImplicitConversion(Context& ctx, Expression const& dest, Expression const& s
     return ctx.matchOverload(*templDefn, Resolver::Narrow, SymbolReference("", slice(s))).singleAs<ProcedureDeclaration>();
 }
 
+Viability implicitViability(Context& ctx, Expression const& dest, Expression const& src)
+{
+    auto v = variance(ctx, dest, src);
+    if ( !v ) {
+        if ( auto proc = findImplicitConversion(ctx, dest, src) )
+            return Viability(v, proc);
+    }
+
+    return Viability(v, nullptr);
+}
+
 OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest, Slice<Expression const*> src)
 {
     OverloadViability ret;
@@ -587,17 +603,8 @@ OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest,
     if ( size != src.size() )
         throw std::runtime_error("overload arity mismatch");
 
-    for ( uz i = 0; i < size; ++i ) {
-        auto v = variance(ctx, *dest[i], *src[i]);
-        if ( !v ) {
-            if ( auto proc = findImplicitConversion(ctx, *dest[i], *src[i]) ) {
-                ret.append(v, proc);
-                continue;
-            }
-        }
-
-        ret.append(v, nullptr);
-    }
+    for ( uz i = 0; i < size; ++i )
+        ret.append(implicitViability(ctx, *dest[i], *src[i]));
 
     return ret;
 }

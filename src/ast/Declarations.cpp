@@ -768,22 +768,34 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     REVERT = ctx.pushResolver(resolver);
 
     // Resolve return
-    // todo: return type deduction
-    if ( isDtor(*this) ) {
-        if ( myReturnExpression ) {
-            ctx.error(*myReturnExpression) << "destructor cannot have a return type";
+
+    if ( !myReturnExpression ) {
+        if ( !definition() ) {
+            ctx.error(*this) << "procedure declaration is missing a return type";
             return SymRes::Fail;
         }
 
-        myReturnExpression = createEmptyExpression();
-    }
+        if ( needsSubstitutions(symbol()) ) {
+            ctx.error(*this) << "cannot infer return type for procedure requiring substitutions";
+            return SymRes::Fail;
+        }
 
-    if ( !myReturnExpression ) {
-        ctx.error(symbol().token()) << "inferred return type not implemented";
-        return SymRes::Fail;
+        ret |= ctx.resolveScope(*definition());
+        if ( !ret )
+            return ret;
+
+        auto deducedReturnType = definition()->deduceReturnType(ctx);
+        if ( !deducedReturnType ) {
+            ctx.error(*this) << "could not deduce return type for procedure";
+            return SymRes::Fail;
+        }
+
+        myReturnExpression = clone(deducedReturnType);
     }
 
     ret |= ctx.resolveExpression(myReturnExpression);
+    if ( !ret )
+        return ret;
 
     myResult = mk<ProcedureParameter>(
         Symbol(lexer::Token(lexer::TokenKind::Identifier, "result", id.location())),
@@ -800,7 +812,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
         paramTypes.emplace_back(ast::clone(p->type()));
 
     myType = mk<ArrowExpression>(mk<TupleExpression>(TupleKind::Open, std::move(paramTypes)),
-                                               ast::clone(myResult->type()));
+                                 ast::clone(myResult->type()));
     ret |= ctx.resolveExpression(*myType);
 
     return ret;

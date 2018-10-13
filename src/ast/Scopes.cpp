@@ -100,15 +100,33 @@ void Scope::resolveImports(Diagnostics& dgn)
         defn->resolveImports(dgn);
 }
 
+SymRes Scope::resolveAttributes(Context& ctx)
+{
+    if ( myAttribRes )
+        return *myAttribRes;
+
+    myAttribRes.emplace(SymRes::Success);
+    for ( auto& d : myDeclarations )
+        *myAttribRes |= d->resolveAttributes(ctx);
+
+    for ( auto& s : myDefinitions )
+        *myAttribRes |= ctx.resolveScopeAttributes(*s);
+
+    return *myAttribRes;
+}
+
 SymRes Scope::resolveDeclarations(Context& ctx)
 {
-    SymRes ret = SymRes::Success;
+    if ( myDeclRes )
+        return *myDeclRes;
+
+    myDeclRes.emplace(SymRes::Success);
     SymbolDependencyTracker tracker(module(), ctx.diagnostics());
     for ( auto const& d : myDeclarations )
-        ret |= traceDependencies(tracker, *d);
+        *myDeclRes |= traceDependencies(tracker, *d);
 
-    if ( ret.error() )
-        return ret;
+    if ( myDeclRes->error() )
+        return *myDeclRes;
 
     tracker.sortPasses();
 
@@ -123,62 +141,53 @@ SymRes Scope::resolveDeclarations(Context& ctx)
                 for ( auto dep : symGroup->dependents )
                     dep->upstreamErrors = true;
             }
-            ret |= res;
+            *myDeclRes |= res;
 
             addSymbol(ctx.diagnostics(), d->symbol(), *d);
         }
     }
 
-    if ( ret.error() )
-        return ret;
+    if ( myDeclRes->error() )
+        return *myDeclRes;
 
-    if ( ret.error() )
-        return ret;
+    if ( myDeclRes->error() )
+        return *myDeclRes;
 
     for ( auto& decl : myDeclarations ) {
         if ( decl->symbol().prototype().isConcrete() )
             if ( auto defn = getDefinition(*decl) )
-                ret |= ctx.resolveScopeDeclarations(*defn);
+                *myDeclRes |= ctx.resolveScopeDeclarations(*defn);
     }
 
-    if ( ret.error() )
-        return ret;
+    if ( myDeclRes->error() )
+        return* myDeclRes;
 
-    if ( ret.error() )
-        return ret;
+    if ( myDeclRes->error() )
+        return *myDeclRes;
 
     // Resolve lambdas
     for ( auto& l : myLambdas )
-        ret |= ctx.resolveDeclaration(*l);
+        *myDeclRes |= ctx.resolveDeclaration(*l);
 
-    return ret;
+    return *myDeclRes;
 }
 
 SymRes Scope::resolveDefinitions(Context& ctx)
 {
-    SymRes ret;
+    if ( myDefnRes )
+        return *myDefnRes;
+
+    myDefnRes.emplace(SymRes::Success);
 
     // Resolve definitions
     for ( auto& defn : myDefinitions )
         if ( defn->declaration()->symbol().prototype().isConcrete() )
-            ret |= ctx.resolveScopeDefinitions(*defn);
+            *myDefnRes |= ctx.resolveScopeDefinitions(*defn);
 
-    if ( ret.error() )
-        return ret;
+    if ( myDefnRes->error() )
+        return *myDefnRes;
 
-    return ret;
-}
-
-SymRes Scope::resolveAttributes(Context& ctx)
-{
-    SymRes ret;
-    for ( auto& d : myDeclarations )
-        ret |= d->resolveAttributes(ctx);
-
-    for ( auto& s : myDefinitions )
-        ret |= ctx.resolveScopeAttributes(*s);
-
-    return ret;
+    return *myDefnRes;
 }
 
 Lookup Scope::findEquivalent(SymbolReference const& symbol) const
@@ -195,6 +204,19 @@ Lookup Scope::findEquivalent(SymbolReference const& symbol) const
             ret.resolveTo(*symVar);
 
     return ret;
+}
+
+SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
+{
+    std::string name = "?";
+    name += myMetaVariables.size();
+    name += "_";
+    name += tok.lexeme();
+    lexer::Token metaTok(lexer::TokenKind::MetaVariable,
+                         std::move(name),
+                         tok.location());
+    myMetaVariables.emplace_back(mk<SymbolVariable>(std::move(metaTok), *this));
+    return *myMetaVariables.back();
 }
 
 void Scope::setDeclaration(DefinableDeclaration& declaration)
@@ -385,12 +407,15 @@ IMPL_CLONE_REMAP_END
 
 SymRes DataSumScope::resolveDeclarations(Context& ctx)
 {
+    if ( myDeclRes )
+        return *myDeclRes;
+
     for ( auto const& d : myDeclarations ) {
         auto dsCtor = d->as<DataSumDeclaration::Constructor>();
         if ( !dsCtor )
             throw std::runtime_error("data sum must only contain constructors");
 
-        myCtors.push_back(dsCtor);
+        myCtors.emplace_back(dsCtor);
     }
 
     return Scope::resolveDeclarations(ctx);
@@ -454,9 +479,12 @@ IMPL_CLONE_REMAP_END
 
 SymRes DataProductScope::resolveDeclarations(Context& ctx)
 {
+    if ( myDeclRes )
+        return *myDeclRes;
+
     for ( auto& d : myDeclarations )
         if ( auto v = d->as<DataProductDeclaration::Field>() )
-            myFields.push_back(v);
+            myFields.emplace_back(v);
 
     return Scope::resolveDeclarations(ctx);
 }
@@ -568,24 +596,31 @@ SymRes ProcedureScope::resolveDeclarations(Context& ctx)
 
 SymRes ProcedureScope::resolveDefinitions(Context& ctx)
 {
-    auto ret = Scope::resolveDefinitions(ctx);
+    if ( myDefnRes )
+        return *myDefnRes;
+
+    Scope::resolveDefinitions(ctx);
 
     for ( auto& bb : myBasicBlocks )
-        ret |= bb->resolveSymbols(ctx);
+        *myDefnRes |= bb->resolveSymbols(ctx);
 
     for ( auto& s : myChildScopes )
-        ret |= ctx.resolveScope(*s);
+        *myDefnRes |= ctx.resolveScope(*s);
 
-    if ( !ret )
-        return ret;
+    if ( !*myDefnRes )
+        return *myDefnRes;
 
     if ( !isTop() )
-        return ret;
+        return *myDefnRes;
+
+    *myDefnRes |= resolveReturn(ctx);
+    if ( !*myDefnRes )
+        return *myDefnRes;
 
     cacheDominators();
-    ret |= cacheVariableExtents(ctx);
+    *myDefnRes |= cacheVariableExtents(ctx);
 
-    return ret;
+    return *myDefnRes;
 }
 
 bool ProcedureScope::isJumpTarget() const
@@ -664,6 +699,29 @@ BasicBlock const* ProcedureScope::entryBlock() const
     return myBasicBlocks.front().get();
 }
 
+Expression const* ProcedureScope::deduceReturnType(Context& ctx)
+{
+    std::vector<BasicBlock const*> returnBlocks;
+    std::vector<Expression const*> returnTypes;
+    ycomb([&returnBlocks, &returnTypes](auto rec, ProcedureScope& scope) -> void {
+        for ( auto b : scope.basicBlocks() ) {
+            if ( auto ret = b->junction()->as<ReturnJunction>() ) {
+                returnBlocks.emplace_back(b);
+                returnTypes.emplace_back(&ret->expression());
+            }
+        }
+
+        for ( auto c : scope.childScopes() )
+            rec(*c);
+    })(*this);
+
+    auto [ret, type] = unify(ctx, *declaration(), returnTypes);
+    if ( !ret )
+        return nullptr;
+
+    return type;
+}
+
 void ProcedureScope::append(Box<Expression> expr)
 {
     appendStatement(mk<ExpressionStatement>(std::move(expr)));
@@ -702,6 +760,37 @@ void ProcedureScope::appendStatement(Box<Statement> stmt)
         createBasicBlock();
 
     myBasicBlocks.back()->append(std::move(stmt));
+}
+
+SymRes ProcedureScope::resolveReturn(Context& ctx)
+{
+    auto const* returnType = declaration()->returnType();
+    if ( !returnType )
+        returnType = deduceReturnType(ctx);
+
+    return ycomb([&](auto rec, ProcedureScope& proc) -> SymRes {
+        SymRes ret;
+        for ( auto bb : proc.basicBlocks() ) {
+            if ( auto r = bb->junction()->as<ReturnJunction>() ) {
+                auto iv = implicitViability(ctx, *returnType, r->expression());
+                if ( !iv ) {
+                    ctx.error(*r) << "cannot be converted to " << *returnType;
+                    ret = SymRes::Fail;
+                }
+
+                if ( iv.conversion() ) {
+                    r->statement().changeExpression(createApply(createIdentifier(*iv.conversion()),
+                                                                r->statement().takeExpression()));
+                    ret |= ctx.resolveStatement(r->statement());
+                }
+            }
+        }
+
+        for ( auto s : proc.childScopes() )
+            ret |= rec(*s);
+
+        return ret;
+    })(*this);
 }
 
 void ProcedureScope::cacheDominators()

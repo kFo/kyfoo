@@ -560,14 +560,9 @@ struct DotWriter
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(ret);
-        if ( auto expr = ret.expression() ) {
-            stream << node.id << " [label=\"[:.] | ";
-            op(*expr);
-            stream << "\"]\n";
-        }
-        else {
-            stream << node.id << " [label=\"[:.]\"]\n";
-        }
+        stream << node.id << " [label=\"[:.] | ";
+        op(ret.expression());
+        stream << "\"]\n";
 
         return node.id;
     }

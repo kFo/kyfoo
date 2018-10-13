@@ -60,6 +60,14 @@ createEmptyExpression()
     return mk<TupleExpression>(TupleKind::Open, std::vector<Box<Expression>>());
 }
 
+inline Box<TupleExpression>
+createEmptyExpression(lexer::SourceLocation loc)
+{
+    return mk<TupleExpression>(lexer::Token(lexer::TokenKind::OpenParen, "(", loc),
+                               lexer::Token(lexer::TokenKind::CloseParen, ")", loc),
+                               std::vector<Box<Expression>>());
+}
+
 inline Box<IdentifierExpression>
 createIdentifier(lexer::Token const& tok)
 {

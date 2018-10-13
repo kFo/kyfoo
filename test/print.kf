@@ -48,10 +48,10 @@ HEAP_ZERO_MEMORY         := 8 // 0x00000008
 
 NULL := null
 
-put(c : u8) -> () =>
+put(c : u8) =>
     := a = c
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL
-    :. 42
+    :. 42.uz
 
 pow<\T>(base : T, exp : u32) -> T =>
     := ret : T = 1
@@ -61,7 +61,7 @@ pow<\T>(base : T, exp : u32) -> T =>
         i.dec
     :. ret
 
-put(num : u32) -> () =>
+put(num : u32) =>
     := digits : ascii = "0123456789"
     := buffer : u8..10
     := n = num
@@ -77,11 +77,11 @@ put(num : u32) -> () =>
         i.dec
     :.
 
-put(s : ascii) -> () =>
+put(s : ascii) =>
     WriteFile(GetStdHandle STD_OUTPUT_HANDLE, s.base, trunc<u32> s.card, NULL, NULL)
     :.
 
-putLine() -> () =>
+putLine() =>
     put("\n")
     :.
 
@@ -111,7 +111,7 @@ bubbleSort(arr : ref slice<\T>) -> () =>
     :. bubbleSort arr (x y:T)->u1=>lt x y
 
 @"WriteWrapper"
-WriteWrapper(str : ascii) -> () =>
+WriteWrapper(str : ascii) =>
     := written : u32 = 0
     WriteFile(GetStdHandle STD_OUTPUT_HANDLE, str.base, trunc<u32> str.card, addr written, NULL)
     :.
@@ -130,7 +130,7 @@ ftest (x y : s32) -> s32 =>
     WriteWrapper("end\n")
     :. 55
 
-gtest(n : s32) -> () =>
+gtest(n : s32) =>
     := p = HeapAlloc GetProcessHeap 0 512
     := bytes = 0.DWORD
     := arr : u8..256
@@ -144,7 +144,7 @@ gtest(n : s32) -> () =>
         
         WriteWrapper("rawr")
     
-    arr (c : ref u8) -> () => :. WriteFile GetStdHandle-STD_OUTPUT_HANDLE c.addr 1 NULL NULL
+    arr (c : ref u8) -> BOOL => WriteFile GetStdHandle-STD_OUTPUT_HANDLE c.addr 1 NULL NULL
     
     HeapFree GetProcessHeap 0 p
     :.
@@ -158,14 +158,14 @@ delete(s:slice \T) -> () =>
     HeapFree GetProcessHeap 0 cast<LPVOID>(s.base)
     :.
 
-printLambda(a : u32->u32) -> () =>
+printLambda(a : u32->u32) =>
     put (a 23.u32)
     :.
 
-htest() -> () =>
+htest() =>
     //:= arr : u32..6 = [1, 2, 3, 4, 5, 6]
     //:= arr : u32..6
-    := arr : slice u32 = mkArray<u32> 6
+    := arr = mkArray<u32> 6
     := i = 0.u32
     :* ne i 6
         arr i = sub 6 i
@@ -192,7 +192,7 @@ htest() -> () =>
     putLine
     :.
 
-start() -> () =>
+start() =>
     ftest 1 2
     ftest 0 0
     gtest 5

@@ -72,9 +72,9 @@ public:
 
 protected:
     void resolveImports(Diagnostics& dgn);
+    SymRes resolveAttributes(Context& ctx);
     SymRes resolveDeclarations(Context& ctx);
     SymRes resolveDefinitions(Context& ctx);
-    SymRes resolveAttributes(Context& ctx);
 
 public:
     void append(Box<Declaration> declaration);
@@ -85,6 +85,8 @@ public:
     void merge(Scope& rhs);
 
     Lookup findEquivalent(SymbolReference const& symbol) const;
+
+    SymbolVariable& createMetaVariable(lexer::Token const& tok);
 
 protected:
     void setDeclaration(DefinableDeclaration& declaration);
@@ -122,6 +124,12 @@ protected:
     std::vector<Box<Declaration>> myDeclarations;
     std::vector<Box<Scope>> myDefinitions;
     std::vector<Box<ProcedureDeclaration>> myLambdas;
+    std::vector<Box<SymbolVariable>> myMetaVariables;
+
+    // cache resolution
+    mutable std::optional<SymRes> myAttribRes;
+    mutable std::optional<SymRes> myDeclRes;
+    mutable std::optional<SymRes> myDefnRes;
 
     mutable std::vector<SymbolSpace> mySymbols;
     mutable std::map<std::string, ImportDeclaration*> myImports;
@@ -268,6 +276,8 @@ public:
     BasicBlock* entryBlock();
     BasicBlock const* entryBlock() const;
 
+    Expression const* deduceReturnType(Context& ctx);
+
 public:
     void append(Box<Expression> expr);
     void append(Box<VariableDeclaration> var, Box<Expression> expr);
@@ -281,6 +291,7 @@ public:
 private:
     void appendStatement(Box<Statement> stmt);
 
+    SymRes resolveReturn(Context& ctx);
     void cacheDominators();
     SymRes cacheVariableExtents(Context& ctx);
 

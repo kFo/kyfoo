@@ -94,7 +94,7 @@ public:
     ExpressionStatement(ExpressionStatement&& rhs);
     ExpressionStatement& operator = (ExpressionStatement&& rhs);
 
-    KYFOO_DEBUG_VIRTUAL ~ExpressionStatement();
+    ~ExpressionStatement() KYFOO_DEBUG_OVERRIDE;
     void swap(ExpressionStatement& rhs) noexcept;
 
 public:
@@ -106,6 +106,10 @@ protected:
 public:
     Expression const& expression() const;
     Expression& expression();
+
+public:
+    void changeExpression(Box<Expression> expr);
+    Box<Expression> takeExpression();
 
 private:
     Box<Expression> myExpression;
@@ -260,15 +264,15 @@ protected:
 public:
     lexer::Token const& token() const;
 
-    Statement const* statement() const;
-    Statement* statement();
+    ExpressionStatement const& statement() const;
+    ExpressionStatement& statement();
 
-    Expression const* expression() const;
-    Expression* expression();
+    Expression const& expression() const;
+    Expression& expression();
 
 private:
     lexer::Token myToken;
-    Box<ExpressionStatement> myExpression;
+    Box<ExpressionStatement> myStatement;
 };
 
 class JumpJunction : public Junction

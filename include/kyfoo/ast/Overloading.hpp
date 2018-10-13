@@ -19,10 +19,10 @@ struct Prototype;
 class SymbolSpace;
 class SymbolVariable;
 
-class ParameterViability
+class Viability
 {
 public:
-    explicit ParameterViability(Variance v, ProcedureDeclaration const* conversion);
+    explicit Viability(Variance v, ProcedureDeclaration const* conversion);
 
 public:
     Variance variance() const;
@@ -51,26 +51,27 @@ public:
 
 public:
     void append(Variance v, ProcedureDeclaration const* conversion);
+    void append(Viability pv);
 
 public:
-    std::vector<ParameterViability>::const_iterator begin() const;
-    std::vector<ParameterViability>::iterator begin();
+    std::vector<Viability>::const_iterator begin() const;
+    std::vector<Viability>::iterator begin();
 
-    std::vector<ParameterViability>::const_iterator end() const;
-    std::vector<ParameterViability>::iterator end();
+    std::vector<Viability>::const_iterator end() const;
+    std::vector<Viability>::iterator end();
 
     bool empty() const;
     uz size() const;
 
-    ParameterViability const& operator [] (uz index) const;
-    ParameterViability& operator [] (uz index);
+    Viability const& operator [] (uz index) const;
+    Viability& operator [] (uz index);
 
     Variance variance() const;
 
     explicit operator bool() const;
 
 private:
-    std::vector<ParameterViability> myViabilities;
+    std::vector<Viability> myViabilities;
 };
 
 class Via
@@ -284,6 +285,7 @@ private:
 };
 
 ProcedureDeclaration const* findImplicitConversion(Context& ctx, Expression const& dest, Expression const& src);
+Viability implicitViability(Context& ctx, Expression const& dest, Expression const& src);
 OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest, Slice<Expression const*> src);
 
 } // namespace kyfoo::ast

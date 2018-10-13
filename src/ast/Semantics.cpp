@@ -9,6 +9,7 @@
 #include <kyfoo/lexer/TokenKind.hpp>
 
 #include <kyfoo/ast/Axioms.hpp>
+#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Scopes.hpp>
@@ -594,16 +595,23 @@ bool needsSubstitution(Declaration const& decl)
     return hasIndirection(decl.kind()) && lookThrough(&decl) == nullptr;
 }
 
-bool hasSubstitutions(Symbol const& sym)
+bool needsSubstitutions(Symbol const& sym)
 {
-    if ( sym.prototype().symbolVariables().empty() )
-        return false;
-
     for ( auto& v : sym.prototype().symbolVariables() )
         if ( !v->boundExpression() )
-            return false;
+            return true;
 
-    return true;
+    return false;
+}
+
+bool requiresSubstitutions(Symbol const& sym)
+{
+    return !sym.prototype().symbolVariables().empty();
+}
+
+bool hasSubstitutions(Symbol const& sym)
+{
+    return requiresSubstitutions(sym) && !needsSubstitutions(sym);
 }
 
 Symbol const* rootTemplate(Symbol const& symbol)
@@ -755,6 +763,68 @@ Expression const* dataType(Expression const& expr_)
         return expr;
 
     return nullptr;
+}
+
+UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression const*> exprs)
+{
+    std::vector<Expression const*> potentialTypes;
+    potentialTypes.reserve(exprs.size());
+    for ( auto e : exprs ) {
+        // todo: removeme
+        if ( auto tup = e->as<TupleExpression>() ) {
+            if ( !tup->expressions() ) {
+                potentialTypes.emplace_back(e);
+                continue;
+            }
+        }
+
+        potentialTypes.emplace_back(e->type());
+    }
+
+    if ( potentialTypes.empty() ) {
+        ctx.error(gov) << "does not have any types in its context";
+        return { SymRes::Fail, nullptr };
+    }
+
+    if ( potentialTypes.size() == 1 )
+        return { SymRes::Success, potentialTypes.front() };
+
+    auto commonKind = potentialTypes.front()->kind();
+    auto const size = potentialTypes.size();
+    for ( uz i = 1; i < size; ++i ) {
+        if ( potentialTypes[i]->kind() != commonKind ) {
+            (ctx.error(gov) << "has conflicting kinds of types")
+                .see(gov.scope(), *potentialTypes.front())
+                .see(gov.scope(), *potentialTypes[i]);
+            return { SymRes::Fail, nullptr };
+        }
+    }
+
+    if ( commonKind != Expression::Kind::Identifier ) {
+        ctx.error(gov) << "type deduction for tuples and arrows not implemented";
+        return { SymRes::Fail, nullptr };
+    }
+
+    struct ExprType {
+        Expression const* expr;
+        Declaration const* type;
+    } common { potentialTypes.front(), getDeclaration(potentialTypes.front()) };
+    for ( uz i = 1; i < size; ++i ) {
+        auto type = getDeclaration(*potentialTypes[i]);
+        auto const v = variance(ctx, *common.type, *type);
+        if ( v.contravariant() ) {
+            common = ExprType{ potentialTypes[i], type };
+        }
+        else if ( v.invariant() ) {
+            (ctx.error(gov) << "has conflicting types")
+                .see(gov.scope(), *common.expr)
+                .see(gov.scope(), *potentialTypes[i]);
+
+            return { SymRes::Fail, nullptr };
+        }
+    }
+
+    return { SymRes::Success, common.expr };
 }
 
 template <typename Dispatcher>
@@ -1366,10 +1436,7 @@ struct PrintOperator
     result_t juncReturn(ReturnJunction const& r)
     {
         stream << "return ";
-        if ( r.expression() )
-            return dispatch(*r.expression());
-
-        return stream;
+        return dispatch(r.expression());
     }
 
     result_t juncJump(JumpJunction const& j)

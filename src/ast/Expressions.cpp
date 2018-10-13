@@ -441,6 +441,12 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
     }
 
     myDeclaration = proc;
+    if ( !proc->type() ) {
+        (ctx.error(*this) << "refers to a procedure that is not typed")
+            .see(*proc);
+        return SymRes::Fail;
+    }
+
     myType = &proc->type()->to();
     return SymRes::Success;
 }
@@ -853,12 +859,23 @@ L_notMethod:
     if ( !ret )
         return ret;
 
-    auto arrow = subjType->as<ArrowExpression>();
-    if ( myProc )
+    ArrowExpression const* arrow ;
+    if ( myProc ) {
         arrow = myProc->type();
-
-    if ( !arrow )
-        throw std::runtime_error("proc is not typed");
+        if ( !arrow ) {
+            (ctx.error(*this) << "depends on untyped procedure")
+                .see(*myProc);
+            return SymRes::Fail;
+        }
+    }
+    else {
+        arrow = subjType->as<ArrowExpression>();
+        if ( !arrow ) {
+            (ctx.error(*this) << "attempting to apply non-arrow expression")
+                .see(ctx.resolver().scope(), *myExpressions.front());
+            return SymRes::Fail;
+        }
+    }
 
     if ( !variance(ctx, arrow->from(), arguments()) ) {
         (ctx.error(*this) << "types do not agree")

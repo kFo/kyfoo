@@ -718,6 +718,8 @@ struct ReturnJunction :
         Box<ast::Expression> expr;
         if ( auto c = factor<1>().capture() )
             expr = c->make(parser);
+        else
+            expr = ast::createEmptyExpression(factor<0>().token().location());
 
         return mk<ast::ReturnJunction>(factor<0>().token(), std::move(expr));
     }
