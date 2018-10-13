@@ -173,8 +173,13 @@ Variance variance(DiagnosticsContext dgn,
 
     if ( auto targetTuple = t->as<TupleExpression>() ) {
         auto queryTuple = q->as<TupleExpression>();
-        if ( !queryTuple )
-            return Variance::Invariant;
+        if ( !queryTuple ) {
+            auto ty = queryType->as<TupleExpression>();
+            if ( !ty )
+                return Variance::Invariant;
+
+            queryTuple = ty;
+        }
 
         if ( targetTuple->kind() != queryTuple->kind() )
             return Variance::Invariant;
