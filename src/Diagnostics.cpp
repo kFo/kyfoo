@@ -25,33 +25,60 @@ ContextReference::Ctx::Ctx(ast::Lookup&& miss)
 //
 // Error
 
-Error::Error(ast::Module const& module)
-    : myModule(&module)
+Error::Error(ast::Module const& mod)
+    : myModule(&mod)
 {
 }
 
-Error::Error(ast::Module const& module,
-             lexer::Token token)
-    : Error(module, std::move(token), General)
-{
-}
-
-Error::Error(ast::Module const& module,
-             lexer::Token token,
-             Error::Code code)
-    : myModule(&module)
-    , myToken(std::move(token))
+Error::Error(ast::Module const& mod, Code code)
+    : myModule(&mod)
     , myCode(code)
 {
 }
 
-Error::Error(ast::Module const& module,
-             ast::Expression const& expr,
-             Code code)
-    : myModule(&module)
-    , myExpression(&expr)
-    , myToken(front(expr))
+Error::Error(ast::Module const& mod,
+             Error::Code code,
+             lexer::Token tok)
+    : myModule(&mod)
     , myCode(code)
+    , myContext(&myToken)
+    , myToken(std::move(tok))
+{
+}
+
+Error::Error(ast::Module const& mod,
+             Code code,
+             ast::Expression const& expr)
+    : myModule(&mod)
+    , myCode(code)
+    , myContext(&expr)
+{
+}
+
+Error::Error(ast::Module const& mod,
+             Code code,
+             ast::Statement const& stmt)
+    : myModule(&mod)
+    , myCode(code)
+    , myContext(&stmt)
+{
+}
+
+Error::Error(ast::Module const& mod,
+             Code code,
+             ast::Junction const& junc)
+    : myModule(&mod)
+    , myCode(code)
+    , myContext(&junc)
+{
+}
+
+Error::Error(ast::Module const& mod,
+             Code code,
+             ast::Declaration const& decl)
+    : myModule(&mod)
+    , myCode(code)
+    , myContext(&decl)
 {
 }
 
@@ -60,24 +87,19 @@ ast::Module const& Error::module() const
     return *myModule;
 }
 
-std::string Error::what() const
-{
-    return myInfo.str();
-}
-
-ast::Expression const* Error::expression() const
-{
-    return myExpression;
-}
-
-lexer::Token const& Error::token() const
-{
-    return myToken;
-}
-
 Error::Code Error::code() const
 {
     return myCode;
+}
+
+Error::context_t const& Error::context() const
+{
+    return myContext;
+}
+
+std::string Error::what() const
+{
+    return myInfo.str();
 }
 
 Slice<ContextReference const> Error::references() const
@@ -151,6 +173,45 @@ Error& Error::operator << (lexer::Token const& token)
     return *this;
 }
 
+lexer::Token const& front(Error::context_t const& ctx)
+{
+    return std::visit([](auto r) -> lexer::Token const& { return ast::front(*r); }, ctx);
+}
+
+struct PrintId {
+    std::ostream& stream;
+
+    void operator()(lexer::Token const* tok) const
+    {
+        stream << "'" << tok->lexeme() << "'";
+    }
+
+    void operator()(ast::Expression const* expr) const
+    {
+        stream << "'";
+        print(stream, *expr);
+        stream << "'";
+    }
+
+    void operator()(ast::Statement const* stmt) const
+    {
+        return operator()(&front(*stmt));
+    }
+
+    void operator()(ast::Junction const* junc) const
+    {
+        return operator()(&front(*junc));
+    }
+
+    void operator()(ast::Declaration const* decl) const
+    {
+        if ( auto proc = decl->as<ast::ProcedureDeclaration>() )
+            return operator()(proc->scope().declaration());
+
+        return operator()(&decl->symbol().token());
+    }
+};
+
 std::ostream& operator << (std::ostream& sink, Error const& err)
 {
     auto startLine = [&sink](ast::Module const& mod,
@@ -158,24 +219,22 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
         return sink << mod << ':' << loc;
     };
 
-    startLine(err.module(), err.token().location()) << ": error: ";
+    auto const& frontToken = front(err.context());
+    startLine(err.module(), frontToken.location()) << ": error: ";
+
+    auto printId = [&sink](Error const& err) -> std::ostream& {
+        std::visit(PrintId{sink}, err.context());
+        return sink;
+    };
 
     switch (err.code()) {
     case Error::General:
-        if ( err.expression() ) {
-            sink << "'";
-            print(sink, *err.expression());
-            sink << "' ";
-        }
-        else if ( !err.token().lexeme().empty() ) {
-            sink << "'" << err.token().lexeme() << "' ";
-        }
-
-        sink << err.what() << std::endl;
+        printId(err) << " " << err.what() << std::endl;
         break;
 
     case Error::Undeclared:
-        sink << "'" << err.token().lexeme() << "': undeclared identifier" << std::endl;
+        printId(err);
+        sink << ": undeclared identifier" << std::endl;
         break;
 
     default:
@@ -198,7 +257,7 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
             sink << "'" << std::endl;
         }
         else if ( auto miss = r.seeLookup() ) {
-            startLine(err.module(), err.token().location());
+            startLine(err.module(), frontToken.location());
             switch ( miss->viable().result() ) {
             case ast::ViableSet::None:
                 if ( miss->symSpace() ) {
@@ -279,29 +338,32 @@ Error& Diagnostics::error(ast::Module const& mod)
 
 Error& Diagnostics::error(ast::Module const& mod, lexer::Token const& token)
 {
-    myErrors.emplace_back(mk<Error>(mod, token));
+    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, token));
     return *myErrors.back();
 }
 
 Error& Diagnostics::error(ast::Module const& mod, ast::Expression const& expr)
 {
-    myErrors.emplace_back(mk<Error>(mod, expr, Error::Code::General));
+    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, expr));
     return *myErrors.back();
 }
 
 Error& Diagnostics::error(ast::Module const& mod, ast::Statement const& stmt)
 {
-    return error(mod, front(stmt));
+    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, stmt));
+    return *myErrors.back();
 }
 
 Error& Diagnostics::error(ast::Module const& mod, ast::Junction const& junc)
 {
-    return error(mod, front(junc));
+    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, junc));
+    return *myErrors.back();
 }
 
 Error& Diagnostics::error(ast::Module const& mod, ast::Declaration const& decl)
 {
-    return error(mod, decl.symbol().token());
+    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, decl));
+    return *myErrors.back();
 }
 
 void Diagnostics::dumpErrors(std::ostream& stream)

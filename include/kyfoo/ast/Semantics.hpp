@@ -135,13 +135,15 @@ bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs)
 std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr);
 bool hasMetaVariable(Expression const& expr);
 
-lexer::Token const& front(Expression const& expr);
-lexer::Token const& front(Statement  const& stmt);
-lexer::Token const& front(Junction   const& junc);
+lexer::Token const& front(lexer::Token const& tok);
+lexer::Token const& front(Expression   const& expr);
+lexer::Token const& front(Statement    const& stmt);
+lexer::Token const& front(Junction     const& junc);
+lexer::Token const& front(Declaration  const& decl);
 
-std::ostream& print(std::ostream& stream, Expression const& expr);
-std::ostream& print(std::ostream& stream, Statement  const& stmt);
-std::ostream& print(std::ostream& stream, Junction   const& junc);
+std::ostream& print(std::ostream& stream, Expression   const& expr);
+std::ostream& print(std::ostream& stream, Statement    const& stmt);
+std::ostream& print(std::ostream& stream, Junction     const& junc);
 
 uz level(Expression const& expr);
 

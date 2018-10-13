@@ -205,9 +205,14 @@ Error& Context::error(Statement const& stmt)
     return myDiagnostics->error(resolver().scope().module(), stmt);
 }
 
+Error& Context::error(Junction const& junc)
+{
+    return myDiagnostics->error(resolver().scope().module(), junc);
+}
+
 Error& Context::error(Declaration const& decl)
 {
-    return myDiagnostics->error(resolver().scope().module(), decl.symbol().token());
+    return myDiagnostics->error(resolver().scope().module(), decl);
 }
 
 uz Context::errorCount() const

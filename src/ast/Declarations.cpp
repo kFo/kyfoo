@@ -1269,12 +1269,13 @@ struct DeclarationPrinter
         stream << "(";
         auto first = begin(proc.symbol().prototype().pattern());
         auto last = end(proc.symbol().prototype().pattern());
-        if ( first != last )
+        if ( first != last ) {
             sink(**first);
 
-        for ( ++first; first != last; ++first ) {
-            stream << ", ";
-            sink(**first);
+            for ( ++first; first != last; ++first ) {
+                stream << ", ";
+                sink(**first);
+            }
         }
 
         stream << ")";

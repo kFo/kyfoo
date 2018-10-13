@@ -1128,6 +1128,11 @@ struct FrontToken
     }
 };
 
+lexer::Token const& front(lexer::Token const& tok)
+{
+    return tok;
+}
+
 lexer::Token const& front(Expression const& expr)
 {
     ShallowApply<FrontToken> op;
@@ -1144,6 +1149,11 @@ lexer::Token const& front(Junction const& junc)
 {
     ShallowApply<FrontToken> op;
     return op(junc);
+}
+
+lexer::Token const& front(Declaration const& decl)
+{
+    return decl.symbol().token();
 }
 
 template <typename Dispatcher>

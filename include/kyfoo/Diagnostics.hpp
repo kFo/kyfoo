@@ -3,6 +3,7 @@
 #include <chrono>
 #include <sstream>
 #include <vector>
+#include <variant>
 
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
@@ -203,20 +204,33 @@ public:
         Undeclared,
     };
 
+    using context_t = std::variant<
+        lexer::Token const*,
+        ast::Expression const*,
+        ast::Statement const*,
+        ast::Junction const*,
+        ast::Declaration const*>;
+
 public:
-    explicit Error(ast::Module const& module);
-    Error(ast::Module const& module, lexer::Token token);
-    Error(ast::Module const& module, lexer::Token token, Code code);
-    Error(ast::Module const& module, ast::Expression const& expr, Code code);
+    explicit Error(ast::Module const& mod);
+    Error(ast::Module const& mod, Code code);
+    Error(ast::Module const& mod, Code code, lexer::Token tok); // todo: fixme
+    Error(ast::Module const& mod, Code code, ast::Expression const& expr);
+    Error(ast::Module const& mod, Code code, ast::Statement const& stmt);
+    Error(ast::Module const& mod, Code code, ast::Junction const& junc);
+    Error(ast::Module const& mod, Code code, ast::Declaration const& decl);
+
     Error(Error& rhs) = delete;
+    void operator = (Error&) = delete;
 
 public:
     ast::Module const& module() const;
-    std::string what() const;
-    ast::Expression const* expression() const;
-    lexer::Token const& token() const;
     Code code() const;
+    context_t const& context() const;
+    std::string what() const;
     Slice<ContextReference const> references() const;
+
+public:
     Error& see(ast::Declaration const& declaration);
     Error& see(ast::Scope const& scope, ast::Expression const& expression);
     Error& see(ast::Lookup&& miss);
@@ -234,11 +248,12 @@ public:
 
 private:
     ast::Module const* myModule = nullptr;
-    ast::Expression const* myExpression = nullptr;
-    lexer::Token myToken;
     Code myCode = General;
+    context_t myContext;
+
     std::ostringstream myInfo;
     std::vector<ContextReference> myReferences;
+    lexer::Token myToken; // todo: removeme
 };
 
 template <typename T>
