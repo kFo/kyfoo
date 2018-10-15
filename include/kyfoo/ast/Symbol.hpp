@@ -2,10 +2,10 @@
 
 #include <map>
 #include <ostream>
-#include <string>
 #include <vector>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/String.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/ast/Clone.hpp>
@@ -72,8 +72,8 @@ public:
 
 public:
     void bindVariables(Substitutions const& substs);
-    SymbolVariable* findVariable(std::string_view token);
-    SymbolVariable const* findVariable(std::string_view token) const;
+    SymbolVariable* findVariable(stringv token);
+    SymbolVariable const* findVariable(stringv token) const;
     bool isConcrete() const;
     uz metaVariableCount() const;
 
@@ -129,21 +129,26 @@ private:
 class SymbolReference
 {
 public:
-    SymbolReference(std::string_view name, const_pattern_t pattern);
-    SymbolReference(const char* name, const_pattern_t pattern);
+    SymbolReference(stringv name, const_pattern_t pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
-    /*implicit*/ SymbolReference(std::string_view name);
-    /*implicit*/ SymbolReference(const char* name);
+    /*implicit*/ SymbolReference(stringv name);
+
+    template <uz N>
+    constexpr /*implicit*/ SymbolReference(char const (&name)[N]) noexcept
+        : myName(name)
+    {
+    }
+
     ~SymbolReference();
 
     void swap(SymbolReference& rhs);
 
 public:
-    std::string_view name() const;
+    stringv name() const;
     const_pattern_t const& pattern() const;
 
 private:
-    std::string_view myName;
+    stringv myName;
     const_pattern_t myPattern;
 };
 

@@ -1,9 +1,10 @@
 #pragma once
 
 #include <filesystem>
-#include <string>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Stream.hpp>
+#include <kyfoo/String.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/Utilities.hpp>
 #include <kyfoo/ast/Clone.hpp>
@@ -40,7 +41,7 @@ public:
 
     Module* createImplied(std::string name);
 
-    Module* find(std::string_view name);
+    Module* find(stringv name);
     Module* find(std::filesystem::path const& path);
 
     AxiomsModule& axioms();
@@ -64,19 +65,17 @@ private:
 class Module
 {
 public:
-    Module(ModuleSet* moduleSet,
-           std::string name);
-    Module(ModuleSet* moduleSet,
-           std::filesystem::path const& path);
-    ~Module();
+    Module(ModuleSet* moduleSet, std::string name);
+    Module(ModuleSet* moduleSet, std::filesystem::path const& path);
+    KYFOO_DEBUG_VIRTUAL ~Module();
 
 public:
-    std::string_view name() const;
+    stringv name() const;
     std::filesystem::path const& path() const;
 
 public:
     void parse(Diagnostics& dgn);
-    void parse(Diagnostics& dgn, std::istream& stream);
+    void parse(Diagnostics& dgn, Slice<char const> stream);
 
     void resolveImports(Diagnostics& dgn);
     void semantics(Diagnostics& dgn);
@@ -101,7 +100,7 @@ public:
     bool imports(Module* module) const;
     bool parsed() const;
 
-    std::string_view interpretString(Diagnostics& dgn, lexer::Token const& token) const;
+    stringv interpretString(Diagnostics& dgn, lexer::Token const& token) const;
     Slice<Declaration const*> templateInstantiations() const;
 
     codegen::CustomData* codegenData() const;
@@ -111,6 +110,7 @@ protected:
     ModuleSet* myModuleSet = nullptr;
     std::filesystem::path myPath;
     std::string myName;
+    MMFile myFile;
     Box<Scope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;
 

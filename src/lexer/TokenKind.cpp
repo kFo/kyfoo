@@ -2,16 +2,16 @@
 
 namespace kyfoo::lexer {
 
-#define X(A,B) B,
-const char* g_tokenKindStringTable[] =
+stringv to_string(TokenKind kind)
 {
-TOKEN_DEFINITIONS(X)
-};
-#undef X
+    #define X(A,B) B,
+    static stringv tokenKindStringTable[] =
+    {
+    TOKEN_DEFINITIONS(X)
+    };
+    #undef X
 
-const char* to_string(TokenKind kind)
-{
-    return g_tokenKindStringTable[static_cast<int>(kind)];
+    return tokenKindStringTable[static_cast<int>(kind)];
 }
 
 } // namespace kyfoo::lexer

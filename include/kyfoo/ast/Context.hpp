@@ -107,9 +107,9 @@ public:
     Lookup matchOverload(SymbolReference const& sym);
     Lookup matchOverloadUsingImplicitConversions(Scope const& scope,
                                                  Resolver::Options options,
-                                                 std::string_view name,
+                                                 stringv name,
                                                  Slice<Box<Expression>> args);
-    Lookup matchOverloadUsingImplicitConversions(std::string_view name,
+    Lookup matchOverloadUsingImplicitConversions(stringv name,
                                                  Slice<Box<Expression>> args);
 
     Resolver* changeResolver(Resolver& resolver);

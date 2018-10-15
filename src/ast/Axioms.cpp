@@ -1,4 +1,4 @@
-auto source = R"axioms(
+static constexpr char source[] = R"axioms(
 @"intrininst" "UnsignedTemplate"
 :& unsigned<\n : integer>
     @"intrininst" "UnsignedFromInteger"
@@ -338,25 +338,21 @@ AxiomsModule::IntegerMetaData const* AxiomsModule::integerMetaData(Declaration c
     return nullptr;
 }
 
-void AxiomsModule::setIntrinsic(std::string_view nameLiteral, Declaration const* decl)
+void AxiomsModule::setIntrinsic(stringv nameLiteral, Declaration const* decl)
 {
-    static const char* sums[] = {
 #define X(a) #a,
+    static stringv sums[] = {
         INTRINSIC_DATASUMS(X)
-#undef X
     };
-    static const char* prods[] = {
-#define X(a) #a,
+    static stringv prods[] = {
         INTRINSIC_DATAPRODUCTS(X)
-#undef X
     };
-    static const char* instrs[] = {
-#define X(a) #a,
+    static stringv instrs[] = {
         INTRINSIC_INSTRUCTIONS(X)
-#undef X
     };
+#undef X
 
-    auto name = nameLiteral.substr(1, nameLiteral.length() - 2);
+    auto name = nameLiteral(1, $-1); // remove '"' from front and back
     if ( auto ds = decl->as<DataSumDeclaration>() ) {
         myDataSumDecls[std::find(sums, sums + DataSumIntrinsicsCount, name) - sums] = ds;
         return;
@@ -398,7 +394,7 @@ void AxiomsModule::findIntrinsics(Scope const* s)
 
 bool AxiomsModule::init(Diagnostics& dgn)
 {
-    std::stringstream s(source);
+    constexpr Slice s = source;
     try {
         parse(dgn, s);
         if ( dgn.errorCount() )

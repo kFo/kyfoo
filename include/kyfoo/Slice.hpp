@@ -8,6 +8,12 @@
 
 namespace kyfoo {
 
+enum Ordering {
+    LT,
+    EQ,
+    GT,
+};
+
 template <typename T>
 class Slice
 {
@@ -27,19 +33,38 @@ public:
 public:
     constexpr Slice() noexcept = default;
 
-    Slice(pointer p, size_type len) noexcept
+    constexpr Slice(pointer p, size_type len) noexcept
         : myData(p)
         , myLength(len)
     {
     }
 
-    /*implicit*/ Slice(std::vector<value_type>& v) noexcept
+    template <uz N>
+    constexpr /*implicit*/ Slice(value_type (&str)[N]) noexcept
+        : myData(str)
+        , myLength(N-1)
+    {
+    }
+
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, pointer>>>
+    /*implicit*/ Slice(std::basic_string<U> const& s) noexcept
+        : Slice(s.data(), s.size())
+    {
+    }
+
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, pointer>>>
+    /*implicit*/ Slice(std::basic_string<U>& s) noexcept
+        : Slice(s.data(), s.size())
+    {
+    }
+
+    constexpr /*implicit*/ Slice(std::vector<value_type>& v) noexcept
         : Slice(v.data(), v.size())
     {
     }
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, pointer>>>
-    /*implicit*/ Slice(std::vector<U> const& v) noexcept
+    constexpr /*implicit*/ Slice(std::vector<U> const& v) noexcept
         : Slice(v.data(), v.size())
     {
     }
@@ -48,7 +73,7 @@ public:
               typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
                                        && std::is_pointer_v<value_type>
                                        && std::is_convertible_v<U const*, value_type>>>
-    /*implicit*/ Slice(std::vector<Box<U>> const& v) noexcept
+    constexpr /*implicit*/ Slice(std::vector<Box<U>> const& v) noexcept
         : myData(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))))
         , myLength(v.size())
     {
@@ -58,20 +83,20 @@ public:
               typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
                                        && std::is_pointer_v<value_type>
                                        && std::is_convertible_v<U*, value_type>>>
-    /*implicit*/ Slice(std::vector<Box<U>>& v) noexcept
+    constexpr /*implicit*/ Slice(std::vector<Box<U>>& v) noexcept
         : myData(reinterpret_cast<pointer>(reinterpret_cast<void*>(v.data())))
         , myLength(v.size())
     {
     }
 
-    /*implicit*/ Slice(Slice const& s) noexcept
+    constexpr /*implicit*/ Slice(Slice const& s) noexcept
         : myData(s.myData)
         , myLength(s.myLength)
     {
     }
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U, value_type>>>
-    /*implicit*/ Slice(Slice<U> const& s) noexcept
+    constexpr /*implicit*/ Slice(Slice<U> const& s) noexcept
         : Slice(s.data(), s.size())
     {
     }
@@ -80,7 +105,7 @@ public:
               typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
                                        && std::is_pointer_v<value_type>
                                        && std::is_convertible_v<U const*, value_type>>>
-    /*implicit*/ Slice(Slice<Box<U>> const& s) noexcept
+    constexpr /*implicit*/ Slice(Slice<Box<U>> const& s) noexcept
         : myData(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(s.data()))))
         , myLength(s.size())
     {
@@ -90,7 +115,7 @@ public:
               typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
                                        && std::is_pointer_v<value_type>
                                        && std::is_convertible_v<U*, value_type>>>
-    /*implicit*/ Slice(Slice<Box<U>>& s) noexcept
+    constexpr /*implicit*/ Slice(Slice<Box<U>>& s) noexcept
         : myData(reinterpret_cast<pointer>(reinterpret_cast<void*>(s.data())))
         , myLength(s.size())
     {
@@ -124,12 +149,12 @@ public:
     }
 
 public:
-    reference operator [] (size_type index) noexcept
+    constexpr reference operator [] (size_type index) noexcept
     {
         return myData[index];
     }
 
-    const_reference operator [] (size_type index) const noexcept
+    constexpr const_reference operator [] (size_type index) const noexcept
     {
         return myData[index];
     }
@@ -166,98 +191,243 @@ public:
         return Slice(myData + start, f(myLength) - start);
     }
 
-    explicit operator bool () const noexcept
+    constexpr explicit operator bool () const noexcept
     {
         return !empty();
     }
 
 public:
-    iterator begin() noexcept
+    constexpr iterator begin() noexcept
     {
         return myData;
     
     }
-    const_iterator begin() const noexcept
+    constexpr const_iterator begin() const noexcept
     {
         return myData;
     }
 
-    iterator end() noexcept
+    constexpr const_iterator cbegin() noexcept
+    {
+        return myData;
+    }
+
+    constexpr const_iterator cbegin() const noexcept
+    {
+        return myData;
+    }
+
+    constexpr iterator end() noexcept
     {
         return myData + myLength;
     }
 
-    const_iterator end() const noexcept
+    constexpr const_iterator end() const noexcept
     {
         return myData + myLength;
     }
 
-    bool empty() const noexcept
+    constexpr const_iterator cend() noexcept
+    {
+        return myData + myLength;
+    }
+
+    constexpr const_iterator cend() const noexcept
+    {
+        return myData + myLength;
+    }
+
+    constexpr bool empty() const noexcept
     {
         return begin() == end();
     }
 
-    pointer data() noexcept
+    constexpr pointer data() noexcept
     {
         return myData;
     }
 
-    const_pointer data() const noexcept
+    constexpr const_pointer data() const noexcept
     {
         return myData;
     }
 
-    uz length() const noexcept
+    constexpr uz length() const noexcept
     {
         return myLength;
     }
 
-    uz size() const noexcept
+    constexpr uz size() const noexcept
     {
         return myLength;
     }
 
-    reference front() noexcept
+    constexpr reference front() noexcept
     {
         return *myData;
     }
 
-    const_reference front() const noexcept
+    constexpr const_reference front() const noexcept
     {
         return *myData;
     }
 
-    reference back() noexcept
+    constexpr reference back() noexcept
     {
         return myData[myLength - 1];
     }
 
-    const_reference back() const noexcept
+    constexpr const_reference back() const noexcept
     {
         return myData[myLength - 1];
     }
 
-    void popFront() noexcept
+    constexpr void popFront() noexcept
     {
         ++myData;
         --myLength;
     }
 
-    void popBack() noexcept
+    constexpr void popBack() noexcept
     {
         --myLength;
     }
 
-    void clear() noexcept
+    constexpr void clear() noexcept
     {
         myData = nullptr;
         myLength = 0;
+    }
+
+public:
+    template <typename U>
+    Ordering cmp(Slice<U> rhs) const noexcept
+    {
+        auto const s = std::min(length(), rhs.length());
+        for ( uz i = 0; i < s; ++i ) {
+            if ( operator[](i) < rhs[i] )
+                return LT;
+            else if ( rhs[i] < operator[](i) )
+                return GT;
+        }
+
+        if ( length() < rhs.length() )
+            return LT;
+        else if ( rhs.length() < length() )
+            return GT;
+
+        return EQ;
+    }
+
+    template <typename U>
+    bool operator < (Slice<U> rhs) const noexcept
+    {
+        return cmp(rhs) == LT;
+    }
+
+    template <typename U>
+    bool operator <= (Slice<U> rhs) const noexcept
+    {
+        switch (cmp(rhs)) {
+        case LT:
+        case EQ:
+            return true;
+        }
+
+        return false;
+    }
+
+    template <typename U>
+    bool operator > (Slice<U> rhs) const noexcept
+    {
+        return cmp(rhs) == GT;
+    }
+
+    template <typename U>
+    bool operator >= (Slice<U> rhs) const noexcept
+    {
+        switch (cmp(rhs)) {
+        case EQ:
+        case GT:
+            return true;
+        }
+
+        return false;
+    }
+
+    template <typename U>
+    bool operator == (Slice<U> rhs) const noexcept
+    {
+        if ( length() != rhs.length() )
+            return false;
+
+        return cmp(rhs) == EQ;
+    }
+
+    template <typename U>
+    bool operator != (Slice<U> rhs) const noexcept
+    {
+        return !operator==(rhs);
     }
 
 private:
     pointer myData = nullptr;
     size_type myLength = 0;
 };
+
+//
+// operators
+
+template <typename T, uz N>
+bool operator == (Slice<T const> lhs, T const (&rhs)[N]) noexcept
+{
+    return lhs == Slice(rhs);
+}
+
+template <typename T, uz N>
+bool operator == (T const (&lhs)[N], Slice<T const> rhs) noexcept
+{
+    return Slice(lhs) == rhs;
+}
+
+template <typename T, uz N>
+bool operator != (Slice<T const> lhs, T const (&rhs)[N]) noexcept
+{
+    return !(lhs == Slice(rhs));
+}
+
+template <typename T, uz N>
+bool operator != (T const (&lhs)[N], Slice<T const> rhs) noexcept
+{
+    return !(Slice(lhs) == rhs);
+}
+
+template <typename T, typename U>
+bool operator == (std::basic_string<T> const& lhs, Slice<U> rhs) noexcept
+{
+    return Slice<T const>(lhs) == rhs;
+}
+
+template <typename T, typename U>
+bool operator == (Slice<T> lhs, std::basic_string<U> const& rhs) noexcept
+{
+    return lhs == Slice<T const>(rhs);
+}
+
+template <typename T, typename U>
+bool operator != (std::basic_string<T> const& lhs, Slice<U> rhs) noexcept
+{
+    return !(Slice<T const>(lhs) == rhs);
+}
+
+template <typename T, typename U>
+bool operator != (Slice<T> lhs, std::basic_string<U> const& rhs) noexcept
+{
+    return !(lhs == Slice<T const>(rhs));
+}
+
+//
+// accessors
 
 template <typename T>
 typename Slice<T>::iterator begin(Slice<T>& rhs)
@@ -272,6 +442,18 @@ typename Slice<T>::const_iterator begin(Slice<T> const& rhs)
 }
 
 template <typename T>
+typename Slice<T>::const_iterator cbegin(Slice<T>& rhs)
+{
+    return rhs.cbegin();
+}
+
+template <typename T>
+typename Slice<T>::const_iterator cbegin(Slice<T> const& rhs)
+{
+    return rhs.cbegin();
+}
+
+template <typename T>
 typename Slice<T>::iterator end(Slice<T>& rhs)
 {
     return rhs.end();
@@ -281,6 +463,28 @@ template <typename T>
 typename Slice<T>::const_iterator end(Slice<T> const& rhs)
 {
     return rhs.end();
+}
+
+template <typename T>
+typename Slice<T>::const_iterator cend(Slice<T>& rhs)
+{
+    return rhs.cend();
+}
+
+template <typename T>
+typename Slice<T>::const_iterator cend(Slice<T> const& rhs)
+{
+    return rhs.cend();
+}
+
+//
+// sugar
+
+template <typename T>
+Slice<T> slice(T* begin, T* end)
+{
+    auto const size = end - begin;
+    return Slice<T>(begin, size);
 }
 
 template <typename T>
@@ -330,6 +534,14 @@ Slice<T const*> sliceBox(Box<T> const& rhs)
 {
     return Slice<T const*>(reinterpret_cast<T const* const*>(reinterpret_cast<void const* const*>(&rhs)), 1);
 }
+
+inline Slice<char const> sliceCString(char const* str)
+{
+    return Slice<char const>(str, std::strlen(str));
+}
+
+//
+// properties
 
 template <typename T>
 struct is_slice : std::false_type {};

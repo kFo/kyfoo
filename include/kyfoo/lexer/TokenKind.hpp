@@ -1,10 +1,12 @@
 #pragma once
 
+#include <kyfoo/String.hpp>
+
 namespace kyfoo::lexer {
 
 #define TOKEN_DEFINITIONS(X) \
-    X(Undefined, "undefined") \
-    X(EndOfFile, "EOF"      ) \
+    X(Undefined , "undefined") \
+    X(EndOfInput, "EOI"      ) \
     \
     X(IndentLT   , "indent(<)"  ) \
     X(IndentEQ   , "indent(=)"  ) \
@@ -29,13 +31,13 @@ namespace kyfoo::lexer {
     X(OpenBrace   , "openBrace"   ) \
     X(CloseBrace  , "closeBrace"  ) \
     \
-    X(Equal         , "equal"         ) \
-    X(DotDot        , "range"         ) \
-    X(Dot           , "dot"           ) \
-    X(Colon         , "colon"         ) \
-    X(Semicolon     , "semicolon"     ) \
-    X(Pipe          , "pipe"          ) \
-    X(Comma         , "comma"         ) \
+    X(Equal         , "equal"    ) \
+    X(DotDot        , "dotdot"   ) \
+    X(Dot           , "dot"      ) \
+    X(Colon         , "colon"    ) \
+    X(Semicolon     , "semicolon") \
+    X(Pipe          , "pipe"     ) \
+    X(Comma         , "comma"    ) \
     \
     X(ColonPipe         , "colonPipe"         ) \
     X(ColonAmpersand    , "colonAmpersand"    ) \
@@ -68,7 +70,7 @@ TOKEN_DEFINITIONS(X)
 };
 #undef X
 
-const char* to_string(TokenKind kind);
+stringv to_string(TokenKind kind);
 
 inline bool isParen(TokenKind kind)
 {
@@ -109,7 +111,7 @@ inline bool isIndent(TokenKind kind)
 
 inline bool isBreak(TokenKind kind)
 {
-    return isIndent(kind) || kind == TokenKind::EndOfFile;
+    return isIndent(kind) || kind == TokenKind::EndOfInput;
 }
 
 inline bool isIdentifier(TokenKind kind)

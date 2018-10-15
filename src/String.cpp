@@ -1,17 +1,33 @@
-#include <cctype>
+#include <kyfoo/String.hpp>
 
 #include <exception>
 
-#include <kyfoo/Utilities.hpp>
-
 namespace kyfoo {
 
-int stoi(std::string_view s)
+namespace {
+    bool isSpace(char c)
+    {
+        switch (c) {
+        case ' ':
+        case '\f':
+        case '\n':
+        case '\r':
+        case '\t':
+        case '\v':
+            return true;
+
+        default:
+            return false;
+        }
+    }
+} // namespace
+
+int stoi(stringv s)
 {
     auto first = cbegin(s);
     auto const last = cend(s);
     for ( ; first != last; ++first )
-        if ( !std::isspace(*first) )
+        if ( !isSpace(*first) )
             break;
 
     if ( first == last )

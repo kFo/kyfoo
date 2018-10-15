@@ -236,7 +236,7 @@ Lookup Context::matchOverload(SymbolReference const& sym)
 
 Lookup Context::matchOverloadUsingImplicitConversions(Scope const& scope,
                                                       Resolver::Options options,
-                                                      std::string_view name,
+                                                      stringv name,
                                                       Slice<Box<Expression>> args)
 {
     Resolver resolver(scope, options);
@@ -245,7 +245,7 @@ Lookup Context::matchOverloadUsingImplicitConversions(Scope const& scope,
 }
 
 Lookup
-Context::matchOverloadUsingImplicitConversions(std::string_view name,
+Context::matchOverloadUsingImplicitConversions(stringv name,
                                                Slice<Box<Expression>> args)
 {
     auto hit = myResolver->matchOverload(*this, SymbolReference(name, args));

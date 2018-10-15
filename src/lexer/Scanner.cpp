@@ -1,18 +1,15 @@
 #include <kyfoo/lexer/Scanner.hpp>
 
 #include <cassert>
-#include <cctype>
-
-#include <sstream>
 
 #include <map>
+
+#include <kyfoo/String.hpp>
 
 namespace kyfoo::lexer {
 
 namespace
 {
-    std::istringstream g_nullStream;
-
     bool isSpace(char c)
     {
         switch (c)
@@ -90,15 +87,10 @@ namespace
         return isIdentifierStart(c) || isNumber(c);
     }
 
-    bool isMetaVariable(char c)
+    TokenKind identifierKind(stringv lexeme)
     {
-        return c == '\\';
-    }
-
-    TokenKind identifierKind(std::string_view lexeme)
-    {
-        static std::map<std::string_view, TokenKind> map;
-        static struct _init_map { _init_map(std::map<std::string_view, TokenKind>& map) {
+        static std::map<stringv, TokenKind> map;
+        static struct _init_map { _init_map(std::map<stringv, TokenKind>& map) {
             for ( auto i = int(TokenKind::_keywordStart) + 1; i != int(TokenKind::_keywordEnd); ++i )
                 map[to_string(TokenKind(i))] = TokenKind(i);
         } } init_map(map);
@@ -130,15 +122,14 @@ namespace
     }
 } // namespace
 
-Scanner::Scanner(std::istream& stream)
-    : myStream(stream)
+Scanner::Scanner(Slice<char const> stream)
+    : myTok(stream)
     , myState(InternalScanState{ 0 })
 {
 }
 
 Scanner::Scanner(std::deque<Token>&& buffer)
-    : myStream(g_nullStream)
-    , myState(InternalScanState{ 0 })
+    : myState(InternalScanState{ 0 })
     , myBuffer(std::move(buffer))
 {
 }
@@ -174,7 +165,7 @@ Token Scanner::peek(uz lookAhead)
     
     do {
         auto next = readNext();
-        if ( next.kind() == TokenKind::EndOfFile )
+        if ( next.kind() == TokenKind::EndOfInput )
             return next;
 
         myBuffer.push_back(next);
@@ -206,7 +197,7 @@ void Scanner::rollbackScan()
 
 bool Scanner::eof() const
 {
-    return myStream.eof() && myBuffer.empty();
+    return !myTok && myBuffer.empty();
 }
 
 bool Scanner::hasError() const
@@ -219,39 +210,11 @@ Scanner::operator bool() const
     return !eof() && !myError;
 }
 
-char Scanner::nextChar()
-{
-    ++myLoc.column;
-    if ( myCharBuffer.empty() )
-        return static_cast<char>(myStream.get());
-
-    auto ret = myCharBuffer.front();
-    myCharBuffer.pop_front();
-    return ret;
-}
-
-char Scanner::peekChar()
-{
-    if ( myCharBuffer.empty() ) {
-        auto ret = static_cast<char>(myStream.get());
-        myCharBuffer.push_back(ret);
-        return ret;
-    }
-
-    return myCharBuffer.front();
-}
-
-void Scanner::putback(char c)
-{
-    --myLoc.column;
-    myCharBuffer.push_front(c);
-}
-
 Token Scanner::indent(SourceLocation loc, indent_width_t indent)
 {
     auto token = [this, &loc](TokenKind kind) {
         myLastTokenKind = kind;
-        return Token(kind, "", loc);
+        return Token(kind, loc);
     };
 
     indent_width_t current = 0;
@@ -309,268 +272,242 @@ int Scanner::nestings() const
 
 Token Scanner::readNext()
 {
-#define TryEmitVacuum(c)                               \
-    if ( vacuum && precedesVacuum(myLastTokenKind) ) { \
-        putback(c);                                    \
-        return token2(TokenKind::Vacuum, "");          \
+    if ( myCurrentTokenKind != TokenKind::Undefined ) {
+        // myCurrentTokenKind indicates the next token is already lexed.
+        // This happens when virtual tokens are emitted in place of
+        // already lexed tokens.
+
+        myLastTokenKind = myCurrentTokenKind;
+        myCurrentTokenKind = TokenKind::Undefined;
+        auto loc = myLoc;
+        myLoc.column += myTok.window().length();
+        return Token(myLastTokenKind, myTok.take(), loc);
     }
 
-    char c = nextChar();
-    std::string lexeme;
-    column_index_t column = myLoc.column;
-
+    bool emitVacuum = false;
     auto token = [&, this](TokenKind kind) {
         myLastTokenKind = kind;
-        return Token(kind, lexeme, {myLoc.line, column});
-    };
-
-    auto token2 = [&, this](TokenKind kind, std::string const& l) {
-        myLastTokenKind = kind;
-        return Token(kind, l, {myLoc.line, column});
-    };
-
-    if ( myStream.eof() ) {
-        return token(TokenKind::EndOfFile);
-    }
-    else if ( myStream.bad() ) {
-        myError = true;
-        return token2(TokenKind::Undefined, "");
-    }
-    else if ( myStream.fail() ) {
-        throw std::runtime_error("lexing failure");
-    }
-
-    auto takeLineBreaks = [this, &c] {
-        int ret = 0;
-        while ( isLineBreak(c) ) {
-            if ( c == '\r' && peekChar() == '\n' )
-                nextChar();
-
-            c = nextChar();
-            bumpLine();
-            ++ret;
+        if ( emitVacuum ) {
+            myCurrentTokenKind = kind;
+            return Token(TokenKind::Vacuum, myLoc);
         }
 
-        return ret;
+        auto loc = myLoc;
+        myLoc.column += myTok.window().length();
+        return Token(kind, myTok.take(), loc);
     };
 
-    auto takeSpaces = [this, &c, &takeLineBreaks] {
-        indent_width_t ret = 0;
+    indent_width_t spaces = 0;
+    bool freshline = false;
 
-    L_more:
-        indent_width_t spaces = 0;
-        while ( isSpace(c) ) {
-            ++spaces; c = nextChar();
-        }
+    if ( false ) {
+    L_ignoreToken:
+        if ( !isLineBreak(myTok.current()) )
+            myLoc.column += myTok.window().length();
+        myTok.bump();
+    }
 
-        if ( isLineComment(c, peekChar()) ) {
-            ++spaces; nextChar();
-            do {
-                ++spaces; c = nextChar();
-            } while ( !isLineBreak(c) );
-        }
+    if ( !myTok ) {
+        if ( !myIndents.empty() )
+            return indent(myLoc, 0);
 
-        if ( isMultiLineCommentStart(c, peekChar()) ) {
-            int open = 1;
-            ++spaces; nextChar();
-            ++spaces; c = nextChar();
-            while ( open ) {
-                if ( myStream.eof() )
-                    break;
+        return Token(TokenKind::EndOfInput, myLoc);
+    }
 
-                if ( isLineBreak(c) )
-                    takeLineBreaks();
-
-                if ( isMultiLineCommentStart(c, peekChar()) ) {
-                    ++open;
-                    ++spaces; nextChar();
-                }
-                else if ( isMultiLineCommentEnd(c, peekChar()) ) {
-                    --open;
-                    ++spaces; nextChar();
-                }
-
-                ++spaces; c = nextChar();
+    auto takeLineBreaks = [this] {
+        switch ( myTok.current() ) {
+        case '\r': if ( myTok.peek() == '\n' ) myTok.grow();
+        case '\n': bumpLine();
+        L_anotherLineBreak:
+            switch (myTok.peek()) {
+            case '\r': if ( myTok.peek<2>() == '\n' ) myTok.grow();
+            case '\n':
+                myTok.grow();
+                bumpLine();
+                goto L_anotherLineBreak;
             }
+
+            return true;
         }
 
-        ret += spaces;
-        if ( spaces ) goto L_more;
-
-        return ret;
+        return false;
     };
 
-    auto spaces = takeSpaces();
-    auto lineBreaks = takeLineBreaks();
-    bool vacuum = !spaces && !lineBreaks;
+    if ( takeLineBreaks() ) {
+        spaces = 0;
+        freshline = true;
+        goto L_ignoreToken;
+    }
 
-    if ( myStream.eof() )
-        return token(TokenKind::EndOfFile);
+    if ( isSpace(myTok.current()) ) {
+        while ( isSpace(myTok.peek()) )
+            myTok.grow();
 
-    if ( lineBreaks ) {
+        spaces += myTok.window().length();
+        goto L_ignoreToken;
+    }
+
+    if ( isLineComment(myTok.current(), myTok.peek()) ) {
         do {
-            spaces = takeSpaces();
-            lineBreaks = takeLineBreaks();
-        } while ( lineBreaks );
+            myTok.grow();
+        } while ( myTok && !isLineBreak(myTok.peek()) );
 
-        if ( myStream.eof() )
-            return token(TokenKind::EndOfFile);
-
-        if ( !nestings() ) {
-            putback(c);
-            return indent(myLoc, spaces);
-        }
+        goto L_ignoreToken;
     }
-    else if ( !nestings() && spaces && column == 1 ) {
-        putback(c);
+
+    if ( isMultiLineCommentStart(myTok.current(), myTok.peek()) ) {
+        myTok.grow();
+        do {
+            myTok.grow();
+            takeLineBreaks();
+        } while ( myTok && !isMultiLineCommentEnd(myTok.current(), myTok.peek()) );
+
+        if ( !myTok ) {
+            // todo: emit lexer error
+            return token(TokenKind::Undefined);
+        }
+
+        myTok.grow();
+
+        goto L_ignoreToken;
+    }
+
+    bool vacuum = spaces == 0;
+    auto tryEmitVacuum = [&emitVacuum, &vacuum, this] {
+        emitVacuum = vacuum && precedesVacuum(myLastTokenKind);
+    };
+
+    if ( !nestings() && (freshline || (spaces && myLoc.column == 1)) )
         return indent(myLoc, spaces);
-    }
 
-    // Resync column with start of lexeme
-    column = myLoc.column;
+    switch ( myTok.current() ) {
+    case '\'':
+        tryEmitVacuum();
 
-    if ( c == '\'' ) {
-        TryEmitVacuum(c)
+        while ( myTok.peek() != '\'' )
+            myTok.grow();
 
-        lexeme += c;
-        while ( peekChar() != '\'' )
-            lexeme += nextChar();
-
-        lexeme += nextChar();
-
+        myTok.grow();
         return token(TokenKind::String);
-    }
-    else if ( c == '"' ) {
-        TryEmitVacuum(c)
 
-        lexeme += c;
-        while ( peekChar() != '"' )
-            lexeme += nextChar();
+    case '"':
+        tryEmitVacuum();
 
-        lexeme += nextChar();
+        while ( myTok.peek() != '"' )
+            myTok.grow();
 
+        myTok.grow();
         return token(TokenKind::String);
-    }
-    else if ( c == '.' ) {
-        if ( peekChar() == '.' ) {
-            nextChar();
-            return token2(TokenKind::DotDot, "..");
+
+    case '.':
+        if ( myTok.peek() == '.' ) {
+            myTok.grow();
+            return token(TokenKind::DotDot);
         }
 
-        return token2(TokenKind::Dot, ".");
-    }
-    else if ( c == '=' ) {
-        if ( peekChar() == '>' ) {
-            TryEmitVacuum(c)
-            nextChar();
-            return token2(TokenKind::Yield, "=>");
+        return token(TokenKind::Dot);
+
+    case '=':
+        if ( myTok.peek() == '>' ) {
+            tryEmitVacuum();
+            myTok.grow();
+            return token(TokenKind::Yield);
         }
 
-        return token2(TokenKind::Equal, "=");
-    }
-    else if ( c == ':' ) {
-        switch ( peekChar() ) {
-        case '|': nextChar(); return token2(TokenKind::ColonPipe     , ":|");
-        case '&': nextChar(); return token2(TokenKind::ColonAmpersand, ":&");
-        case '=': nextChar(); return token2(TokenKind::ColonEqual    , ":=");
-        case '*': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return token2(TokenKind::ColonStarAngle    , ":*<"); } return token2(TokenKind::ColonStar     , ":*");
-        case '?': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return token2(TokenKind::ColonQuestionAngle, ":?<"); } return token2(TokenKind::ColonQuestion , ":?");
-        case '/': nextChar(); if ( peekChar() == '<' ) { nextChar(); addNest(); return token2(TokenKind::ColonSlashAngle   , ":/<"); } return token2(TokenKind::ColonSlash    , ":/");
-        case '+': nextChar(); return token2(TokenKind::ColonPlus     , ":+");
-        case '-': nextChar(); return token2(TokenKind::ColonMinus    , ":-");
-        case '.': nextChar(); return token2(TokenKind::ColonDot      , ":.");
-        case '<': nextChar();
-                  addNest();  return token2(TokenKind::ColonOpenAngle, ":<");
+        return token(TokenKind::Equal);
+
+    case ':':
+        switch ( myTok.peek() ) {
+        case '|': myTok.grow(); return token(TokenKind::ColonPipe     );
+        case '&': myTok.grow(); return token(TokenKind::ColonAmpersand);
+        case '=': myTok.grow(); return token(TokenKind::ColonEqual    );
+        case '*': myTok.grow(); if ( myTok.peek() == '<' ) { myTok.grow(); addNest(); return token(TokenKind::ColonStarAngle    ); } return token(TokenKind::ColonStar    );
+        case '?': myTok.grow(); if ( myTok.peek() == '<' ) { myTok.grow(); addNest(); return token(TokenKind::ColonQuestionAngle); } return token(TokenKind::ColonQuestion);
+        case '/': myTok.grow(); if ( myTok.peek() == '<' ) { myTok.grow(); addNest(); return token(TokenKind::ColonSlashAngle   ); } return token(TokenKind::ColonSlash   );
+        case '+': myTok.grow(); return token(TokenKind::ColonPlus );
+        case '-': myTok.grow(); return token(TokenKind::ColonMinus);
+        case '.': myTok.grow(); return token(TokenKind::ColonDot  );
+        case '<': myTok.grow();
+                  addNest();  return token(TokenKind::ColonOpenAngle);
         }
 
-        return token2(TokenKind::Colon, ":");
-    }
-    else if ( isMetaVariable(c) ) {
-        if ( !isIdentifierStart(peekChar()) )
-            return token2(TokenKind::Undefined, "\\");
+        return token(TokenKind::Colon);
 
-        TryEmitVacuum(c)
+    case '\\':
+        if ( !isIdentifierStart(myTok.peek()) )
+            return token(TokenKind::Undefined);
 
-        do lexeme += nextChar();
-        while ( isIdentifierMid(peekChar()) );
+        tryEmitVacuum();
 
+        do myTok.grow();
+        while ( isIdentifierMid(myTok.peek()) );
+
+        myTok.shrinkLeft(); // removes '\' from start of lexeme
         return token(TokenKind::MetaVariable);
-    }
-    else if ( c == '-' ) {
-        switch ( peekChar() ) {
-        case '-': nextChar(); return token2(TokenKind::MinusMinus, "--");
+
+    case '-':
+        switch ( myTok.peek() ) {
+        case '-': myTok.grow(); return token(TokenKind::MinusMinus);
         case '>':
-            TryEmitVacuum(c)
-            nextChar();
-            return token2(TokenKind::Arrow     , "->");
+            tryEmitVacuum();
+            myTok.grow();
+            return token(TokenKind::Arrow);
         }
 
         if ( vacuum )
-            return token2(TokenKind::Hyphen, "-");
+            return token(TokenKind::Hyphen);
 
-        if ( isNumber(peekChar()) ) {
-            lexeme += c;
-            c = nextChar();
+        if ( isNumber(myTok.peek()) ) {
+            myTok.grow();
             goto L_lexNumber;
         }
 
         goto L_undefined;
     }
-    else if ( isIdentifierStart(c) ) {
-        TryEmitVacuum(c)
+    
+    if ( isIdentifierStart(myTok.current()) ) {
+        tryEmitVacuum();
 
-        lexeme += c;
-        while ( isIdentifierMid(peekChar()) )
-            lexeme += nextChar();
+        while ( isIdentifierMid(myTok.peek()) )
+            myTok.grow();
 
-        return token(identifierKind(lexeme));
+        return token(identifierKind(myTok.window()));
     }
-    else if ( isNumber(c) ) {
-        TryEmitVacuum(c)
+    else if ( isNumber(myTok.current()) ) {
+        tryEmitVacuum();
 L_lexNumber:
-        lexeme += c;
-        while ( isNumber(peekChar()) )
-            lexeme += nextChar();
+        while ( isNumber(myTok.peek()) )
+            myTok.grow();
 
-        if ( peekChar() != '.' )
+        if ( myTok.peek() != '.' )
             return token(TokenKind::Integer);
 
-        c = nextChar();
-        if ( !isNumber(peekChar()) ) {
-            putback(c);
+        if ( !isNumber(myTok.peek<2>()) )
             return token(TokenKind::Integer);
-        }
 
-        lexeme += '.';
-        while ( isNumber(peekChar()) )
-            lexeme += nextChar();
+        myTok.grow<2>();
+        while ( isNumber(myTok.peek()) )
+            myTok.grow();
 
-        char e = peekChar();
+        char e = myTok.peek();
         if ( e == 'e' || e == 'E' ) {
-            nextChar();
-            c = peekChar();
-            if ( !isNumber(c) ) {
-                if ( c != '-' && c != '+' ) {
-                    putback(e);
+            myTok.grow();
+            auto s = myTok.peek<2>();
+            if ( !isNumber(s) ) {
+                if ( s != '-' && s != '+' )
                     return token(TokenKind::Rational);
-                }
 
-                c = nextChar();
-                if ( !isNumber(peekChar()) ) {
-                    putback(e);
-                    putback(c);
+                if ( !isNumber(myTok.peek<3>()) )
                     return token(TokenKind::Rational);
-                }
 
-                lexeme += e;
-                lexeme += c;
+                myTok.grow<3>();
             }
             else {
-                lexeme += e;
+                myTok.grow<2>();
             }
 
-            do lexeme += nextChar();
-            while ( isNumber(peekChar()) );
+            while ( isNumber(myTok.peek()) )
+                myTok.grow();
 
             return token(TokenKind::Rational);
         }
@@ -580,31 +517,31 @@ L_lexNumber:
 
     // Single characters
 
-    switch ( c ) {
+    switch ( myTok.current() ) {
     case '(':
     case '[':
     case '<':
-        TryEmitVacuum(c)
+        tryEmitVacuum();
     }
 
-    switch ( c ) {
-    case '(': addNest(); return token2(TokenKind::OpenParen  , "(");
-    case '[': addNest(); return token2(TokenKind::OpenBracket, "[");
-    case '<': addNest(); return token2(TokenKind::OpenAngle  , "<");
-    case ')': removeNest(); return token2(TokenKind::CloseParen  , ")");
-    case ']': removeNest(); return token2(TokenKind::CloseBracket, "]");
-    case '>': removeNest(); return token2(TokenKind::CloseAngle  , ">");
-    case '{': return token2(TokenKind::OpenBrace   , "{");
-    case '}': return token2(TokenKind::CloseBrace  , "}");
-    case '|': return token2(TokenKind::Pipe        , "|");
-    case ',': return token2(TokenKind::Comma       , ",");
-    case '@': return token2(TokenKind::At          , "@");
-    case ';': return token2(TokenKind::Semicolon   , ";");
+    switch ( myTok.current() ) {
+    case '(': addNest(); return token(TokenKind::OpenParen  );
+    case '[': addNest(); return token(TokenKind::OpenBracket);
+    case '<': addNest(); return token(TokenKind::OpenAngle  );
+    case ')': removeNest(); return token(TokenKind::CloseParen  );
+    case ']': removeNest(); return token(TokenKind::CloseBracket);
+    case '>': removeNest(); return token(TokenKind::CloseAngle  );
+    case '{': return token(TokenKind::OpenBrace );
+    case '}': return token(TokenKind::CloseBrace);
+    case '|': return token(TokenKind::Pipe      );
+    case ',': return token(TokenKind::Comma     );
+    case '@': return token(TokenKind::At        );
+    case ';': return token(TokenKind::Semicolon );
     }
 
 L_undefined:
     myError = true;
-    return token2(TokenKind::Undefined, "");
+    return token(TokenKind::Undefined);
 
 #undef TryEmitVacuum
 }

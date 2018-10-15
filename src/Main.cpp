@@ -1,12 +1,12 @@
 #include <iomanip>
 #include <iostream>
-#include <fstream>
 #include <filesystem>
 #include <queue>
 #include <set>
 #include <vector>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Stream.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 
@@ -23,8 +23,12 @@ namespace kyfoo {
 
 int runScannerDump(std::filesystem::path const& file)
 {
-    std::ifstream fin(file);
-    lexer::Scanner scanner(fin);
+    GUARD( fin, openFile(file) ) {
+        std::cout << file << ec.message() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    lexer::Scanner scanner(fin.view());
     if ( !scanner ) {
         std::cout << "could not open file: " << file << std::endl;
         return EXIT_FAILURE;
@@ -33,31 +37,12 @@ int runScannerDump(std::filesystem::path const& file)
     while (scanner)
     {
         auto token = scanner.next();
-        std::cout << 'L' << std::left << std::setw(10) << token.line();
-        switch (token.kind())
-        {
-        case lexer::TokenKind::Undefined:
-            std::cout << "<undefined>\n";
-            break;
-
-        case lexer::TokenKind::EndOfFile:
-            std::cout << "<eof>\n";
-            break;
-
-        case lexer::TokenKind::IndentLT:
-        case lexer::TokenKind::IndentEQ:
-        case lexer::TokenKind::IndentGT:
-        case lexer::TokenKind::IndentError:
-            std::cout << "<" << to_string(token.kind()) << "> " << '\n';
-            break;
-
-        case lexer::TokenKind::Identifier:
-            std::cout << '\'' << token.lexeme() << "'\n";
-            break;
-
-        default:
-            std::cout << token.lexeme() << " : " << to_string(token.kind()) << '\n';
-        }
+        std::cout << std::right << std::setfill('0')
+                  << 'L' << std::setw(4) << token.line()
+                  << 'C' << std::setw(3) << token.column()
+                  << std::left << std::setfill(' ')
+                  << '[' << std::setw(20) << to_string(token.kind()) << "]["
+                  << std::setw(0) << token.lexeme() << "]\n";
     }
 
     return EXIT_SUCCESS;

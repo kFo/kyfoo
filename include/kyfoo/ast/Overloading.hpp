@@ -205,7 +205,7 @@ public:
     void swap(SymbolSpace& rhs) noexcept;
 
 public:
-    std::string_view name() const;
+    stringv name() const;
     Slice<Prototype const> prototypes() const;
 
     void append(PatternsPrototype const& prototype,

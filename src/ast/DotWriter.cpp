@@ -4,10 +4,10 @@
 
 #include <array>
 #include <fstream>
+#include <iomanip>
 #include <map>
-#include <string>
-#include <string_view>
 
+#include <kyfoo/String.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
@@ -55,12 +55,13 @@ public:
 
     void visit(Slice<Expression const*> exprs)
     {
-        if ( exprs )
+        if ( exprs ) {
             dispatch(*exprs.front());
 
-        for ( auto e : exprs(1, $) ) {
-            stream << " | ";
-            dispatch(*e);
+            for ( auto e : exprs(1, $) ) {
+                stream << " | ";
+                dispatch(*e);
+            }
         }
     }
 
@@ -136,16 +137,16 @@ struct NodeWriter
 
     Dispatcher& dispatch;
     std::ostream& stream;
-    std::string_view id;
+    stringv id;
 
-    NodeWriter(Dispatcher& dispatch, std::ostream& stream, std::string_view id)
+    NodeWriter(Dispatcher& dispatch, std::ostream& stream, stringv id)
         : dispatch(dispatch)
         , stream(stream)
         , id(id)
     {
     }
 
-    void beginAttrs(std::string_view label)
+    void beginAttrs(stringv label)
     {
         stream << id << " [label=" << quoted(label);
     }
@@ -155,7 +156,7 @@ struct NodeWriter
         stream << "]\n";
     }
 
-    void attr(std::string_view key, std::string_view value)
+    void attr(stringv key, stringv value)
     {
         stream << "," << key << "=" << value;
     }
@@ -292,7 +293,7 @@ struct NodeWriter
 
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
-        std::string_view label = proc.symbol().token().lexeme();
+        stringv label = proc.symbol().token().lexeme();
         if ( auto decl = proc.scope().declaration() )
             if ( auto templ = decl->as<TemplateDeclaration>() )
                 label = templ->symbol().token().lexeme();
@@ -335,7 +336,7 @@ struct NodeWriter
 template <typename Dispatcher>
 struct DotWriter
 {
-    using result_t = std::string_view;
+    using result_t = stringv;
     Dispatcher& dispatch;
     std::ostream& stream;
 
@@ -377,7 +378,7 @@ struct DotWriter
     }
 
     struct NodeID {
-        std::string_view id;
+        stringv id;
         bool isNew;
     };
 
@@ -421,7 +422,7 @@ struct DotWriter
     }
 
     template <typename T>
-    std::string_view mkNode(T const& item)
+    stringv mkNode(T const& item)
     {
         auto node = id(item);
         if ( node.isNew ) {
@@ -432,7 +433,7 @@ struct DotWriter
         return node.id;
     }
 
-    void mkEdge(std::string_view from, std::string_view to)
+    void mkEdge(stringv from, stringv to)
     {
         stream << from << " -> " << to << '\n';
     }
@@ -637,7 +638,7 @@ struct DotWriter
 
         ycomb([this](auto rec, ProcedureScope const& scope) -> void {
             for ( auto bb : scope.basicBlocks() ) {
-                std::string_view pred;
+                stringv pred;
                 if ( bb->statements() ) {
                     pred = dispatch(*bb->statements().front());
                     for ( auto stmt : bb->statements()(1, $) ) {
@@ -667,7 +668,7 @@ struct DotWriter
                     assert(br->branch(0));
                     mkEdge(bbNode.id, head(*br->branch(0)).id);
 
-                    std::string_view mb;
+                    stringv mb;
                     if ( auto b = br->branch(1) )
                         mb = head(*b).id;
                     else

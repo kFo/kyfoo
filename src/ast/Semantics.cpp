@@ -56,13 +56,13 @@ SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::create(std::string n
     return groups.back().get();
 }
 
-SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(std::string_view name, uz arity)
+SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(stringv name, uz arity)
 {
     for ( auto const& e : groups)
         if ( e->name == name && e->arity == arity )
             return e.get();
 
-    return create(std::string(name), arity);
+    return create(mkString(name), arity);
 }
 
 void SymbolDependencyTracker::add(Declaration& decl)
@@ -72,7 +72,7 @@ void SymbolDependencyTracker::add(Declaration& decl)
 }
 
 SymRes SymbolDependencyTracker::addDependency(Declaration& dependent,
-                                              std::string_view name,
+                                              stringv name,
                                               uz arity)
 {
     auto group = findOrCreate(dependent.symbol().token().lexeme(), dependent.symbol().prototype().pattern().size());
@@ -111,7 +111,7 @@ struct SymbolDependencyBuilder
     Declaration& dependent;
 
     struct LocalDecl {
-        std::vector<std::string_view> names;
+        std::vector<stringv> names;
     };
 
     std::vector<LocalDecl> localDecls;
@@ -126,7 +126,7 @@ struct SymbolDependencyBuilder
     }
 
 private:
-    result_t addDep(std::string_view name, uz arity)
+    result_t addDep(stringv name, uz arity)
     {
         if ( arity == 0 )
             for ( auto localDecl = localDecls.rbegin(); localDecl != localDecls.rend(); ++localDecl )
@@ -149,7 +149,7 @@ private:
         return Pop(*this);
     }
 
-    void pushName(std::string_view name)
+    void pushName(stringv name)
     {
         localDecls.back().names.push_back(name);
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <type_traits>
 #include <utility>
@@ -101,43 +102,11 @@ ScopeExit<F> operator*(deducto_syntacto_impl<ScopeExit>, F&& f)
 #define KYFOO_LABEL_REVERT(a) KYFOO_LABEL_CAT(revert_, a)
 #define REVERT [[maybe_unused]] auto KYFOO_LABEL_REVERT(__COUNTER__)
 
-struct StringComp {
-    struct is_transparent;
-
-    bool operator()(std::string const& lhs, std::string const& rhs) const {
-        return lhs < rhs;
-    }
-
-    bool operator()(std::string const& lhs, std::string_view rhs) const {
-        return lhs < rhs;
-    }
-
-    bool operator()(std::string_view lhs, std::string const& rhs) const {
-        return lhs < rhs;
-    }
-
-    bool operator()(std::string_view lhs, std::string_view rhs) const {
-        return lhs < rhs;
-    }
-
-    bool equiv(std::string const& lhs, std::string const& rhs) const {
-        return lhs == rhs;
-    }
-
-    bool equiv(std::string const& lhs, std::string_view rhs) const {
-        return lhs == rhs;
-    }
-
-    bool equiv(std::string_view lhs, std::string const& rhs) const {
-        return lhs == rhs;
-    }
-
-    bool equiv(std::string_view lhs, std::string_view rhs) const {
-        return lhs == rhs;
-    }
-};
-
-int stoi(std::string_view s);
+#define GUARD_ERR(id) err_guard_##id
+#define GUARD(id, expr)                       \
+    auto GUARD_ERR(id) = expr;                \
+    auto&& id = *GUARD_ERR(id);               \
+    if ( std::error_code ec = GUARD_ERR(id) )
 
 template <typename L, typename R>
 std::enable_if_t<!std::is_scalar_v<L>>

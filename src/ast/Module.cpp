@@ -2,10 +2,10 @@
 
 #include <cassert>
 
-#include <fstream>
 #include <filesystem>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Stream.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
@@ -61,7 +61,7 @@ void ModuleSet::initBaseModules()
 
 Module* ModuleSet::create(std::string name)
 {
-    auto m = find(std::string_view(name));
+    auto m = find(stringv(name));
     if ( m )
         return m;
 
@@ -91,7 +91,7 @@ Module* ModuleSet::create(std::filesystem::path const& path)
 
 Module* ModuleSet::createImplied(std::string name)
 {
-    auto m = find(std::string_view(name));
+    auto m = find(stringv(name));
     if ( m )
         return m;
 
@@ -100,7 +100,7 @@ Module* ModuleSet::createImplied(std::string name)
     return myImpliedImports.back();
 }
 
-Module* ModuleSet::find(std::string_view name)
+Module* ModuleSet::find(stringv name)
 {
     for ( auto& m : myModules )
         if ( m->name() == name )
@@ -157,15 +157,13 @@ std::filesystem::path const& ModuleSet::path() const
 //
 // Module
 
-Module::Module(ModuleSet* moduleSet,
-               std::string name)
+Module::Module(ModuleSet* moduleSet, std::string name)
     : myModuleSet(moduleSet)
     , myName(std::move(name))
 {
 }
 
-Module::Module(ModuleSet* moduleSet,
-               std::filesystem::path const& path)
+Module::Module(ModuleSet* moduleSet, std::filesystem::path const& path)
     : myModuleSet(moduleSet)
     , myPath(canonical(path).make_preferred())
 {
@@ -174,7 +172,7 @@ Module::Module(ModuleSet* moduleSet,
 
 Module::~Module() = default;
 
-std::string_view Module::name() const
+stringv Module::name() const
 {
     return myName;
 }
@@ -186,16 +184,15 @@ std::filesystem::path const& Module::path() const
 
 void Module::parse(Diagnostics& dgn)
 {
-    std::ifstream fin(path());
-    if ( !fin ) {
-        dgn.error(*this) << "failed to open source file";
-        dgn.die();
-    }
+    if ( auto err = openFile(path()) )
+        throw std::system_error(err, path().string());
+    else
+        myFile = unwrap(err);
 
-    parse(dgn, fin);
+    parse(dgn, myFile.view());
 }
 
-void Module::parse(Diagnostics& dgn, std::istream& stream)
+void Module::parse(Diagnostics& dgn, Slice<char const> stream)
 {
     lexer::Scanner scanner(stream);
 
@@ -230,10 +227,10 @@ Module const* Module::import(Module* module)
 
 Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
 {
-    auto mod = myModuleSet->create(token.lexeme());
+    auto mod = myModuleSet->create(mkString(token.lexeme()));
     if ( !mod ) {
         std::filesystem::path importPath = myPath;
-        importPath.replace_filename(token.lexeme());
+        importPath.replace_filename(mkString(token.lexeme()));
         importPath.replace_extension(".kf");
 
         if ( !exists(importPath) ) {
@@ -306,7 +303,7 @@ bool Module::parsed() const
     return myScope.get() != nullptr;
 }
 
-std::string_view Module::interpretString(Diagnostics& dgn, lexer::Token const& token) const
+stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) const
 {
     auto e = myStrings.lower_bound(token.lexeme());
     if ( e != end(myStrings) && e->first == token.lexeme() )
@@ -327,64 +324,62 @@ std::string_view Module::interpretString(Diagnostics& dgn, lexer::Token const& t
     std::string out;
     out.reserve(in.size());
 
-    if ( in[0] == '"' ) {
-        for ( uz i = 1; i < in.size() - 1; ++i ) {
-            if ( in[i] != '\\' ) {
-                out.push_back(in[i]);
+    if ( in[0] != '"' )
+        throw std::runtime_error("unhandled string kind");
+
+    for ( uz i = 1; i < in.size() - 1; ++i ) {
+        if ( in[i] != '\\' ) {
+            out.push_back(in[i]);
+        }
+        else {
+            ++i;
+            if ( i == in.size() - 1 ) {
+                dgn.error(*this, token) << "lone escape character at " << i;
+                return token.lexeme();
             }
-            else {
-                ++i;
-                if ( i == in.size() - 1 ) {
-                    dgn.error(*this, token) << "lone escape character at " << i;
+
+            switch ( in[i] ) {
+            case  '0': out.push_back(0x00); break;
+            case  'a': out.push_back(0x07); break;
+            case  'b': out.push_back(0x08); break;
+            case  't': out.push_back(0x09); break;
+            case  'n': out.push_back(0x0a); break;
+            case  'v': out.push_back(0x0b); break;
+            case  'f': out.push_back(0x0c); break;
+            case  'r': out.push_back(0x0d); break;
+            case  '"': out.push_back(0x22); break;
+            case '\'': out.push_back(0x27); break;
+            case  '?': out.push_back(0x3f); break;
+            case '\\': out.push_back(0x5c); break;
+            case 'x': {
+                if ( i + 2 >= in.size() - 1 ) {
+                    dgn.error(*this, token) << "not enough hex characters for escape sequence at " << i;
                     return token.lexeme();
                 }
 
-                switch ( in[i] ) {
-                case  '0': out.push_back(0x00); break;
-                case  'a': out.push_back(0x07); break;
-                case  'b': out.push_back(0x08); break;
-                case  't': out.push_back(0x09); break;
-                case  'n': out.push_back(0x0a); break;
-                case  'v': out.push_back(0x0b); break;
-                case  'f': out.push_back(0x0c); break;
-                case  'r': out.push_back(0x0d); break;
-                case  '"': out.push_back(0x22); break;
-                case '\'': out.push_back(0x27); break;
-                case  '?': out.push_back(0x3f); break;
-                case '\\': out.push_back(0x5c); break;
-                case 'x': {
-                    if ( i + 2 >= in.size() - 1 ) {
-                        dgn.error(*this, token) << "not enough hex characters for escape sequence at " << i;
-                        return token.lexeme();
-                    }
-
-                    int digit[2] = { toHex(in[i + 1]), toHex(in[i + 2]) };
-                    if ( digit[0] < 0 || digit[1] < 0 ) {
-                        dgn.error(*this, token) << "invalid hex escape sequence at " << i;
-                        return token.lexeme();
-                    }
-
-                    out.push_back(static_cast<char>(digit[0] * 16 + digit[1]));
-                    break;
-                }
-
-                case 'u': {
-                    dgn.error(*this, token) << "unicode codepoint sequence not implemented at " << i;
+                int digit[2] = { toHex(in[i + 1]), toHex(in[i + 2]) };
+                if ( digit[0] < 0 || digit[1] < 0 ) {
+                    dgn.error(*this, token) << "invalid hex escape sequence at " << i;
                     return token.lexeme();
                 }
 
-                default:
-                    dgn.error(*this, token) << "invalid escape sequence at " << i;
-                    return token.lexeme();
-                }
+                out.push_back(static_cast<char>(digit[0] * 16 + digit[1]));
+                break;
+            }
+
+            case 'u': {
+                dgn.error(*this, token) << "unicode codepoint sequence not implemented at " << i;
+                return token.lexeme();
+            }
+
+            default:
+                dgn.error(*this, token) << "invalid escape sequence at " << i;
+                return token.lexeme();
             }
         }
     }
-    else {
-        throw std::runtime_error("unhandled string kind");
-    }
 
-    return myStrings.insert_or_assign(e, std::string(in), std::move(out))->second;
+    return myStrings.insert_or_assign(e, mkString(in), std::move(out))->second;
 }
 
 Slice<Declaration const*> Module::templateInstantiations() const

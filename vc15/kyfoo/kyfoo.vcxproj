@@ -290,6 +290,8 @@
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Stream.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\String.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Types.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Utilities.hpp" />
   </ItemGroup>
@@ -353,7 +355,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\lexer\Scanner.cpp" />
-    <ClCompile Include="..\..\src\lexer\Token.cpp" />
     <ClCompile Include="..\..\src\lexer\TokenKind.cpp" />
     <ClCompile Include="..\..\src\Main.cpp" />
     <ClCompile Include="..\..\src\parser\Parse.cpp">
@@ -364,7 +365,8 @@
       <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='DebugFaster|x64'">stdcpp17</LanguageStandard>
       <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdcpp17</LanguageStandard>
     </ClCompile>
-    <ClCompile Include="..\..\src\Utilities.cpp" />
+    <ClCompile Include="..\..\src\Stream.cpp" />
+    <ClCompile Include="..\..\src\String.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

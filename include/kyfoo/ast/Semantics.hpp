@@ -79,11 +79,11 @@ struct SymbolDependencyTracker
     SymbolDependencyTracker(Module& mod, Diagnostics& dgn);
 
     SymGroup* create(std::string name, uz arity);
-    SymGroup* findOrCreate(std::string_view name, uz arity);
+    SymGroup* findOrCreate(stringv name, uz arity);
 
     void add(Declaration& decl);
     SymRes addDependency(Declaration& dependent,
-                         std::string_view name,
+                         stringv name,
                          uz arity);
 
     void sortPasses();

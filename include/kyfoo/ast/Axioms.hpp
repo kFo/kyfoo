@@ -144,7 +144,7 @@ protected:
     bool init(Diagnostics& dgn);
 
 public:
-    ~AxiomsModule();
+    ~AxiomsModule() KYFOO_DEBUG_OVERRIDE;
 
 public:
     /**
@@ -178,7 +178,7 @@ public:
     IntegerMetaData const* integerMetaData(Declaration const& decl) const;
 
 private:
-    void setIntrinsic(std::string_view name, Declaration const* decl);
+    void setIntrinsic(stringv name, Declaration const* decl);
     void findIntrinsics(Scope const* s);
 
     DataSumDeclaration const* myDataSumDecls[DataSumIntrinsicsCount];

@@ -136,14 +136,17 @@
       <Filter>include\kyfoo</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp">
-      <Filter>include</Filter>
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Stream.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\String.hpp">
+      <Filter>include\kyfoo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
-      <Filter>src\lexer</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\lexer\Token.cpp">
       <Filter>src\lexer</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lexer\TokenKind.cpp">
@@ -191,9 +194,6 @@
     <ClCompile Include="..\..\src\ast\Substitutions.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\Utilities.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ast\Overloading.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
@@ -202,6 +202,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ast\DotWriter.cpp">
       <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Stream.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\String.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

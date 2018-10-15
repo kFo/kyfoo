@@ -124,7 +124,7 @@ void PatternsPrototype::bindVariables(Substitutions const& substs)
     }
 }
 
-SymbolVariable* PatternsPrototype::findVariable(std::string_view token)
+SymbolVariable* PatternsPrototype::findVariable(stringv token)
 {
     for ( auto& e : myVariables )
         if ( e->token().lexeme() == token )
@@ -133,7 +133,7 @@ SymbolVariable* PatternsPrototype::findVariable(std::string_view token)
     return nullptr;
 }
 
-SymbolVariable const* PatternsPrototype::findVariable(std::string_view token) const
+SymbolVariable const* PatternsPrototype::findVariable(stringv token) const
 {
     return const_cast<PatternsPrototype*>(this)->findVariable(token);
 }
@@ -253,13 +253,7 @@ Symbol const* Symbol::prototypeParent() const
 //
 // SymbolReference
 
-SymbolReference::SymbolReference(std::string_view name, const_pattern_t pattern)
-    : myName(name)
-    , myPattern(pattern)
-{
-}
-
-SymbolReference::SymbolReference(const char* name, const_pattern_t pattern)
+SymbolReference::SymbolReference(stringv name, const_pattern_t pattern)
     : myName(name)
     , myPattern(pattern)
 {
@@ -270,12 +264,7 @@ SymbolReference::SymbolReference(Symbol const& sym)
 {
 }
 
-SymbolReference::SymbolReference(std::string_view name)
-    : SymbolReference(name, pattern_t())
-{
-}
-
-SymbolReference::SymbolReference(const char* name)
+SymbolReference::SymbolReference(stringv name)
     : SymbolReference(name, pattern_t())
 {
 }
@@ -289,7 +278,7 @@ void SymbolReference::swap(SymbolReference& rhs)
     swap(myPattern, rhs.myPattern);
 }
 
-std::string_view SymbolReference::name() const
+stringv SymbolReference::name() const
 {
     return myName;
 }

@@ -486,8 +486,8 @@ public:
     ProcedureParameter const* result() const;
 
     Slice<int const> ordinals() const;
-    ProcedureParameter* findParameter(std::string_view token);
-    ProcedureParameter const* findParameter(std::string_view token) const;
+    ProcedureParameter* findParameter(stringv token);
+    ProcedureParameter const* findParameter(stringv token) const;
 
 private:
     Box<ArrowExpression> myType;

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <string>
-
+#include <kyfoo/String.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
 
@@ -15,20 +14,12 @@ struct SourceLocation
     line_index_t line = 0;
     column_index_t column = 0;
 
-    SourceLocation() = default;
-    SourceLocation(line_index_t line, column_index_t col)
+    constexpr SourceLocation() noexcept = default;
+    constexpr SourceLocation(line_index_t line, column_index_t col) noexcept
         : line(line)
         , column(col)
     {
     }
-
-    SourceLocation(SourceLocation const&) = default;
-    SourceLocation& operator = (SourceLocation const&) = default;
-
-    SourceLocation(SourceLocation&&) = default;
-    SourceLocation& operator = (SourceLocation&&) = default;
-
-    ~SourceLocation() = default;
 
     void swap(SourceLocation& rhs)
     {
@@ -40,36 +31,53 @@ struct SourceLocation
 
 class Token
 {
+public:
+    constexpr explicit Token() noexcept = default;
+
+    constexpr Token(TokenKind kind, stringv lexeme, SourceLocation loc) noexcept
+        : myKind(kind)
+        , myLexeme(lexeme)
+        , myLoc(loc)
+    {
+    }
+
+    constexpr Token(TokenKind kind, SourceLocation loc) noexcept
+        : myKind(kind)
+        , myLoc(loc)
+    {
+    }
+
+    void swap(Token& rhs) noexcept
+    {
+        using kyfoo::swap;
+
+        swap(myKind, rhs.myKind);
+        swap(myLexeme, rhs.myLexeme);
+        swap(myLoc, rhs.myLoc);
+    }
+
+public:
+    constexpr bool operator < (Token const& rhs) const noexcept
+    {
+        return myKind < rhs.myKind;
+    }
+
+    constexpr explicit operator bool () const noexcept
+    {
+        return myKind != TokenKind::Undefined;
+    }
+
+public:
+    constexpr TokenKind      kind    () const noexcept { return myKind      ; }
+    constexpr stringv        lexeme  () const noexcept { return myLexeme    ; }
+    constexpr SourceLocation location() const noexcept { return myLoc       ; }
+    constexpr line_index_t   line    () const noexcept { return myLoc.line  ; }
+    constexpr column_index_t column  () const noexcept { return myLoc.column; }
+
+private:
     TokenKind myKind = TokenKind::Undefined;
-    std::string myLexeme;
-    SourceLocation myLoc = { 0, 0 };
-
-public:
-    explicit Token();
-    Token(TokenKind kind,
-          std::string lexeme,
-          SourceLocation loc);
-
-public:
-    Token(Token const&);
-    Token& operator = (Token const&);
-
-    Token(Token&&);
-    Token& operator = (Token&&);
-
-    void swap(Token&) noexcept;
-
-public:
-    bool operator < (Token const&) const;
-
-    explicit operator bool () const;
-
-public:
-    TokenKind kind() const;
-    std::string_view lexeme() const;
-    SourceLocation location() const;
-    line_index_t line() const;
-    column_index_t column() const;
+    stringv myLexeme;
+    SourceLocation myLoc;
 };
 
 } // namespace kyfoo::lexer

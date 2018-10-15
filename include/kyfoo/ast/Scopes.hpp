@@ -94,8 +94,8 @@ protected:
     Lookup findOverload(Context& ctx, SymbolReference const& sym) const;
 
     bool addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl);
-    SymbolSpace* createSymbolSpace(Diagnostics& dgn, std::string_view name);
-    SymbolSpace* findSymbolSpace(std::string_view name) const;
+    SymbolSpace* createSymbolSpace(Diagnostics& dgn, stringv name);
+    SymbolSpace* findSymbolSpace(stringv name) const;
 
 public:
     Kind kind() const;

@@ -1,7 +1,6 @@
 #include <kyfoo/parser/Parse.hpp>
 
 #include <filesystem>
-#include <fstream>
 
 #include <kyfoo/Diagnostics.hpp>
 
@@ -547,7 +546,7 @@ void parseScope(Box<DeclarationScopeParser> parser)
         }
         else {
             switch (scanner.peek().kind()) {
-            case lexer::TokenKind::EndOfFile:
+            case lexer::TokenKind::EndOfInput:
                 if ( !scopeStack.empty() )
                     scopeStack.resize(1);
 

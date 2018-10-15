@@ -363,7 +363,7 @@ void SymbolSpace::swap(SymbolSpace& rhs) noexcept
     swap(myPrototypes, rhs.myPrototypes);
 }
 
-std::string_view SymbolSpace::name() const
+stringv SymbolSpace::name() const
 {
     return myName;
 }

@@ -45,7 +45,7 @@
 #include <kyfoo/codegen/Codegen.hpp>
 
 namespace {
-    llvm::StringRef strRef(std::string_view s)
+    llvm::StringRef strRef(kyfoo::stringv s)
     {
         return llvm::StringRef(s.data(), s.size());
     }
@@ -62,7 +62,7 @@ template<>
 struct LLVMCustomData<ast::Module> : public CustomData
 {
     Box<llvm::Module> module;
-    std::map<std::string_view, llvm::GlobalVariable*> strings;
+    std::map<stringv, llvm::GlobalVariable*> strings;
 
     llvm::GlobalVariable* interpretString(Diagnostics& dgn,
                                           llvm::IRBuilder<>& builder,
@@ -72,7 +72,7 @@ struct LLVMCustomData<ast::Module> : public CustomData
         return getString(builder, mod.interpretString(dgn, token));
     }
 
-    llvm::GlobalVariable* getString(llvm::IRBuilder<>& builder, std::string_view str)
+    llvm::GlobalVariable* getString(llvm::IRBuilder<>& builder, stringv str)
     {
         auto e = strings.lower_bound(str);
         if ( e != end(strings) && e->first == str )
@@ -498,9 +498,9 @@ struct CodeGenPass
 
         auto type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
-        std::string name;
+        llvm::StringRef name;
         if ( decl.scope().declaration() )
-            name = decl.scope().declaration()->symbol().token().lexeme();
+            name = strRef(decl.scope().declaration()->symbol().token().lexeme());
 
         auto defn = decl.definition();
         if ( !defn ) {
@@ -1418,7 +1418,7 @@ struct LLVMGenerator::LLVMState
     {
         module.setCodegenData(mk<LLVMCustomData<ast::Module>>());
         auto mdata = customData(module);
-        mdata->module = mk<llvm::Module>(std::string(module.name()), *context);
+        mdata->module = mk<llvm::Module>(mkString(module.name()), *context);
 
         ast::ShallowApply<InitCodeGenPass> init(dgn, module);
         for ( auto d : module.scope()->childDeclarations() )

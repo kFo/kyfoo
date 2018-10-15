@@ -211,7 +211,7 @@ SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
     std::string name = "?";
     name += myMetaVariables.size();
     name += "_";
-    name += tok.lexeme();
+    name.append(begin(tok.lexeme()), end(tok.lexeme()));
     lexer::Token metaTok(lexer::TokenKind::MetaVariable,
                          std::move(name),
                          tok.location());
@@ -259,7 +259,7 @@ void Scope::appendLambda(Box<ProcedureDeclaration> proc,
 
 void Scope::import(Module& module)
 {
-    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, std::string(module.name()), lexer::SourceLocation()))));
+    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, mkString(module.name()), lexer::SourceLocation()))));
 }
 
 void Scope::merge(Scope& rhs)
@@ -301,20 +301,20 @@ bool Scope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
     return true;
 }
 
-SymbolSpace* Scope::createSymbolSpace(Diagnostics&, std::string_view name)
+SymbolSpace* Scope::createSymbolSpace(Diagnostics&, stringv name)
 {
-    auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
+    auto symLess = [](SymbolSpace const& s, stringv name) { return s.name() < name; };
     auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( l != end(mySymbols) && l->name() == name )
         return &*l;
 
-    l = mySymbols.insert(l, SymbolSpace(this, std::string(name)));
+    l = mySymbols.insert(l, SymbolSpace(this, mkString(name)));
     return &*l;
 }
 
-SymbolSpace* Scope::findSymbolSpace(std::string_view name) const
+SymbolSpace* Scope::findSymbolSpace(stringv name) const
 {
-    auto symLess = [](SymbolSpace const& s, std::string_view name) { return s.name() < name; };
+    auto symLess = [](SymbolSpace const& s, stringv name) { return s.name() < name; };
     auto symSet = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( symSet != end(mySymbols) && symSet->name() == name )
         return &*symSet;

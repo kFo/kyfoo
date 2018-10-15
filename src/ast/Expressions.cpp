@@ -1406,7 +1406,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                 }
 
                 auto const tok = lit->token();
-                myExpressions[i] = createIdentifier(makeToken(std::string(tok.lexeme()),
+                myExpressions[i] = createIdentifier(makeToken(mkString(tok.lexeme()),
                                                               tok.location()),
                                                     *defn->fields()[index]);
             }

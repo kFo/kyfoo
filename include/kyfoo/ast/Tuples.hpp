@@ -1,7 +1,6 @@
 #pragma once
 
-#include <string>
-
+#include <kyfoo/String.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
 
 namespace kyfoo::ast {

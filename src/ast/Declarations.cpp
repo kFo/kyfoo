@@ -1,6 +1,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/String.hpp>
 #include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/lexer/Scanner.hpp>
@@ -858,7 +859,7 @@ Slice<int const> ProcedureDeclaration::ordinals() const
     return myOrdinals;
 }
 
-ProcedureParameter* ProcedureDeclaration::findParameter(std::string_view token)
+ProcedureParameter* ProcedureDeclaration::findParameter(stringv token)
 {
     for ( auto const& p : myParameters )
         if ( p->symbol().token().lexeme() == token )
@@ -867,7 +868,7 @@ ProcedureParameter* ProcedureDeclaration::findParameter(std::string_view token)
     return nullptr;
 }
 
-ProcedureParameter const* ProcedureDeclaration::findParameter(std::string_view token) const
+ProcedureParameter const* ProcedureDeclaration::findParameter(stringv token) const
 {
     return const_cast<ProcedureDeclaration*>(this)->findParameter(token);
 }
