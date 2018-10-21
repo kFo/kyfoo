@@ -394,7 +394,7 @@ void AxiomsModule::findIntrinsics(Scope const* s)
 
 bool AxiomsModule::init(Diagnostics& dgn)
 {
-    constexpr Slice s = source;
+    constexpr stringv s = source;
     try {
         parse(dgn, s);
         if ( dgn.errorCount() )

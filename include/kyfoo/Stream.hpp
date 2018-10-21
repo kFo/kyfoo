@@ -25,14 +25,14 @@ public:
     }
 
     template <typename... Args>
-    ErrorWrapper(std::error_code ec, Args... args)
+    ErrorWrapper(std::error_code ec, Args&&... args)
         : std::error_code(ec)
         , myPayload(std::in_place_t{}, std::forward<Args>(args)...)
     {
     }
 
     template <typename... Args>
-    explicit ErrorWrapper(Args... args)
+    explicit ErrorWrapper(Args&&... args)
         : myPayload(std::in_place_t{}, std::forward<Args>(args)...)
     {
     }

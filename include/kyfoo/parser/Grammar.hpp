@@ -34,19 +34,14 @@ public:
         if ( scan.peek().kind() != K )
             return false;
 
-        myCapture = scan.next();
+        myCapture = &scan.next();
         matches += 1;
         return scan.commit();
     }
 
     lexer::Token const& token() const
     {
-        return myCapture;
-    }
-
-    lexer::Token& token()
-    {
-        return myCapture;
+        return *myCapture;
     }
 
     lexer::Token const& make(parser::DeclarationScopeParser&) const
@@ -55,7 +50,7 @@ public:
     }
 
 private:
-    lexer::Token myCapture;
+    lexer::Token const* myCapture;
 };
 
 template <typename... T>
@@ -619,12 +614,12 @@ public:
         if ( scan.peek().kind() != Open )
             return false;
 
-        myCaptures.emplace_back(scan.next());
+        myCaptures.emplace_back(&scan.next());
         ++matches;
         for ( int nest = 1; nest; ) {
-            myCaptures.emplace_back(scan.next());
+            myCaptures.emplace_back(&scan.next());
             ++matches;
-            switch (myCaptures.back().kind()) {
+            switch (myCaptures.back()->kind()) {
             case Open:
                 ++nest;
                 break;
@@ -641,18 +636,18 @@ public:
         return scan.commit();
     }
 
-    std::deque<lexer::Token> const& captures() const
+    std::deque<lexer::Token const*> const& captures() const
     {
         return myCaptures;
     }
 
-    std::deque<lexer::Token>& captures()
+    std::deque<lexer::Token const*>& captures()
     {
         return myCaptures;
     }
 
 private:
-    std::deque<lexer::Token> myCaptures;
+    std::deque<lexer::Token const*> myCaptures;
 };
 
 template <typename... U, typename... V>

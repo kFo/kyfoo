@@ -22,8 +22,9 @@ namespace kyfoo::ast {
 //
 // ModuleSet
 
-ModuleSet::ModuleSet()
+ModuleSet::ModuleSet(lexer::DefaultTokenFactory& tokenFactory)
     : myAxioms(new AxiomsModule(this, "axioms"))
+    , myTokenFactory(tokenFactory)
 {
     myModules.emplace_back(myAxioms);
 }
@@ -154,6 +155,11 @@ std::filesystem::path const& ModuleSet::path() const
     return myPath;
 }
 
+lexer::DefaultTokenFactory& ModuleSet::tokenFactory()
+{
+    return myTokenFactory;
+}
+
 //
 // Module
 
@@ -194,7 +200,7 @@ void Module::parse(Diagnostics& dgn)
 
 void Module::parse(Diagnostics& dgn, Slice<char const> stream)
 {
-    lexer::Scanner scanner(stream);
+    lexer::Scanner scanner(moduleSet().tokenFactory(), stream);
 
     if ( !myScope )
         myScope = mk<ast::Scope>(*this);
@@ -256,6 +262,11 @@ void Module::appendTemplateInstance(Declaration const* instance)
     auto e = find(begin(myTemplateInstantiations), end(myTemplateInstantiations), instance);
     if ( e == end(myTemplateInstantiations) )
         myTemplateInstantiations.push_back(instance);
+}
+
+ModuleSet& Module::moduleSet()
+{
+    return *myModuleSet;
 }
 
 ModuleSet const& Module::moduleSet() const

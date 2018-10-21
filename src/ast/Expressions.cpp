@@ -1406,8 +1406,8 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                 }
 
                 auto const tok = lit->token();
-                myExpressions[i] = createIdentifier(makeToken(mkString(tok.lexeme()),
-                                                              tok.location()),
+                myExpressions[i] = createIdentifier(mkToken(tok.lexeme(),
+                                                            tok.location()),
                                                     *defn->fields()[index]);
             }
             else if ( auto tup = composite->as<TupleExpression>() ) {

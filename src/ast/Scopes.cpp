@@ -211,9 +211,11 @@ SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
     std::string name = "?";
     name += myMetaVariables.size();
     name += "_";
+    myMetaVariableNames.emplace_back(std::move(name));
+
     name.append(begin(tok.lexeme()), end(tok.lexeme()));
     lexer::Token metaTok(lexer::TokenKind::MetaVariable,
-                         std::move(name),
+                         myMetaVariableNames.back(),
                          tok.location());
     myMetaVariables.emplace_back(mk<SymbolVariable>(std::move(metaTok), *this));
     return *myMetaVariables.back();
@@ -259,7 +261,7 @@ void Scope::appendLambda(Box<ProcedureDeclaration> proc,
 
 void Scope::import(Module& module)
 {
-    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, mkString(module.name()), lexer::SourceLocation()))));
+    append(mk<ImportDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, module.name(), lexer::SourceLocation()))));
 }
 
 void Scope::merge(Scope& rhs)

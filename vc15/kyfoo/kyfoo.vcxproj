@@ -258,6 +258,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\kyfoo\Allocators.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Array.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\ControlFlow.hpp" />
@@ -281,21 +283,25 @@
     <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Dollar.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Factory.hpp" />
     <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Interval.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Meta.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Stream.hpp" />
     <ClInclude Include="..\..\include\kyfoo\String.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Tribool.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Types.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Utilities.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\Allocators.cpp" />
     <ClCompile Include="..\..\src\ast\Axioms.cpp" />
     <ClCompile Include="..\..\src\ast\Context.cpp" />
     <ClCompile Include="..\..\src\ast\ControlFlow.cpp" />

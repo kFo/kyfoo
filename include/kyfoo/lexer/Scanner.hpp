@@ -3,6 +3,8 @@
 #include <deque>
 #include <vector>
 
+#include <kyfoo/Allocators.hpp>
+#include <kyfoo/Factory.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/lexer/Token.hpp>
 
@@ -115,19 +117,46 @@ private:
     pointer_t myEnd;
 };
 
+template <typename Allocator>
+class TokenFactory : private AscendingFactory<Token, Allocator>
+{
+    using Base = AscendingFactory<Token, Allocator>;
+
+public:
+    explicit TokenFactory(uz reserve = 0)
+        : Base(reserve ? reserve * sizeof(Token) : allocationGranularity())
+    {
+    }
+
+    Token const& mkToken(TokenKind kind, stringv lexeme, SourceLocation loc)
+    {
+        return Base::mk(kind, lexeme, loc);
+    }
+
+    Token const& mkToken(TokenKind kind, SourceLocation loc)
+    {
+        return Base::mk(kind, loc);
+    }
+};
+
+using DefaultTokenFactory = TokenFactory<
+    AscendingAllocator<
+        Region<AscendingPageAllocator, sizeof(Token)>,
+        Mallocator>>;
+
 class Scanner
 {
 public:
-    explicit Scanner(Slice<char const> stream);
-    explicit Scanner(std::deque<Token>&& buffer);
+    explicit Scanner(DefaultTokenFactory& tokenFactory, Slice<char const> stream);
+    explicit Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*>&& buffer);
 
 public:
     Scanner(Scanner const&) = delete;
     Scanner& operator = (Scanner const&) = delete;
 
 public:
-    Token next();
-    Token peek(uz lookAhead = 0);
+    Token const& next();
+    Token const& peek(uz lookAhead = 0);
 
     void beginScan();
     void endScan();
@@ -139,9 +168,9 @@ public:
     explicit operator bool() const;
 
 protected:
-    Token readNext();
+    Token const& readNext();
 
-    Token indent(SourceLocation loc, indent_width_t indent);
+    Token const& indent(SourceLocation loc, indent_width_t indent);
     void bumpLine();
 
     void addNest();
@@ -149,6 +178,7 @@ protected:
     int nestings() const;
 
 private:
+    DefaultTokenFactory& myTokenFactory;
     Tokenizer<char const> myTok;
 
     struct InternalScanState
@@ -159,7 +189,7 @@ private:
 
     std::vector<InternalScanState> mySavePoints;
     std::vector<indent_width_t> myIndents;
-    std::deque<Token> myBuffer;
+    std::deque<Token const*> myBuffer;
 
     SourceLocation myLoc = { 1, 1 };
     int myNestings = 0;
@@ -211,12 +241,12 @@ public:
     }
 
 public:
-    Token next()
+    Token const& next()
     {
         return myScanner.next();
     }
 
-    Token peek(uz lookAhead = 0)
+    Token const& peek(uz lookAhead = 0)
     {
         return myScanner.peek(lookAhead);
     }

@@ -122,19 +122,21 @@ namespace
     }
 } // namespace
 
-Scanner::Scanner(Slice<char const> stream)
-    : myTok(stream)
+Scanner::Scanner(DefaultTokenFactory& tokenFactory, Slice<char const> stream)
+    : myTokenFactory(tokenFactory)
+    , myTok(stream)
     , myState(InternalScanState{ 0 })
 {
 }
 
-Scanner::Scanner(std::deque<Token>&& buffer)
-    : myState(InternalScanState{ 0 })
+Scanner::Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*>&& buffer)
+    : myTokenFactory(tokenFactory)
+    , myState(InternalScanState{ 0 })
     , myBuffer(std::move(buffer))
 {
 }
 
-Token Scanner::next()
+Token const& Scanner::next()
 {
     if ( !mySavePoints.empty() ) {
         if ( myState.readIndex + 1 >= myBuffer.size() )
@@ -142,7 +144,7 @@ Token Scanner::next()
     }
 
     if ( !myBuffer.empty() ) {
-        auto ret = myBuffer[myState.readIndex];
+        auto const& ret = *myBuffer[myState.readIndex];
         if ( mySavePoints.empty() ) {
             assert(myState.readIndex == 0);
             myBuffer.pop_front();
@@ -157,21 +159,21 @@ Token Scanner::next()
     return readNext();
 }
 
-Token Scanner::peek(uz lookAhead)
+Token const& Scanner::peek(uz lookAhead)
 {
     auto const peekTarget = myState.readIndex + lookAhead;
     if ( peekTarget < myBuffer.size() )
-        return myBuffer[peekTarget];
+        return *myBuffer[peekTarget];
     
     do {
-        auto next = readNext();
+        auto const& next = readNext();
         if ( next.kind() == TokenKind::EndOfInput )
             return next;
 
-        myBuffer.push_back(next);
+        myBuffer.emplace_back(&next);
     } while ( peekTarget >= myBuffer.size() );
 
-    return myBuffer[peekTarget];
+    return *myBuffer[peekTarget];
 }
 
 void Scanner::beginScan()
@@ -210,11 +212,11 @@ Scanner::operator bool() const
     return !eof() && !myError;
 }
 
-Token Scanner::indent(SourceLocation loc, indent_width_t indent)
+Token const& Scanner::indent(SourceLocation loc, indent_width_t indent)
 {
-    auto token = [this, &loc](TokenKind kind) {
+    auto token = [this, &loc](TokenKind kind) -> Token const& {
         myLastTokenKind = kind;
-        return Token(kind, loc);
+        return myTokenFactory.mkToken(kind, loc);
     };
 
     indent_width_t current = 0;
@@ -237,7 +239,7 @@ Token Scanner::indent(SourceLocation loc, indent_width_t indent)
             return token(TokenKind::IndentError);
         }
         
-        myBuffer.emplace_back(TokenKind::IndentLT, "", loc);
+        myBuffer.emplace_back(&myTokenFactory.mkToken(TokenKind::IndentLT, loc));
         myIndents.pop_back();
     }
 
@@ -270,7 +272,7 @@ int Scanner::nestings() const
     return myNestings;
 }
 
-Token Scanner::readNext()
+Token const& Scanner::readNext()
 {
     if ( myCurrentTokenKind != TokenKind::Undefined ) {
         // myCurrentTokenKind indicates the next token is already lexed.
@@ -281,20 +283,20 @@ Token Scanner::readNext()
         myCurrentTokenKind = TokenKind::Undefined;
         auto loc = myLoc;
         myLoc.column += myTok.window().length();
-        return Token(myLastTokenKind, myTok.take(), loc);
+        return myTokenFactory.mkToken(myLastTokenKind, myTok.take(), loc);
     }
 
     bool emitVacuum = false;
-    auto token = [&, this](TokenKind kind) {
+    auto token = [&, this](TokenKind kind) -> Token const& {
         myLastTokenKind = kind;
         if ( emitVacuum ) {
             myCurrentTokenKind = kind;
-            return Token(TokenKind::Vacuum, myLoc);
+            return myTokenFactory.mkToken(TokenKind::Vacuum, myLoc);
         }
 
         auto loc = myLoc;
         myLoc.column += myTok.window().length();
-        return Token(kind, myTok.take(), loc);
+        return myTokenFactory.mkToken(kind, myTok.take(), loc);
     };
 
     indent_width_t spaces = 0;
@@ -311,7 +313,8 @@ Token Scanner::readNext()
         if ( !myIndents.empty() )
             return indent(myLoc, 0);
 
-        return Token(TokenKind::EndOfInput, myLoc);
+        // todo: cache eoi
+        return myTokenFactory.mkToken(TokenKind::EndOfInput, myLoc);
     }
 
     auto takeLineBreaks = [this] {

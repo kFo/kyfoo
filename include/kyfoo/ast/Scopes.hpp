@@ -125,6 +125,7 @@ protected:
     std::vector<Box<Scope>> myDefinitions;
     std::vector<Box<ProcedureDeclaration>> myLambdas;
     std::vector<Box<SymbolVariable>> myMetaVariables;
+    std::vector<std::string> myMetaVariableNames;
 
     // cache resolution
     mutable std::optional<SymRes> myAttribRes;

@@ -7,6 +7,7 @@
 #include <kyfoo/String.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/Utilities.hpp>
+#include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/codegen/Codegen.hpp>
 
@@ -29,7 +30,7 @@ class Module;
 class ModuleSet
 {
 public:
-    ModuleSet();
+    explicit ModuleSet(lexer::DefaultTokenFactory& tokenFactory);
     ~ModuleSet();
 
 public:
@@ -55,11 +56,14 @@ public:
 
     std::filesystem::path const& path() const;
 
+    lexer::DefaultTokenFactory& tokenFactory();
+
 private:
     AxiomsModule* myAxioms;
     std::vector<Box<Module>> myModules;
     std::vector<Module*> myImpliedImports;
     std::filesystem::path myPath;
+    lexer::DefaultTokenFactory& myTokenFactory;
 };
 
 class Module
@@ -86,6 +90,7 @@ public:
     void appendTemplateInstance(Declaration const* instance);
 
 public:
+    ModuleSet& moduleSet();
     ModuleSet const& moduleSet() const;
 
     AxiomsModule& axioms();

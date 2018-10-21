@@ -38,11 +38,10 @@ Error::Error(ast::Module const& mod, Code code)
 
 Error::Error(ast::Module const& mod,
              Error::Code code,
-             lexer::Token tok)
+             lexer::Token const& tok)
     : myModule(&mod)
     , myCode(code)
-    , myContext(&myToken)
-    , myToken(std::move(tok))
+    , myContext(&tok)
 {
 }
 

@@ -214,7 +214,7 @@ public:
 public:
     explicit Error(ast::Module const& mod);
     Error(ast::Module const& mod, Code code);
-    Error(ast::Module const& mod, Code code, lexer::Token tok); // todo: fixme
+    Error(ast::Module const& mod, Code code, lexer::Token const& tok);
     Error(ast::Module const& mod, Code code, ast::Expression const& expr);
     Error(ast::Module const& mod, Code code, ast::Statement const& stmt);
     Error(ast::Module const& mod, Code code, ast::Junction const& junc);
@@ -253,7 +253,6 @@ private:
 
     std::ostringstream myInfo;
     std::vector<ContextReference> myReferences;
-    lexer::Token myToken; // todo: removeme
 };
 
 template <typename T>

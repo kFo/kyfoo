@@ -123,4 +123,22 @@ swap(L& lhs, R& rhs) noexcept
     swap(lhs, rhs);
 }
 
+template <typename T>
+constexpr T const& min(T const& lhs, T const& rhs) noexcept
+{
+    if ( rhs < lhs )
+        return rhs;
+
+    return lhs;
+}
+
+template <typename T>
+constexpr T const& max(T const& lhs, T const& rhs) noexcept
+{
+    if ( lhs < rhs )
+        return rhs;
+
+    return lhs;
+}
+
 } // namespace kyfoo

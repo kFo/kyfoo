@@ -160,7 +160,7 @@ struct Primary :
 };
 
 Box<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& parser,
-                                        lexer::Token& start,
+                                        lexer::Token const& start,
                                         std::vector<Expression>& paramExprs,
                                         NonLambdaExpression* returnExpr)
 {
@@ -199,7 +199,8 @@ struct Scope :
 {
     Box<T> make(DeclarationScopeParser& parser, typename T::declaration_t& decl)
     {
-        lexer::Scanner scanner(std::move(captures()));
+        lexer::DefaultTokenFactory tokenFactory(0);
+        lexer::Scanner scanner(tokenFactory, std::move(captures()));
         auto scope = mk<T>(parser.scope(), decl);
         parseScope(mk<DeclarationScopeParser>(parser.diagnostics(), scanner, *scope));
         return scope;
@@ -430,7 +431,7 @@ Box<ast::ProcedureDeclaration> mkProc(Box<ast::Expression> expr)
         paramExpr = std::move(expr);
     }
 
-    auto tok = ast::makeToken("", front(*paramExpr).location());
+    auto tok = ast::mkToken("", front(*paramExpr).location());
     auto symParams = ast::createPtrList<ast::Expression>(std::move(paramExpr));
     return mk<ast::ProcedureDeclaration>(ast::Symbol(tok, std::move(symParams)),
                                          std::move(returnExpr));

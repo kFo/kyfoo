@@ -144,6 +144,21 @@
     <ClInclude Include="..\..\include\kyfoo\String.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Allocators.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Array.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Tribool.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Meta.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Factory.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\lexer\Scanner.cpp">
@@ -207,6 +222,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\String.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Allocators.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

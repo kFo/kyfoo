@@ -28,7 +28,8 @@ int runScannerDump(std::filesystem::path const& file)
         return EXIT_FAILURE;
     }
 
-    lexer::Scanner scanner(fin.view());
+    lexer::DefaultTokenFactory tokenFactory;
+    lexer::Scanner scanner(tokenFactory, fin.view());
     if ( !scanner ) {
         std::cout << "could not open file: " << file << std::endl;
         return EXIT_FAILURE;
@@ -36,7 +37,7 @@ int runScannerDump(std::filesystem::path const& file)
 
     while (scanner)
     {
-        auto token = scanner.next();
+        auto const& token = scanner.next();
         std::cout << std::right << std::setfill('0')
                   << 'L' << std::setw(4) << token.line()
                   << 'C' << std::setw(3) << token.column()
@@ -51,7 +52,8 @@ int runScannerDump(std::filesystem::path const& file)
 int runParserDump(std::filesystem::path const& filepath)
 {
     Diagnostics dgn;
-    ast::ModuleSet moduleSet;
+    lexer::DefaultTokenFactory tokenFactory;
+    ast::ModuleSet moduleSet(tokenFactory);
     auto main = moduleSet.create(filepath);
     try {
         main->parse(dgn);
@@ -152,7 +154,8 @@ enum Options
 int compile(std::vector<std::filesystem::path> const& files, u32 options)
 {
     auto ret = EXIT_SUCCESS;
-    ast::ModuleSet moduleSet;
+    lexer::DefaultTokenFactory tokenFactory;
+    ast::ModuleSet moduleSet(tokenFactory);
     {
         Diagnostics dgn;
         try {
