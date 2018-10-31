@@ -250,9 +250,11 @@ protected:
     size_type mySize = 0;
 };
 
-constexpr uz DefaultArrayBuilderGrowFn(uz capacity) noexcept
+constexpr uz DefaultArrayBuilderGrowFn([[maybe_unused]]uz size,
+                                       uz capacity,
+                                       uz newSize) noexcept
 {
-    return max(uz(8), capacity * 2);
+    return max(max(uz(8), capacity * 2), newSize);
 }
 
 /**
@@ -261,7 +263,7 @@ constexpr uz DefaultArrayBuilderGrowFn(uz capacity) noexcept
  */
 template <typename T,
           typename Allocator = allocators::Mallocator,
-          uz (*GrowFn)(uz) = DefaultArrayBuilderGrowFn>
+          uz (*GrowFn)(uz, uz, uz) = DefaultArrayBuilderGrowFn>
 class ArrayBuilder : private Array<T, Allocator>
 {
     using Base = Array<T, Allocator>;
@@ -473,7 +475,7 @@ protected:
             return mi;
         }
 
-        auto const newCapacity = GrowFn(capacity());
+        auto const newCapacity = GrowFn(size(), capacity(), size()+n);
 
         Slice m(this->myData, this->myCapacity);
         if ( tryExpand(*this, m, newCapacity - this->myCapacity) ) {
