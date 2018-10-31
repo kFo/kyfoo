@@ -1,5 +1,9 @@
 #include <kyfoo/Allocators.hpp>
 
+#include <kyfoo/allocators/AscendingPageAllocator.hpp>
+#include <kyfoo/allocators/Mallocator.hpp>
+#include <kyfoo/allocators/PageAllocator.hpp>
+
 #include <malloc.h>
 
 #define NOMINMAX
@@ -43,6 +47,8 @@ uz allocationGranularity() noexcept
 {
     return win32::g_systemInfo.dwAllocationGranularity;
 }
+
+    namespace allocators {
 
 //
 // Mallocator
@@ -257,4 +263,5 @@ bool AscendingPageAllocator::deallocateAll() noexcept
     return ret;
 }
 
+    } // namespace allocators
 } // namespace kyfoo

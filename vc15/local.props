@@ -5,8 +5,21 @@
     <LLVM_LIB_PATH>..\..\..\llvm\llvm\build\$(Configuration)\lib</LLVM_LIB_PATH>
     <LLVM_INCLUDE_PATH>..\..\..\llvm\llvm\install\include</LLVM_INCLUDE_PATH>
   </PropertyGroup>
-  <PropertyGroup />
-  <ItemDefinitionGroup />
+  <PropertyGroup>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>..\..\bin\$(PlatformToolset)\$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <SupportJustMyCode>false</SupportJustMyCode>
+      <AdditionalIncludeDirectories>..\..\include;..\..\contrib</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <WarningLevel>Level4</WarningLevel>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <BuildMacro Include="LLVM_LIB_PATH">
       <Value>$(LLVM_LIB_PATH)</Value>

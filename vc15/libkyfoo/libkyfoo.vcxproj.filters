@@ -1,0 +1,258 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{2e156bcc-a800-4b0b-bb98-5ded72069ca0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo">
+      <UniqueIdentifier>{8df7fa94-a895-41fa-bd6d-9c9c6183e1b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\lexer">
+      <UniqueIdentifier>{9b4493f6-be1f-4524-81ca-f14c7d05f932}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\parser">
+      <UniqueIdentifier>{db4664f5-b958-4171-9abe-c12e9f0cfb8b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\ast">
+      <UniqueIdentifier>{e7e4dc85-30b5-48ed-bfe3-ef286cd093a9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\codegen">
+      <UniqueIdentifier>{2fb14cbc-1a48-40b6-b296-e2c02609f032}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{babda0ae-8fd2-4670-8220-f2385963d0c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\lexer">
+      <UniqueIdentifier>{155f8823-2a06-430a-8791-befc04466a0c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\parser">
+      <UniqueIdentifier>{c51682e7-5135-4d98-935d-5e32db8c7d80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ast">
+      <UniqueIdentifier>{f8cb1b66-e4b9-47c3-ac9e-e9bc0c155b15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\codegen">
+      <UniqueIdentifier>{cb673a02-ad71-4a59-b9c1-76180eddf99c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\kyfoo\allocators">
+      <UniqueIdentifier>{7740a10e-323f-4354-a3cc-820da8f59362}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\kyfoo\Allocators.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Array.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\BigInt.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Box.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Dollar.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Interval.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Meta.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Slice.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Stream.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\String.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Tribool.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Types.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Utilities.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp">
+      <Filter>include\kyfoo\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp">
+      <Filter>include\kyfoo\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp">
+      <Filter>include\kyfoo\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp">
+      <Filter>include\kyfoo\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\ControlFlow.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\DotWriter.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Fabrication.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Overloading.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Clone.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Variance.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\ast\Visitors.hpp">
+      <Filter>include\kyfoo\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp">
+      <Filter>include\kyfoo\codegen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp">
+      <Filter>include\kyfoo\codegen</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\AscendingAllocator.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\Region.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\AscendingPageAllocator.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\PageAllocator.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\Mallocator.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\FallbackAllocator.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\allocators\NullAllocator.hpp">
+      <Filter>include\kyfoo\allocators</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Algorithm.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Factory.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Range.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\Allocators.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Diagnostics.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Stream.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\String.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lexer\Scanner.cpp">
+      <Filter>src\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lexer\TokenKind.cpp">
+      <Filter>src\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\parser\Parse.cpp">
+      <Filter>src\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Context.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\ControlFlow.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Declarations.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\DotWriter.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Expressions.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Overloading.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Substitutions.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Symbol.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Module.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Scopes.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Semantics.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Variance.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\codegen\LLVM.cpp">
+      <Filter>src\codegen</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ast\Axioms.cpp">
+      <Filter>src\ast</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

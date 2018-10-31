@@ -3,6 +3,11 @@
 #include <deque>
 #include <vector>
 
+#include <kyfoo/allocators/AscendingAllocator.hpp>
+#include <kyfoo/allocators/AscendingPageAllocator.hpp>
+#include <kyfoo/allocators/Mallocator.hpp>
+#include <kyfoo/allocators/Region.hpp>
+
 #include <kyfoo/Allocators.hpp>
 #include <kyfoo/Factory.hpp>
 #include <kyfoo/Slice.hpp>
@@ -140,9 +145,9 @@ public:
 };
 
 using DefaultTokenFactory = TokenFactory<
-    AscendingAllocator<
-        Region<AscendingPageAllocator, sizeof(Token)>,
-        Mallocator>>;
+    allocators::AscendingAllocator<
+        allocators::Region<allocators::AscendingPageAllocator, sizeof(Token)>,
+        allocators::Mallocator>>;
 
 class Scanner
 {

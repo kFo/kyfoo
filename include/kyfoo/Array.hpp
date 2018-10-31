@@ -1,17 +1,13 @@
 #pragma once
 
 #include <kyfoo/Allocators.hpp>
+#include <kyfoo/Range.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/Utilities.hpp>
+#include <kyfoo/allocators/Mallocator.hpp>
 
 namespace kyfoo {
-
-template <typename T>
-struct is_input_range { enum { value = false }; };
-
-template <typename T>
-constexpr bool is_input_range_v = is_input_range<T>::value;
 
 template <typename T, uz N>
 struct StaticArray
@@ -61,11 +57,17 @@ public:
     constexpr const_reference back() const noexcept { return array[N - 1]; }
 
 public:
-    operator Slice<T>       ()       noexcept { return Slice<T>(array, N); }
-    operator Slice<T const> () const noexcept { return Slice<T>(array, N); }
+    constexpr operator Slice<T>       ()       noexcept { return Slice<T>(array, N); }
+    constexpr operator Slice<T const> () const noexcept { return Slice<T>(array, N); }
 
-    explicit operator bool () const noexcept { return mySize != 0; }
+    constexpr explicit operator bool () const noexcept { return N != 0; }
 };
+
+template <typename T>
+class StaticArray<T, 0> {};
+
+template <typename... T>
+StaticArray(T...) -> StaticArray<std::common_type_t<T...>, sizeof...(T)>;
 
 template <typename T, uz N>
 auto begin(StaticArray<T, N>& rhs) { return rhs.begin(); }
@@ -91,7 +93,7 @@ auto cend(StaticArray<T, N>& rhs) { return rhs.cend(); }
 template <typename T, uz N>
 auto cend(StaticArray<T, N> const& rhs) { return rhs.cend(); }
 
-template <typename T, typename Allocator>
+template <typename T, typename Allocator = allocators::Mallocator>
 class Array : protected Allocator
 {
 public:
@@ -107,20 +109,33 @@ public:
 public:
     constexpr Array() noexcept = default;
 
+    /*implicit*/ Array(std::initializer_list<T> list)
+        : Array(Slice(list))
+    {
+    }
+
     template <typename Range>
     /*implicit*/ Array(Range r) noexcept
     {
-        auto m = this->allocate(sizeof(T) * list.size());
-        myData = static_cast<pointer>(m.data());
-        mySize = r.size();
+        auto m = allocate<value_type>(this->allocator(), r.size());
+        myData = m.data();
+        mySize = m.size();
 
         auto i = begin();
         for ( auto&& e : r )
-            construct(i++, std::forward<Range::value_type>(e));
+            construct(*i++, std::forward<typename Range::value_type>(e));
     }
 
-    Array(Array const&) = delete;
-    void operator = (Array const&) = delete;
+    Array(Array const& rhs)
+        : Array(Slice(rhs))
+    {
+    }
+
+    Array& operator = (Array rhs)
+    {
+        swap(rhs);
+        return *this;
+    }
 
     Array(Array&& rhs) noexcept
         : myData(rhs.myData)
@@ -129,9 +144,9 @@ public:
         rhs.release();
     }
 
-    Array operator = (Array&& rhs) noexcept
+    Array& operator = (Array&& rhs)
     {
-        ~Array();
+        clear();
         new (this) Array(std::move(rhs));
         return *this;
     }
@@ -207,6 +222,18 @@ public:
     }
 
 protected:
+    constexpr Array(pointer data, size_type n) noexcept
+        : myData(data)
+        , mySize(n)
+    {
+    }
+
+    template <typename... Args>
+    void construct(reference e, Args&&... args) noexcept(noexcept(T(args...)))
+    {
+        new (&e) T(std::forward<Args>(args)...);
+    }
+
     void destruct(reference e) noexcept
     {
         e.~T();
@@ -216,12 +243,6 @@ protected:
     {
         while ( first != last )
             destruct(*first++);
-    }
-
-    template <typename... Args>
-    void construct(reference e, Args&&... args) noexcept(noexcept(T(args...)))
-    {
-        new (&e) T(std::forward<Args>(args)...);
     }
 
 protected:
@@ -238,7 +259,9 @@ constexpr uz DefaultArrayBuilderGrowFn(uz capacity) noexcept
  * \invariant size() <= capacity()
  * \invariant begin() <= end()
  */
-template <typename T, typename Allocator, uz (*GrowFn)(uz) = DefaultArrayBuilderGrowFn>
+template <typename T,
+          typename Allocator = allocators::Mallocator,
+          uz (*GrowFn)(uz) = DefaultArrayBuilderGrowFn>
 class ArrayBuilder : private Array<T, Allocator>
 {
     using Base = Array<T, Allocator>;
@@ -256,29 +279,47 @@ public:
 public:
     constexpr ArrayBuilder() noexcept = default;
 
+    explicit ArrayBuilder(size_type n)
+    {
+        reserve(n);
+    }
+
+    /*implicit*/ ArrayBuilder(std::initializer_list<T> list)
+        : ArrayBuilder(Slice(list))
+    {
+    }
+
     template <typename Range>
     /*implicit*/ ArrayBuilder(Range r) noexcept
     {
         reserve(r.size());
         auto i = begin();
         for ( auto&& e : r )
-            construct(*i++, std::forward<Range::value_type>(e));
+            this->construct(*i++, std::forward<typename Range::value_type>(e));
     }
 
-    ArrayBuilder(ArrayBuilder const&) = delete;
-    void operator = (ArrayBuilder const&) = delete;
+    ArrayBuilder(ArrayBuilder const& rhs)
+        : ArrayBuilder(Slice(rhs))
+    {
+    }
+
+    ArrayBuilder& operator = (ArrayBuilder rhs)
+    {
+        swap(rhs);
+        return *this;
+    }
 
     ArrayBuilder(ArrayBuilder&& rhs) noexcept
-        : Base(std::move(rhs))
-        , myCapacity(rhs.capacity)
+        : Base(rhs.myData, rhs.mySize)
+        , myCapacity(rhs.myCapacity)
     {
-        rhs.myCapacity = 0;
+        rhs.release();
     }
 
     ArrayBuilder operator = (ArrayBuilder&& rhs) noexcept
     {
         clear();
-        swap(*this, rhs);
+        new (this) ArrayBuilder(std::move(rhs));
         return *this;
     }
 
@@ -335,8 +376,8 @@ public:
      * \post size() == old size() + r.size()
      */
     template <typename InputRange>
-    std::enable_if_t<is_input_range_v<InputRange>,
-    iterator> insert(const_iterator i, InputRange r)
+    std::enable_if_t<is_input_range<InputRange>,
+    iterator> insertRange(const_iterator i, InputRange r)
     {
         auto ret = buy(i, r.size());
         auto seat = ret;
@@ -350,7 +391,7 @@ public:
      * \pre size() >= distance(first, last)
      * \post size() == old size() - distance(first, last)
      */
-    iterator erase(const_iterator first, const_iterator last)
+    iterator remove(const_iterator first, const_iterator last)
     {
         destruct(first, last);
         shift_down(last, end(), first);
@@ -361,9 +402,9 @@ public:
      * \pre size() >= 1
      * \post size() == old size() - 1
      */
-    iterator erase(const_iterator i)
+    iterator remove(const_iterator i)
     {
-        return erase(i, i + 1);
+        return remove(i, i + 1);
     }
 
     /**
@@ -398,6 +439,19 @@ public:
         this->myData = nullptr;
         this->mySize = 0;
         myCapacity = 0;
+    }
+
+    /**
+     * \post size() == 0
+     */
+    Slice<value_type> release() noexcept
+    {
+        Slice ret(this->myData, this->myCapacity);
+        this->myData = nullptr;
+        this->mySize = 0;
+        this->myCapacity = 0;
+
+        return ret;
     }
 
 public:

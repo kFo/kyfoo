@@ -1,5 +1,6 @@
 #pragma once
 
+#include <initializer_list>
 #include <iterator>
 #include <vector>
 #include <type_traits>
@@ -111,8 +112,6 @@ public:
     constexpr void popFront() noexcept { ++myData; --myLength; }
     constexpr void popBack () noexcept { --myLength; }
 
-    constexpr void clear() noexcept { myData = nullptr; myLength = 0; }
-
 protected:
     pointer myData = nullptr;
     size_type myLength = 0;
@@ -138,6 +137,12 @@ public:
     using SliceBase<T>::SliceBase;
 
 public:
+    template <typename U, typename = std::enable_if_t<std::is_same_v<const U, value_type>>>
+    constexpr /*implicit*/ SliceBaseDereferenceable(std::initializer_list<U> list) noexcept
+        : SliceBaseDereferenceable(list.begin(), list.end())
+    {
+    }
+
     template <uz N>
     constexpr /*implicit*/ SliceBaseDereferenceable(value_type (&str)[N]) noexcept
         : SliceBaseDereferenceable(str, N-1)
@@ -379,6 +384,7 @@ template <typename T> Slice(T*      , uz      ) -> Slice<T>;
 template <typename T> Slice(T const*, uz      ) -> Slice<T>;
 template <typename T> Slice(T*      , T*      ) -> Slice<T>;
 template <typename T> Slice(T const*, T const*) -> Slice<T>;
+template <typename T> Slice(std::initializer_list<T>) -> Slice<T const>;
 
 //
 // operators

@@ -141,4 +141,19 @@ constexpr T const& max(T const& lhs, T const& rhs) noexcept
     return lhs;
 }
 
+template <typename T>
+constexpr std::enable_if_t<std::is_integral_v<T>,
+T> roundUpToMultiple(T n, T m) noexcept
+{
+    auto const rem = n % m;
+    return rem ? n + m - rem : n;
+}
+
+template <typename T>
+constexpr std::enable_if_t<std::is_integral_v<T>,
+T> roundDownToMultiple(T n, T m) noexcept
+{
+    return n - n % m;
+}
+
 } // namespace kyfoo

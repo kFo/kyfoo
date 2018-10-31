@@ -199,8 +199,8 @@ struct Scope :
 {
     Box<T> make(DeclarationScopeParser& parser, typename T::declaration_t& decl)
     {
-        lexer::DefaultTokenFactory tokenFactory(0);
-        lexer::Scanner scanner(tokenFactory, std::move(captures()));
+        lexer::Scanner scanner(parser.scope().module().moduleSet().tokenFactory(),
+                               std::move(captures()));
         auto scope = mk<T>(parser.scope(), decl);
         parseScope(mk<DeclarationScopeParser>(parser.diagnostics(), scanner, *scope));
         return scope;
