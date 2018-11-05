@@ -274,7 +274,7 @@ public:
         void operator++()
         {
             ++ei;
-            if ( ei == s->size() ) {
+            if ( ei == s->card() ) {
                 ei = 0;
                 ++ai;
             }
@@ -296,7 +296,7 @@ public:
 public:
     ExpressionArray(Slice<Expression const*> exprs, uz n)
         : exprs(exprs)
-        , n(exprs.empty() ? 0 : n)
+        , n(!exprs ? 0 : n)
     {
     }
 
@@ -309,8 +309,8 @@ public:
     iterator begin() const { return iterator(exprs); }
     iterator_end end() const { return iterator_end{n}; }
 
-    uz size() const { return exprs.size() * n; }
-    bool empty() const { return size() == 0; }
+    uz card() const { return exprs.card() * n; }
+    bool empty() const { return card() == 0; }
 
     Expression const* front() const { return exprs.front(); }
     Expression const* back() const { return exprs.back(); }

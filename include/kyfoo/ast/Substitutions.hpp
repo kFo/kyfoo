@@ -53,7 +53,7 @@ public:
     bool deduce(Expression const& target, Expression const& query);
 
     bool empty() const;
-    uz size() const;
+    uz card() const;
 
     SymbolVariable const& var(uz index) const;
     Expression const& expr(uz index) const;

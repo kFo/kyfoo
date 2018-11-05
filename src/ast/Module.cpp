@@ -333,18 +333,18 @@ stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) con
 
     auto const& in = token.lexeme();
     std::string out;
-    out.reserve(in.size());
+    out.reserve(in.card());
 
     if ( in[0] != '"' )
         throw std::runtime_error("unhandled string kind");
 
-    for ( uz i = 1; i < in.size() - 1; ++i ) {
+    for ( uz i = 1; i < in.card() - 1; ++i ) {
         if ( in[i] != '\\' ) {
             out.push_back(in[i]);
         }
         else {
             ++i;
-            if ( i == in.size() - 1 ) {
+            if ( i == in.card() - 1 ) {
                 dgn.error(*this, token) << "lone escape character at " << i;
                 return token.lexeme();
             }
@@ -363,7 +363,7 @@ stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) con
             case  '?': out.push_back(0x3f); break;
             case '\\': out.push_back(0x5c); break;
             case 'x': {
-                if ( i + 2 >= in.size() - 1 ) {
+                if ( i + 2 >= in.card() - 1 ) {
                     dgn.error(*this, token) << "not enough hex characters for escape sequence at " << i;
                     return token.lexeme();
                 }

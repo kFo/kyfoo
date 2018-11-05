@@ -397,7 +397,7 @@ struct TightArrowExpression :
     {
         auto& c = this->captures();
         auto ret = c.front().make(parser);
-        for ( uz i = 1, size = c.size(); i < size; ++i )
+        for ( uz i = 1, card = c.size(); i < card; ++i )
             ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
 
         return ret;
@@ -412,7 +412,7 @@ struct ArrowExpression :
     {
         auto& c = this->captures();
         auto ret = c.front().make(parser);
-        for ( uz i = 1, size = c.size(); i < size; ++i )
+        for ( uz i = 1, card = c.size(); i < card; ++i )
             ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
 
         return ret;

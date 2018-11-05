@@ -124,7 +124,7 @@ public:
         }
 
         auto tm = allocate(bytes);
-        std::memcpy(tm.data(), m.data(), m.size());
+        std::memcpy(tm.data(), m.data(), m.card());
         myAllocators[index].deallocate(m);
         m = tm;
         return true;
@@ -144,7 +144,7 @@ public:
         }
 
         auto tm = allocate(bytes);
-        std::memcpy(tm.data(), m.data(), m.size());
+        std::memcpy(tm.data(), m.data(), m.card());
         myAllocators[index].alignedDeallocate(m);
         m = tm;
         return true;

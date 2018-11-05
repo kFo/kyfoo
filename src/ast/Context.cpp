@@ -55,7 +55,7 @@ Lookup Resolver::matchEquivalent(SymbolReference const& symbol) const
         if ( hit.append(scope->findEquivalent(symbol)) )
             return hit;
 
-        if ( symbol.pattern().empty() )
+        if ( !symbol.pattern() )
             if ( auto decl = scope->declaration() )
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.resolveTo(*s));
@@ -84,7 +84,7 @@ Lookup Resolver::matchOverload(Context& ctx, SymbolReference const& symbol)
         if ( hit.append(scope->findOverload(ctx, symbol)) )
             return hit;
 
-        if ( symbol.pattern().empty() ) {
+        if ( !symbol.pattern() ) {
             if ( auto decl = scope->declaration() ) {
                 if ( auto s = decl->symbol().prototype().findVariable(symbol.name()) )
                     return std::move(hit.resolveTo(*s));
@@ -116,7 +116,7 @@ void Resolver::addSupplementaryPrototype(PatternsPrototype& proto)
 Lookup Resolver::matchSupplementary(SymbolReference const& symbol) const
 {
     Lookup hit(symbol);
-    if ( symbol.pattern().empty() )
+    if ( !symbol.pattern() )
         for ( auto& proto : mySupplementaryPrototypes )
             if ( auto symVar = proto->findVariable(symbol.name()) )
                 return std::move(hit.resolveTo(*symVar));
@@ -254,7 +254,7 @@ Context::matchOverloadUsingImplicitConversions(stringv name,
 
     if ( hit.viable().result() == ViableSet::NeedsConversion ) {
         auto const& v = hit.viable().best().viability();
-        for ( uz i = 0, arity = args.size(); i != arity; ++i ) {
+        for ( uz i = 0, arity = args.card(); i != arity; ++i ) {
             if ( auto proc = v[i].conversion() ) {
                 args[i] = createApply(createIdentifier(*proc), std::move(args[i]));
                 if ( !resolveExpression(args[i]) )

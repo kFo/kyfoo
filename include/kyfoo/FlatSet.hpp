@@ -66,7 +66,7 @@ public:
     const_iterator crend() const noexcept { return myList.crend(); }
 
     bool empty() const noexcept { return myList.empty(); }
-    size_type size() const noexcept { return myList.size(); }
+    size_type card() const noexcept { return myList.size(); }
     size_type capacity() const noexcept { return myList.capacity(); }
     size_type max_size() const noexcept { return myList.max_size(); }
     

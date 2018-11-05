@@ -2,3 +2,4 @@ bin/*
 doc/_build/*
 vc15/*
 .vscode
+/lib/*

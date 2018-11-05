@@ -110,10 +110,10 @@ Slice<SymbolVariable const*> PatternsPrototype::symbolVariables() const
 
 void PatternsPrototype::bindVariables(Substitutions const& substs)
 {
-    if ( substs.size() != myVariables.size() )
+    if ( substs.card() != myVariables.size() )
         throw std::runtime_error("template parameter binding mismatch");
 
-    for ( uz i = 0; i < substs.size(); ++i ) {
+    for ( uz i = 0; i < substs.card(); ++i ) {
         auto const& key = substs.var(i);
         auto const& value = substs.expr(i);
         auto var = findVariable(key.symbol().token().lexeme());
@@ -294,7 +294,7 @@ const_pattern_t const& SymbolReference::pattern() const
 std::ostream& print(std::ostream& stream, Symbol const& sym)
 {
     stream << sym.token().lexeme();
-    if ( !sym.prototype().pattern().empty() ) {
+    if ( sym.prototype().pattern() ) {
         stream << "<";
         auto first = begin(sym.prototype().pattern());
         auto last = end(sym.prototype().pattern());

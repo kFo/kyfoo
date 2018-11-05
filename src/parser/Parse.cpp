@@ -378,7 +378,7 @@ ProcedureScopeParser::parseNext()
 
     auto lastBranch = [this](ast::Junction& j) -> ast::BranchJunction* {
         auto& s = scope();
-        if ( s.basicBlocks().size() >= 2 ) {
+        if ( s.basicBlocks().card() >= 2 ) {
             auto lastJunc = s.basicBlocks()[$ - 2]->junction();
             if ( lastJunc ) {
                 auto ret = lastJunc->as<ast::BranchJunction>();
@@ -444,7 +444,7 @@ ProcedureScopeParser::parseNext()
         auto b = s->basicBlocks().back();
         auto m = s->createBasicBlock();
 
-        if ( !branchJunc->label().lexeme().empty() ) {
+        if ( branchJunc->label().lexeme() ) {
             s = s->createChildScope(m, branchJunc->token(), branchJunc->label());
             b->setJunction(mk<ast::JumpJunction>(s->basicBlocks().front()));
             b = s->basicBlocks().front();

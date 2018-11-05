@@ -25,14 +25,14 @@ namespace {
                  Slice<Expression const*> rhs,
                  T&& op)
     {
-        if ( lhs.size() != rhs.size() )
+        if ( lhs.card() != rhs.card() )
             return false;
 
-        if ( lhs.empty() && rhs.empty() )
+        if ( !lhs )
             return true;
 
-        auto const size = lhs.size();
-        for ( uz i = 0; i < size; ++i )
+        auto const card = lhs.card();
+        for ( uz i = 0; i < card; ++i )
             if ( !op(*lhs[i], *rhs[i]) )
                 return false;
 
@@ -67,7 +67,7 @@ SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(stringv
 
 void SymbolDependencyTracker::add(Declaration& decl)
 {
-    auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().size());
+    auto group = findOrCreate(decl.symbol().token().lexeme(), decl.symbol().prototype().pattern().card());
     group->add(decl);
 }
 
@@ -75,7 +75,7 @@ SymRes SymbolDependencyTracker::addDependency(Declaration& dependent,
                                               stringv name,
                                               uz arity)
 {
-    auto group = findOrCreate(dependent.symbol().token().lexeme(), dependent.symbol().prototype().pattern().size());
+    auto group = findOrCreate(dependent.symbol().token().lexeme(), dependent.symbol().prototype().pattern().card());
     auto dependency = findOrCreate(name, arity);
 
     dependency->addDependent(*group);
@@ -209,7 +209,7 @@ public:
         SymRes ret = SymRes::Success;
         auto subject = a.expressions()[0]->as<LiteralExpression>();
         if ( subject && subject->token().kind() == lexer::TokenKind::Identifier )
-            ret |= addDep(subject->token().lexeme(), a.expressions().size() - 1);
+            ret |= addDep(subject->token().lexeme(), a.expressions().card() - 1);
 
         for ( auto const& e : a.expressions() )
             ret |= dispatch(*e);
@@ -221,7 +221,7 @@ public:
     {
         SymRes ret = SymRes::Success;
         if ( s.token().kind() == lexer::TokenKind::Identifier )
-            ret |= addDep(s.token().lexeme(), s.expressions().size());
+            ret |= addDep(s.token().lexeme(), s.expressions().card());
 
         for ( auto const& e : s.expressions() )
             ret |= dispatch(*e);
@@ -606,7 +606,7 @@ bool needsSubstitutions(Symbol const& sym)
 
 bool requiresSubstitutions(Symbol const& sym)
 {
-    return !sym.prototype().symbolVariables().empty();
+    return sym.prototype().symbolVariables().card();
 }
 
 bool hasSubstitutions(Symbol const& sym)
@@ -768,7 +768,7 @@ Expression const* dataType(Expression const& expr_)
 UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression const*> exprs)
 {
     std::vector<Expression const*> potentialTypes;
-    potentialTypes.reserve(exprs.size());
+    potentialTypes.reserve(exprs.card());
     for ( auto e : exprs ) {
         // todo: removeme
         if ( auto tup = e->as<TupleExpression>() ) {
@@ -790,8 +790,8 @@ UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression c
         return { SymRes::Success, potentialTypes.front() };
 
     auto commonKind = potentialTypes.front()->kind();
-    auto const size = potentialTypes.size();
-    for ( uz i = 1; i < size; ++i ) {
+    auto const card = potentialTypes.size();
+    for ( uz i = 1; i < card; ++i ) {
         if ( potentialTypes[i]->kind() != commonKind ) {
             (ctx.error(gov) << "has conflicting kinds of types")
                 .see(gov.scope(), *potentialTypes.front())
@@ -809,7 +809,7 @@ UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression c
         Expression const* expr;
         Declaration const* type;
     } common { potentialTypes.front(), getDeclaration(potentialTypes.front()) };
-    for ( uz i = 1; i < size; ++i ) {
+    for ( uz i = 1; i < card; ++i ) {
         auto type = getDeclaration(*potentialTypes[i]);
         auto const v = variance(ctx, *common.type, *type);
         if ( v.contravariant() ) {
@@ -1118,7 +1118,7 @@ struct FrontToken
 
     result_t exprTuple(TupleExpression const& t)
     {
-        if ( t.expressions().empty() )
+        if ( !t.expressions() )
             return t.openToken();
 
         return dispatch(*t.expressions()[0]);
@@ -1134,7 +1134,7 @@ struct FrontToken
         if ( s.token().kind() != lexer::TokenKind::Undefined )
             return s.token();
 
-        if ( s.expressions().empty() )
+        if ( !s.expressions() )
             return s.openToken();
 
         return dispatch(*s.expressions()[0]);
@@ -1152,11 +1152,11 @@ struct FrontToken
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        if ( !l.procedure().parameters().empty() )
+        if ( l.procedure().parameters() )
             return l.procedure().parameters().front()->symbol().token();
 
         auto bb = l.procedure().definition()->as<ProcedureScope>()->basicBlocks().front();
-        if ( bb->statements().empty() )
+        if ( !bb->statements() )
             return dispatch(*bb->junction());
 
         return dispatch(*bb->statements().front());
@@ -1281,7 +1281,7 @@ struct PrintOperator
     {
         stream << presentTupleOpen(t.kind());
 
-        if ( !t.expressions().empty() ) {
+        if ( t.expressions() ) {
             showTyped(*t.expressions()[0]);
 
             for ( auto const& e : t.expressions()(1, $) ) {
@@ -1323,10 +1323,10 @@ struct PrintOperator
     result_t exprSymbol(SymbolExpression const& s)
     {
         auto const& id = s.token().lexeme();
-        if ( !id.empty() )
+        if ( id )
             stream << id;
 
-        if ( !s.expressions().empty() ) {
+        if ( s.expressions() ) {
             stream << '<';
             dispatch(*s.expressions()[0]);
 
@@ -1338,7 +1338,7 @@ struct PrintOperator
             return stream << '>';
         }
 
-        if ( id.empty() )
+        if ( !id )
             stream << "<>";
 
         return stream;
@@ -1367,7 +1367,7 @@ struct PrintOperator
     {
         if ( auto decl = getDeclaration(v.left()) ) {
             if ( auto var = decl->as<VariableDeclaration>() )
-                if ( var->symbol().token().lexeme().empty() )
+                if ( !var->symbol().token().lexeme() )
                     return dispatch(v.right());
         }
 
@@ -1389,7 +1389,7 @@ struct PrintOperator
         stream << "(";
         for ( auto p : l.procedure().parameters() ) {
             stream << p->symbol().token().lexeme();
-            if ( !p->constraints().empty() )
+            if ( p->constraints() )
                 stream << " : ";
 
             for ( auto c : p->constraints() )
@@ -1491,7 +1491,7 @@ struct LevelFinder
 
     result_t max(Slice<Expression const*> exprs)
     {
-        if ( exprs.empty() )
+        if ( !exprs )
             return 0;
 
         auto max = dispatch(*exprs.front());

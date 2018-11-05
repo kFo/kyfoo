@@ -32,7 +32,7 @@ public:
     }
 
 public:
-    constexpr size_type size() const noexcept { return N; }
+    constexpr size_type card() const noexcept { return N; }
 
     constexpr iterator       begin ()       noexcept { return array; }
     constexpr const_iterator begin () const noexcept { return array; }
@@ -117,9 +117,9 @@ public:
     template <typename Range>
     /*implicit*/ Array(Range r) noexcept
     {
-        auto m = allocate<value_type>(this->allocator(), r.size());
+        auto m = allocate<value_type>(this->allocator(), r.card());
         myData = m.data();
-        mySize = m.size();
+        mySize = m.card();
 
         auto i = begin();
         for ( auto&& e : r )
@@ -164,7 +164,7 @@ public:
     }
 
 public:
-    constexpr size_type size() const noexcept { return mySize; }
+    constexpr size_type card() const noexcept { return mySize; }
 
     constexpr iterator       begin ()       noexcept { return myData; }
     constexpr const_iterator begin () const noexcept { return myData; }
@@ -250,7 +250,7 @@ protected:
     size_type mySize = 0;
 };
 
-constexpr uz DefaultArrayBuilderGrowFn([[maybe_unused]]uz size,
+constexpr uz DefaultArrayBuilderGrowFn([[maybe_unused]]uz card,
                                        uz capacity,
                                        uz newSize) noexcept
 {
@@ -294,7 +294,7 @@ public:
     template <typename Range>
     /*implicit*/ ArrayBuilder(Range r) noexcept
     {
-        reserve(r.size());
+        reserve(r.card());
         auto i = begin();
         for ( auto&& e : r )
             this->construct(*i++, std::forward<typename Range::value_type>(e));
@@ -338,8 +338,8 @@ public:
     }
 
 public:
-    using Base::size;
-    size_type reserved() const noexcept { return this->myCapacity - size(); }
+    using Base::card;
+    size_type reserved() const noexcept { return this->myCapacity - card(); }
     size_type capacity() const noexcept { return this->myCapacity; }
 
     using Base::begin;
@@ -381,7 +381,7 @@ public:
     std::enable_if_t<is_input_range<InputRange>,
     iterator> insertRange(const_iterator i, InputRange r)
     {
-        auto ret = buy(i, r.size());
+        auto ret = buy(i, r.card());
         auto seat = ret;
         for ( auto&& e : r )
             this->construct(*seat++, std::forward<InputRange::value_type>(e));
@@ -424,7 +424,7 @@ public:
      */
     void trunc(size_type n = 1)
     {
-        assert( size() > n );
+        assert( card() > n );
 
         this->destruct(end() - n, end());
         this->mySize -= n;
@@ -475,7 +475,7 @@ protected:
             return mi;
         }
 
-        auto const newCapacity = GrowFn(size(), capacity(), size()+n);
+        auto const newCapacity = GrowFn(card(), capacity(), card()+n);
 
         Slice m(this->myData, this->myCapacity);
         if ( tryExpand(*this, m, newCapacity - this->myCapacity) ) {

@@ -9,24 +9,11 @@ namespace ranges {
 
 DEFINE_HAS_METHOD_SIG(front);
 DEFINE_HAS_METHOD_SIG(popFront);
-DEFINE_HAS_METHOD(empty, bool);
 
 DEFINE_HAS_METHOD_SIG(back);
 DEFINE_HAS_METHOD_SIG(popBack);
 
-template <typename Range>
-class is_random_access {
-    template <typename R> static std::true_type match(R (Range::*)(uz));
-    template <typename R> static std::true_type match(R (Range::*)(uz) const);
-
-    struct pick {};
-    template <typename T> static decltype(match(T::operator[])) test(pick);
-    template <typename  > static std::false_type                test(...);
-
-public:
-    using type = decltype(test<Range>(pick{}));
-    constexpr static bool value = type::value;
-};
+DEFINE_HAS_METHOD(card, uz);
 
 } // namespace ranges
 
@@ -35,7 +22,7 @@ constexpr bool is_input_range =
        std::is_class_v<Range>
     && ranges::has_method_sig_front_v<Range>
     && ranges::has_method_sig_popFront_v<Range>
-    && ranges::has_method_empty_v<Range>;
+    && is_explicitly_convertible<Range, bool>;
 
 template <typename Range>
 constexpr bool is_bidirectional_range =
@@ -46,7 +33,8 @@ constexpr bool is_bidirectional_range =
 template <typename Range>
 constexpr bool is_random_access_range =
        is_bidirectional_range<Range>
-    && ranges::is_random_access<Range>::value;
+    && has_index_operator_v<Range>
+    && ranges::has_method_card_v<Range>;
 
 //
 // Iota
@@ -71,11 +59,10 @@ public:
     }
 
 public:
-    constexpr explicit operator bool () const noexcept { return !empty(); }
+    constexpr explicit operator bool () const noexcept { return myBegin < myEnd; }
 
 public:
-    constexpr bool empty() const noexcept { return myEnd <= myBegin; }
-    constexpr uz size() const noexcept { return (myEnd - myBegin) / step; }
+    constexpr uz card() const noexcept { return (myEnd - myBegin) / step; }
 
     constexpr T front() const noexcept { return myBegin; }
     constexpr T back() const noexcept { return roundDownToMultiple(myEnd - 1, step); }
@@ -107,15 +94,13 @@ public:
     }
 
 public:
-    explicit operator bool () const { return !empty(); }
+    explicit operator bool () const { return bool(myRange); }
 
 public:
     value_type front()       { return this->operator()(myRange.front()); }
     value_type front() const { return this->operator()(myRange.front()); }
 
     void popFront() { myRange.popFront(); }
-
-    bool empty() const { return myRange.empty(); }
 
 protected:
     Range myRange;
@@ -149,6 +134,8 @@ public:
 
     value_type operator[](uz i)       { return this->operator()(this->myRange[i]); }
     value_type operator[](uz i) const { return this->operator()(this->myRange[i]); }
+
+    uz card() const noexcept { return this->myRange.card(); }
 };
 
 template <typename Fn, typename Range>
@@ -188,11 +175,7 @@ public:
     }
 
 public:
-    explicit operator bool () const { return !empty(); }
-
-public:
-    bool empty() const { return myRange.empty(); }
-
+    explicit operator bool () const { return bool(myRange); }
     value_type front()       { return myRange.back(); }
     value_type front() const { return myRange.back(); }
 
@@ -230,10 +213,10 @@ public:
     using Base::Base;
 
 public:
-    uz size() const { return myRange.size(); }
+    uz card() const { return myRange.card(); }
 
-    value_type operator [] (uz i)       { return myRange[size() - 1 - i]; }
-    value_type operator [] (uz i) const { return myRange[size() - 1 - i]; }
+    value_type operator [] (uz i)       { return myRange[card() - 1 - i]; }
+    value_type operator [] (uz i) const { return myRange[card() - 1 - i]; }
 };
 
 template <typename R>
@@ -268,14 +251,13 @@ public:
     }
 
 public:
-    constexpr explicit operator bool () const noexcept { return !empty(); }
-    constexpr bool empty() const noexcept { return false; }
+    constexpr explicit operator bool () const noexcept { return true; }
     constexpr value_type front() const noexcept { return myValue; }
     constexpr void popFront() noexcept { }
     constexpr value_type back() const noexcept { return myValue; }
     constexpr void popBack() noexcept { }
 
-    //uz size() const;
+    //uz card() const;
     constexpr value_type operator [] (uz) const noexcept { return myValue; }
 
 private:
@@ -298,14 +280,13 @@ public:
     }
 
 public:
-    constexpr explicit operator bool () const noexcept { return !empty(); }
-    constexpr bool empty() const noexcept { return myCard == 0; }
+    constexpr explicit operator bool () const noexcept { return myCard != 0; }
 
     value_type front()       { return myRange.front(); }
     value_type front() const { return myRange.front(); }
     void popFront() { myRange.popFront(); --myCard; }
 
-    constexpr uz size() const noexcept { return myCard; }
+    constexpr uz card() const noexcept { return myCard; }
 
 protected:
     R myRange;

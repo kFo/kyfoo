@@ -33,7 +33,7 @@ namespace win32 {
 
     bool extendCommitLimit(void* begin, void* end) noexcept
     {
-        auto size = Slice(begin, end).size();
+        auto size = Slice(begin, end).card();
         return extendCommitLimit(begin, size);
     }
 } // namespace win32
@@ -115,7 +115,7 @@ bool Mallocator::alignedReallocate(mems& m, uz bytes, uz a) const noexcept
     if ( !p )
         return false;
 
-    auto const upTo = std::max(bytes, m.length());
+    auto const upTo = std::max(bytes, m.card());
     std::memcpy(p.data(), m.data(), upTo);
     alignedDeallocate(m);
     m = p;
@@ -228,7 +228,7 @@ bool AscendingPageAllocator::expand(mems& m, uz delta) noexcept
     auto pageUp = alignedUp(static_cast<u8*>(m.end()), PS);
     auto target = static_cast<u8*>(m.end()) + delta;
     if ( target <= pageUp ) {
-        m = mems(m.data(), m.size() + delta);
+        m = mems(m.data(), m.card() + delta);
         return true;
     }
 
@@ -239,13 +239,13 @@ bool AscendingPageAllocator::expand(mems& m, uz delta) noexcept
         return false;
 
     myEnd = pageUp;
-    m = mems(m.data(), m.size() + delta);
+    m = mems(m.data(), m.card() + delta);
     return true;
 }
 
 bool AscendingPageAllocator::deallocate(mems m) noexcept
 {
-    return ::VirtualFree(m.data(), m.size(), MEM_DECOMMIT) == TRUE;
+    return ::VirtualFree(m.data(), m.card(), MEM_DECOMMIT) == TRUE;
 }
 
 bool AscendingPageAllocator::alignedDeallocate(mems m, uz) noexcept

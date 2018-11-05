@@ -199,7 +199,7 @@ Lookup Scope::findEquivalent(SymbolReference const& symbol) const
         if ( auto decl = symSpace->findEquivalent(symbol.pattern()) )
             ret.resolveTo(*decl);
     }
-    else if ( myDeclaration && symbol.pattern().empty() )
+    else if ( myDeclaration && !symbol.pattern() )
         if ( auto symVar = myDeclaration->symbol().prototype().findVariable(symbol.name()) )
             ret.resolveTo(*symVar);
 
@@ -817,12 +817,12 @@ void ProcedureScope::cacheDominators()
     for ( bool change = true; change; ) {
         change = false;
         for ( auto b : allButEntry ) {
-            auto oldSize = b->myDominators.size();
+            auto oldSize = b->myDominators.card();
             for ( auto p : b->incoming() )
                 b->myDominators.intersectWith(p->myDominators);
 
             b->myDominators.insert(b);
-            if ( b->myDominators.size() != oldSize )
+            if ( b->myDominators.card() != oldSize )
                 change = true;
         }
     }
@@ -839,7 +839,7 @@ void ProcedureScope::cacheDominators()
             idom.diffWith(dd);
         }
 
-        assert(idom.size() == 1);
+        assert(idom.card() == 1);
         b->myImmediateDominator = idom[0];
     }
 }

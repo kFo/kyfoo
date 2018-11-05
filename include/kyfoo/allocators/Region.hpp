@@ -12,7 +12,7 @@ class Region
 {
 public:
     explicit Region(mems store) noexcept
-        : myParent(store.length())
+        : myParent(store.card())
     {
         init(store);
     }
@@ -100,12 +100,12 @@ public:
         if ( !m || !delta )
             return !delta;
 
-        auto newLength = m.length() + delta;
+        auto newLength = m.card() + delta;
         if ( myEnd < m.end() + alignment ) {
-            auto const currentGoodSize = goodAllocSize(m.length());
+            auto const currentGoodSize = goodAllocSize(m.card());
             auto const newGoodSize = goodAllocSize(newLength);
             auto const goodDelta = newGoodSize - currentGoodSize;
-            if ( goodDelta == 0 || allocate(goodDelta).length() == goodDelta ) {
+            if ( goodDelta == 0 || allocate(goodDelta).card() == goodDelta ) {
                 m = mems(m.data(), newLength);
                 return true;
             }
@@ -120,7 +120,7 @@ public:
 public:
     bool deallocate(mems m) noexcept
     {
-        auto const goodSize = goodAllocSize(m.length());
+        auto const goodSize = goodAllocSize(m.card());
         if ( m.data() + goodSize == myEnd ) {
             myEnd = m.data();
             return true;
@@ -155,7 +155,7 @@ private:
         return alignedDown(myLimit, alignment());
     }
 
-    constexpr uz size() const noexcept
+    constexpr uz card() const noexcept
     {
         return myEnd - myBegin;
     }

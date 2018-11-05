@@ -38,9 +38,9 @@ int stoi(stringv s);
 
 inline std::ostream& operator << (std::ostream& stream, stringv v)
 {
-    std::streamsize const size = v.length();
-    auto fills = size < stream.width()
-        ? stream.width() - size
+    std::streamsize const card = v.card();
+    auto fills = card < stream.width()
+        ? stream.width() - card
         : 0;
 
     if ( stream.flags() & stream.right ) {
@@ -48,10 +48,10 @@ inline std::ostream& operator << (std::ostream& stream, stringv v)
             stream.put(c);
 
         stream.width(0);
-        return stream.write(v.data(), v.length());
+        return stream.write(v.data(), v.card());
     }
 
-    stream.write(v.data(), v.length());
+    stream.write(v.data(), v.card());
     if ( stream.flags() & stream.left ) {
         for ( auto const c = stream.fill(); fills--; )
             stream.put(c);

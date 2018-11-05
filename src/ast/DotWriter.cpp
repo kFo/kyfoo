@@ -404,7 +404,7 @@ struct DotWriter
 
     NodeID head(BasicBlock const& bb)
     {
-        if ( !bb.statements().empty() )
+        if ( bb.statements() )
             return id(*bb.statements().front());
 
         return id(*bb.junction());
@@ -650,7 +650,7 @@ struct DotWriter
 
                 if ( bb->junction() ) {
                     auto succ = dispatch(*bb->junction());
-                    if ( !pred.empty() )
+                    if ( pred )
                         mkEdge(pred, succ);
                 }
             }

@@ -282,7 +282,7 @@ Token const& Scanner::readNext()
         myLastTokenKind = myCurrentTokenKind;
         myCurrentTokenKind = TokenKind::Undefined;
         auto loc = myLoc;
-        myLoc.column += myTok.window().length();
+        myLoc.column += myTok.window().card();
         return myTokenFactory.mkToken(myLastTokenKind, myTok.take(), loc);
     }
 
@@ -295,7 +295,7 @@ Token const& Scanner::readNext()
         }
 
         auto loc = myLoc;
-        myLoc.column += myTok.window().length();
+        myLoc.column += myTok.window().card();
         return myTokenFactory.mkToken(kind, myTok.take(), loc);
     };
 
@@ -305,7 +305,7 @@ Token const& Scanner::readNext()
     if ( false ) {
     L_ignoreToken:
         if ( !isLineBreak(myTok.current()) )
-            myLoc.column += myTok.window().length();
+            myLoc.column += myTok.window().card();
         myTok.bump();
     }
 
@@ -346,7 +346,7 @@ Token const& Scanner::readNext()
         while ( isSpace(myTok.peek()) )
             myTok.grow();
 
-        spaces += myTok.window().length();
+        spaces += myTok.window().card();
         goto L_ignoreToken;
     }
 

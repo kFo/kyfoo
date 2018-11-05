@@ -75,11 +75,11 @@ public:
     {
         auto crossAllocatorMove = [&](auto& from, auto& to) {
             auto tm = to.allocate(bytes);
-            if ( tm.length() != bytes )
+            if ( tm.card() != bytes )
                 return false;
 
-            if ( m.length() < bytes )
-                std::memcpy(tm.data(), m.data(), m.length());
+            if ( m.card() < bytes )
+                std::memcpy(tm.data(), m.data(), m.card());
             else
                 tm = mems(m.data(), bytes);
 
@@ -100,11 +100,11 @@ public:
     {
         auto crossAllocatorMove = [&](auto& from, auto& to) {
             auto tm = to.alignedAllocate(bytes, a);
-            if ( tm.length() != bytes )
+            if ( tm.card() != bytes )
                 return false;
 
-            if ( m.length() < bytes )
-                std::memcpy(tm.data(), m.data(), m.length());
+            if ( m.card() < bytes )
+                std::memcpy(tm.data(), m.data(), m.card());
             else
                 tm = mems(m.data(), bytes);
 

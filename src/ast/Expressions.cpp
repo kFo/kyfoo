@@ -70,10 +70,10 @@ Expression const* Strata::getType(Expression const& expr)
 
     if ( auto t = expr.as<TupleExpression>() ) {
         auto const exprs = t->expressions();
-        if ( exprs.empty() )
+        if ( !exprs )
             return &universe(1);
 
-        std::vector<Expression const*> types(exprs.size());
+        std::vector<Expression const*> types(exprs.card());
         for ( uz i = 0; i < types.size(); ++i )
             types[i] = exprs[i]->type();
         return &tuple(types);
@@ -95,7 +95,7 @@ UniverseExpression const& Strata::universe(uz level)
 TupleExpression const& Strata::tuple(Slice<Expression const*> exprs)
 {
     myTuples.emplace_back(mk<TupleExpression>(TupleKind::Open,
-                                                            ast::clone(exprs)));
+                                              ast::clone(exprs)));
     return *myTuples.back();
 }
 
@@ -700,10 +700,10 @@ TupleExpression::expandIntoList(TupleExpression& tup,
                                 std::vector<Box<Expression>>::iterator i)
 {
     auto const index = distance(begin(exprs), i);
-    auto const size = tup.myExpressions.size();
+    auto const card = tup.myExpressions.size();
     move(begin(tup.myExpressions), end(tup.myExpressions),
          std::inserter(exprs, i));
-    return next(begin(exprs), index + size);
+    return next(begin(exprs), index + card);
 }
 
 void TupleExpression::flattenOpenTuples(std::vector<Box<Expression>>& exprs)
@@ -793,7 +793,7 @@ L_restart:
         return ctx.rewrite(mk<TupleExpression>(TupleKind::Open, std::move(myExpressions)));
 
     if ( auto id = subject()->as<IdentifierExpression>() ) {
-        if ( !id->token().lexeme().empty() && !id->declaration() ) {
+        if ( id->token().lexeme() && !id->declaration() ) {
             if ( !resolveSubjectAsUFCSMethod(ctx, *id) ) {
                 auto hit = ctx.matchOverload(id->token().lexeme());
                 if ( !hit )
@@ -803,7 +803,7 @@ L_restart:
     }
 
     if ( auto dot = subject()->as<DotExpression>() ) {
-        ret |= dot->resolveSymbols(ctx, dot->expressions().size() - 1);
+        ret |= dot->resolveSymbols(ctx, dot->expressions().card() - 1);
         if ( !ret )
             return ret;
 
@@ -1066,7 +1066,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
         return SymRes::Fail;
     }
 
-    if ( subjectType->expressions().size() == 1 )
+    if ( subjectType->expressions().card() == 1 )
         myType = subjectType->expressions().front();
     else
         myType = &Expression::tuple(subjectType->expressions());
@@ -1399,7 +1399,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                     return SymRes::Fail;
                 }
 
-                if ( uz(index) >= defn->fields().size() ) {
+                if ( uz(index) >= defn->fields().card() ) {
                     (ctx.error(*e) << "field accessor out of bounds")
                         .see(*dp);
                     return SymRes::Fail;

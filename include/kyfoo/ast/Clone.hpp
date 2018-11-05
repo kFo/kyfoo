@@ -119,7 +119,7 @@ template <typename T, typename D>
 std::vector<Box<std::remove_const_t<T>>> beginClone(Slice<T*> rhs, D& dict)
 {
     std::vector<Box<std::remove_const_t<T>>> ret;
-    ret.reserve(rhs.size());
+    ret.reserve(rhs.card());
     for ( auto e : rhs )
         ret.emplace_back(beginClone(e, dict));
 

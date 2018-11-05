@@ -47,7 +47,7 @@
 namespace {
     llvm::StringRef strRef(kyfoo::stringv s)
     {
-        return llvm::StringRef(s.data(), s.size());
+        return llvm::StringRef(s.data(), s.card());
     }
 }
 
@@ -191,13 +191,13 @@ llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
         return toType(*decl);
 
     if ( auto t = e->as<ast::TupleExpression>() ) {
-        if ( t->expressions().empty() && t->kind() == ast::TupleKind::Open )
+        if ( !t->expressions() && t->kind() == ast::TupleKind::Open )
             return llvm::Type::getVoidTy(context);
 
         llvm::Type* elementType = nullptr;
-        if ( t->expressions().size() > 1 ) {
+        if ( t->expressions().card() > 1 ) {
             std::vector<llvm::Type*> types;
-            types.reserve(t->expressions().size());
+            types.reserve(t->expressions().card());
             for ( auto const& te : t->expressions() )
                 types.push_back(toType(context, *te));
 
@@ -217,11 +217,11 @@ llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
         enum { NotVarArg = false };
         std::vector<llvm::Type*> params;
         if ( auto tup = a->from().as<ast::TupleExpression>() ) {
-            if ( tup->expressions().empty() )
+            if ( !tup->expressions() )
                 return llvm::PointerType::getUnqual(llvm::FunctionType::get(toType(context, a->to()), NotVarArg));
 
             if ( tup->kind() == ast::TupleKind::Open ) {
-                params.reserve(tup->expressions().size());
+                params.reserve(tup->expressions().card());
                 for ( auto texpr : tup->expressions() )
                     params.push_back(toType(context, *texpr));
             }
@@ -310,7 +310,7 @@ struct InitCodeGenPass
 
         if ( auto defn = decl.definition() ) {
             auto const& fields = defn->fields();
-            for ( uz i = 0; i < fields.size(); ++i ) {
+            for ( uz i = 0; i < fields.card(); ++i ) {
                 fields[i]->setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration::Field>>());
                 customData(*fields[i])->index = static_cast<u32>(i);
             }
@@ -485,7 +485,7 @@ struct CodeGenPass
         }
 
         std::vector<llvm::Type*> params;
-        params.reserve(decl.parameters().size());
+        params.reserve(decl.parameters().card());
         for ( auto const& p : decl.parameters() ) {
             llvm::Type* paramType = toType(*p->type());
             if ( !paramType ) {
@@ -884,7 +884,7 @@ private:
         }
 
         if ( auto app = expr->as<ast::ApplyExpression>() ) {
-            if ( app->expressions().size() == 2
+            if ( app->expressions().card() == 2
                 && app->subject()->type()->kind() == ast::Expression::Kind::Tuple )
             {
                 auto arr = toRef(builder, *app->subject());
@@ -1023,9 +1023,9 @@ private:
                     formalParams = tup->expressions();
 
             std::vector<llvm::Value*> args;
-            args.reserve(exprs.size());
+            args.reserve(exprs.card());
 
-            for ( uz i = 1; i < exprs.size(); ++i ) {
+            for ( uz i = 1; i < exprs.card(); ++i ) {
                 auto paramType = toType(*formalParams[i - 1]);
                 auto val = toValue(builder, paramType, *exprs[i]);
                 if ( !val )
@@ -1085,12 +1085,12 @@ private:
 
         auto subj = resolveIndirections(a->subject());
         if ( auto tup = subj->type()->as<ast::TupleExpression>() ) {
-            if ( a->arguments().size() != 1 )
+            if ( a->arguments().card() != 1 )
                 die("expected one argument");
 
             auto proc = getProcedure(*a->arguments()[0]);
             if ( !proc ) {
-                if ( a->expressions().size() == 2 ) {
+                if ( a->expressions().card() == 2 ) {
                     // assume it's indexing into the tuple
                     auto arr = toRef(builder, *subj);
                     auto idx = toValue(builder, builder.getInt64Ty(), *a->expressions()[1]);
@@ -1111,7 +1111,7 @@ private:
             auto idxPtr = llvm::IRBuilder<>(&builder.GetInsertBlock()->getParent()->getEntryBlock()).CreateAlloca(builder.getInt64Ty());
             auto const zero = llvm::ConstantInt::get(builder.getInt64Ty(), 0);
             auto const one = llvm::ConstantInt::get(builder.getInt64Ty(), 1);
-            auto const size = llvm::ConstantInt::get(builder.getInt64Ty(), tup->elementsCount());
+            auto const card = llvm::ConstantInt::get(builder.getInt64Ty(), tup->elementsCount());
 
             builder.CreateStore(zero, idxPtr);
             auto condBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
@@ -1119,7 +1119,7 @@ private:
 
             builder.SetInsertPoint(condBlock);
             auto idx = builder.CreateLoad(idxPtr);
-            auto cond = builder.CreateICmpNE(idx, size);
+            auto cond = builder.CreateICmpNE(idx, card);
             auto loopBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
             auto mergeBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
             builder.CreateCondBr(cond, loopBlock, mergeBlock);
@@ -1206,7 +1206,7 @@ private:
             llvm::Constant* idx[] = { zero, zero };
             llvm::Constant* s[2] = {
                 llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
-                builder.getInt64(str.length())
+                builder.getInt64(str.card())
             };
             return llvm::ConstantStruct::get(strType, s);
         }
@@ -1432,7 +1432,7 @@ struct LLVMGenerator::LLVMState
 
         registerTypes(module, *module.scope());
         // todo: HACK needs dependency analysis
-        for ( auto i = module.templateInstantiations().size() - 1; ~i; --i )
+        for ( auto i = module.templateInstantiations().card() - 1; ~i; --i )
             registerTypes(module, *module.templateInstantiations()[i]);
 
         ast::ShallowApply<CodeGenPass> gen(dgn, mdata->module.get(), module);
@@ -1549,7 +1549,7 @@ struct LLVMGenerator::LLVMState
                 return dpData->type;
 
             std::vector<llvm::Type*> fieldTypes;
-            fieldTypes.reserve(defn->fields().size());
+            fieldTypes.reserve(defn->fields().card());
             for ( auto& f : defn->fields() ) {
                 auto d = getDeclaration(f->type());
                 auto type = registerType(mod, *resolveIndirections(d));

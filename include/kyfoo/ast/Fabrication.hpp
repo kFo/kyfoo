@@ -38,7 +38,7 @@ inline Symbol
 copyProcSym(Symbol const& s)
 {
     std::vector<Box<Expression>> exprs;
-    exprs.reserve(s.prototype().pattern().size());
+    exprs.reserve(s.prototype().pattern().card());
     for ( auto const& p : s.prototype().pattern() ) {
         if ( auto decl = getDeclaration(*p) ) {
             if ( auto param = decl->as<ProcedureParameter>() ) {

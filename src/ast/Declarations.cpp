@@ -717,7 +717,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
             return true;
         };
 
-        for ( uz i = 0; i < mySymbol->prototype().pattern().size(); ++i ) {
+        for ( uz i = 0; i < mySymbol->prototype().pattern().card(); ++i ) {
             auto& protoPattern = mySymbol->prototype().myPattern;
             while ( TupleExpression::tryExpandTuple(protoPattern, next(begin(protoPattern), i)) )
                 continue;

@@ -41,7 +41,7 @@ public:
     bool deallocateAll() noexcept;
 
 private:
-    constexpr uz size() const noexcept { return myEnd - myBegin; }
+    constexpr uz card() const noexcept { return myEnd - myBegin; }
     constexpr uz reserved() const noexcept { return myLimit - myEnd; }
     constexpr uz capacity() const noexcept { return myLimit - myBegin; }
 

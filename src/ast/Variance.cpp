@@ -186,7 +186,7 @@ Variance variance(DiagnosticsContext dgn,
 
         auto const l = targetTuple->elements();
         auto const r = queryTuple->elements();
-        if ( l.size() != r.size() )
+        if ( l.card() != r.card() )
             return Variance::Invariant;
 
         Variance ret = Variance::Exact;
@@ -251,12 +251,12 @@ Variance variance(DiagnosticsContext dgn,
                   Slice<Expression const*> lhs,
                   Slice<Expression const*> rhs)
 {
-    auto const size = lhs.size();
-    if ( size != rhs.size() )
+    auto const card = lhs.card();
+    if ( card != rhs.card() )
         return Variance::Invariant;
 
     auto ret = Variance::Exact;
-    for ( uz i = 0; i < size; ++i ) {
+    for ( uz i = 0; i < card; ++i ) {
         auto v = variance(dgn, *lhs[i], *rhs[i]);
         if ( !v )
             return v;
@@ -274,7 +274,7 @@ Variance variance(DiagnosticsContext dgn, Expression const& lhs, Slice<Expressio
         if ( l->kind() == TupleKind::Open )
             return variance(dgn, l->expressions(), rhs);
 
-    if ( rhs.size() == 1 )
+    if ( rhs.card() == 1 )
         return variance(dgn, lhs, *rhs[0]);
 
     return Variance::Invariant;
@@ -286,7 +286,7 @@ Variance variance(DiagnosticsContext dgn, Slice<Expression const*> lhs, Expressi
         if ( r->kind() == TupleKind::Open )
             return variance(dgn, lhs, r->expressions());
 
-    if ( lhs.size() == 1 )
+    if ( lhs.card() == 1 )
         return variance(dgn, *lhs[0], rhs);
 
     return Variance::Invariant;

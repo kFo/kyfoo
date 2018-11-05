@@ -1150,7 +1150,7 @@ struct Sequencer
             auto o = proc->ordinals();
             auto p = proc->parameters();
             check_point refCtx;
-            for ( uz i = 0; i < args.size(); ++i ) {
+            for ( uz i = 0; i < args.card(); ++i ) {
                 refCtx = o[i] >= 0 && isReference(*p[o[i]]->type());
                 dispatch(*args[i]);
             }

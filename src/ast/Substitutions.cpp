@@ -14,8 +14,8 @@ Substitutions::Substitutions() = default;
 Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Item> items)
 {
     auto symVars = target.symbol().prototype().symbolVariables();
-    auto const symVarCount = symVars.size();
-    if ( symVarCount != items.size() )
+    auto const symVarCount = symVars.card();
+    if ( symVarCount != items.card() )
         throw std::runtime_error("substitution mismatch");
 
     for ( uz i = 0; i < symVarCount; ++i ) {
@@ -27,8 +27,8 @@ Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Item> items)
 Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Expression const*> exprs)
 {
     auto symVars = target.symbol().prototype().symbolVariables();
-    auto const symVarCount = symVars.size();
-    if ( symVarCount != exprs.size() )
+    auto const symVarCount = symVars.card();
+    if ( symVarCount != exprs.card() )
         throw std::runtime_error("substitution mismatch");
 
     for ( uz i = 0; i < symVarCount; ++i ) {
@@ -53,8 +53,8 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression const*>
     auto const& targetPattern = target.symbol().prototype().pattern();
 
     if ( auto proc = target.as<ProcedureDeclaration>() ) {
-        auto const paramCount = targetPattern.size();
-        if ( paramCount != query.size() ) {
+        auto const paramCount = targetPattern.card();
+        if ( paramCount != query.card() ) {
             setMismatch();
             return;
         }
@@ -76,7 +76,7 @@ Substitutions::Substitutions(Declaration const& target, Slice<Expression const*>
         deduce(targetPattern, query);
     }
 
-    if ( size() != target.symbol().prototype().metaVariableCount() )
+    if ( card() != target.symbol().prototype().metaVariableCount() )
         setMismatch();
 }
 
@@ -89,8 +89,8 @@ Substitutions::~Substitutions() = default;
 
 bool Substitutions::deduce(Slice<Expression const*> target, Slice<Expression const*> query)
 {
-    auto const n = target.size();
-    if ( n != query.size() )
+    auto const n = target.card();
+    if ( n != query.card() )
         return false;
 
     bool ret = true;
@@ -105,7 +105,7 @@ bool Substitutions::deduce(Slice<Expression const*> target, Expression const& qu
     if ( auto tup = query.as<TupleExpression>() )
         return deduce(target, tup->expressions());
 
-    if ( target.size() == 1 )
+    if ( target.card() == 1 )
         return deduce(*target[0], query);
 
     return false;
@@ -116,7 +116,7 @@ bool Substitutions::deduce(Expression const& target, Slice<Expression const*> qu
     if ( auto tup = target.as<TupleExpression>() )
         return deduce(tup->expressions(), query);
 
-    if ( query.size() == 1 )
+    if ( query.card() == 1 )
         return deduce(target, *query[0]);
 
     return false;
@@ -215,7 +215,7 @@ bool Substitutions::empty() const
     return myVariables.empty();
 }
 
-uz Substitutions::size() const
+uz Substitutions::card() const
 {
     return myVariables.size();
 }

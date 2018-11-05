@@ -60,7 +60,7 @@ TEST_CASE("retro", "[Retro]") {
 TEST_CASE("repeat", "[Repeat][Take]") {
     Repeat sp { 0 };
     Take r {5, sp};
-    REQUIRE(r.size() == 5);
+    REQUIRE(r.card() == 5);
     for ( auto e : {0, 0, 0, 0, 0} ) {
         CHECK(e == r.front());
         r.popFront();

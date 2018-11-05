@@ -71,7 +71,7 @@ bool OverloadViability::empty() const
     return myViabilities.empty();
 }
 
-uz OverloadViability::size() const
+uz OverloadViability::card() const
 {
     return myViabilities.empty();
 }
@@ -122,7 +122,7 @@ Declaration* Via::instantiate(Context& ctx)
     if ( mySubsts.empty() )
         return myProto->proto.decl;
 
-    for ( uz i = 0; i < mySubsts.size(); ++i ) {
+    for ( uz i = 0; i < mySubsts.card(); ++i ) {
         if ( needsSubstitution(mySubsts.expr(i)) )
             throw std::runtime_error("cannot instantiate template without substitution for symbol variable");
     }
@@ -131,7 +131,7 @@ Declaration* Via::instantiate(Context& ctx)
     for ( uz i = 0; i < myProto->instances.size(); ++i ) {
         auto const& inst = myProto->instances[i];
         auto const& instVars = inst.params->symbolVariables();
-        if ( instVars.size() != mySubsts.size() )
+        if ( instVars.card() != mySubsts.card() )
             throw std::runtime_error("invalid template instance");
 
         auto l = begin(instVars);
@@ -229,7 +229,7 @@ bool ViableSet::empty() const
     return myVias.empty();
 }
 
-uz ViableSet::size() const
+uz ViableSet::card() const
 {
     return myVias.size();
 }
@@ -404,7 +404,7 @@ ViableSet SymbolSpace::findViableOverloads(Context& ctx, Slice<Expression const*
     Context sfinaeCtx(ctx.module(), sfinaeDgn, resolver, Context::DisableCacheTemplateInstantiations);
 
     for ( auto& e : myPrototypes ) {
-        if ( e.proto.decl->symbol().prototype().pattern().size() != paramlist.size() )
+        if ( e.proto.decl->symbol().prototype().pattern().card() != paramlist.card() )
             continue;
 
         Substitutions substs(*e.proto.decl, paramlist);
@@ -599,11 +599,11 @@ Viability implicitViability(Context& ctx, Expression const& dest, Expression con
 OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest, Slice<Expression const*> src)
 {
     OverloadViability ret;
-    auto const size = dest.size();
-    if ( size != src.size() )
+    auto const card = dest.card();
+    if ( card != src.card() )
         throw std::runtime_error("overload arity mismatch");
 
-    for ( uz i = 0; i < size; ++i )
+    for ( uz i = 0; i < card; ++i )
         ret.append(implicitViability(ctx, *dest[i], *src[i]));
 
     return ret;

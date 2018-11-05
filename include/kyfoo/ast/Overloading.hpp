@@ -61,7 +61,7 @@ public:
     std::vector<Viability>::iterator end();
 
     bool empty() const;
-    uz size() const;
+    uz card() const;
 
     Viability const& operator [] (uz index) const;
     Viability& operator [] (uz index);
@@ -143,7 +143,7 @@ public:
 
 public:
     bool empty() const;
-    uz size() const;
+    uz card() const;
 
     std::vector<Via>::const_iterator begin() const;
     std::vector<Via>::const_iterator end() const;

@@ -79,7 +79,7 @@ public:
     template <uz N = 1u>
     void grow()
     {
-        myWindow = window_t(myWindow.data(), myWindow.length() + N);
+        myWindow = window_t(myWindow.data(), myWindow.card() + N);
     }
 
     void shrinkLeft()

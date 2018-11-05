@@ -53,7 +53,7 @@ public:
 
     constexpr SliceBase(pointer p, size_type len) noexcept
         : myData(p)
-        , myLength(len)
+        , myCard(len)
     {
     }
 
@@ -78,7 +78,7 @@ public:
     {
         using kyfoo::swap;
         swap(myData, s.myData);
-        swap(myLength, s.myLength);
+        swap(myCard, s.myCard);
     }
 
 public:
@@ -92,29 +92,26 @@ public:
     {
         if constexpr(std::is_void_v<value_type>)
             return reinterpret_cast<std::conditional_t<std::is_const_v<value_type>, u8 const*, u8*>>(myData)
-                 + myLength;
+                 + myCard;
         else
-            return myData + myLength;
+            return myData + myCard;
     }
 
     constexpr const_iterator end () const noexcept { return const_cast<SliceBase*>(this)->end(); }
     constexpr const_iterator cend()       noexcept { return end(); }
     constexpr const_iterator cend() const noexcept { return end(); }
 
-    constexpr bool empty() const noexcept { return myLength == 0; }
-
     constexpr pointer data() noexcept { return myData; }
     constexpr const_pointer data() const noexcept { return myData; }
 
-    constexpr uz length() const noexcept { return myLength; }
-    constexpr uz size  () const noexcept { return myLength; }
+    constexpr uz card() const noexcept { return myCard; }
 
-    constexpr void popFront() noexcept { ++myData; --myLength; }
-    constexpr void popBack () noexcept { --myLength; }
+    constexpr void popFront() noexcept { ++myData; --myCard; }
+    constexpr void popBack () noexcept { --myCard; }
 
 protected:
     pointer myData = nullptr;
-    size_type myLength = 0;
+    size_type myCard = 0;
 };
 
 template <typename T>
@@ -204,7 +201,7 @@ public:
                                        && std::is_convertible_v<U const*, value_type>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(SliceBaseDereferenceable<Box<U>> const& s) noexcept
         : SliceBaseDereferenceable(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(s.data()))),
-                                   s.size())
+                                   s.card())
     {
     }
 
@@ -214,7 +211,7 @@ public:
                                        && std::is_convertible_v<U*, value_type>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(SliceBaseDereferenceable<Box<U>>& s) noexcept
         : SliceBaseDereferenceable(reinterpret_cast<pointer>(reinterpret_cast<void*>(s.data())),
-                                   s.size())
+                                   s.card())
     {
     }
 
@@ -224,23 +221,23 @@ public:
 
     template <typename Unary>
     std::enable_if_t<std::is_nothrow_invocable_r_v<size_type, Unary, size_type>,
-    reference> operator [] (Unary&& f) noexcept { return this->myData[f(this->myLength)]; }
+    reference> operator [] (Unary&& f) noexcept { return this->myData[f(this->myCard)]; }
 
     template <typename Unary>
     std::enable_if_t<std::is_nothrow_invocable_r_v<size_type, Unary, size_type>,
-    const_reference> operator [] (Unary&& f) const noexcept { return this->myData[f(this->myLength)]; }
+    const_reference> operator [] (Unary&& f) const noexcept { return this->myData[f(this->myCard)]; }
 
     constexpr reference       front()       noexcept { return *this->myData; }
     constexpr const_reference front() const noexcept { return *this->myData; }
 
-    constexpr reference       back()       noexcept { return this->myData[this->myLength - 1]; }
-    constexpr const_reference back() const noexcept { return this->myData[this->myLength - 1]; }
+    constexpr reference       back()       noexcept { return this->myData[this->myCard - 1]; }
+    constexpr const_reference back() const noexcept { return this->myData[this->myCard - 1]; }
 
 public:
     template <typename U>
     Ordering cmp(SliceBaseDereferenceable<U> rhs) const noexcept
     {
-        auto const s = std::min(this->length(), rhs.length());
+        auto const s = std::min(this->card(), rhs.card());
         for ( uz i = 0; i < s; ++i ) {
             if ( operator[](i) < rhs[i] )
                 return LT;
@@ -248,9 +245,9 @@ public:
                 return GT;
         }
 
-        if ( this->length() < rhs.length() )
+        if ( this->card() < rhs.card() )
             return LT;
-        else if ( rhs.length() < this->length() )
+        else if ( rhs.card() < this->card() )
             return GT;
 
         return EQ;
@@ -295,7 +292,7 @@ public:
     template <typename U>
     bool operator == (SliceBaseDereferenceable<U> rhs) const noexcept
     {
-        if ( this->length() != rhs.length() )
+        if ( this->card() != rhs.card() )
             return false;
 
         return cmp(rhs) == EQ;
@@ -357,12 +354,12 @@ public:
         Slice>
     operator () (size_type start, Unary&& f) const noexcept
     {
-        return Slice(this->myData + start, f(this->myLength) - start);
+        return Slice(this->myData + start, f(this->myCard) - start);
     }
 
     constexpr explicit operator bool () const noexcept
     {
-        return !this->empty();
+        return this->myCard != 0;
     }
 
     template <typename U>
@@ -494,8 +491,8 @@ typename Slice<T>::const_iterator cend(Slice<T> const& rhs)
 template <typename T>
 Slice<T> slice(T* begin, T* end)
 {
-    auto const size = end - begin;
-    return Slice<T>(begin, size);
+    auto const card = end - begin;
+    return Slice<T>(begin, card);
 }
 
 template <typename T>
@@ -531,7 +528,7 @@ Slice<T const*> slice(std::vector<Box<T>> const& v, uz start, uz end)
 template <typename T>
 Slice<T> slice(Slice<T> s, uz start)
 {
-    return s(start, s.size());
+    return s(start, s.card());
 }
 
 template <typename T>
