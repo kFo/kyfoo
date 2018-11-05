@@ -51,7 +51,6 @@ NULL := null
 put(c : u8) =>
     := a = c
     WriteFile (GetStdHandle STD_OUTPUT_HANDLE) (addr a) 1 NULL NULL
-    :. 42.uz
 
 pow<\T>(base : T, exp : u32) -> T =>
     := ret : T = 1
@@ -75,22 +74,18 @@ put(num : u32) =>
     :* ne i -1
         put(buffer i)
         i.dec
-    :.
 
 put(s : ascii) =>
     WriteFile(GetStdHandle STD_OUTPUT_HANDLE, s.base, trunc<u32> s.card, NULL, NULL)
-    :.
 
 putLine() =>
     put("\n")
-    :.
 
-swap(a b : ref \T) -> () =>
+swap(a b : ref \T) =>
     // todo: tuple syntax
     := tmp : T = a
     a = b
     b = tmp
-    :.
 
 bubble(arr : ref slice<\T>, c : (T, T)->u1) -> u32 =>
     := ret = 0.u32
@@ -103,18 +98,16 @@ bubble(arr : ref slice<\T>, c : (T, T)->u1) -> u32 =>
     
     :. ret
 
-bubbleSort(arr : ref slice<\T>, c : (T, T)->u1) -> () =>
+bubbleSort(arr : ref slice<\T>, c : (T, T)->u1) =>
     :* (bubble arr c).ne 0
-    :.
 
-bubbleSort(arr : ref slice<\T>) -> () =>
-    :. bubbleSort arr (x y:T)->u1=>lt x y
+bubbleSort(arr : ref slice<\T>) =>
+    bubbleSort arr (x y:T)->u1=>lt x y
 
 @"WriteWrapper"
 WriteWrapper(str : ascii) =>
     := written : u32 = 0
     WriteFile(GetStdHandle STD_OUTPUT_HANDLE, str.base, trunc<u32> str.card, addr written, NULL)
-    :.
 
 ftest (x y : s32) -> s32 =>
     WriteWrapper("hello world!\n")
@@ -147,20 +140,17 @@ gtest(n : s32) =>
     arr (c : ref u8) -> BOOL => WriteFile GetStdHandle-STD_OUTPUT_HANDLE c.addr 1 NULL NULL
     
     HeapFree GetProcessHeap 0 p
-    :.
 
 mkArray<u32>(n : uz) -> slice u32 =>
     := ret : slice u32
     ret.ctor HeapAlloc(GetProcessHeap, 0, n.mul(4)).cast<ptr u32> n
     :. ret
 
-delete(s:slice \T) -> () =>
+delete(s:slice \T) =>
     HeapFree GetProcessHeap 0 cast<LPVOID>(s.base)
-    :.
 
 printLambda(a : u32->u32) =>
     put (a 23.u32)
-    :.
 
 htest() =>
     //:= arr : u32..6 = [1, 2, 3, 4, 5, 6]
@@ -190,7 +180,6 @@ htest() =>
     
     printLambda (c:u32)->u32=>c.mul 2
     putLine
-    :.
 
 start() =>
     ftest 1 2
@@ -199,4 +188,3 @@ start() =>
     putLine
     htest
     ExitProcess 42
-    :.

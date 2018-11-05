@@ -38,12 +38,12 @@ class VariableDeclaration;
 #define EXPRESSION_KINDS(X)             \
     X(Literal   , LiteralExpression   ) \
     X(Identifier, IdentifierExpression) \
-    X(Tuple     , TupleExpression     ) \
-    X(Apply     , ApplyExpression     ) \
     X(Symbol    , SymbolExpression    ) \
     X(Dot       , DotExpression       ) \
-    X(Assign    , AssignExpression    ) \
+    X(Apply     , ApplyExpression     ) \
     X(Lambda    , LambdaExpression    ) \
+    X(Assign    , AssignExpression    ) \
+    X(Tuple     , TupleExpression     ) \
     X(Arrow     , ArrowExpression     ) \
     X(Universe  , UniverseExpression  )
 
@@ -250,6 +250,218 @@ private:
     Declaration const* myDeclaration = nullptr;
 };
 
+// todo: removeme
+class SymbolExpression : public IdentifierExpression
+{
+public:
+    friend class Context;
+
+public:
+    SymbolExpression(lexer::Token token,
+                     std::vector<Box<Expression>>&& expressions);
+    SymbolExpression(std::vector<Box<Expression>>&& expressions);
+    SymbolExpression(lexer::Token open,
+                     lexer::Token close,
+                     std::vector<Box<Expression>>&& expressions);
+
+protected:
+    SymbolExpression(SymbolExpression const& rhs);
+    SymbolExpression& operator = (SymbolExpression const& rhs);
+
+public:
+    ~SymbolExpression() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(SymbolExpression& rhs) noexcept;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    SymRes resolveSubExpressions(Context& ctx);
+
+    Slice<Expression*> expressions();
+    Slice<Expression const*> expressions() const;
+
+    lexer::Token const& openToken() const;
+    lexer::Token const& closeToken() const;
+
+    std::vector<Box<Expression>>& internalExpressions();
+
+private:
+    // AST state
+    std::vector<Box<Expression>> myExpressions;
+
+    lexer::Token myOpenToken;
+    lexer::Token myCloseToken;
+};
+
+class DotExpression : public Expression
+{
+public:
+    friend class Context;
+    friend class ApplyExpression;
+
+public:
+    DotExpression(bool modScope,
+                  std::vector<Box<Expression>>&& exprs);
+
+protected:
+    DotExpression(DotExpression const& rhs);
+    DotExpression& operator = (DotExpression const& rhs);
+
+public:
+    ~DotExpression() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(DotExpression& rhs) noexcept;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    SymRes resolveSymbols(Context& ctx, uz subExpressionLimit);
+
+    Slice<Expression*> expressions();
+    Slice<Expression const*> expressions() const;
+
+    Expression* top(uz index = 0);
+    Expression const* top(uz index = 0) const;
+
+    bool isModuleScope() const;
+
+protected:
+    Box<Expression> takeTop(uz index = 0);
+
+private:
+    std::vector<Box<Expression>> myExpressions;
+    bool myModScope = false;
+};
+
+class ApplyExpression : public Expression
+{
+public:
+    friend class Context;
+    friend class ProcedureDeclaration;
+
+public:
+    ApplyExpression(std::vector<Box<Expression>>&& expressions);
+
+protected:
+    ApplyExpression(ApplyExpression const& rhs);
+    ApplyExpression& operator = (ApplyExpression const& rhs);
+
+public:
+    ~ApplyExpression() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(ApplyExpression& rhs) noexcept;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    Declaration const* resolveSubjectAsUFCSMethod(Context& ctx, IdentifierExpression& id);
+    SymRes lowerToApplicable(Context& ctx);
+    SymRes lowerToStaticCall(Context& ctx);
+    SymRes elaborateTuple(Context& ctx);
+    void flatten();
+    void flatten(std::vector<Box<Expression>>::iterator first);
+
+public:
+    Slice<Expression*> expressions();
+    Slice<Expression const*> expressions() const;
+
+    Expression* subject();
+    Expression const* subject() const;
+
+    Slice<Expression*> arguments();
+    Slice<Expression const*> arguments() const;
+
+    ProcedureDeclaration const* procedure() const;
+
+protected:
+    Slice<Box<Expression>> mutableArgs();
+
+private:
+    // AST state
+    std::vector<Box<Expression>> myExpressions;
+    ProcedureDeclaration const* myProc = nullptr;
+};
+
+class LambdaExpression : public Expression
+{
+public:
+    friend class Context;
+
+public:
+    explicit LambdaExpression(ProcedureDeclaration& proc);
+
+protected:
+    LambdaExpression(LambdaExpression const& rhs);
+    LambdaExpression& operator = (LambdaExpression const& rhs);
+
+public:
+    ~LambdaExpression() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(LambdaExpression& rhs) noexcept;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    ProcedureDeclaration const& procedure() const;
+    ProcedureDeclaration& procedure();
+
+private:
+    ProcedureDeclaration* myProc = nullptr;
+};
+
+// todo: change to statement only
+class AssignExpression : public Expression
+{
+public:
+    friend class Context;
+
+public:
+    AssignExpression(Box<Expression> lhs,
+                     Box<Expression> rhs);
+    AssignExpression(VariableDeclaration const& var,
+                     Box<Expression> expression);
+
+protected:
+    AssignExpression(AssignExpression const& rhs);
+    AssignExpression& operator = (AssignExpression const& rhs);
+
+public:
+    ~AssignExpression() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(AssignExpression& rhs) noexcept;
+
+    // Expression
+    DECL_CLONE_ALL(Expression)
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    Expression const& left() const;
+    Expression& left();
+    Expression const& right() const;
+    Expression& right();
+
+    Box<Expression> takeLeft();
+    Box<Expression> takeRight();
+
+private:
+    Box<Expression> myLeft;
+    Box<Expression> myRight;
+};
+
 class ExpressionArray
 {
 public:
@@ -393,217 +605,6 @@ private:
     lexer::Token myCloseToken;
 };
 
-class ApplyExpression : public Expression
-{
-public:
-    friend class Context;
-    friend class ProcedureDeclaration;
-
-public:
-    ApplyExpression(std::vector<Box<Expression>>&& expressions);
-
-protected:
-    ApplyExpression(ApplyExpression const& rhs);
-    ApplyExpression& operator = (ApplyExpression const& rhs);
-
-public:
-    ~ApplyExpression() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(ApplyExpression& rhs) noexcept;
-
-    // Expression
-    DECL_CLONE_ALL(Expression)
-protected:
-    SymRes resolveSymbols(Context& ctx);
-
-public:
-    Declaration const* resolveSubjectAsUFCSMethod(Context& ctx, IdentifierExpression& id);
-    SymRes lowerToApplicable(Context& ctx);
-    SymRes lowerToStaticCall(Context& ctx);
-    SymRes elaborateTuple(Context& ctx);
-    void flatten();
-    void flatten(std::vector<Box<Expression>>::iterator first);
-
-public:
-    Slice<Expression*> expressions();
-    Slice<Expression const*> expressions() const;
-
-    Expression* subject();
-    Expression const* subject() const;
-
-    Slice<Expression*> arguments();
-    Slice<Expression const*> arguments() const;
-
-    ProcedureDeclaration const* procedure() const;
-
-protected:
-    Slice<Box<Expression>> mutableArgs();
-
-private:
-    // AST state
-    std::vector<Box<Expression>> myExpressions;
-    ProcedureDeclaration const* myProc = nullptr;
-};
-
-// todo: removeme
-class SymbolExpression : public IdentifierExpression
-{
-public:
-    friend class Context;
-
-public:
-    SymbolExpression(lexer::Token token,
-                     std::vector<Box<Expression>>&& expressions);
-    SymbolExpression(std::vector<Box<Expression>>&& expressions);
-    SymbolExpression(lexer::Token open,
-                     lexer::Token close,
-                     std::vector<Box<Expression>>&& expressions);
-
-protected:
-    SymbolExpression(SymbolExpression const& rhs);
-    SymbolExpression& operator = (SymbolExpression const& rhs);
-
-public:
-    ~SymbolExpression() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(SymbolExpression& rhs) noexcept;
-
-    // Expression
-    DECL_CLONE_ALL(Expression)
-protected:
-    SymRes resolveSymbols(Context& ctx);
-
-public:
-    SymRes resolveSubExpressions(Context& ctx);
-
-    Slice<Expression*> expressions();
-    Slice<Expression const*> expressions() const;
-
-    lexer::Token const& openToken() const;
-    lexer::Token const& closeToken() const;
-
-    std::vector<Box<Expression>>& internalExpressions();
-
-private:
-    // AST state
-    std::vector<Box<Expression>> myExpressions;
-
-    lexer::Token myOpenToken;
-    lexer::Token myCloseToken;
-};
-
-class DotExpression : public Expression
-{
-public:
-    friend class Context;
-    friend ApplyExpression;
-
-public:
-    DotExpression(bool modScope,
-                  std::vector<Box<Expression>>&& exprs);
-
-protected:
-    DotExpression(DotExpression const& rhs);
-    DotExpression& operator = (DotExpression const& rhs);
-
-public:
-    ~DotExpression() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(DotExpression& rhs) noexcept;
-
-    // Expression
-    DECL_CLONE_ALL(Expression)
-protected:
-    SymRes resolveSymbols(Context& ctx);
-
-public:
-    SymRes resolveSymbols(Context& ctx, uz subExpressionLimit);
-
-    Slice<Expression*> expressions();
-    Slice<Expression const*> expressions() const;
-
-    Expression* top(uz index = 0);
-    Expression const* top(uz index = 0) const;
-
-    bool isModuleScope() const;
-
-protected:
-    Box<Expression> takeTop(uz index = 0);
-
-private:
-    std::vector<Box<Expression>> myExpressions;
-    bool myModScope = false;
-};
-
-class AssignExpression : public Expression
-{
-public:
-    friend class Context;
-
-public:
-    AssignExpression(Box<Expression> lhs,
-                     Box<Expression> rhs);
-    AssignExpression(VariableDeclaration const& var,
-                     Box<Expression> expression);
-
-protected:
-    AssignExpression(AssignExpression const& rhs);
-    AssignExpression& operator = (AssignExpression const& rhs);
-
-public:
-    ~AssignExpression() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(AssignExpression& rhs) noexcept;
-
-    // Expression
-    DECL_CLONE_ALL(Expression)
-protected:
-    SymRes resolveSymbols(Context& ctx);
-
-public:
-    Expression const& left() const;
-    Expression& left();
-    Expression const& right() const;
-    Expression& right();
-
-    Box<Expression> takeLeft();
-    Box<Expression> takeRight();
-
-private:
-    Box<Expression> myLeft;
-    Box<Expression> myRight;
-};
-
-class LambdaExpression : public Expression
-{
-public:
-    friend class Context;
-
-public:
-    explicit LambdaExpression(ProcedureDeclaration& proc);
-
-protected:
-    LambdaExpression(LambdaExpression const& rhs);
-    LambdaExpression& operator = (LambdaExpression const& rhs);
-
-public:
-    ~LambdaExpression() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(LambdaExpression& rhs) noexcept;
-
-    // Expression
-    DECL_CLONE_ALL(Expression)
-protected:
-    SymRes resolveSymbols(Context& ctx);
-
-public:
-    ProcedureDeclaration const& procedure() const;
-    ProcedureDeclaration& procedure();
-
-private:
-    ProcedureDeclaration* myProc = nullptr;
-};
-
 class ArrowExpression : public Expression
 {
 public:
@@ -728,6 +729,7 @@ bool hasDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const* expr);
 std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr);
+bool isUnit(Expression const& expr);
 
 struct DeclRef
 {

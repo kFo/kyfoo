@@ -71,7 +71,7 @@ Expression const* Strata::getType(Expression const& expr)
     if ( auto t = expr.as<TupleExpression>() ) {
         auto const exprs = t->expressions();
         if ( !exprs )
-            return &universe(1);
+            return t;
 
         std::vector<Expression const*> types(exprs.card());
         for ( uz i = 0; i < types.size(); ++i )
@@ -478,242 +478,363 @@ void IdentifierExpression::setToken(lexer::Token const& token)
 }
 
 //
-// TupleExpression
+// SymbolExpression
 
-TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
-{
-    if ( open == lexer::TokenKind::OpenParen ) {
-        if ( close == lexer::TokenKind::CloseParen )
-            return TupleKind::Open;
-        else if ( close == lexer::TokenKind::CloseBracket )
-            return TupleKind::OpenLeft;
-    }
-    else if ( open == lexer::TokenKind::OpenBracket ) {
-        if ( close == lexer::TokenKind::CloseParen )
-            return TupleKind::OpenRight;
-        else if ( close == lexer::TokenKind::CloseBracket )
-            return TupleKind::Closed;
-    }
-
-    ENFORCEU("invalid tuple expression syntax");
-}
-
-const char* to_string(TupleKind kind)
-{
-    switch (kind) {
-#define X(a) case TupleKind::a: return #a;
-        TUPLE_KINDS(X)
-#undef X
-    }
-
-    ENFORCEU("invalid tuple kind");
-}
-
-const char* presentTupleOpen(TupleKind kind)
-{
-    switch (kind) {
-    case TupleKind::Open:
-    case TupleKind::OpenLeft:
-        return "(";
-
-    default:
-        return "[";
-    }
-}
-
-const char* presentTupleClose(TupleKind kind)
-{
-    switch (kind) {
-    case TupleKind::Open:
-    case TupleKind::OpenLeft:
-        return ")";
-
-    default:
-        return "]";
-    }
-}
-const char* presentTupleWeave(TupleKind)
-{
-    return ", ";
-}
-
-TupleExpression::TupleExpression(TupleKind kind,
-                                 std::vector<Box<Expression>>&& expressions)
-    : Expression(Expression::Kind::Tuple)
-    , myKind(kind)
+SymbolExpression::SymbolExpression(lexer::Token token,
+                                   std::vector<Box<Expression>>&& expressions)
+    : IdentifierExpression(Expression::Kind::Symbol, std::move(token), nullptr)
     , myExpressions(std::move(expressions))
 {
 }
 
-TupleExpression::TupleExpression(lexer::Token const& open,
-                                 lexer::Token const& close,
-                                 std::vector<Box<Expression>>&& expressions)
-    : Expression(Expression::Kind::Tuple)
-    , myKind(toTupleKind(open.kind(), close.kind()))
+SymbolExpression::SymbolExpression(std::vector<Box<Expression>>&& expressions)
+    : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
-    , myOpenToken(open)
-    , myCloseToken(close)
 {
 }
 
-TupleExpression::TupleExpression(std::vector<Box<Expression>>&& expressions,
-                                 Box<Expression> cardExpression)
-    : Expression(Expression::Kind::Tuple)
-    , myKind(TupleKind::Closed)
+SymbolExpression::SymbolExpression(lexer::Token open,
+                                   lexer::Token close,
+                                   std::vector<Box<Expression>>&& expressions)
+    : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
-    , myCardExpression(std::move(cardExpression))
+    , myOpenToken(std::move(open))
+    , myCloseToken(std::move(close))
 {
 }
 
-TupleExpression::TupleExpression(TupleExpression const& rhs)
-    : Expression(rhs)
-    , myKind(rhs.myKind)
+SymbolExpression::SymbolExpression(SymbolExpression const& rhs)
+    : IdentifierExpression(rhs)
+    , myOpenToken(rhs.myOpenToken)
+    , myCloseToken(rhs.myCloseToken)
 {
 }
 
-TupleExpression& TupleExpression::operator = (TupleExpression const& rhs)
+SymbolExpression& SymbolExpression::operator = (SymbolExpression const& rhs)
 {
-    TupleExpression(rhs).swap(*this);
+    SymbolExpression(rhs).swap(*this);
     return *this;
 }
 
-void TupleExpression::swap(TupleExpression& rhs) noexcept
+SymbolExpression::~SymbolExpression() = default;
+
+void SymbolExpression::swap(SymbolExpression& rhs) noexcept
 {
-    Expression::swap(rhs);
+    IdentifierExpression::swap(rhs);
 
     using kyfoo::swap;
-    swap(myKind, rhs.myKind);
     swap(myExpressions, rhs.myExpressions);
+    swap(myOpenToken, rhs.myOpenToken);
+    swap(myCloseToken, rhs.myCloseToken);
 }
 
-TupleExpression::~TupleExpression() = default;
-
-IMPL_CLONE_BEGIN(TupleExpression, Expression, Expression)
+IMPL_CLONE_BEGIN(SymbolExpression, IdentifierExpression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(TupleExpression, Expression)
+IMPL_CLONE_REMAP_BEGIN(SymbolExpression, IdentifierExpression)
 IMPL_CLONE_REMAP(myExpressions)
 IMPL_CLONE_REMAP_END
 
-SymRes TupleExpression::resolveSymbols(Context& ctx)
+SymRes SymbolExpression::resolveSymbols(Context& ctx)
 {
+    if ( declaration() )
+        return SymRes::Success;
+
+    if ( token().kind() == lexer::TokenKind::Undefined ) {
+        if ( myExpressions.empty() )
+            return SymRes::Success;
+
+        auto subject = myExpressions.front()->as<IdentifierExpression>();
+        if ( !subject ) {
+            ctx.error(*this) << "symbol tuples must start with an identifier";
+            return SymRes::Fail;
+        }
+
+        auto subjectExpression = std::move(myExpressions.front());
+        setToken(subject->token());
+        move(next(begin(myExpressions)), end(myExpressions),
+             begin(myExpressions));
+        myExpressions.pop_back();
+
+        if ( myExpressions.empty() )
+            return ctx.rewrite(std::move(subjectExpression));
+    }
+
     auto ret = ctx.resolveExpressions(myExpressions);
     if ( !ret )
         return ret;
 
-    if ( myCardExpression ) {
-        ret |= ctx.resolveExpression(myCardExpression);
-        if ( !ret )
-            return ret;
-
-        auto lit = resolveIndirections(myCardExpression.get())->as<LiteralExpression>();
-        if ( !lit || lit->token().kind() != lexer::TokenKind::Integer ) {
-            ctx.error(*myCardExpression) << "array cardinality must be an integer";
-            return SymRes::Fail;
-        }
-
-        auto n = stoi(lit->token().lexeme());
-        if ( n < 0 ) {
-            ctx.error(*myCardExpression) << "array cardinality cannot be negative";
-            return SymRes::Fail;
-        }
-
-        myCard = static_cast<uz>(n);
-    }
-    else {
-        myCard = 1;
+    SymbolReference sym(token().lexeme(), myExpressions);
+    auto hit = ctx.matchOverload(sym);
+    if ( !hit ) {
+        ctx.error(*this) << "undeclared symbol identifier";
+        return SymRes::Fail;
     }
 
-    if ( myKind == TupleKind::Open ) {
-        if ( myExpressions.size() == 1 )
-            return ctx.rewrite(std::move(myExpressions[0]));
+    auto decl = hit.single();
+    if ( !decl ) {
+        ctx.error(*this) << "failed to instantiate symbol";
+        return SymRes::Fail;
     }
 
-    flattenOpenTuples(myExpressions);
-
-    // myType is generated lazily
+    setDeclaration(*decl);
     return SymRes::Success;
 }
 
-TupleKind TupleExpression::kind() const
+SymRes SymbolExpression::resolveSubExpressions(Context& ctx)
 {
-    return myKind;
+    return ctx.resolveExpressions(begin(myExpressions), end(myExpressions));
 }
 
-lexer::Token const& TupleExpression::openToken() const
+Slice<Expression*> SymbolExpression::expressions()
+{
+    return myExpressions;
+}
+
+Slice<Expression const*> SymbolExpression::expressions() const
+{
+    return myExpressions;
+}
+
+lexer::Token const& SymbolExpression::openToken() const
 {
     return myOpenToken;
 }
 
-lexer::Token const& TupleExpression::closeToken() const
+lexer::Token const& SymbolExpression::closeToken() const
 {
     return myCloseToken;
 }
 
-Slice<Expression*> TupleExpression::expressions()
+std::vector<Box<Expression>>& SymbolExpression::internalExpressions()
 {
     return myExpressions;
 }
 
-Slice<Expression const*> TupleExpression::expressions() const
+//
+// DotExpression
+
+DotExpression::DotExpression(bool modScope,
+                             std::vector<Box<Expression>>&& exprs)
+    : Expression(Kind::Dot)
+    , myExpressions(std::move(exprs))
+    , myModScope(modScope)
 {
-    return myExpressions;
 }
 
-ExpressionArray TupleExpression::elements() const
+DotExpression::DotExpression(DotExpression const& rhs)
+    : Expression(rhs)
+    , myModScope(rhs.myModScope)
 {
-    return ExpressionArray(myExpressions, elementsCount());
 }
 
-uz TupleExpression::elementsCount() const
+DotExpression& DotExpression::operator = (DotExpression const& rhs)
 {
-    return myCard;
+    DotExpression(rhs).swap(*this);
+    return *this;
 }
 
-/**
- * Flatten open-tuples
- */
+DotExpression::~DotExpression() = default;
 
-std::optional<std::vector<Box<Expression>>::iterator>
-TupleExpression::tryExpandTuple(std::vector<Box<Expression>>& exprs,
-                                std::vector<Box<Expression>>::iterator i)
+void DotExpression::swap(DotExpression& rhs) noexcept
 {
-    if ( auto tup = (*i)->as<TupleExpression>() )
-        if ( tup->kind() == TupleKind::Open )
-            if ( tup->myCard == 1 || !tup->myCardExpression )
-                return expandTuple(exprs, i);
-
-    return {};
+    Expression::swap(rhs);
+    using kyfoo::swap;
+    swap(myExpressions, rhs.myExpressions);
+    swap(myModScope, rhs.myModScope);
 }
 
-std::vector<Box<Expression>>::iterator
-TupleExpression::expandTuple(std::vector<Box<Expression>>& exprs,
-                             std::vector<Box<Expression>>::iterator i)
+IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DotExpression, Expression)
+IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_END
+
+SymRes DotExpression::resolveSymbols(Context& ctx)
 {
-    auto& tup = static_cast<TupleExpression&>(**i);
-    return exprs.erase(expandIntoList(tup, exprs, i));
+    return resolveSymbols(ctx, myExpressions.size());
 }
 
-std::vector<Box<Expression>>::iterator
-TupleExpression::expandIntoList(TupleExpression& tup,
-                                std::vector<Box<Expression>>& exprs,
-                                std::vector<Box<Expression>>::iterator i)
+SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
 {
-    auto const index = distance(begin(exprs), i);
-    auto const card = tup.myExpressions.size();
-    move(begin(tup.myExpressions), end(tup.myExpressions),
-         std::inserter(exprs, i));
-    return next(begin(exprs), index + card);
-}
+    if ( myType )
+        return SymRes::Success;
 
-void TupleExpression::flattenOpenTuples(std::vector<Box<Expression>>& exprs)
-{
-    for ( auto i = begin(exprs); i != end(exprs); ) {
-        if ( auto o = tryExpandTuple(exprs, i) )
-            i = *o;
-        else
-            ++i;
+    Resolver resolver(*ctx.module().scope());
+    if ( isModuleScope() )
+        ctx.changeResolver(resolver);
+
+    auto ret = ctx.resolveExpression(myExpressions.front());
+    if ( !ret )
+        return ret;
+
+    for ( uz i = 1; i < subExpressionLimit; ++i ) {
+        if ( myExpressions[i]->type() )
+            continue;
+
+        auto lhs = myExpressions[i - 1].get();
+
+        auto failedAsAccessor = false;
+        if ( auto rhs = identify(*myExpressions[i]) ) {
+            if ( auto o = resolveAsAccessorExpression(ctx, *lhs, *rhs) ) {
+                ret |= *o;
+                if ( !ret )
+                    return ret;
+
+                continue;
+            }
+
+            failedAsAccessor = true;
+        }
+        else {
+            ret = ctx.resolveExpression(myExpressions[i]);
+        }
+
+        if ( !ret )
+            return ret;
+
+        auto rhs = myExpressions[i].get();
+        auto e = resolveIndirections(rhs);
+
+        if ( auto lit = e->as<LiteralExpression>() ) {
+            if ( lit->token().kind() != lexer::TokenKind::Integer ) {
+                ctx.error(*e) << "cannot be an accessor";
+                return SymRes::Fail;
+            }
+
+            int index = stoi(lit->token().lexeme());
+            if ( index < 0 ) {
+                ctx.error(*e) << "field accessor cannot be negative";
+                return SymRes::Fail;
+            }
+
+            auto const* composite = resolveIndirections(lhs);
+            bool binder = false;
+            if ( auto decl = getDeclaration(*composite) ) {
+                if ( auto b = getBinder(*decl) ) {
+                    composite = resolveIndirections(b->type());
+                    binder = true;
+                }
+            }
+
+            if ( auto decl = getDeclaration(*composite) ) {
+                auto dp = decl->as<DataProductDeclaration>();
+                if ( !dp ) {
+                    (ctx.error(*e) << "field accessor must refer to composite type")
+                        .see(*dp);
+                    return SymRes::Fail;
+                }
+
+                auto defn = dp->definition();
+                if ( !defn ) {
+                    (ctx.error(*composite) << "is not defined")
+                        .see(*dp);
+                    return SymRes::Fail;
+                }
+
+                if ( uz(index) >= defn->fields().card() ) {
+                    (ctx.error(*e) << "field accessor out of bounds")
+                        .see(*dp);
+                    return SymRes::Fail;
+                }
+
+                auto const tok = lit->token();
+                myExpressions[i] = createIdentifier(mkToken(tok.lexeme(),
+                                                            tok.location()),
+                                                    *defn->fields()[index]);
+            }
+            else if ( auto tup = composite->as<TupleExpression>() ) {
+                if ( uz(index) >= tup->elementsCount() ) {
+                    ctx.error(*e) << "field index out of bounds";
+                    return SymRes::Fail;
+                }
+
+                if ( binder )
+                    lit->setType(tup->elements()[index]);
+                else
+                    lit->setType(tup->elements()[index]->type());
+            }
+            else {
+                ctx.error(*e) << "cannot be indexed";
+                return SymRes::Fail;
+            }
+
+            continue;
+        }
+
+        std::vector<Box<Expression>> lhsExprs(i);
+        move(begin(myExpressions), begin(myExpressions) + i, begin(lhsExprs));
+        rotate(begin(myExpressions), begin(myExpressions) + i, end(myExpressions));
+        subExpressionLimit -= i;
+        myExpressions.resize(myExpressions.size() - i);
+        i = 0;
+        auto subj = std::move(myExpressions.front());
+        auto arg = mk<DotExpression>(isModuleScope(), std::move(lhsExprs));
+        auto app = mk<ApplyExpression>(createPtrList<Expression>(std::move(subj), std::move(arg)));
+        myExpressions.front() = std::move(app);
+        ret = ctx.resolveExpression(myExpressions.front());
+        if ( !ret ) {
+            if ( failedAsAccessor ) {
+                auto appExpr = myExpressions[i]->as<ApplyExpression>();
+                ctx.error(*appExpr->subject()) << "does not match any members of "
+                                               << *appExpr->arguments()[0];
+            }
+
+            return ret;
+        }
     }
+
+    if ( myExpressions.empty() )
+        return ctx.rewrite(createEmptyExpression());
+    else if ( myExpressions.size() == 1 )
+        return ctx.rewrite(std::move(myExpressions.front()));
+
+    if ( subExpressionLimit == myExpressions.size() )
+        setType(myExpressions.back()->type());
+
+    return SymRes::Success;
+}
+
+Slice<Expression*> DotExpression::expressions()
+{
+    return myExpressions;
+}
+
+Slice<Expression const*> DotExpression::expressions() const
+{
+    return myExpressions;
+}
+
+Expression* DotExpression::top(uz index)
+{
+    if ( index >= myExpressions.size() )
+        return nullptr;
+
+    return myExpressions[myExpressions.size() - index - 1].get();
+}
+
+Expression const* DotExpression::top(uz index) const
+{
+    return const_cast<DotExpression*>(this)->top(index);
+}
+
+bool DotExpression::isModuleScope() const
+{
+    return myModScope;
+}
+
+Box<Expression> DotExpression::takeTop(uz index)
+{
+    auto const takeIndex = myExpressions.size() - 1 - index;
+    auto m = begin(myExpressions) + takeIndex;
+    auto ret = std::move(*m);
+    move(next(m), end(myExpressions), m);
+    myExpressions.pop_back();
+
+    myType = nullptr;
+
+    return ret;
 }
 
 //
@@ -1144,363 +1265,56 @@ Slice<Box<Expression>> ApplyExpression::mutableArgs()
 }
 
 //
-// SymbolExpression
+// LambdaExpression
 
-SymbolExpression::SymbolExpression(lexer::Token token,
-                                   std::vector<Box<Expression>>&& expressions)
-    : IdentifierExpression(Expression::Kind::Symbol, std::move(token), nullptr)
-    , myExpressions(std::move(expressions))
+LambdaExpression::LambdaExpression(ProcedureDeclaration& proc)
+    : Expression(Kind::Lambda)
+    , myProc(&proc)
 {
 }
 
-SymbolExpression::SymbolExpression(std::vector<Box<Expression>>&& expressions)
-    : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
-    , myExpressions(std::move(expressions))
-{
-}
+LambdaExpression::LambdaExpression(LambdaExpression const& rhs) = default;
 
-SymbolExpression::SymbolExpression(lexer::Token open,
-                                   lexer::Token close,
-                                   std::vector<Box<Expression>>&& expressions)
-    : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
-    , myExpressions(std::move(expressions))
-    , myOpenToken(std::move(open))
-    , myCloseToken(std::move(close))
+LambdaExpression& LambdaExpression::operator = (LambdaExpression const& rhs)
 {
-}
-
-SymbolExpression::SymbolExpression(SymbolExpression const& rhs)
-    : IdentifierExpression(rhs)
-    , myOpenToken(rhs.myOpenToken)
-    , myCloseToken(rhs.myCloseToken)
-{
-}
-
-SymbolExpression& SymbolExpression::operator = (SymbolExpression const& rhs)
-{
-    SymbolExpression(rhs).swap(*this);
+    LambdaExpression(rhs).swap(*this);
     return *this;
 }
 
-SymbolExpression::~SymbolExpression() = default;
+LambdaExpression::~LambdaExpression() = default;
 
-void SymbolExpression::swap(SymbolExpression& rhs) noexcept
-{
-    IdentifierExpression::swap(rhs);
-
-    using kyfoo::swap;
-    swap(myExpressions, rhs.myExpressions);
-    swap(myOpenToken, rhs.myOpenToken);
-    swap(myCloseToken, rhs.myCloseToken);
-}
-
-IMPL_CLONE_BEGIN(SymbolExpression, IdentifierExpression, Expression)
-IMPL_CLONE_CHILD(myExpressions)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(SymbolExpression, IdentifierExpression)
-IMPL_CLONE_REMAP(myExpressions)
-IMPL_CLONE_REMAP_END
-
-SymRes SymbolExpression::resolveSymbols(Context& ctx)
-{
-    if ( declaration() )
-        return SymRes::Success;
-
-    if ( token().kind() == lexer::TokenKind::Undefined ) {
-        if ( myExpressions.empty() )
-            return SymRes::Success;
-
-        auto subject = myExpressions.front()->as<IdentifierExpression>();
-        if ( !subject ) {
-            ctx.error(*this) << "symbol tuples must start with an identifier";
-            return SymRes::Fail;
-        }
-
-        auto subjectExpression = std::move(myExpressions.front());
-        setToken(subject->token());
-        move(next(begin(myExpressions)), end(myExpressions),
-             begin(myExpressions));
-        myExpressions.pop_back();
-
-        if ( myExpressions.empty() )
-            return ctx.rewrite(std::move(subjectExpression));
-    }
-
-    auto ret = ctx.resolveExpressions(myExpressions);
-    if ( !ret )
-        return ret;
-
-    SymbolReference sym(token().lexeme(), myExpressions);
-    auto hit = ctx.matchOverload(sym);
-    if ( !hit ) {
-        ctx.error(*this) << "undeclared symbol identifier";
-        return SymRes::Fail;
-    }
-
-    auto decl = hit.single();
-    if ( !decl ) {
-        ctx.error(*this) << "failed to instantiate symbol";
-        return SymRes::Fail;
-    }
-
-    setDeclaration(*decl);
-    return SymRes::Success;
-}
-
-SymRes SymbolExpression::resolveSubExpressions(Context& ctx)
-{
-    return ctx.resolveExpressions(begin(myExpressions), end(myExpressions));
-}
-
-Slice<Expression*> SymbolExpression::expressions()
-{
-    return myExpressions;
-}
-
-Slice<Expression const*> SymbolExpression::expressions() const
-{
-    return myExpressions;
-}
-
-lexer::Token const& SymbolExpression::openToken() const
-{
-    return myOpenToken;
-}
-
-lexer::Token const& SymbolExpression::closeToken() const
-{
-    return myCloseToken;
-}
-
-std::vector<Box<Expression>>& SymbolExpression::internalExpressions()
-{
-    return myExpressions;
-}
-
-//
-// DotExpression
-
-DotExpression::DotExpression(bool modScope,
-                             std::vector<Box<Expression>>&& exprs)
-    : Expression(Kind::Dot)
-    , myExpressions(std::move(exprs))
-    , myModScope(modScope)
-{
-}
-
-DotExpression::DotExpression(DotExpression const& rhs)
-    : Expression(rhs)
-    , myModScope(rhs.myModScope)
-{
-}
-
-DotExpression& DotExpression::operator = (DotExpression const& rhs)
-{
-    DotExpression(rhs).swap(*this);
-    return *this;
-}
-
-DotExpression::~DotExpression() = default;
-
-void DotExpression::swap(DotExpression& rhs) noexcept
+void LambdaExpression::swap(LambdaExpression& rhs) noexcept
 {
     Expression::swap(rhs);
     using kyfoo::swap;
-    swap(myExpressions, rhs.myExpressions);
-    swap(myModScope, rhs.myModScope);
+    swap(myProc, rhs.myProc);
 }
 
-IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
-IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_BEGIN(LambdaExpression, Expression, Expression)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DotExpression, Expression)
-IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP_BEGIN(LambdaExpression, Expression)
+IMPL_CLONE_REMAP(myProc)
 IMPL_CLONE_REMAP_END
 
-SymRes DotExpression::resolveSymbols(Context& ctx)
+SymRes LambdaExpression::resolveSymbols(Context& /*ctx*/)
 {
-    return resolveSymbols(ctx, myExpressions.size());
-}
+    ENFORCE(myProc->definition(), "lambda missing body");
 
-SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
-{
-    if ( myType )
-        return SymRes::Success;
-
-    Resolver resolver(*ctx.module().scope());
-    if ( isModuleScope() )
-        ctx.changeResolver(resolver);
-
-    auto ret = ctx.resolveExpression(myExpressions.front());
-    if ( !ret )
-        return ret;
-
-    for ( uz i = 1; i < subExpressionLimit; ++i ) {
-        if ( myExpressions[i]->type() )
-            continue;
-
-        auto lhs = myExpressions[i - 1].get();
-
-        auto failedAsAccessor = false;
-        if ( auto rhs = identify(*myExpressions[i]) ) {
-            if ( auto o = resolveAsAccessorExpression(ctx, *lhs, *rhs) ) {
-                ret |= *o;
-                if ( !ret )
-                    return ret;
-
-                continue;
-            }
-
-            failedAsAccessor = true;
-        }
-        else {
-            ret = ctx.resolveExpression(myExpressions[i]);
-        }
-
-        if ( !ret )
-            return ret;
-
-        auto rhs = myExpressions[i].get();
-        auto e = resolveIndirections(rhs);
-
-        if ( auto lit = e->as<LiteralExpression>() ) {
-            if ( lit->token().kind() != lexer::TokenKind::Integer ) {
-                ctx.error(*e) << "cannot be an accessor";
-                return SymRes::Fail;
-            }
-
-            int index = stoi(lit->token().lexeme());
-            if ( index < 0 ) {
-                ctx.error(*e) << "field accessor cannot be negative";
-                return SymRes::Fail;
-            }
-
-            auto const* composite = resolveIndirections(lhs);
-            bool binder = false;
-            if ( auto decl = getDeclaration(*composite) ) {
-                if ( auto b = getBinder(*decl) ) {
-                    composite = resolveIndirections(b->type());
-                    binder = true;
-                }
-            }
-
-            if ( auto decl = getDeclaration(*composite) ) {
-                auto dp = decl->as<DataProductDeclaration>();
-                if ( !dp ) {
-                    (ctx.error(*e) << "field accessor must refer to composite type")
-                        .see(*dp);
-                    return SymRes::Fail;
-                }
-
-                auto defn = dp->definition();
-                if ( !defn ) {
-                    (ctx.error(*composite) << "is not defined")
-                        .see(*dp);
-                    return SymRes::Fail;
-                }
-
-                if ( uz(index) >= defn->fields().card() ) {
-                    (ctx.error(*e) << "field accessor out of bounds")
-                        .see(*dp);
-                    return SymRes::Fail;
-                }
-
-                auto const tok = lit->token();
-                myExpressions[i] = createIdentifier(mkToken(tok.lexeme(),
-                                                            tok.location()),
-                                                    *defn->fields()[index]);
-            }
-            else if ( auto tup = composite->as<TupleExpression>() ) {
-                if ( uz(index) >= tup->elementsCount() ) {
-                    ctx.error(*e) << "field index out of bounds";
-                    return SymRes::Fail;
-                }
-
-                if ( binder )
-                    lit->setType(tup->elements()[index]);
-                else
-                    lit->setType(tup->elements()[index]->type());
-            }
-            else {
-                ctx.error(*e) << "cannot be indexed";
-                return SymRes::Fail;
-            }
-
-            continue;
-        }
-
-        std::vector<Box<Expression>> lhsExprs(i);
-        move(begin(myExpressions), begin(myExpressions) + i, begin(lhsExprs));
-        rotate(begin(myExpressions), begin(myExpressions) + i, end(myExpressions));
-        subExpressionLimit -= i;
-        myExpressions.resize(myExpressions.size() - i);
-        i = 0;
-        auto subj = std::move(myExpressions.front());
-        auto arg = mk<DotExpression>(isModuleScope(), std::move(lhsExprs));
-        auto app = mk<ApplyExpression>(createPtrList<Expression>(std::move(subj), std::move(arg)));
-        myExpressions.front() = std::move(app);
-        ret = ctx.resolveExpression(myExpressions.front());
-        if ( !ret ) {
-            if ( failedAsAccessor ) {
-                auto appExpr = myExpressions[i]->as<ApplyExpression>();
-                ctx.error(*appExpr->subject()) << "does not match any members of "
-                                               << *appExpr->arguments()[0];
-            }
-
-            return ret;
-        }
-    }
-
-    if ( myExpressions.empty() )
-        return ctx.rewrite(createEmptyExpression());
-    else if ( myExpressions.size() == 1 )
-        return ctx.rewrite(std::move(myExpressions.front()));
-
-    if ( subExpressionLimit == myExpressions.size() )
-        setType(myExpressions.back()->type());
+    myType = myProc->type();
+    if ( !myType )
+        return SymRes::Fail;
 
     return SymRes::Success;
 }
 
-Slice<Expression*> DotExpression::expressions()
+ProcedureDeclaration const& LambdaExpression::procedure() const
 {
-    return myExpressions;
+    return *myProc;
 }
 
-Slice<Expression const*> DotExpression::expressions() const
+ProcedureDeclaration& LambdaExpression::procedure()
 {
-    return myExpressions;
-}
-
-Expression* DotExpression::top(uz index)
-{
-    if ( index >= myExpressions.size() )
-        return nullptr;
-
-    return myExpressions[myExpressions.size() - index - 1].get();
-}
-
-Expression const* DotExpression::top(uz index) const
-{
-    return const_cast<DotExpression*>(this)->top(index);
-}
-
-bool DotExpression::isModuleScope() const
-{
-    return myModScope;
-}
-
-Box<Expression> DotExpression::takeTop(uz index)
-{
-    auto const takeIndex = myExpressions.size() - 1 - index;
-    auto m = begin(myExpressions) + takeIndex;
-    auto ret = std::move(*m);
-    move(next(m), end(myExpressions), m);
-    myExpressions.pop_back();
-
-    myType = nullptr;
-
-    return ret;
+    return *myProc;
 }
 
 //
@@ -1628,56 +1442,242 @@ Box<Expression> AssignExpression::takeRight()
 }
 
 //
-// LambdaExpression
+// TupleExpression
 
-LambdaExpression::LambdaExpression(ProcedureDeclaration& proc)
-    : Expression(Kind::Lambda)
-    , myProc(&proc)
+TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
+{
+    if ( open == lexer::TokenKind::OpenParen ) {
+        if ( close == lexer::TokenKind::CloseParen )
+            return TupleKind::Open;
+        else if ( close == lexer::TokenKind::CloseBracket )
+            return TupleKind::OpenLeft;
+    }
+    else if ( open == lexer::TokenKind::OpenBracket ) {
+        if ( close == lexer::TokenKind::CloseParen )
+            return TupleKind::OpenRight;
+        else if ( close == lexer::TokenKind::CloseBracket )
+            return TupleKind::Closed;
+    }
+
+    ENFORCEU("invalid tuple expression syntax");
+}
+
+const char* to_string(TupleKind kind)
+{
+    switch (kind) {
+#define X(a) case TupleKind::a: return #a;
+        TUPLE_KINDS(X)
+#undef X
+    }
+
+    ENFORCEU("invalid tuple kind");
+}
+
+const char* presentTupleOpen(TupleKind kind)
+{
+    switch (kind) {
+    case TupleKind::Open:
+    case TupleKind::OpenLeft:
+        return "(";
+
+    default:
+        return "[";
+    }
+}
+
+const char* presentTupleClose(TupleKind kind)
+{
+    switch (kind) {
+    case TupleKind::Open:
+    case TupleKind::OpenLeft:
+        return ")";
+
+    default:
+        return "]";
+    }
+}
+const char* presentTupleWeave(TupleKind)
+{
+    return ", ";
+}
+
+TupleExpression::TupleExpression(TupleKind kind,
+                                 std::vector<Box<Expression>>&& expressions)
+    : Expression(Expression::Kind::Tuple)
+    , myKind(kind)
+    , myExpressions(std::move(expressions))
 {
 }
 
-LambdaExpression::LambdaExpression(LambdaExpression const& rhs) = default;
-
-LambdaExpression& LambdaExpression::operator = (LambdaExpression const& rhs)
+TupleExpression::TupleExpression(lexer::Token const& open,
+                                 lexer::Token const& close,
+                                 std::vector<Box<Expression>>&& expressions)
+    : Expression(Expression::Kind::Tuple)
+    , myKind(toTupleKind(open.kind(), close.kind()))
+    , myExpressions(std::move(expressions))
+    , myOpenToken(open)
+    , myCloseToken(close)
 {
-    LambdaExpression(rhs).swap(*this);
+}
+
+TupleExpression::TupleExpression(std::vector<Box<Expression>>&& expressions,
+                                 Box<Expression> cardExpression)
+    : Expression(Expression::Kind::Tuple)
+    , myKind(TupleKind::Closed)
+    , myExpressions(std::move(expressions))
+    , myCardExpression(std::move(cardExpression))
+{
+}
+
+TupleExpression::TupleExpression(TupleExpression const& rhs)
+    : Expression(rhs)
+    , myKind(rhs.myKind)
+{
+}
+
+TupleExpression& TupleExpression::operator = (TupleExpression const& rhs)
+{
+    TupleExpression(rhs).swap(*this);
     return *this;
 }
 
-LambdaExpression::~LambdaExpression() = default;
-
-void LambdaExpression::swap(LambdaExpression& rhs) noexcept
+void TupleExpression::swap(TupleExpression& rhs) noexcept
 {
     Expression::swap(rhs);
+
     using kyfoo::swap;
-    swap(myProc, rhs.myProc);
+    swap(myKind, rhs.myKind);
+    swap(myExpressions, rhs.myExpressions);
 }
 
-IMPL_CLONE_BEGIN(LambdaExpression, Expression, Expression)
+TupleExpression::~TupleExpression() = default;
+
+IMPL_CLONE_BEGIN(TupleExpression, Expression, Expression)
+IMPL_CLONE_CHILD(myExpressions)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(LambdaExpression, Expression)
-IMPL_CLONE_REMAP(myProc)
+IMPL_CLONE_REMAP_BEGIN(TupleExpression, Expression)
+IMPL_CLONE_REMAP(myExpressions)
 IMPL_CLONE_REMAP_END
 
-SymRes LambdaExpression::resolveSymbols(Context& /*ctx*/)
+SymRes TupleExpression::resolveSymbols(Context& ctx)
 {
-    ENFORCE(myProc->definition(), "lambda missing body");
+    auto ret = ctx.resolveExpressions(myExpressions);
+    if ( !ret )
+        return ret;
 
-    myType = myProc->type();
-    if ( !myType )
-        return SymRes::Fail;
+    if ( myCardExpression ) {
+        ret |= ctx.resolveExpression(myCardExpression);
+        if ( !ret )
+            return ret;
 
+        auto lit = resolveIndirections(myCardExpression.get())->as<LiteralExpression>();
+        if ( !lit || lit->token().kind() != lexer::TokenKind::Integer ) {
+            ctx.error(*myCardExpression) << "array cardinality must be an integer";
+            return SymRes::Fail;
+        }
+
+        auto n = stoi(lit->token().lexeme());
+        if ( n < 0 ) {
+            ctx.error(*myCardExpression) << "array cardinality cannot be negative";
+            return SymRes::Fail;
+        }
+
+        myCard = static_cast<uz>(n);
+    }
+    else {
+        myCard = 1;
+    }
+
+    if ( myKind == TupleKind::Open ) {
+        if ( myExpressions.size() == 1 )
+            return ctx.rewrite(std::move(myExpressions[0]));
+    }
+
+    flattenOpenTuples(myExpressions);
+
+    // myType is generated lazily
     return SymRes::Success;
 }
 
-ProcedureDeclaration const& LambdaExpression::procedure() const
+TupleKind TupleExpression::kind() const
 {
-    return *myProc;
+    return myKind;
 }
 
-ProcedureDeclaration& LambdaExpression::procedure()
+lexer::Token const& TupleExpression::openToken() const
 {
-    return *myProc;
+    return myOpenToken;
+}
+
+lexer::Token const& TupleExpression::closeToken() const
+{
+    return myCloseToken;
+}
+
+Slice<Expression*> TupleExpression::expressions()
+{
+    return myExpressions;
+}
+
+Slice<Expression const*> TupleExpression::expressions() const
+{
+    return myExpressions;
+}
+
+ExpressionArray TupleExpression::elements() const
+{
+    return ExpressionArray(myExpressions, elementsCount());
+}
+
+uz TupleExpression::elementsCount() const
+{
+    return myCard;
+}
+
+/**
+ * Flatten open-tuples
+ */
+
+std::optional<std::vector<Box<Expression>>::iterator>
+TupleExpression::tryExpandTuple(std::vector<Box<Expression>>& exprs,
+                                std::vector<Box<Expression>>::iterator i)
+{
+    if ( auto tup = (*i)->as<TupleExpression>() )
+        if ( tup->kind() == TupleKind::Open )
+            if ( tup->myCard == 1 || !tup->myCardExpression )
+                return expandTuple(exprs, i);
+
+    return {};
+}
+
+std::vector<Box<Expression>>::iterator
+TupleExpression::expandTuple(std::vector<Box<Expression>>& exprs,
+                             std::vector<Box<Expression>>::iterator i)
+{
+    auto& tup = static_cast<TupleExpression&>(**i);
+    return exprs.erase(expandIntoList(tup, exprs, i));
+}
+
+std::vector<Box<Expression>>::iterator
+TupleExpression::expandIntoList(TupleExpression& tup,
+                                std::vector<Box<Expression>>& exprs,
+                                std::vector<Box<Expression>>::iterator i)
+{
+    auto const index = distance(begin(exprs), i);
+    auto const card = tup.myExpressions.size();
+    move(begin(tup.myExpressions), end(tup.myExpressions),
+         std::inserter(exprs, i));
+    return next(begin(exprs), index + card);
+}
+
+void TupleExpression::flattenOpenTuples(std::vector<Box<Expression>>& exprs)
+{
+    for ( auto i = begin(exprs); i != end(exprs); ) {
+        if ( auto o = tryExpandTuple(exprs, i) )
+            i = *o;
+        else
+            ++i;
+    }
 }
 
 //
@@ -1927,6 +1927,12 @@ std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr)
     }
 
     return ret;
+}
+
+bool isUnit(Expression const& expr)
+{
+    auto tup = expr.as<TupleExpression>();
+    return tup && tup->kind() == TupleKind::Open && !tup->expressions();
 }
 
 DeclRef getRef(Expression const& expr_)

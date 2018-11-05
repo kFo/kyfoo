@@ -685,8 +685,16 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
         ret |= ctx.resolveStatement(*stmt);
 
     if ( !junction() ) {
-        ctx.error(*scope()->declaration()) << "expected terminating junction";
-        return SymRes::Fail;
+        if ( isUnit(*scope()->declaration()->returnType()) ) {
+            lexer::Token tok;
+            if ( !myStatements.empty() )
+                tok = front(*myStatements.back());
+            setJunction(mk<ReturnJunction>(tok, createEmptyExpression(tok.location())));
+        }
+        else {
+            ctx.error(*scope()->declaration()) << "expected terminating junction";
+            return SymRes::Fail;
+        }
     }
 
     switch (junction()->kind()) {

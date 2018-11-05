@@ -165,10 +165,15 @@ Variance variance(DiagnosticsContext dgn,
                 return ret;
         }
 
-        if ( queryType->kind() == Expression::Kind::Universe )
+        switch ( queryType->kind() ) {
+        case Expression::Kind::Tuple:
+        case Expression::Kind::Arrow:
+        case Expression::Kind::Universe:
             return Variance::Invariant;
 
-        return variance(dgn, *t, *queryType);
+        default:
+            return variance(dgn, *t, *queryType);
+        }
     }
 
     if ( auto targetTuple = t->as<TupleExpression>() ) {
