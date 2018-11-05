@@ -271,8 +271,7 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
         ProcedureDeclaration const* proc = findImplicitConversion(ctx, *myVariable->type(), *myInitializer);
         if ( proc ) {
             myInitializer = createApply(createIdentifier(*proc), std::move(myInitializer));
-            if ( !ctx.resolveExpression(myInitializer) )
-                throw std::runtime_error("implicit conversion error");
+            ENFORCE(ctx.resolveExpression(myInitializer), "implicit conversion error");
 
             if ( variance(ctx, *myVariable->type(), *myInitializer) )
                 return ret;
@@ -696,7 +695,7 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
 #undef X
     }
 
-    throw std::runtime_error("invalid junction");
+    ENFORCEU("invalid junction");
 }
 
 ProcedureScope const* BasicBlock::scope() const
@@ -774,8 +773,7 @@ codegen::CustomData* BasicBlock::codegenData() const
 
 void BasicBlock::setCodegenData(Box<codegen::CustomData> data)
 {
-    if ( codegenData() )
-        throw std::runtime_error("codegen data can only be set once");
+    ENFORCE(!codegenData(), "codegen data can only be set once");
 
     myCodeGenData = std::move(data);
 }
@@ -997,7 +995,7 @@ FlowTracer::Shape FlowTracer::advanceBlock()
         return checkRepetition();
     }
 
-    throw std::runtime_error("invalid junction");
+    ENFORCEU("invalid junction");
 }
 
 FlowTracer::Shape FlowTracer::advancePath()

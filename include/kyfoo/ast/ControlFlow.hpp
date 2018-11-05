@@ -500,7 +500,7 @@ inline Box<Statement> beginClone(Statement const& stmt, clone_map_t& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid statement kind");
+    ENFORCEU("invalid statement kind");
 }
 
 inline void remap(Statement& stmt, clone_map_t const& map)
@@ -511,7 +511,7 @@ inline void remap(Statement& stmt, clone_map_t const& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid statement kind");
+    ENFORCEU("invalid statement kind");
 }
 
 #define X(a, b) template <> inline b* Junction::as<b>() { return myKind == Junction::Kind::a ? static_cast<b*>(this) : nullptr; }
@@ -530,7 +530,7 @@ inline Box<Junction> beginClone(Junction const& junc, clone_map_t& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid junction type");
+    ENFORCEU("invalid junction type");
 }
 
 inline void remap(Junction& junc, clone_map_t const& map)
@@ -541,7 +541,7 @@ inline void remap(Junction& junc, clone_map_t const& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid junction type");
+    ENFORCEU("invalid junction type");
 }
 
 inline Box<BasicBlock> beginClone(BasicBlock const& bb, clone_map_t& map)

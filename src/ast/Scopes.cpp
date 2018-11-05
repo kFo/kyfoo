@@ -414,8 +414,7 @@ SymRes DataSumScope::resolveDeclarations(Context& ctx)
 
     for ( auto const& d : myDeclarations ) {
         auto dsCtor = d->as<DataSumDeclaration::Constructor>();
-        if ( !dsCtor )
-            throw std::runtime_error("data sum must only contain constructors");
+        ENFORCE(dsCtor, "data sum must only contain constructors");
 
         myCtors.emplace_back(dsCtor);
     }

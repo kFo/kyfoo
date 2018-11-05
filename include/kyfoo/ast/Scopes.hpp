@@ -355,7 +355,7 @@ inline Box<Scope> beginClone(Scope const& scope, clone_map_t& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid scope type");
+    ENFORCEU("invalid scope type");
 }
 
 inline void remap(Scope& scope, clone_map_t const& map)
@@ -366,7 +366,7 @@ inline void remap(Scope& scope, clone_map_t const& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid scope type");
+    ENFORCEU("invalid scope type");
 }
 
 } // namespace kyfoo::ast

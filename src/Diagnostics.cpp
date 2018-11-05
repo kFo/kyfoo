@@ -237,7 +237,7 @@ std::ostream& operator << (std::ostream& sink, Error const& err)
         break;
 
     default:
-        throw std::runtime_error("unknown error");
+        ENFORCEU("unknown error");
     }
 
     for ( auto const& r : err.references() ) {

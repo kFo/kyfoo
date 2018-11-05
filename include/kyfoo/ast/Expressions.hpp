@@ -693,7 +693,7 @@ inline Box<Expression> beginClone(Expression const& expr, clone_map_t& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid expression type");
+    ENFORCEU("invalid expression type");
 }
 
 inline void remap(Expression& expr, clone_map_t const& map)
@@ -704,7 +704,7 @@ inline void remap(Expression& expr, clone_map_t const& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid expression type");
+    ENFORCEU("invalid expression type");
 }
 
 std::ostream& operator << (std::ostream& stream, Expression        const& expr );

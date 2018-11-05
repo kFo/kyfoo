@@ -777,7 +777,7 @@ struct DataSumConstructor :
 {
     Box<ast::DataSumDeclaration::Constructor> make(DeclarationScopeParser&)
     {
-        throw std::runtime_error("not implemented");
+        ENFORCEU("not implemented");
     }
 };
 

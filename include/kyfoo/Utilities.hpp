@@ -156,4 +156,39 @@ T> roundDownToMultiple(T n, T m) noexcept
     return n - n % m;
 }
 
+class RuntimeException : public std::exception
+{
+public:
+    RuntimeException(const char* file, unsigned line, const char* msg)
+        : myFile(file)
+        , myMsg(msg)
+        , myLine(line)
+    {
+    }
+
+    // std::exception
+public:
+    const char* what() const noexcept override { return myMsg; }
+
+public:
+    const char* message() const noexcept { return myMsg; }
+    const char* file() const noexcept { return myFile; }
+    unsigned line() const noexcept { return myLine; }
+
+private:
+    const char* myFile;
+    const char* myMsg;
+    unsigned myLine;
+};
+
+#define ENFORCE(V, M) enforce(!!(V), M, __FILE__, __LINE__)
+#define ENFORCEC(V) enforce(!!(V), #V, __FILE__, __LINE__)
+#define ENFORCEU(M) throw RuntimeException(__FILE__, __LINE__, M)
+
+inline void enforce(bool value, const char* msg, const char* file, unsigned line)
+{
+    if ( !value )
+        throw RuntimeException(file, line, msg);
+}
+
 } // namespace kyfoo

@@ -179,8 +179,7 @@ Resolver const& Context::resolver() const
 
 Statement& Context::statement()
 {
-    if ( !myStatement )
-        throw std::runtime_error("no active statement in this context");
+    ENFORCE(myStatement, "no active statement in this context");
 
     return *myStatement;
 }
@@ -257,8 +256,7 @@ Context::matchOverloadUsingImplicitConversions(stringv name,
         for ( uz i = 0, arity = args.card(); i != arity; ++i ) {
             if ( auto proc = v[i].conversion() ) {
                 args[i] = createApply(createIdentifier(*proc), std::move(args[i]));
-                if ( !resolveExpression(args[i]) )
-                    throw std::runtime_error("invalid implicit conversion");
+                ENFORCE(resolveExpression(args[i]), "invalid implicit conversion");
             }
         }
 
@@ -310,7 +308,7 @@ SymRes Context::resolveDeclaration(Declaration& decl)
 #undef X
     }
 
-    throw std::runtime_error("unhandled declaration");
+    ENFORCEU("unhandled declaration");
 }
 
 SymRes Context::resolveScopeDeclarations(Scope& scope)
@@ -323,12 +321,10 @@ SymRes Context::resolveScopeDeclarations(Scope& scope)
     SCOPE_KINDS(X)
 #undef X
     default:
-        throw std::runtime_error("unhandled scope");
+        ENFORCEU("unhandled scope");
     }
 
-    if ( !myInstantiatedDeclarations.empty() )
-        throw std::runtime_error("instantiated declarations not elaborated");
-
+    ENFORCE(myInstantiatedDeclarations.empty(), "instantiated declarations not elaborated");
     return ret;
 }
 
@@ -342,7 +338,7 @@ SymRes Context::resolveScopeDefinitions(Scope& scope)
     SCOPE_KINDS(X)
 #undef X
     default:
-        throw std::runtime_error("unhandled scope");
+        ENFORCEU("unhandled scope");
     }
     
     // Resolve any accrued definitions
@@ -375,11 +371,11 @@ SymRes Context::resolveExpression(Expression& expr)
     ++myExpressionDepth;
     auto ret = resolveSymbols(expr);
     --myExpressionDepth;
-    if ( ret && !expr.type() )
-        throw std::runtime_error("successful elaboration did not type an expression");
+    if ( ret )
+        ENFORCE(expr.type(), "successful elaboration did not type an expression");
 
-    if ( ret == SymRes::Rewrite || myRewrite || myLazyRewrite )
-        throw std::runtime_error("expression cannot be rewritten in this context");
+    ENFORCE(ret != SymRes::Rewrite && !myRewrite && !myLazyRewrite,
+            "expression cannot be rewritten in this context");
 
     myResolver = originalResolver;
 
@@ -394,18 +390,16 @@ SymRes Context::resolveExpression(Box<Expression>& expr)
     ++myExpressionDepth;
     auto ret = resolveSymbols(*expr);
     --myExpressionDepth;
-    if ( ret && !expr->type() )
-        throw std::runtime_error("successful elaboration did not type an expression");
+    if ( ret )
+        ENFORCE(expr->type(), "successful elaboration did not type an expression");
 
     while ( myRewrite || myLazyRewrite ) {
-        if ( ret != SymRes::Rewrite )
-            throw std::runtime_error("inconsistent rewrite request");
+        ENFORCE(ret == SymRes::Rewrite, "inconsistent rewrite request");
 
         auto c = std::move(expr->myConstraints);
 
         if ( myLazyRewrite ) {
-            if ( myRewrite )
-                throw std::runtime_error("cannot have both a rewrite and lazy rewrite");
+            ENFORCE(!myRewrite, "cannot have both a rewrite and lazy rewrite");
 
             myRewrite = myLazyRewrite(expr);
             myLazyRewrite = nullptr;
@@ -422,8 +416,7 @@ SymRes Context::resolveExpression(Box<Expression>& expr)
 
     myResolver = originalResolver;
 
-    if ( ret == SymRes::Rewrite )
-        throw std::runtime_error("unhandled rewrite request");
+    ENFORCE(ret != SymRes::Rewrite, "unhandled rewrite request");
 
     ret |= resolveExpressions(expr->myConstraints);
     return ret;
@@ -500,7 +493,7 @@ SymRes Context::resolveSymbols(Expression& expr)
 #undef X
     }
 
-    throw std::runtime_error("unhandled expression");
+    ENFORCEU("unhandled expression");
 }
 
 SymRes Context::resolveSymbols(Statement& stmt)
@@ -511,7 +504,7 @@ SymRes Context::resolveSymbols(Statement& stmt)
 #undef X
     }
 
-    throw std::runtime_error("unhandled statement");
+    ENFORCEU("unhandled statement");
 }
 
 Lookup Context::trackForModule(Lookup&& hit)

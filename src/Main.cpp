@@ -61,12 +61,16 @@ int runParserDump(std::filesystem::path const& filepath)
         outFilepath.replace_extension(".dot");
         writeDot(*main, outFilepath);
     }
-    catch (Diagnostics*) {
-        // Handled below
+    catch (RuntimeException const& e) {
+        std::cout << filepath << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
         std::cout << filepath << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
+    }
+    catch (Diagnostics*) {
+        // Handled below
     }
 
     dgn.dumpErrors(std::cout);
@@ -89,12 +93,16 @@ int analyzeModule(ast::Module& m, bool treeDump)
             writeDot(m, path);
         }
     }
-    catch (Diagnostics*) {
-        // Handled below
+    catch (RuntimeException const& e) {
+        std::cout << m << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
         std::cout << m << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
+    }
+    catch (Diagnostics*) {
+        // Handled below
     }
 
     auto semTime = sw.reset();
@@ -125,12 +133,16 @@ int codegenModule(Diagnostics& dgn,
         else
             gen.write(m, codegen::toObjectFilepath(m.path()));
     }
-    catch (Diagnostics*) {
-        // Handled below
+    catch (RuntimeException const& e) {
+        std::cout << m << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
         std::cout << m << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
+    }
+    catch (Diagnostics*) {
+        // Handled below
     }
 
     auto semTime = sw.reset();
@@ -163,6 +175,10 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
                 dgn.dumpErrors(std::cout);
                 return EXIT_FAILURE;
             }
+        }
+        catch (RuntimeException const& e) {
+            std::cout << "ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+            return EXIT_FAILURE;
         }
         catch (std::exception const& e) {
             std::cout << "ICE: " << e.what() << std::endl;
@@ -213,12 +229,16 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
                     append(i);
             }
         }
-        catch (Diagnostics*) {
-            // Handled below
+        catch (RuntimeException const& e) {
+            std::cout << *m << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+            return EXIT_FAILURE;
         }
         catch (std::exception const& e) {
             std::cout << *m << ": ICE: " << e.what() << std::endl;
             return EXIT_FAILURE;
+        }
+        catch (Diagnostics*) {
+            // Handled below
         }
 
         parseTime = sw.reset();
@@ -251,8 +271,12 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
     try {
         gen.generate(moduleSet.axioms());
     }
+    catch (RuntimeException const& e) {
+        std::cout << moduleSet.axioms() << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
     catch (std::exception const& e) {
-        std::cout << "ICE: " << e.what() << std::endl;
+        std::cout << moduleSet.axioms() << ": ICE: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
     catch (Diagnostics*) {
@@ -350,6 +374,9 @@ int main(int argc, char* argv[])
 
         std::cout << "Unknown option: " << command << std::endl;
         printHelp(argv[0]);
+    }
+    catch (kyfoo::RuntimeException const& e) {
+        std::cout << "ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
     }
     catch (std::exception const& e) {
         std::cout << "ICE: " << e.what() << std::endl;

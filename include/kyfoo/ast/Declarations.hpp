@@ -624,7 +624,7 @@ inline Box<Declaration> beginClone(Declaration const& decl, clone_map_t& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid declaration type");
+    ENFORCEU("invalid declaration type");
 }
 
 inline void remap(Declaration& decl, clone_map_t const& map)
@@ -635,7 +635,7 @@ inline void remap(Declaration& decl, clone_map_t const& map)
 #undef X
     }
 
-    throw std::runtime_error("invalid declaration type");
+    ENFORCEU("invalid declaration type");
 }
 
 bool isDataDeclaration(DeclKind kind);

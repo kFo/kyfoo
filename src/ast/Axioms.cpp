@@ -368,7 +368,7 @@ void AxiomsModule::setIntrinsic(stringv nameLiteral, Declaration const* decl)
         return;
     }
 
-    throw std::runtime_error("unknown intrinsic");
+    ENFORCEU("unknown intrinsic");
 }
 
 void AxiomsModule::findIntrinsics(Scope const* s)

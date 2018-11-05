@@ -145,7 +145,7 @@ struct MonomorphicMaker
     static T makeImpl(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
         if constexpr (N == sizeof...(Branches)) {
-            throw std::runtime_error("invalid or make");
+            ENFORCEU("invalid or make");
         }
         else {
             if ( rhs.index() == N )

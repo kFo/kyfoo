@@ -245,8 +245,7 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
         }
 
         mod = myModuleSet->create(importPath);
-        if ( !mod )
-            throw std::runtime_error("failed to create module");
+        ENFORCE(mod, "failed to create module");
     }
 
     for ( auto& m : myImports )
@@ -335,8 +334,7 @@ stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) con
     std::string out;
     out.reserve(in.card());
 
-    if ( in[0] != '"' )
-        throw std::runtime_error("unhandled string kind");
+    ENFORCE(in[0] == '"', "unhandled string kind");
 
     for ( uz i = 1; i < in.card() - 1; ++i ) {
         if ( in[i] != '\\' ) {

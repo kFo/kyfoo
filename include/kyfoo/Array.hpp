@@ -486,8 +486,7 @@ protected:
             return mi;
         }
 
-        if ( !reallocate(this->allocator(), m, newCapacity) )
-            throw std::runtime_error("cannot allocate");
+        ENFORCE(reallocate(this->allocator(), m, newCapacity), "cannot allocate");
 
         auto index = i - this->myData;
         shift_down(this->myData, mi, m.data());

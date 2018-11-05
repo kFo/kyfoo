@@ -27,7 +27,7 @@ public:
         EXPRESSION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid expression kind");
+        ENFORCEU("invalid expression kind");
     }
 
     typename operator_t::result_t operator()(Expression& expr)
@@ -36,7 +36,7 @@ public:
         EXPRESSION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid expression kind");
+        ENFORCEU("invalid expression kind");
     }
 
     // Statements
@@ -47,7 +47,7 @@ public:
         STATEMENT_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid statement kind");
+        ENFORCEU("invalid statement kind");
     }
 
     typename operator_t::result_t operator()(Statement& stmt)
@@ -56,7 +56,7 @@ public:
         STATEMENT_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid statement kind");
+        ENFORCEU("invalid statement kind");
     }
 
     // Junctions
@@ -67,7 +67,7 @@ public:
         JUNCTION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid control-junction kind");
+        ENFORCEU("invalid control-junction kind");
     }
 
     typename operator_t::result_t operator()(Junction& junc)
@@ -76,7 +76,7 @@ public:
         JUNCTION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid control-junction kind");
+        ENFORCEU("invalid control-junction kind");
     }
 
     // Declarations
@@ -87,7 +87,7 @@ public:
         DECLARATION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid declaration kind");
+        ENFORCEU("invalid declaration kind");
     }
 
     typename operator_t::result_t operator()(Declaration const& decl)
@@ -96,7 +96,7 @@ public:
         DECLARATION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid declaration kind");
+        ENFORCEU("invalid declaration kind");
     }
 
     operator_t& getOperator()
@@ -143,7 +143,7 @@ public:
         EXPRESSION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid expression kind");
+        ENFORCEU("invalid expression kind");
     }
 
     result_t operator()(Expression& expr)
@@ -152,7 +152,7 @@ public:
         EXPRESSION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid expression kind");
+        ENFORCEU("invalid expression kind");
     }
 
     result_t operator()(Declaration& decl)
@@ -161,7 +161,7 @@ public:
         DECLARATION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid declaration kind");
+        ENFORCEU("invalid declaration kind");
     }
 
     result_t operator()(Declaration const& decl)
@@ -170,7 +170,7 @@ public:
         DECLARATION_KINDS(X)
 #undef X
 
-        throw std::runtime_error("invalid declaration kind");
+        ENFORCEU("invalid declaration kind");
     }
 
     result_t operator()(Slice<Expression*> exprs)
@@ -202,14 +202,14 @@ auto noncommute(O& o, Expression const& lhs, Expression const& rhs)
 #define RHS(a,b) if ( auto r = rhs.as<b>() ) return o(*l, *r);
         EXPRESSION_KINDS(RHS)
 #undef RHS
-        throw std::runtime_error("invalid dispatch");
+        ENFORCEU("invalid dispatch");
     };
 
 #define LHS(a,b) if ( auto l = lhs.as<b>() ) return other(l);
     EXPRESSION_KINDS(LHS)
 #undef LHS
 
-    throw std::runtime_error("invalid dispatch");
+    ENFORCEU("invalid dispatch");
 }
 
 } // namespace kyfoo::ast

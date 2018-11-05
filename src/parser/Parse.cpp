@@ -582,8 +582,7 @@ void parseScope(Box<DeclarationScopeParser> parser)
         dgn.die();
     }
 
-    if ( scopeStack.size() != 1 )
-        throw std::runtime_error("parser scope imbalance");
+    ENFORCE(scopeStack.size() == 1, "parser scope imbalance");
 }
 
 } // namespace kyfoo::parser

@@ -112,10 +112,8 @@ Scope const& Declaration::scope() const
 
 void Declaration::setScope(Scope& scope)
 {
-    if ( myScope && myScope != &scope ) {
-        if ( myScope->declaration()->kind() != DeclKind::Template )
-            throw std::runtime_error("declaration parent set twice");
-    }
+    ENFORCE(!myScope || myScope == &scope || myScope->declaration()->kind() == DeclKind::Template,
+            "declaration parent set twice");
 
     myScope = &scope;
 }
@@ -150,8 +148,7 @@ codegen::CustomData* Declaration::codegenData() const
 
 void Declaration::setCodegenData(Box<codegen::CustomData> data)
 {
-    if ( codegenData() )
-        throw std::runtime_error("codegen data can only be set once");
+    ENFORCE(!codegenData(), "codegen data can only be set once");
 
     myCodeGenData = std::move(data);
 }
@@ -284,8 +281,7 @@ SymRes DataSumDeclaration::Constructor::resolveSymbols(Context& ctx)
 
 void DataSumDeclaration::Constructor::setParent(DataSumDeclaration* dsDecl)
 {
-    if ( parent() )
-        throw std::runtime_error("data sum constructor can only belong to one procedure");
+    ENFORCE(!parent(), "data sum constructor can only belong to one procedure");
 
     myParent = dsDecl;
 }
@@ -481,8 +477,7 @@ SymRes DataProductDeclaration::Field::resolveSymbols(Context& ctx)
 
 void DataProductDeclaration::Field::setParent(DataProductDeclaration* dpDecl)
 {
-    if ( parent() )
-        throw std::runtime_error("field can only belong to one product type");
+    ENFORCE(!parent(), "field can only belong to one product type");
 
     myParent = dpDecl;
 }
@@ -967,7 +962,7 @@ IMPL_CLONE_REMAP_END
 
 SymRes SymbolVariable::resolveSymbols(Context&)
 {
-    throw std::runtime_error("symbol variables should not be resolved");
+    ENFORCEU("symbol variables should not be resolved");
 }
 
 void SymbolVariable::appendConstraint(Expression const& expr)
@@ -977,8 +972,7 @@ void SymbolVariable::appendConstraint(Expression const& expr)
 
 void SymbolVariable::bindExpression(Expression const* expr)
 {
-    if ( myBoundExpression )
-        throw std::runtime_error("symbol variable is already bound to an expression");
+    ENFORCE(!myBoundExpression, "symbol variable is already bound to an expression");
 
     myBoundExpression = expr;
 }
@@ -1222,7 +1216,7 @@ void define(Declaration& decl, Scope& defn)
         if ( auto templDefn = defn.as<TemplateScope>() )
             return templ->define(*templDefn);
 
-    throw std::runtime_error("declaration/definition mismatch");
+    ENFORCEU("declaration/definition mismatch");
 }
 
 template <typename Dispatch>

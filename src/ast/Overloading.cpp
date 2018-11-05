@@ -123,16 +123,15 @@ Declaration* Via::instantiate(Context& ctx)
         return myProto->proto.decl;
 
     for ( uz i = 0; i < mySubsts.card(); ++i ) {
-        if ( needsSubstitution(mySubsts.expr(i)) )
-            throw std::runtime_error("cannot instantiate template without substitution for symbol variable");
+        ENFORCE(!needsSubstitution(mySubsts.expr(i)),
+                "cannot instantiate template without substitution for symbol variable");
     }
 
     // use existing instantiation if it exists
     for ( uz i = 0; i < myProto->instances.size(); ++i ) {
         auto const& inst = myProto->instances[i];
         auto const& instVars = inst.params->symbolVariables();
-        if ( instVars.card() != mySubsts.card() )
-            throw std::runtime_error("invalid template instance");
+        ENFORCE(instVars.card() == mySubsts.card(), "invalid template instance");
 
         auto l = begin(instVars);
         uz r = 0;
@@ -160,8 +159,7 @@ Declaration* Via::instantiate(Context& ctx)
 
     instanceDecl->symbol().prototype().bindVariables(mySubsts);
     auto res = ctx.resolveDeclaration(*instanceDecl);
-    if ( res.error() )
-        throw std::runtime_error("invalid substitution");
+    ENFORCE(!res.error(), "invalid substitution");
 
     myProto->instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
 
@@ -174,8 +172,7 @@ Declaration* Via::instantiate(Context& ctx)
         remap(*instanceDefn, cloneMap);
         define(*instanceDecl, *instanceDefn);
 
-        if ( instanceDecl != instanceDefn->declaration() )
-            throw std::runtime_error("decl/defn mismatch");
+        ENFORCE(instanceDecl == instanceDefn->declaration(), "decl/defn mismatch");
 
         ctx.resolveScopeDeclarations(*instanceDefn);
         ctx.appendInstantiatedDefinition(*instanceDefn);
@@ -490,8 +487,7 @@ Lookup& Lookup::resolveTo(ViableSet&& set)
 
 Lookup& Lookup::resolveTo(Declaration& decl)
 {
-    if ( myDecl )
-        throw std::runtime_error("declaration reference stomped");
+    ENFORCE(!myDecl, "declaration reference stomped");
 
     myDecl = &decl;
     return *this;
@@ -600,8 +596,7 @@ OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest,
 {
     OverloadViability ret;
     auto const card = dest.card();
-    if ( card != src.card() )
-        throw std::runtime_error("overload arity mismatch");
+    ENFORCE(card == src.card(), "overload arity mismatch");
 
     for ( uz i = 0; i < card; ++i )
         ret.append(implicitViability(ctx, *dest[i], *src[i]));

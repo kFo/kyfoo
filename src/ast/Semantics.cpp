@@ -440,8 +440,7 @@ struct MatchEquivalent
         auto l = resolveIndirections(&l_);
         auto r = resolveIndirections(&r_);
 
-        if ( !l || !r )
-            throw std::runtime_error("unresolved indirection");
+        ENFORCE(l && r, "unresolved indirection");
 
         if ( auto leftDecl = getDeclaration(*l) ) {
             auto rightDecl = getDeclaration(*r);
@@ -1169,7 +1168,7 @@ struct FrontToken
 
     result_t exprUniverse(UniverseExpression const&)
     {
-        throw std::runtime_error("no front token for universe-expression");
+        ENFORCEU("no front token for universe-expression");
     }
 
     result_t stmtExpression(ExpressionStatement const& s)

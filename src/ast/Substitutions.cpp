@@ -15,12 +15,10 @@ Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Item> items)
 {
     auto symVars = target.symbol().prototype().symbolVariables();
     auto const symVarCount = symVars.card();
-    if ( symVarCount != items.card() )
-        throw std::runtime_error("substitution mismatch");
+    ENFORCE(symVarCount == items.card(), "substitution mismatch");
 
     for ( uz i = 0; i < symVarCount; ++i ) {
-        if ( !bind(*items[i].symVar, *items[i].expr) )
-            throw std::runtime_error("substituion mismatch");
+        ENFORCE(bind(*items[i].symVar, *items[i].expr), "substituion mismatch");
     }
 }
 
@@ -28,12 +26,10 @@ Substitutions::Substitutions(BYOS, Declaration const& target, Slice<Expression c
 {
     auto symVars = target.symbol().prototype().symbolVariables();
     auto const symVarCount = symVars.card();
-    if ( symVarCount != exprs.card() )
-        throw std::runtime_error("substitution mismatch");
+    ENFORCE(symVarCount == exprs.card(), "substitution mismatch");
 
     for ( uz i = 0; i < symVarCount; ++i ) {
-        if ( !bind(*symVars[i], *exprs[i]) )
-            throw std::runtime_error("substituion mismatch");
+        ENFORCE(bind(*symVars[i], *exprs[i]), "substituion mismatch");
     }
 }
 

@@ -110,15 +110,13 @@ Slice<SymbolVariable const*> PatternsPrototype::symbolVariables() const
 
 void PatternsPrototype::bindVariables(Substitutions const& substs)
 {
-    if ( substs.card() != myVariables.size() )
-        throw std::runtime_error("template parameter binding mismatch");
+    ENFORCE(substs.card() == myVariables.size(), "template parameter binding mismatch");
 
     for ( uz i = 0; i < substs.card(); ++i ) {
         auto const& key = substs.var(i);
         auto const& value = substs.expr(i);
         auto var = findVariable(key.symbol().token().lexeme());
-        if ( !var )
-            throw std::runtime_error("template parameter binding mismatch");
+        ENFORCE(var, "template parameter binding mismatch");
 
         var->bindExpression(&value);
     }

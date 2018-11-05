@@ -278,7 +278,7 @@ SymRes LiteralExpression::resolveSymbols(Context& ctx)
     }
 
     default:
-        throw std::runtime_error("unhandled literal-expression");
+        ENFORCEU("unhandled literal-expression");
     }
 }
 
@@ -405,7 +405,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
         return ensureType();
     }
 
-    throw std::runtime_error("unhandled identifier-expression");
+    ENFORCEU("unhandled identifier-expression");
 }
 
 lexer::Token const& IdentifierExpression::token() const
@@ -459,7 +459,7 @@ void IdentifierExpression::setDeclaration(Declaration const& decl)
         case DeclKind::Template:
             break;
         default:
-            throw std::runtime_error("identifier resolved more than once");
+            ENFORCEU("identifier resolved more than once");
         }
     }
 
@@ -495,7 +495,7 @@ TupleKind toTupleKind(lexer::TokenKind open, lexer::TokenKind close)
             return TupleKind::Closed;
     }
 
-    throw std::runtime_error("invalid tuple expression syntax");
+    ENFORCEU("invalid tuple expression syntax");
 }
 
 const char* to_string(TupleKind kind)
@@ -506,7 +506,7 @@ const char* to_string(TupleKind kind)
 #undef X
     }
 
-    throw std::runtime_error("invalid tuple kind");
+    ENFORCEU("invalid tuple kind");
 }
 
 const char* presentTupleOpen(TupleKind kind)
@@ -1582,8 +1582,7 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
 
         if ( proc ) {
             myRight = createApply(createIdentifier(*proc), std::move(myRight));
-            if ( !ctx.resolveExpression(myRight) )
-                throw std::runtime_error("implicit conversion error");
+            ENFORCE(ctx.resolveExpression(myRight), "implicit conversion error");
 
             result = checkVariance();
         }
@@ -1662,8 +1661,7 @@ IMPL_CLONE_REMAP_END
 
 SymRes LambdaExpression::resolveSymbols(Context& /*ctx*/)
 {
-    if ( !myProc->definition() )
-        throw std::runtime_error("lambda missing body");
+    ENFORCE(myProc->definition(), "lambda missing body");
 
     myType = myProc->type();
     if ( !myType )
