@@ -1170,6 +1170,22 @@ private:
             return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
                                       toType(*proc->parameters()[0]->type()));
         }
+        else if ( rootTempl == &axioms.intrinsic(ast::UnsignedSucc)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::UnsignedPred)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::SignedSucc  )->symbol()
+               || rootTempl == &axioms.intrinsic(ast::SignedPred  )->symbol() )
+        {
+            auto selfType = toType(*getDeclaration(*proc->parameters()[0]->type()));
+            auto val = toValue(builder, selfType, *exprs[1]);
+            auto const isAdd = rootTempl == &axioms.intrinsic(ast::UnsignedSucc)->symbol()
+                            || rootTempl == &axioms.intrinsic(ast::UnsignedPred)->symbol()
+                            || rootTempl == &axioms.intrinsic(ast::SignedSucc  )->symbol()
+                            || rootTempl == &axioms.intrinsic(ast::SignedPred  )->symbol();
+            auto nextVal = isAdd
+                ? builder.CreateAdd(val, llvm::ConstantInt::get(selfType, 1))
+                : builder.CreateSub(val, llvm::ConstantInt::get(selfType, 1));
+            return nextVal;
+        }
         else if ( rootTempl == &axioms.intrinsic(ast::UnsignedInc)->symbol()
                || rootTempl == &axioms.intrinsic(ast::SignedInc  )->symbol()
                || rootTempl == &axioms.intrinsic(ast::UnsignedDec)->symbol()
@@ -1179,9 +1195,9 @@ private:
             auto selfRef = toRef(builder, *exprs[1]);
             auto val = builder.CreateLoad(selfRef);
 
-            auto const isInc = rootTempl == &axioms.intrinsic(ast::UnsignedInc)->symbol()
-                            || rootTempl == &axioms.intrinsic(ast::SignedInc)->symbol();
-            auto nextVal = isInc
+            auto const isAdd = rootTempl == &axioms.intrinsic(ast::UnsignedInc )->symbol()
+                            || rootTempl == &axioms.intrinsic(ast::SignedInc   )->symbol();
+            auto nextVal = isAdd
                 ? builder.CreateAdd(val, llvm::ConstantInt::get(selfType, 1))
                 : builder.CreateSub(val, llvm::ConstantInt::get(selfType, 1));
 

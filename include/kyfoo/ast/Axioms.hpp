@@ -71,10 +71,14 @@ enum DataProductIntrinsics
     X(implicitIntegerToSigned   ) \
     X(implicitSignedToSigned    ) \
     \
-    X(UnsignedInc               ) \
-    X(UnsignedDec               ) \
-    X(SignedInc                 ) \
-    X(SignedDec                 ) \
+    X(UnsignedSucc) \
+    X(UnsignedPred) \
+    X(UnsignedInc ) \
+    X(UnsignedDec ) \
+    X(SignedSucc  ) \
+    X(SignedPred  ) \
+    X(SignedInc   ) \
+    X(SignedDec   ) \
     \
     X(Array_idx            ) \
     X(Slice_idx            ) \

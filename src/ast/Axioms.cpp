@@ -7,6 +7,12 @@ static constexpr char source[] = R"axioms(
     @"intrininst" "UnsignedFromUnsigned"
     (i : unsigned<\m>) -> unsigned<n>
 
+    @"intrininst" "UnsignedSucc"
+    succ(this : unsigned<n>) -> unsigned<n>
+
+    @"intrininst" "UnsignedPred"
+    pred(this : unsigned<n>) -> unsigned<n>
+
     @"intrininst" "UnsignedInc"
     inc(this : ref unsigned<n>) -> ref unsigned<n>
 
@@ -35,11 +41,17 @@ u128 := unsigned<128>
     @"intrininst" "SignedFromSigned"
     (i : signed<\m>) -> signed<n>
 
+    @"intrininst" "SignedSucc"
+    succ(this : signed<n>) -> signed<n>
+
+    @"intrininst" "SignedPred"
+    pred(this : signed<n>) -> signed<n>
+
     @"intrininst" "SignedInc"
-    inc(x : ref signed<n>) -> ref signed<n>
+    inc(this : ref signed<n>) -> ref signed<n>
 
     @"intrininst" "SignedDec"
-    dec(x : ref signed<n>) -> ref signed<n>
+    dec(this : ref signed<n>) -> ref signed<n>
 
 @"intrininst" "implicitIntegerToSigned"
 implicitTo<signed<\D>>(i : integer) -> signed<D>
