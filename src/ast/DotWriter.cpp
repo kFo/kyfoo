@@ -267,12 +267,6 @@ struct NodeWriter
         endAttrs();
     }
 
-    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
-    {
-        beginDecl(dsCtor);
-        endAttrs();
-    }
-
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
         beginDecl(dp);
@@ -603,11 +597,6 @@ struct DotWriter
     result_t declDataSum(DataSumDeclaration const& ds)
     {
         return traceDefinable(ds);
-    }
-
-    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
-    {
-        return mkNode(dsCtor);
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)

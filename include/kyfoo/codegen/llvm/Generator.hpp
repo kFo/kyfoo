@@ -5,33 +5,34 @@
 #include <kyfoo/Types.hpp>
 
 namespace kyfoo {
-
     class Diagnostics;
 
     namespace ast {
         class ModuleSet;
         class Module;
     }
+}
 
-    namespace codegen {
+namespace kyfoo::codegen::llvm {
 
-class LLVMGenerator
+class Context;
+
+class Generator
 {
 public:
-    LLVMGenerator(Diagnostics& dgn, ast::ModuleSet& moduleSet);
-    ~LLVMGenerator();
+    Generator(Diagnostics& dgn, ast::ModuleSet& moduleSet);
+    ~Generator();
 
 public:
     void generate(ast::Module const& module);
+
     void write(ast::Module const& module,
                std::filesystem::path const& path);
     void writeIR(ast::Module const& module,
                  std::filesystem::path const& path);
 
 private:
-    struct LLVMState;
-    Box<LLVMState> myImpl;
+    Box<Context> myImpl;
 };
 
-    } // namespace codegen
-} // namespace kyfoo
+} // namespace kyfoo::codegen::llvm

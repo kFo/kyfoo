@@ -7,6 +7,7 @@
 
 #include <type_traits>
 
+#include <kyfoo/Math.hpp>
 #include <kyfoo/Meta.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Tribool.hpp>

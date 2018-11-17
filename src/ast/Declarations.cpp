@@ -226,77 +226,6 @@ SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
 }
 
 //
-// DataSumDeclaration::Constructor
-
-DataSumDeclaration::Constructor::Constructor(Symbol&& symbol,
-                                             std::vector<Box<VariableDeclaration>>&& pattern)
-    : Declaration(DeclKind::DataSumCtor, std::move(symbol), nullptr)
-    , myPattern(std::move(pattern))
-{
-}
-
-DataSumDeclaration::Constructor::Constructor(Constructor const& rhs)
-    : Declaration(rhs)
-    , myParent(rhs.myParent)
-{
-    // clone myPattern
-}
-
-DataSumDeclaration::Constructor& DataSumDeclaration::Constructor::operator = (Constructor const& rhs)
-{
-    Constructor(rhs).swap(*this);
-    return *this;
-}
-
-DataSumDeclaration::Constructor::~Constructor() = default;
-
-void DataSumDeclaration::Constructor::swap(Constructor& rhs) noexcept
-{
-    Declaration::swap(rhs);
-    using kyfoo::swap;
-    swap(myParent, rhs.myParent);
-    swap(myPattern, rhs.myPattern);
-}
-
-IMPL_CLONE_BEGIN(DataSumDeclaration::Constructor, Declaration, Declaration)
-IMPL_CLONE_CHILD(myPattern)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration::Constructor, Declaration)
-IMPL_CLONE_REMAP(myParent)
-IMPL_CLONE_REMAP(myPattern)
-IMPL_CLONE_REMAP_END
-
-SymRes DataSumDeclaration::Constructor::resolveSymbols(Context& ctx)
-{
-    auto ret = Declaration::resolveSymbols(ctx);
-
-    for ( auto& e : myPattern )
-        e->setScope(scope());
-
-    for ( auto& e : myPattern )
-        ret |= ctx.resolveDeclaration(*e);
-
-    return ret;
-}
-
-void DataSumDeclaration::Constructor::setParent(DataSumDeclaration* dsDecl)
-{
-    ENFORCE(!parent(), "data sum constructor can only belong to one procedure");
-
-    myParent = dsDecl;
-}
-
-DataSumDeclaration* DataSumDeclaration::Constructor::parent()
-{
-    return myParent;
-}
-
-DataSumDeclaration const* DataSumDeclaration::Constructor::parent() const
-{
-    return myParent;
-}
-
-//
 // Binder
 
 Binder::Binder(DeclKind kind,
@@ -1049,7 +978,6 @@ bool isCallableDeclaration(DeclKind kind)
     switch ( kind ) {
     case DeclKind::DataProduct:
     case DeclKind::DataSum:
-    case DeclKind::DataSumCtor:
     case DeclKind::Procedure:
         return true;
 
@@ -1085,9 +1013,6 @@ bool hasIndirection(Expression const& expr)
 Expression const* getType(Declaration const& decl)
 {
     if ( auto d = decl.as<DataSumDeclaration>() )
-        return &Expression::universe(1);
-
-    if ( auto d = decl.as<DataSumDeclaration::Constructor>() )
         return &Expression::universe(1);
 
     if ( auto d = decl.as<DataProductDeclaration>() )
@@ -1214,11 +1139,6 @@ struct DeclarationPrinter
     result_t declDataSum(DataSumDeclaration const& ds)
     {
         return stream << ds.symbol().token().lexeme();
-    }
-
-    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
-    {
-        return stream << dsCtor.symbol().token().lexeme();
     }
 
     result_t declDataProduct(DataProductDeclaration const& dp)

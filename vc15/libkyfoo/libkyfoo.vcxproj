@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -105,6 +105,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <SupportJustMyCode>false</SupportJustMyCode>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Lib>
       <AdditionalDependencies>LLVMDemangle.lib;LLVMSupport.lib;LLVMTableGen.lib;LLVMCore.lib;LLVMIRReader.lib;LLVMCodeGen.lib;LLVMSelectionDAG.lib;LLVMAsmPrinter.lib;LLVMMIRParser.lib;LLVMGlobalISel.lib;LLVMBinaryFormat.lib;LLVMBitReader.lib;LLVMBitWriter.lib;LLVMTransformUtils.lib;LLVMInstrumentation.lib;LLVMInstCombine.lib;LLVMScalarOpts.lib;LLVMipo.lib;LLVMVectorize.lib;LLVMObjCARCOpts.lib;LLVMCoroutines.lib;LLVMLinker.lib;LLVMAnalysis.lib;LLVMLTO.lib;LLVMMC.lib;LLVMMCParser.lib;LLVMMCDisassembler.lib;LLVMObject.lib;LLVMObjectYAML.lib;LLVMOption.lib;LLVMDebugInfoDWARF.lib;LLVMDebugInfoMSF.lib;LLVMDebugInfoCodeView.lib;LLVMDebugInfoPDB.lib;LLVMSymbolize.lib;LLVMExecutionEngine.lib;LLVMInterpreter.lib;LLVMMCJIT.lib;LLVMOrcJIT.lib;LLVMRuntimeDyld.lib;LLVMTarget.lib;LLVMX86CodeGen.lib;LLVMX86AsmParser.lib;LLVMX86Disassembler.lib;LLVMX86AsmPrinter.lib;LLVMX86Desc.lib;LLVMX86Info.lib;LLVMX86Utils.lib;LLVMAsmParser.lib;LLVMLineEditor.lib;LLVMProfileData.lib;LLVMCoverage.lib;LLVMPasses.lib;LLVMDlltoolDriver.lib;LLVMLibDriver.lib;LLVMXRay.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -115,6 +116,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <SupportJustMyCode>false</SupportJustMyCode>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Lib>
       <AdditionalDependencies>LLVMDemangle.lib;LLVMSupport.lib;LLVMTableGen.lib;LLVMCore.lib;LLVMIRReader.lib;LLVMCodeGen.lib;LLVMSelectionDAG.lib;LLVMAsmPrinter.lib;LLVMMIRParser.lib;LLVMGlobalISel.lib;LLVMBinaryFormat.lib;LLVMBitReader.lib;LLVMBitWriter.lib;LLVMTransformUtils.lib;LLVMInstrumentation.lib;LLVMInstCombine.lib;LLVMScalarOpts.lib;LLVMipo.lib;LLVMVectorize.lib;LLVMObjCARCOpts.lib;LLVMCoroutines.lib;LLVMLinker.lib;LLVMAnalysis.lib;LLVMLTO.lib;LLVMMC.lib;LLVMMCParser.lib;LLVMMCDisassembler.lib;LLVMObject.lib;LLVMObjectYAML.lib;LLVMOption.lib;LLVMDebugInfoDWARF.lib;LLVMDebugInfoMSF.lib;LLVMDebugInfoCodeView.lib;LLVMDebugInfoPDB.lib;LLVMSymbolize.lib;LLVMExecutionEngine.lib;LLVMInterpreter.lib;LLVMMCJIT.lib;LLVMOrcJIT.lib;LLVMRuntimeDyld.lib;LLVMTarget.lib;LLVMX86CodeGen.lib;LLVMX86AsmParser.lib;LLVMX86Disassembler.lib;LLVMX86AsmPrinter.lib;LLVMX86Desc.lib;LLVMX86Info.lib;LLVMX86Utils.lib;LLVMAsmParser.lib;LLVMLineEditor.lib;LLVMProfileData.lib;LLVMCoverage.lib;LLVMPasses.lib;LLVMDlltoolDriver.lib;LLVMLibDriver.lib;LLVMXRay.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -126,6 +128,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -141,6 +144,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -182,15 +186,17 @@
     <ClInclude Include="..\..\include\kyfoo\BigInt.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Box.hpp" />
     <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp" />
-    <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\codegen\llvm\Generator.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Dollar.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Factory.hpp" />
     <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Interval.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Intrinsics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
     <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Math.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Meta.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
@@ -202,6 +208,8 @@
     <ClInclude Include="..\..\include\kyfoo\Tribool.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Types.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Utilities.hpp" />
+    <ClInclude Include="..\..\src\codegen\llvm\Context.hpp" />
+    <ClInclude Include="..\..\src\codegen\llvm\Visitors.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\Allocators.cpp" />
@@ -218,23 +226,17 @@
     <ClCompile Include="..\..\src\ast\Substitutions.cpp" />
     <ClCompile Include="..\..\src\ast\Symbol.cpp" />
     <ClCompile Include="..\..\src\ast\Variance.cpp" />
-    <ClCompile Include="..\..\src\codegen\LLVM.cpp">
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-      </DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-      </DisableSpecificWarnings>
-      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-      </DisableSpecificWarnings>
+    <ClCompile Include="..\..\src\codegen\llvm\Context.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="..\..\src\codegen\llvm\Generator.cpp">
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="..\..\src\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\lexer\Scanner.cpp" />

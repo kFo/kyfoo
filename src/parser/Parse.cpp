@@ -262,9 +262,10 @@ DataSumScopeParser::~DataSumScopeParser() = default;
 DeclarationScopeParser::ParseResult
 DataSumScopeParser::parseNext()
 {
-    if ( auto dsCtor = parse<DataSumConstructor>(*this) ) {
-        dsCtor->setParent(scope().declaration()->as<ast::DataSumDeclaration>());
-        myScope->append(std::move(dsCtor));
+    if ( auto [decl, defn] = parse<DataSumConstructor>(*this); decl ) {
+        myScope->append(std::move(decl));
+        if ( defn )
+            myScope->append(std::move(defn));
         return {true, nullptr};
     }
 

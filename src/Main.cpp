@@ -17,7 +17,7 @@
 #include <kyfoo/ast/Semantics.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
-#include <kyfoo/codegen/LLVM.hpp>
+#include <kyfoo/codegen/llvm/Generator.hpp>
 
 namespace kyfoo {
 
@@ -116,7 +116,7 @@ int analyzeModule(ast::Module& m, bool treeDump)
 }
 
 int codegenModule(Diagnostics& dgn,
-                  codegen::LLVMGenerator& gen,
+                  codegen::llvm::Generator& gen,
                   ast::Module const& m,
                   bool writeIR)
 {
@@ -266,7 +266,7 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
     }
 
     Diagnostics dgn;
-    codegen::LLVMGenerator gen(dgn, moduleSet);
+    codegen::llvm::Generator gen(dgn, moduleSet);
 
     try {
         gen.generate(moduleSet.axioms());

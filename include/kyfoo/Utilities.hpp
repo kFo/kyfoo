@@ -141,43 +141,28 @@ constexpr T const& max(T const& lhs, T const& rhs) noexcept
     return lhs;
 }
 
-template <typename T>
-constexpr std::enable_if_t<std::is_integral_v<T>,
-T> roundUpToMultiple(T n, T m) noexcept
-{
-    auto const rem = n % m;
-    return rem ? n + m - rem : n;
-}
-
-template <typename T>
-constexpr std::enable_if_t<std::is_integral_v<T>,
-T> roundDownToMultiple(T n, T m) noexcept
-{
-    return n - n % m;
-}
-
 class RuntimeException : public std::exception
 {
 public:
-    RuntimeException(const char* file, unsigned line, const char* msg)
+    RuntimeException(const char* file, unsigned line, std::string msg)
         : myFile(file)
-        , myMsg(msg)
+        , myMsg(std::move(msg))
         , myLine(line)
     {
     }
 
     // std::exception
 public:
-    const char* what() const noexcept override { return myMsg; }
+    const char* what() const noexcept override { return myMsg.c_str(); }
 
 public:
-    const char* message() const noexcept { return myMsg; }
+    const char* message() const noexcept { return myMsg.c_str(); }
     const char* file() const noexcept { return myFile; }
     unsigned line() const noexcept { return myLine; }
 
 private:
     const char* myFile;
-    const char* myMsg;
+    std::string myMsg;
     unsigned myLine;
 };
 
@@ -185,10 +170,10 @@ private:
 #define ENFORCEC(V) enforce(!!(V), #V, __FILE__, __LINE__)
 #define ENFORCEU(M) throw RuntimeException(__FILE__, __LINE__, M)
 
-inline void enforce(bool value, const char* msg, const char* file, unsigned line)
+inline void enforce(bool value, std::string msg, const char* file, unsigned line)
 {
     if ( !value )
-        throw RuntimeException(file, line, msg);
+        throw RuntimeException(file, line, std::move(msg));
 }
 
 } // namespace kyfoo

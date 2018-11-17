@@ -772,12 +772,30 @@ struct DataSumDeclaration :
     }
 };
 
+struct DataProduct
+{
+    Box<ast::DataProductDeclaration> decl;
+    Box<ast::DataProductScope> defn;
+};
+
 struct DataSumConstructor :
     g::And<Symbol, g::Opt<g::And<g::Opt<vacuum>, openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
 {
-    Box<ast::DataSumDeclaration::Constructor> make(DeclarationScopeParser&)
+    DataProduct make(DeclarationScopeParser& parser)
     {
-        ENFORCEU("not implemented");
+        auto decl = mk<ast::DataProductDeclaration>(ast::Symbol(factor<0>().make(parser)));
+        Box<ast::DataProductScope> defn = mk<ast::DataProductScope>(parser.scope(), *decl);
+        if ( auto fields = factor<1>().capture() ) {
+            for ( auto& f : fields->factor<2>().captures() ) {
+                defn->append(mk<ast::DataProductDeclaration::Field>(
+                    ast::Symbol(f.factor<0>().token()),
+                    ast::createPtrList<ast::Expression>(f.factor<2>().make(parser)),
+                    nullptr));
+            }
+        }
+
+        decl->define(*defn);
+        return { std::move(decl), std::move(defn) };
     }
 };
 

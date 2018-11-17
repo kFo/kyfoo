@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kyfoo/Math.hpp>
 #include <kyfoo/Meta.hpp>
 #include <kyfoo/Types.hpp>
 

@@ -1,4 +1,6 @@
-#include <kyfoo/codegen/LLVM.hpp>
+#pragma once
+
+#include <kyfoo/codegen/llvm/Generator.hpp>
 
 #include <filesystem>
 
@@ -9,6 +11,7 @@
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/DataLayout.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
@@ -29,6 +32,7 @@
 #pragma GCC diagnostic pop
 
 #include <kyfoo/Diagnostics.hpp>
+#include <kyfoo/Math.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
 #include <kyfoo/lexer/TokenKind.hpp>
@@ -45,13 +49,13 @@
 #include <kyfoo/codegen/Codegen.hpp>
 
 namespace {
-    llvm::StringRef strRef(kyfoo::stringv s)
+    inline ::llvm::StringRef strRef(kyfoo::stringv s)
     {
-        return llvm::StringRef(s.data(), s.card());
+        return ::llvm::StringRef(s.data(), s.card());
     }
 }
 
-namespace kyfoo::codegen {
+namespace kyfoo::codegen::llvm {
 
 template <typename T>
 struct LLVMCustomData : public CustomData
@@ -61,18 +65,18 @@ struct LLVMCustomData : public CustomData
 template<>
 struct LLVMCustomData<ast::Module> : public CustomData
 {
-    Box<llvm::Module> module;
-    std::map<stringv, llvm::GlobalVariable*> strings;
+    Box<::llvm::Module> module;
+    std::map<stringv, ::llvm::GlobalVariable*> strings;
 
-    llvm::GlobalVariable* interpretString(Diagnostics& dgn,
-                                          llvm::IRBuilder<>& builder,
-                                          ast::Module const& mod,
-                                          lexer::Token const& token)
+    ::llvm::GlobalVariable* interpretString(Diagnostics& dgn,
+                                            ::llvm::IRBuilder<>& builder,
+                                            ast::Module const& mod,
+                                            lexer::Token const& token)
     {
         return getString(builder, mod.interpretString(dgn, token));
     }
 
-    llvm::GlobalVariable* getString(llvm::IRBuilder<>& builder, stringv str)
+    ::llvm::GlobalVariable* getString(::llvm::IRBuilder<>& builder, stringv str)
     {
         auto e = strings.lower_bound(str);
         if ( e != end(strings) && e->first == str )
@@ -85,12 +89,12 @@ struct LLVMCustomData<ast::Module> : public CustomData
 template<>
 struct LLVMCustomData<ast::VariableDeclaration> : public CustomData
 {
-    llvm::AllocaInst* inst = nullptr;
+    ::llvm::AllocaInst* inst = nullptr;
 };
 
-llvm::Function* cloneFunction(llvm::Module* mod, llvm::Function const* func)
+inline ::llvm::Function* cloneFunction(::llvm::Module* mod, ::llvm::Function const* func)
 {
-    return llvm::Function::Create(func->getFunctionType(),
+    return ::llvm::Function::Create(func->getFunctionType(),
                                   func->getLinkage(),
                                   func->getName(),
                                   mod);
@@ -99,7 +103,7 @@ llvm::Function* cloneFunction(llvm::Module* mod, llvm::Function const* func)
 template<>
 struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
 {
-    void define(llvm::Module* mod, llvm::Function* func)
+    void define(::llvm::Module* mod, ::llvm::Function* func)
     {
         defn = func;
         functions.insert({mod, func});
@@ -110,7 +114,7 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
         return defn;
     }
 
-    llvm::Function* getFunction(llvm::Module* mod)
+    ::llvm::Function* getFunction(::llvm::Module* mod)
     {
         auto e = functions.lower_bound(mod);
         if ( e != end(functions) && e->first == mod )
@@ -119,32 +123,34 @@ struct LLVMCustomData<ast::ProcedureDeclaration> : public CustomData
         return functions.emplace_hint(e, std::make_pair(mod, cloneFunction(mod, defn)))->second;
     }
 
-    llvm::FunctionType* getType()
+    ::llvm::FunctionType* getType()
     {
         return defn->getFunctionType();
     }
 
 private:
-    llvm::Function* defn = nullptr;
-    std::map<llvm::Module*, llvm::Function*> functions;
+    ::llvm::Function* defn = nullptr;
+    std::map<::llvm::Module*, ::llvm::Function*> functions;
 };
 
 template<>
 struct LLVMCustomData<ast::ProcedureParameter> : public CustomData
 {
-    llvm::Argument* arg = nullptr;
+    ::llvm::Argument* arg = nullptr;
 };
 
 template<>
 struct LLVMCustomData<ast::DataSumDeclaration> : public CustomData
 {
-    llvm::Type* type = nullptr;
+    ::llvm::Type* type = nullptr;
+    ::llvm::Type* tagType = nullptr;
+    ::llvm::Type* biggestCtor = nullptr;
 };
 
 template<>
 struct LLVMCustomData<ast::DataProductDeclaration> : public CustomData
 {
-    llvm::Type* type = nullptr;
+    ::llvm::Type* type = nullptr;
 };
 
 template<>
@@ -162,8 +168,8 @@ struct LLVMCustomData<ast::Expression> : public CustomData
 template<>
 struct LLVMCustomData<ast::BasicBlock> : public CustomData
 {
-    llvm::BasicBlock* bb = nullptr;
-    llvm::BasicBlock* parentCleanup = nullptr;
+    ::llvm::BasicBlock* bb = nullptr;
+    ::llvm::BasicBlock* parentCleanup = nullptr;
 };
 
 template <typename T>
@@ -171,238 +177,6 @@ LLVMCustomData<T>* customData(T const& ast)
 {
     return static_cast<LLVMCustomData<T>*>(ast.codegenData());
 }
-
-llvm::Type* toType(ast::Declaration const& decl)
-{
-    auto d = resolveIndirections(&decl);
-    if ( auto ds = d->as<ast::DataSumDeclaration>() )
-        return customData(*ds)->type;
-
-    if ( auto dp = d->as<ast::DataProductDeclaration>() )
-        return customData(*dp)->type;
-
-    return nullptr;
-}
-
-llvm::Type* toType(llvm::LLVMContext& context, ast::Expression const& expr)
-{
-    auto e = resolveIndirections(&expr);
-    if ( auto decl = getDeclaration(*e) )
-        return toType(*decl);
-
-    if ( auto t = e->as<ast::TupleExpression>() ) {
-        if ( !t->expressions() && t->kind() == ast::TupleKind::Open )
-            return llvm::Type::getVoidTy(context);
-
-        llvm::Type* elementType = nullptr;
-        if ( t->expressions().card() > 1 ) {
-            std::vector<llvm::Type*> types;
-            types.reserve(t->expressions().card());
-            for ( auto const& te : t->expressions() )
-                types.push_back(toType(context, *te));
-
-            elementType = llvm::StructType::get(context, types);
-        }
-        else {
-            elementType = toType(context, *t->expressions()[0]);
-        }
-
-        if ( t->elementsCount() > 1 )
-            return llvm::ArrayType::get(elementType, t->elementsCount());
-
-        return elementType;
-    }
-
-    if ( auto a = e->as<ast::ArrowExpression>() ) {
-        enum { NotVarArg = false };
-        std::vector<llvm::Type*> params;
-        if ( auto tup = a->from().as<ast::TupleExpression>() ) {
-            if ( !tup->expressions() )
-                return llvm::PointerType::getUnqual(llvm::FunctionType::get(toType(context, a->to()), NotVarArg));
-
-            if ( tup->kind() == ast::TupleKind::Open ) {
-                params.reserve(tup->expressions().card());
-                for ( auto texpr : tup->expressions() )
-                    params.push_back(toType(context, *texpr));
-            }
-        }
-
-        if ( params.empty() )
-            params.push_back(toType(context, a->from()));
-
-        return llvm::PointerType::getUnqual(llvm::FunctionType::get(toType(context, a->to()), params, NotVarArg));
-    }
-
-    return nullptr;
-}
-
-int log2(u32 n)
-{
-    int ret = 0;
-    while ( n >>= 1 )
-        ++ret;
-    return ret;
-}
-
-std::uint32_t nextPower2(u32 n)
-{
-    --n;
-    n |= n >> 1;
-    n |= n >> 2;
-    n |= n >> 4;
-    n |= n >> 8;
-    n |= n >> 16;
-    ++n;
-
-    return n;
-}
-
-//
-// InitCodeGenPass
-
-template <typename Dispatcher>
-struct InitCodeGenPass
-{
-    using result_t = void;
-    Dispatcher& dispatch;
-    Diagnostics& dgn;
-    ast::Module const& mod;
-
-    ast::ProcedureDeclaration const* procContext = nullptr;
-
-    InitCodeGenPass(Dispatcher& dispatch, Diagnostics& dgn, ast::Module const& mod)
-        : dispatch(dispatch)
-        , dgn(dgn)
-        , mod(mod)
-    {
-    }
-
-    result_t declDataSum(ast::DataSumDeclaration const& decl)
-    {
-        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
-            return;
-
-        decl.setCodegenData(mk<LLVMCustomData<ast::DataSumDeclaration>>());
-
-        if ( auto defn = decl.definition() ) {
-            for ( auto& e : defn->childDeclarations() )
-                dispatch(*e);
-
-            for ( auto& e : defn->childLambdas() )
-                dispatch(*e);
-        }
-    }
-
-    result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const& decl)
-    {
-        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
-            return;
-
-        decl.setCodegenData(mk<LLVMCustomData<ast::DataSumDeclaration::Constructor>>());
-    }
-
-    result_t declDataProduct(ast::DataProductDeclaration const& decl)
-    {
-        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
-            return;
-
-        decl.setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration>>());
-
-        if ( auto defn = decl.definition() ) {
-            auto const& fields = defn->fields();
-            for ( uz i = 0; i < fields.card(); ++i ) {
-                fields[i]->setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration::Field>>());
-                customData(*fields[i])->index = static_cast<u32>(i);
-            }
-
-            for ( auto& e : defn->childDeclarations() )
-                dispatch(*e);
-
-            for ( auto& e : defn->childLambdas() )
-                dispatch(*e);
-        }
-    }
-
-    result_t declField(ast::DataProductDeclaration::Field const&)
-    {
-        // nop
-    }
-
-    result_t declSymbol(ast::SymbolDeclaration const& s)
-    {
-        if ( s.expression() ) {
-            auto decl = getDeclaration(s.expression());
-            if ( decl )
-                dispatch(*decl);
-        }
-    }
-
-    result_t traceProc(ast::ProcedureScope const& scope)
-    {
-        for ( auto& e : scope.childDeclarations() )
-            dispatch(*e);
-
-        for ( auto& e : scope.childLambdas() )
-            dispatch(*e);
-
-        for ( auto const& e : scope.childScopes() )
-            traceProc(*e);
-    }
-
-    result_t declProcedure(ast::ProcedureDeclaration const& decl)
-    {
-        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
-            return;
-
-        decl.setCodegenData(mk<LLVMCustomData<ast::ProcedureDeclaration>>());
-
-        auto last = procContext;
-        procContext = &decl;
-
-        declProcedureParameter(*decl.result());
-        for ( auto const& p : decl.parameters() )
-            declProcedureParameter(*p);
-
-        if ( auto defn = decl.definition() )
-            traceProc(*defn);
-
-        procContext = last;
-    }
-
-    result_t declProcedureParameter(ast::ProcedureParameter const& decl)
-    {
-        if ( !decl.codegenData() )
-            decl.setCodegenData(mk<LLVMCustomData<ast::ProcedureParameter>>());
-    }
-
-    result_t declVariable(ast::VariableDeclaration const& decl)
-    {
-        if ( !decl.codegenData() )
-            decl.setCodegenData(mk<LLVMCustomData<ast::VariableDeclaration>>());
-    }
-
-    result_t declImport(ast::ImportDeclaration const&)
-    {
-        // nop
-    }
-
-    result_t declSymbolVariable(ast::SymbolVariable const& sv)
-    {
-        if ( sv.boundExpression() )
-            if ( auto decl = getDeclaration(sv.boundExpression()) )
-                dispatch(*decl);
-    }
-
-    result_t declTemplate(ast::TemplateDeclaration const& decl)
-    {
-        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
-            return;
-
-        if ( auto defn = decl.definition() )
-            for ( auto& e : defn->childDeclarations() )
-                dispatch(*e);
-    }
-};
 
 //
 // CodeGenPass
@@ -414,60 +188,55 @@ struct CodeGenPass
     Dispatcher& dispatch;
 
     Diagnostics& dgn;
-    llvm::Module* module;
+    Context& ctx;
+    ::llvm::Module* module;
     ast::Module const& sourceModule;
     std::vector<ast::ProcedureDeclaration const*> procBodiesToCodegen;
 
     CodeGenPass(Dispatcher& dispatch,
                 Diagnostics& dgn,
-                llvm::Module* module,
+                Context& ctx,
+                ::llvm::Module* module,
                 ast::Module const& sourceModule)
         : dispatch(dispatch)
         , dgn(dgn)
+        , ctx(ctx)
         , module(module)
         , sourceModule(sourceModule)
     {
     }
 
-    result_t declDataSum(ast::DataSumDeclaration const&)
+    result_t declDataSum(ast::DataSumDeclaration const& ds)
     {
-        // todo
+        ctx.generate(ds);
     }
 
-    result_t declDataSumCtor(ast::DataSumDeclaration::Constructor const&)
+    result_t declDataProduct(ast::DataProductDeclaration const& dp)
     {
-        // nop
+        ctx.generate(dp);
     }
 
-    result_t declDataProduct(ast::DataProductDeclaration const& decl)
+    result_t declSymbol(ast::SymbolDeclaration const& s)
     {
-        if ( !decl.symbol().prototype().isConcrete() )
-            return;
-
-        // todo
-        if ( auto defn = decl.definition() ) {
-            for ( auto c : defn->childDeclarations() )
-                dispatch(*c);
-
-            for ( auto l : defn->childLambdas() )
-                dispatch(*l);
+        if ( s.expression() ) {
+            auto decl = getDeclaration(s.expression());
+            if ( decl )
+                dispatch(*decl);
         }
     }
 
-    result_t declField(ast::DataProductDeclaration::Field const&)
+    result_t declField(ast::DataProductDeclaration::Field const& field)
     {
-        // todo
-    }
-
-    result_t declSymbol(ast::SymbolDeclaration const&)
-    {
-        // nop
+        if ( !field.codegenData() )
+            field.setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration::Field>>());
     }
 
     result_t declProcedure(ast::ProcedureDeclaration const& decl)
     {
-        if ( !decl.symbol().prototype().isConcrete() )
+        if ( !decl.symbol().prototype().isConcrete() || decl.codegenData() )
             return;
+
+        decl.setCodegenData(mk<LLVMCustomData<ast::ProcedureDeclaration>>());
 
         if ( isIntrinsic(decl) )
             return;
@@ -478,16 +247,17 @@ struct CodeGenPass
             die();
         }
 
-        auto returnType = toType(*decl.returnType());
+        auto returnType = ctx.toType(*decl.returnType());
         if ( !returnType ) {
             error(decl.symbol().token()) << "cannot resolve return type";
             die();
         }
 
-        std::vector<llvm::Type*> params;
+        std::vector<::llvm::Type*> params;
         params.reserve(decl.parameters().card());
         for ( auto const& p : decl.parameters() ) {
-            llvm::Type* paramType = toType(*p->type());
+            declProcedureParameter(*p);
+            ::llvm::Type* paramType = ctx.toType(*p->type());
             if ( !paramType ) {
                 error(p->symbol().token()) << "cannot resolve parameter type";
                 die();
@@ -496,28 +266,28 @@ struct CodeGenPass
             params.push_back(paramType);
         }
 
-        auto type = llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
+        auto type = ::llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
 
-        llvm::StringRef name;
+        ::llvm::StringRef name;
         if ( decl.scope().declaration() )
             name = strRef(decl.scope().declaration()->symbol().token().lexeme());
 
         auto defn = decl.definition();
         if ( !defn ) {
-            fdata->define(module, llvm::Function::Create(type,
-                                                         llvm::Function::ExternalLinkage,
+            fdata->define(module, ::llvm::Function::Create(type,
+                                                         ::llvm::Function::ExternalLinkage,
                                                          name,
                                                          module));
             return;
         }
 
         // todo: function export
-        /*auto linkage = llvm::Function::InternalLinkage;
+        /*auto linkage = ::llvm::Function::InternalLinkage;
         if ( !name.empty() )
-            linkage = llvm::Function::ExternalLinkage;*/
-        auto linkage = llvm::Function::ExternalLinkage;
+            linkage = ::llvm::Function::ExternalLinkage;*/
+        auto linkage = ::llvm::Function::ExternalLinkage;
 
-        fdata->define(module, llvm::Function::Create(type, linkage, name, module));
+        fdata->define(module, ::llvm::Function::Create(type, linkage, name, module));
         procBodiesToCodegen.push_back(&decl);
     }
 
@@ -547,24 +317,24 @@ struct CodeGenPass
                 customData(*p)->arg = &*(arg++);
         }
 
-        auto entryBlock = llvm::BasicBlock::Create(module->getContext(), "", fun);
-        llvm::IRBuilder<> builder(entryBlock);
+        auto entryBlock = ::llvm::BasicBlock::Create(module->getContext(), "", fun);
+        ::llvm::IRBuilder<> builder(entryBlock);
 
         std::function<void(ast::ProcedureScope const&)> gatherAllocas =
         [&](ast::ProcedureScope const& scope) {
             for ( auto const& d : scope.childDeclarations() ) {
                 if ( auto var = d->as<ast::VariableDeclaration>() ) {
-                    customData(*var)->inst = builder.CreateAlloca(toType(*var->type()));
+                    declVariable(*var);
+                    customData(*var)->inst = builder.CreateAlloca(ctx.toType(*var->type()));
                 }
             }
 
             auto gatherStatement = [this, &builder](ast::Statement const& stmt) {
                 for ( auto const& v : stmt.unnamedVariables() ) {
-                    auto vdata = mk<LLVMCustomData<ast::VariableDeclaration>>();
-                    auto type = toType(*v->type());
+                    declVariable(*v);
+                    auto type = ctx.toType(*v->type());
                     if ( !type->isVoidTy() )
-                        vdata->inst = builder.CreateAlloca(type);
-                    v->setCodegenData(std::move(vdata));
+                        customData(*v)->inst = builder.CreateAlloca(type);
                 }
             };
 
@@ -587,7 +357,7 @@ struct CodeGenPass
         gatherAllocas(*defn);
 
         toBlock(*defn, *defn->basicBlocks().front(), fun, entryBlock, nullptr);
-        if ( llvm::verifyFunction(*fun, &llvm::errs()) ) {
+        if ( ::llvm::verifyFunction(*fun, &::llvm::errs()) ) {
 #ifndef NDEBUG
             fun->dump();
 #endif
@@ -597,9 +367,9 @@ struct CodeGenPass
 
     void toBlock(ast::ProcedureScope const& scope,
                  ast::BasicBlock const& block,
-                 llvm::Function* func,
-                 llvm::BasicBlock* bb,
-                 llvm::BasicBlock* parentCleanup)
+                 ::llvm::Function* func,
+                 ::llvm::BasicBlock* bb,
+                 ::llvm::BasicBlock* parentCleanup)
     {
         auto bdata = customData(block);
         if ( !bdata ) {
@@ -611,10 +381,10 @@ struct CodeGenPass
 
         auto fdata = customData(*scope.declaration());
 
-        llvm::IRBuilder<> builder(bb);
+        ::llvm::IRBuilder<> builder(bb);
 
         //uz cleanupDeclLast = 0;
-        //std::vector<llvm::BasicBlock*> cleanupBlocks;
+        //std::vector<::llvm::BasicBlock*> cleanupBlocks;
 
         //auto createCleanupBlock = [&](lexer::Token const& token, bool exit) {
         //    auto const decls = scope.childDeclarations();
@@ -627,8 +397,8 @@ struct CodeGenPass
         //            priorVars.push_back(var);
         //    }
 
-        //    cleanupBlocks.push_back(llvm::BasicBlock::Create(module->getContext(), "", func));
-        //    llvm::IRBuilder<> cleanupBuilder(cleanupBlocks.back());
+        //    cleanupBlocks.push_back(::llvm::BasicBlock::Create(module->getContext(), "", func));
+        //    ::llvm::IRBuilder<> cleanupBuilder(cleanupBlocks.back());
         //    for ( auto v = priorVars.rbegin(); v != priorVars.rend(); ++v ) {
         //        if ( auto dp = (*v)->dataType()->as<ast::DataProductDeclaration>() ) {
         //            auto expr = createMemberCall(*dp->definition()->destructor(), **v);
@@ -657,7 +427,7 @@ struct CodeGenPass
             }
             else if ( auto vstmt = stmt->as<ast::VariableStatement>() ) {
                 if ( auto expr = vstmt->initializer() ) {
-                    auto varType = toType(*vstmt->variable().type());
+                    auto varType = ctx.toType(*vstmt->variable().type());
                     auto val = toValue(builder, varType, *expr);
                     if ( val->getType()->isVoidTy() )
                         continue;
@@ -698,10 +468,10 @@ struct CodeGenPass
             auto cond = toValue(builder, builder.getInt1Ty(), *brJunc->condition());
             auto cmp = cond->getType() == builder.getInt1Ty() ?
                 cond :
-                builder.CreateICmpNE(cond, llvm::ConstantInt::get(cond->getType(), 0));
+                builder.CreateICmpNE(cond, ::llvm::ConstantInt::get(cond->getType(), 0));
 
-            auto trueBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
-            auto falseBlock = llvm::BasicBlock::Create(module->getContext(), "", func);
+            auto trueBlock = ::llvm::BasicBlock::Create(module->getContext(), "", func);
+            auto falseBlock = ::llvm::BasicBlock::Create(module->getContext(), "", func);
 
             builder.CreateCondBr(cmp, trueBlock, falseBlock);
 
@@ -716,7 +486,7 @@ struct CodeGenPass
                 builder.CreateBr(tdata->bb);
             }
             else {
-                auto target = llvm::BasicBlock::Create(module->getContext(), "", func);
+                auto target = ::llvm::BasicBlock::Create(module->getContext(), "", func);
                 toBlock(scope, *jmpJunc->targetBlock(), func, target, nullptr /*cleanupBlocks.back()*/);
                 builder.CreateBr(target);
             }
@@ -727,14 +497,16 @@ struct CodeGenPass
         die("missing procedure terminator");
     }
 
-    result_t declProcedureParameter(ast::ProcedureParameter const&)
+    result_t declProcedureParameter(ast::ProcedureParameter const& param)
     {
-        // nop
+        if ( !param.codegenData() )
+            param.setCodegenData(mk<LLVMCustomData<ast::ProcedureParameter>>());
     }
 
-    result_t declVariable(ast::VariableDeclaration const&)
+    result_t declVariable(ast::VariableDeclaration const& var)
     {
-        // nop
+        if ( !var.codegenData() )
+            var.setCodegenData(mk<LLVMCustomData<ast::VariableDeclaration>>());
     }
 
     result_t declImport(ast::ImportDeclaration const&)
@@ -742,17 +514,19 @@ struct CodeGenPass
         // nop
     }
 
-    result_t declSymbolVariable(ast::SymbolVariable const&)
+    result_t declSymbolVariable(ast::SymbolVariable const& symVar)
     {
-        // nop
+        if ( symVar.boundExpression() )
+            if ( auto decl = getDeclaration(symVar.boundExpression()) )
+                dispatch(*decl);
     }
 
-    result_t declTemplate(ast::TemplateDeclaration const& decl)
+    result_t declTemplate(ast::TemplateDeclaration const& templ)
     {
-        if ( !decl.symbol().prototype().isConcrete() )
+        if ( !templ.symbol().prototype().isConcrete() || templ.codegenData() )
             return;
 
-        if ( auto defn = decl.definition() ) {
+        if ( auto defn = templ.definition() ) {
             for ( auto c : defn->childDeclarations() )
                 dispatch(*c);
 
@@ -793,38 +567,45 @@ private:
         dgn.die();
     }
 
-    llvm::Type* toType(ast::Expression const& expr)
+private:
+    template <typename T>
+    LLVMCustomData<T>* cgd(T const& ast)
     {
-        return codegen::toType(module->getContext(), expr);
+        if ( !ast.codegenData() )
+            dispatch(ast);
+
+        return customData(ast);
     }
 
-    llvm::Type* toType(ast::Declaration const& decl)
+    template<>
+    LLVMCustomData<ast::Module>* cgd(ast::Module const& mod)
     {
-        return codegen::toType(decl);
+        // todo
+        return customData(mod);
     }
 
-    llvm::Constant* toLiteral(llvm::IRBuilder<>& builder, llvm::Type* destType, lexer::Token const& token)
+    ::llvm::Constant* toLiteral(::llvm::IRBuilder<>& builder, ::llvm::Type* destType, lexer::Token const& token)
     {
         switch ( token.kind() ) {
         case lexer::TokenKind::Integer:
         {
-            auto intType = llvm::dyn_cast_or_null<llvm::IntegerType>(destType);
+            auto intType = ::llvm::dyn_cast_or_null<::llvm::IntegerType>(destType);
             if ( !intType ) {
-                auto bits = llvm::APInt::getBitsNeeded(strRef(token.lexeme()), 10);
-                return builder.getInt(llvm::APInt(bits, strRef(token.lexeme()), 10));
+                auto bits = ::llvm::APInt::getBitsNeeded(strRef(token.lexeme()), 10);
+                return builder.getInt(::llvm::APInt(bits, strRef(token.lexeme()), 10));
             }
 
-            return llvm::ConstantInt::get(intType, strRef(token.lexeme()), 10);
+            return ::llvm::ConstantInt::get(intType, strRef(token.lexeme()), 10);
         }
         case lexer::TokenKind::Rational:
-            return llvm::ConstantFP::get(destType, strRef(token.lexeme()));
+            return ::llvm::ConstantFP::get(destType, strRef(token.lexeme()));
         case lexer::TokenKind::String:
         {
-            auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::ascii))->type);
+            auto const strType = ::llvm::dyn_cast<::llvm::StructType>(cgd(*sourceModule.axioms().intrinsic(ast::ascii))->type);
             if ( destType != strType )
                 return nullptr;
 
-            return customData(sourceModule)->interpretString(dgn, builder, sourceModule, token);
+            return cgd(sourceModule)->interpretString(dgn, builder, sourceModule, token);
         }
 
         default:
@@ -833,27 +614,27 @@ private:
         }
     }
 
-    llvm::Value* toRef(llvm::IRBuilder<>& builder, ast::Expression const& expr_)
+    ::llvm::Value* toRef(::llvm::IRBuilder<>& builder, ast::Expression const& expr_)
     {
         auto expr = resolveIndirections(&expr_);
         if ( auto dot = expr->as<ast::DotExpression>() ) {
-            llvm::Value* ret = nullptr;
+            ::llvm::Value* ret = nullptr;
             auto exprs = dot->expressions();
             for ( auto e : exprs ) {
                 e = resolveIndirections(e);
                 if ( auto decl = getDeclaration(e) ) {
                     if ( auto var = decl->as<ast::VariableDeclaration>() ) {
-                        ret = customData(*var)->inst;
+                        ret = cgd(*var)->inst;
                         continue;
                     }
 
                     if ( auto param = decl->as<ast::ProcedureParameter>() ) {
-                        ret = customData(*param)->arg;
+                        ret = cgd(*param)->arg;
                         continue;
                     }
 
                     if ( auto field = decl->as<ast::DataProductDeclaration::Field>() ) {
-                        auto fdata = customData(*field);
+                        auto fdata = cgd(*field);
                         ret = builder.CreateStructGEP(nullptr, ret, fdata->index);
                         continue;
                     }
@@ -877,10 +658,10 @@ private:
 
         if ( auto decl = getDeclaration(expr) ) {
             if ( auto var = decl->as<ast::VariableDeclaration>() )
-                return customData(*var)->inst;
+                return cgd(*var)->inst;
 
             if ( auto param = decl->as<ast::ProcedureParameter>() )
-                return customData(*param)->arg;
+                return cgd(*param)->arg;
         }
 
         if ( auto app = expr->as<ast::ApplyExpression>() ) {
@@ -889,8 +670,8 @@ private:
             {
                 auto arr = toRef(builder, *app->subject());
                 auto idx = toValue(builder, builder.getInt64Ty(), *app->expressions()[1]);
-                llvm::Value* idxList[] = {
-                    llvm::ConstantInt::get(idx->getType(), 0),
+                ::llvm::Value* idxList[] = {
+                    ::llvm::ConstantInt::get(idx->getType(), 0),
                     idx,
                 };
                 return builder.CreateGEP(arr, idxList);
@@ -900,7 +681,7 @@ private:
         return nullptr;
     }
 
-    llvm::Value* toValue(llvm::IRBuilder<>& builder, llvm::Type* destType, ast::Expression const& expression)
+    ::llvm::Value* toValue(::llvm::IRBuilder<>& builder, ::llvm::Type* destType, ast::Expression const& expression)
     {
         auto ret = toValue_impl(builder, destType, expression);
         if ( ret && ret->getType()->isPointerTy() && ret->getType()->getPointerElementType() == destType )
@@ -910,7 +691,7 @@ private:
     }
 
     // todo: removeme
-    llvm::Value* toValue_impl(llvm::IRBuilder<>& builder, llvm::Type* destType, ast::Expression const& expression)
+    ::llvm::Value* toValue_impl(::llvm::IRBuilder<>& builder, ::llvm::Type* destType, ast::Expression const& expression)
     {
         auto const& axioms = sourceModule.axioms();
         auto const& expr = *resolveIndirections(&expression);
@@ -921,13 +702,13 @@ private:
             return toLiteral(builder, destType, lit->token());
 
         if ( auto dot = expr.as<ast::DotExpression>() ) {
-            llvm::Value* ret = nullptr;
+            ::llvm::Value* ret = nullptr;
             auto exprs = dot->expressions();
             for ( auto const& e : exprs ) {
                 if ( auto decl = getDeclaration(e) ) {
                     if ( auto field = decl->as<ast::DataProductDeclaration::Field>() ) {
                         assert(ret && "expected field comes after another value");
-                        auto fieldData = customData(*field);
+                        auto fieldData = cgd(*field);
                         if ( ret->getType()->isPointerTy() )
                             ret = builder.CreateLoad(builder.CreateStructGEP(nullptr, ret, fieldData->index));
                         else
@@ -958,23 +739,20 @@ private:
             if ( !decl ) {
                 auto d = resolveIndirections(getDeclaration(*id->type()));
                 if ( d == axioms.intrinsic(ast::PointerNullLiteralType) ) {
-                    auto ptrType = llvm::dyn_cast_or_null<llvm::PointerType>(destType);
-                    return llvm::ConstantPointerNull::get(ptrType);
+                    auto ptrType = ::llvm::dyn_cast_or_null<::llvm::PointerType>(destType);
+                    return ::llvm::ConstantPointerNull::get(ptrType);
                 }
 
                 die("unresolved identifier");
             }
 
-            if ( auto dsCtor = decl->as<ast::DataSumDeclaration::Constructor>() )
-                die("dsctor not implemented");
-
             if ( auto param = decl->as<ast::ProcedureParameter>() ) {
-                auto pdata = customData(*param);
+                auto pdata = cgd(*param);
                 return pdata->arg;
             }
 
             if ( auto var = decl->as<ast::VariableDeclaration>() ) {
-                auto vdata = customData(*var);
+                auto vdata = cgd(*var);
                 // todo: removeme
                 if ( destType && destType->isPointerTy() )
                     return vdata->inst;
@@ -986,7 +764,7 @@ private:
             }
 
             if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
-                auto pdata = customData(*proc);
+                auto pdata = cgd(*proc);
                 return builder.CreateCall(pdata->getFunction(module));
             }
 
@@ -996,7 +774,7 @@ private:
         if ( auto a = expr.as<ast::ApplyExpression>() ) {
             auto const& exprs = a->expressions();
             auto proc = a->procedure();
-            llvm::Value* fptr = nullptr;
+            ::llvm::Value* fptr = nullptr;
             if ( !proc ) {
                 proc = getProcedure(*a->subject());
                 if ( !proc )
@@ -1022,11 +800,11 @@ private:
                 if ( tup->kind() == ast::TupleKind::Open )
                     formalParams = tup->expressions();
 
-            std::vector<llvm::Value*> args;
+            std::vector<::llvm::Value*> args;
             args.reserve(exprs.card());
 
             for ( uz i = 1; i < exprs.card(); ++i ) {
-                auto paramType = toType(*formalParams[i - 1]);
+                auto paramType = ctx.toType(*formalParams[i - 1]);
                 auto val = toValue(builder, paramType, *exprs[i]);
                 if ( !val )
                     die("cannot determine arg");
@@ -1034,7 +812,7 @@ private:
             }
 
             if ( proc )
-                return builder.CreateCall(customData(*proc)->getFunction(module), args);
+                return builder.CreateCall(cgd(*proc)->getFunction(module), args);
 
             return builder.CreateCall(fptr, args);
         }
@@ -1057,7 +835,7 @@ private:
         }
 
         if ( auto l = expr.as<ast::LambdaExpression>() ) {
-            auto pdata = customData(l->procedure());
+            auto pdata = cgd(l->procedure());
             return pdata->getFunction(module);
         }
 
@@ -1075,9 +853,9 @@ private:
         return false;
     }
 
-    llvm::Value* intrinsicInstruction(llvm::IRBuilder<>& builder,
-                                      llvm::Type* /*destType*/,
-                                      ast::Expression const& expr)
+    ::llvm::Value* intrinsicInstruction(::llvm::IRBuilder<>& builder,
+                                        ::llvm::Type* /*destType*/,
+                                        ast::Expression const& expr)
     {
         auto a = expr.as<ast::ApplyExpression>();
         if ( !a )
@@ -1094,8 +872,8 @@ private:
                     // assume it's indexing into the tuple
                     auto arr = toRef(builder, *subj);
                     auto idx = toValue(builder, builder.getInt64Ty(), *a->expressions()[1]);
-                    llvm::Value* idxList[] = {
-                        llvm::ConstantInt::get(idx->getType(), 0),
+                    ::llvm::Value* idxList[] = {
+                        ::llvm::ConstantInt::get(idx->getType(), 0),
                         idx,
                     };
                     return builder.CreateGEP(arr, idxList);
@@ -1108,30 +886,30 @@ private:
                 die("apply is not implemented for tuples");
 
             auto arr = toRef(builder, *subj);
-            auto idxPtr = llvm::IRBuilder<>(&builder.GetInsertBlock()->getParent()->getEntryBlock()).CreateAlloca(builder.getInt64Ty());
-            auto const zero = llvm::ConstantInt::get(builder.getInt64Ty(), 0);
-            auto const one = llvm::ConstantInt::get(builder.getInt64Ty(), 1);
-            auto const card = llvm::ConstantInt::get(builder.getInt64Ty(), tup->elementsCount());
+            auto idxPtr = ::llvm::IRBuilder<>(&builder.GetInsertBlock()->getParent()->getEntryBlock()).CreateAlloca(builder.getInt64Ty());
+            auto const zero = ::llvm::ConstantInt::get(builder.getInt64Ty(), 0);
+            auto const one = ::llvm::ConstantInt::get(builder.getInt64Ty(), 1);
+            auto const card = ::llvm::ConstantInt::get(builder.getInt64Ty(), tup->elementsCount());
 
             builder.CreateStore(zero, idxPtr);
-            auto condBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
+            auto condBlock = ::llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
             builder.CreateBr(condBlock);
 
             builder.SetInsertPoint(condBlock);
             auto idx = builder.CreateLoad(idxPtr);
             auto cond = builder.CreateICmpNE(idx, card);
-            auto loopBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
-            auto mergeBlock = llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
+            auto loopBlock = ::llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
+            auto mergeBlock = ::llvm::BasicBlock::Create(builder.getContext(), "", builder.GetInsertBlock()->getParent());
             builder.CreateCondBr(cond, loopBlock, mergeBlock);
 
             builder.SetInsertPoint(loopBlock);
-            llvm::Value* idxList[] = {
-                llvm::ConstantInt::get(idxPtr->getAllocatedType(), 0),
+            ::llvm::Value* idxList[] = {
+                ::llvm::ConstantInt::get(idxPtr->getAllocatedType(), 0),
                 idx,
             };
             auto elemPtr = builder.CreateGEP(arr, idxList);
-            llvm::Value* args[] = { elemPtr };
-            builder.CreateCall(customData(*proc)->getFunction(module), args);
+            ::llvm::Value* args[] = { elemPtr };
+            builder.CreateCall(cgd(*proc)->getFunction(module), args);
 
             auto next = builder.CreateAdd(idx, one);
             builder.CreateStore(next, idxPtr);
@@ -1157,33 +935,33 @@ private:
           || rootTempl == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
         {
             return toLiteral(builder,
-                             toType(*proc->result()->type()),
+                             ctx.toType(*proc->result()->type()),
                              exprs[1]->as<ast::LiteralExpression>()->token());
         }
         else if ( rootTempl == &axioms.intrinsic(ast::UnsignedFromUnsigned)->symbol() )
         {
-            return builder.CreateZExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
-                                      toType(*proc->parameters()[0]->type()));
+            return builder.CreateZExt(toValue(builder, ctx.toType(*proc->result()->type()), *exprs[1]),
+                                      ctx.toType(*proc->parameters()[0]->type()));
         }
         else if ( rootTempl == &axioms.intrinsic(ast::SignedFromSigned)->symbol() )
         {
-            return builder.CreateSExt(toValue(builder, toType(*proc->result()->type()), *exprs[1]),
-                                      toType(*proc->parameters()[0]->type()));
+            return builder.CreateSExt(toValue(builder, ctx.toType(*proc->result()->type()), *exprs[1]),
+                                      ctx.toType(*proc->parameters()[0]->type()));
         }
         else if ( rootTempl == &axioms.intrinsic(ast::UnsignedSucc)->symbol()
                || rootTempl == &axioms.intrinsic(ast::UnsignedPred)->symbol()
                || rootTempl == &axioms.intrinsic(ast::SignedSucc  )->symbol()
                || rootTempl == &axioms.intrinsic(ast::SignedPred  )->symbol() )
         {
-            auto selfType = toType(*getDeclaration(*proc->parameters()[0]->type()));
+            auto selfType = ctx.toType(*getDeclaration(*proc->parameters()[0]->type()));
             auto val = toValue(builder, selfType, *exprs[1]);
             auto const isAdd = rootTempl == &axioms.intrinsic(ast::UnsignedSucc)->symbol()
                             || rootTempl == &axioms.intrinsic(ast::UnsignedPred)->symbol()
                             || rootTempl == &axioms.intrinsic(ast::SignedSucc  )->symbol()
                             || rootTempl == &axioms.intrinsic(ast::SignedPred  )->symbol();
             auto nextVal = isAdd
-                ? builder.CreateAdd(val, llvm::ConstantInt::get(selfType, 1))
-                : builder.CreateSub(val, llvm::ConstantInt::get(selfType, 1));
+                ? builder.CreateAdd(val, ::llvm::ConstantInt::get(selfType, 1))
+                : builder.CreateSub(val, ::llvm::ConstantInt::get(selfType, 1));
             return nextVal;
         }
         else if ( rootTempl == &axioms.intrinsic(ast::UnsignedInc)->symbol()
@@ -1191,15 +969,15 @@ private:
                || rootTempl == &axioms.intrinsic(ast::UnsignedDec)->symbol()
                || rootTempl == &axioms.intrinsic(ast::SignedDec  )->symbol() )
         {
-            auto selfType = toType(removeReference(*getDeclaration(*proc->parameters()[0]->type())));
+            auto selfType = ctx.toType(removeReference(*getDeclaration(*proc->parameters()[0]->type())));
             auto selfRef = toRef(builder, *exprs[1]);
             auto val = builder.CreateLoad(selfRef);
 
             auto const isAdd = rootTempl == &axioms.intrinsic(ast::UnsignedInc )->symbol()
                             || rootTempl == &axioms.intrinsic(ast::SignedInc   )->symbol();
             auto nextVal = isAdd
-                ? builder.CreateAdd(val, llvm::ConstantInt::get(selfType, 1))
-                : builder.CreateSub(val, llvm::ConstantInt::get(selfType, 1));
+                ? builder.CreateAdd(val, ::llvm::ConstantInt::get(selfType, 1))
+                : builder.CreateSub(val, ::llvm::ConstantInt::get(selfType, 1));
 
             builder.CreateStore(nextVal, selfRef);
             return selfRef;
@@ -1210,21 +988,21 @@ private:
             auto arr = toRef(builder, *exprs[1]);
             auto basePtr = builder.CreateStructGEP(nullptr, arr, 0);
             auto baseVal = builder.CreateLoad(basePtr);
-            auto idx = toValue(builder, toType(*proc->parameters()[1]->type()), *exprs[2]);
+            auto idx = toValue(builder, ctx.toType(*proc->parameters()[1]->type()), *exprs[2]);
             return builder.CreateGEP(baseVal, idx);
         }
         else if ( rootTempl == &axioms.intrinsic(ast::implicitStringToAscii)->symbol() )
         {
-            auto const strType = llvm::dyn_cast<llvm::StructType>(customData(*sourceModule.axioms().intrinsic(ast::ascii))->type);
+            auto const strType = ::llvm::dyn_cast<::llvm::StructType>(cgd(*sourceModule.axioms().intrinsic(ast::ascii))->type);
             auto const& str = sourceModule.interpretString(dgn, exprs[1]->as<ast::LiteralExpression>()->token());
-            auto gv = customData(sourceModule)->getString(builder, str);
+            auto gv = cgd(sourceModule)->getString(builder, str);
             auto zero = builder.getInt32(0);
-            llvm::Constant* idx[] = { zero, zero };
-            llvm::Constant* s[2] = {
-                llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
+            ::llvm::Constant* idx[] = { zero, zero };
+            ::llvm::Constant* s[2] = {
+                ::llvm::ConstantExpr::getInBoundsGetElementPtr(gv->getValueType(), gv, idx),
                 builder.getInt64(str.card())
             };
-            return llvm::ConstantStruct::get(strType, s);
+            return ::llvm::ConstantStruct::get(strType, s);
         }
 
         // todo: hash lookup
@@ -1266,8 +1044,8 @@ private:
 
 #define X(ID,LLVMSUFFIX)                                                                             \
         else if ( rootTempl == &axioms.intrinsic(ast::ID)->symbol() ) { \
-            auto t1 = toType(*proc->parameters()[0]->type());                                        \
-            auto t2 = toType(*proc->parameters()[1]->type());                                        \
+            auto t1 = ctx.toType(*proc->parameters()[0]->type());                                        \
+            auto t2 = ctx.toType(*proc->parameters()[1]->type());                                        \
             auto p1 = toValue(builder, t1, *exprs[1]);                                               \
             auto p2 = toValue(builder, t2, *exprs[2]);                                               \
             return builder.Create##LLVMSUFFIX(p1, p2);                                               \
@@ -1281,17 +1059,17 @@ private:
 
         else if ( proc == axioms.intrinsic(ast::Not) )
         {
-            return builder.CreateNot(toValue(builder, toType(*proc->parameters()[0]->type()), *exprs[1]));
+            return builder.CreateNot(toValue(builder, ctx.toType(*proc->parameters()[0]->type()), *exprs[1]));
         }
         else if ( rootTempl == &axioms.intrinsic(ast::Truncu)->symbol()
                || rootTempl == &axioms.intrinsic(ast::Truncs)->symbol() )
         {
-            auto srcType = toType(*proc->parameters()[0]->type());
-            auto dstType = toType(*proc->returnType());
+            auto srcType = ctx.toType(*proc->parameters()[0]->type());
+            auto dstType = ctx.toType(*proc->returnType());
 
             {
-                auto srcInt = llvm::dyn_cast_or_null<llvm::IntegerType>(srcType);
-                auto dstInt = llvm::dyn_cast_or_null<llvm::IntegerType>(dstType);
+                auto srcInt = ::llvm::dyn_cast_or_null<::llvm::IntegerType>(srcType);
+                auto dstInt = ::llvm::dyn_cast_or_null<::llvm::IntegerType>(dstType);
                 if ( !srcInt || !dstInt )
                     die("trunc instruction parameter is not an integer");
 
@@ -1311,337 +1089,11 @@ private:
         }
         else if ( rootTempl == &axioms.intrinsic(ast::Cast)->symbol() ) {
             auto templ = procTemplate(*proc);
-            return builder.CreatePointerCast(toValue(builder, nullptr, *resolveIndirections(exprs[1])), toType(*templ->symbol().prototype().pattern()[0]));
+            return builder.CreatePointerCast(toValue(builder, nullptr, *resolveIndirections(exprs[1])), ctx.toType(*templ->symbol().prototype().pattern()[0]));
         }
 
         return nullptr;
     }
 };
 
-//
-// LLVMGenerator::LLVMState
-
-struct LLVMGenerator::LLVMState
-{
-    Diagnostics& dgn;
-    ast::ModuleSet& moduleSet;
-
-    Box<llvm::LLVMContext> context;
-
-    LLVMState(Diagnostics& dgn,
-              ast::ModuleSet& moduleSet)
-        : dgn(dgn)
-        , moduleSet(moduleSet)
-        , context(mk<llvm::LLVMContext>())
-    {
-    }
-
-    ~LLVMState()
-    {
-        for ( auto& m : moduleSet.modules() )
-            m->setCodegenData(nullptr);
-    }
-
-    ast::AxiomsModule const& axioms() const
-    {
-        return moduleSet.axioms();
-    }
-
-    void write(ast::Module const& module, std::filesystem::path const& path)
-    {
-        /*
-        InitializeAllTargetInfos();
-        InitializeAllTargets();
-        InitializeAllTargetMCs();
-        */
-        llvm::InitializeNativeTarget();
-
-        /*
-        InitializeAllAsmParsers();
-        */
-        llvm::InitializeNativeTargetAsmParser();
-
-        /*
-        InitializeAllAsmPrinters();
-        */
-        llvm::InitializeNativeTargetAsmPrinter();
-
-        auto targetTriple = llvm::sys::getDefaultTargetTriple();
-        auto m = customData(module)->module.get();
-        m->setTargetTriple(targetTriple);
-
-        std::string err;
-        auto target = llvm::TargetRegistry::lookupTarget(targetTriple, err);
-
-        if ( !target ) {
-            dgn.error(module) << err;
-            return;
-        }
-
-        auto cpu = "generic";
-        auto features = "";
-
-        llvm::TargetOptions opt;
-        auto rm = llvm::Optional<llvm::Reloc::Model>();
-        auto targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, rm);
-
-        m->setDataLayout(targetMachine->createDataLayout());
-
-        auto sourcePath = module.path();
-        if ( sourcePath.empty() ) {
-            dgn.error(module) << "cannot determine output name for module";
-            return;
-        }
-
-        std::error_code ec;
-        llvm::raw_fd_ostream outFile(path.string(), ec, llvm::sys::fs::F_None);
-
-        if ( ec ) {
-            dgn.error(module) << "failed to write object file: " << ec.message();
-            return;
-        }
-
-        llvm::legacy::PassManager pass;
-        if ( targetMachine->addPassesToEmitFile(pass, outFile, nullptr, llvm::TargetMachine::CGFT_ObjectFile) ) {
-            dgn.error(module) << "cannot emit a file of this type for target machine " << targetTriple;
-            return;
-        }
-
-        pass.run(*m);
-        outFile.flush();
-    }
-
-    void writeIR(ast::Module const& module, std::filesystem::path const& path)
-    {
-        auto sourcePath = module.path();
-        if ( sourcePath.empty() ) {
-            dgn.error(module) << "cannot determine output name for module";
-            return;
-        }
-
-        std::error_code ec;
-        llvm::raw_fd_ostream outFile(path.string(), ec, llvm::sys::fs::F_None);
-
-        if ( ec ) {
-            dgn.error(module) << "failed to write IR file: " << ec.message();
-            return;
-        }
-
-        customData(module)->module->print(outFile, nullptr);
-    }
-
-    void generate(ast::Module const& module)
-    {
-        module.setCodegenData(mk<LLVMCustomData<ast::Module>>());
-        auto mdata = customData(module);
-        mdata->module = mk<llvm::Module>(mkString(module.name()), *context);
-
-        ast::ShallowApply<InitCodeGenPass> init(dgn, module);
-        for ( auto d : module.scope()->childDeclarations() )
-            init(*d);
-
-        for ( auto d : module.scope()->childLambdas() )
-            init(*d);
-
-        for ( auto d : module.templateInstantiations() )
-            init(*d);
-
-        registerTypes(module, *module.scope());
-        // todo: HACK needs dependency analysis
-        for ( auto i = module.templateInstantiations().card() - 1; ~i; --i )
-            registerTypes(module, *module.templateInstantiations()[i]);
-
-        ast::ShallowApply<CodeGenPass> gen(dgn, mdata->module.get(), module);
-        for ( auto d : module.templateInstantiations() )
-            gen(*d);
-        for ( auto d : module.scope()->childDeclarations() )
-            gen(*d);
-        for ( auto d : module.scope()->childLambdas() )
-            gen(*d);
-
-        gen.getOperator().generateProcBodies();
-
-        if ( verifyModule(*mdata->module, &llvm::errs()) ) {
-#ifndef NDEBUG
-            mdata->module->dump();
-#endif
-            dgn.die();
-        }
-    }
-
-    llvm::Type* toType(ast::Expression const& expr)
-    {
-        return codegen::toType(*context, expr);
-    }
-
-    llvm::Type* intrinsicType(ast::Declaration const& decl)
-    {
-        if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
-            auto dsData = customData(*ds);
-            if ( dsData->type )
-                return dsData->type;
-
-            if ( ds == axioms().intrinsic(ast::IntegerLiteralType )
-              || ds == axioms().intrinsic(ast::RationalLiteralType) )
-            {
-                dsData->type = (llvm::Type*)0x1; // todo: choose width based on expression
-                return dsData->type;
-            }
-
-            auto const& sym = ds->symbol();
-            if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate)->symbol()
-              || rootTemplate(sym) == &axioms().intrinsic(ast::ReferenceTemplate)->symbol() )
-            {
-                auto t = toType(*sym.prototype().pattern()[0]);
-                if ( t->isVoidTy() )
-                    dsData->type = llvm::Type::getInt8PtrTy(*context);
-                else
-                    dsData->type = llvm::PointerType::getUnqual(t);
-                return dsData->type;
-            }
-        }
-
-        if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
-            auto dpData = customData(*dp);
-            if ( dpData->type )
-                return dpData->type;
-
-                 if ( dp == axioms().intrinsic(ast::u1  ) ) return dpData->type = llvm::Type::getInt1Ty  (*context);
-            else if ( dp == axioms().intrinsic(ast::u8  ) ) return dpData->type = llvm::Type::getInt8Ty  (*context);
-            else if ( dp == axioms().intrinsic(ast::u16 ) ) return dpData->type = llvm::Type::getInt16Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::u32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::u64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::u128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
-            else if ( dp == axioms().intrinsic(ast::s8  ) ) return dpData->type = llvm::Type::getInt8Ty  (*context);
-            else if ( dp == axioms().intrinsic(ast::s16 ) ) return dpData->type = llvm::Type::getInt16Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::s32 ) ) return dpData->type = llvm::Type::getInt32Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::s64 ) ) return dpData->type = llvm::Type::getInt64Ty (*context);
-            else if ( dp == axioms().intrinsic(ast::s128) ) return dpData->type = llvm::Type::getInt128Ty(*context);
-        }
-
-        return nullptr;
-    }
-
-    llvm::Type* registerType(ast::Module const& mod, ast::Declaration const& decl)
-    {
-        for ( auto e = decl.symbol().prototype().pattern(); e; e.popFront() ) {
-            if ( auto d = getDeclaration(lookThrough(e.front())) ) {
-                d = resolveIndirections(d);
-                if ( auto b = getBinder(*d) ) {
-                    if ( auto bd = getDeclaration(*b->type()) )
-                        registerType(mod, *resolveIndirections(bd));
-                }
-                else {
-                    registerType(mod, *d);
-                }
-            }
-        }
-
-        if ( auto t = intrinsicType(decl) )
-            return t;
-
-        if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
-            auto defn = ds->definition();
-            if ( !defn )
-                return nullptr;
-
-            auto dsData = customData(*ds);
-            if ( dsData->type )
-                return dsData->type;
-
-            dgn.error(mod, *ds) << "not implemented";
-            dgn.die();
-
-            return nullptr;
-        }
-
-        if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
-            auto defn = dp->definition();
-            if ( !defn )
-                return nullptr;
-
-            auto dpData = customData(*dp);
-            if ( dpData->type )
-                return dpData->type;
-
-            std::vector<llvm::Type*> fieldTypes;
-            fieldTypes.reserve(defn->fields().card());
-            for ( auto& f : defn->fields() ) {
-                auto d = getDeclaration(f->type());
-                auto type = registerType(mod, *resolveIndirections(d));
-                if ( !type ) {
-                    dgn.error(mod, *d) << "type is not registered";
-                    dgn.die();
-                }
-
-                fieldTypes.push_back(type);
-            }
-
-            dpData->type = llvm::StructType::create(*context,
-                                                    fieldTypes,
-                                                    strRef(dp->symbol().token().lexeme()),
-                                                    /*isPacked*/false);
-            return dpData->type;
-        }
-
-        return nullptr;
-    }
-
-    void registerTypes(ast::Module const& m, ast::Scope const& scope)
-    {
-        for ( auto d : scope.childDeclarations() )
-            registerTypes(m, *d);
-
-        for ( auto d : scope.childLambdas() )
-            registerTypes(m, *d);
-    }
-
-    void registerTypes(ast::Module const& m, ast::Declaration const& decl)
-    {
-        auto d = resolveIndirections(&decl);
-        if ( !d->symbol().prototype().isConcrete() )
-            return;
-
-        registerType(m, *d);
-
-        if ( auto ds = d->as<ast::DataSumDeclaration>() ) {
-            if ( auto defn = ds->definition() )
-                registerTypes(m, *defn);
-        }
-        else if ( auto dp = d->as<ast::DataProductDeclaration>() ) {
-            if ( auto defn = dp->definition() )
-                registerTypes(m, *defn);
-        }
-        else if ( auto proc = d->as<ast::ProcedureDeclaration>() ) {
-            if ( auto defn = proc->definition() )
-                registerTypes(m, *defn);
-        }
-    }
-};
-
-//
-// LLVMGenerator
-
-LLVMGenerator::LLVMGenerator(Diagnostics& dgn, ast::ModuleSet& moduleSet)
-    : myImpl(mk<LLVMState>(dgn, moduleSet))
-{
-}
-
-LLVMGenerator::~LLVMGenerator() = default;
-
-void LLVMGenerator::generate(ast::Module const& module)
-{
-    myImpl->generate(module);
-}
-
-void LLVMGenerator::write(ast::Module const& module, std::filesystem::path const& path)
-{
-    myImpl->write(module, path);
-}
-
-void LLVMGenerator::writeIR(ast::Module const& module, std::filesystem::path const& path)
-{
-    myImpl->writeIR(module, path);
-}
-
-} // namespace kyfoo::codegen
+} // namespace kyfoo::codegen::llvm

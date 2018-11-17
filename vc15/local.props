@@ -15,6 +15,9 @@
       <AdditionalIncludeDirectories>..\..\include;..\..\contrib</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <WarningLevel>Level4</WarningLevel>
+      <AssemblerListingLocation>$(IntDir)\_1\_2\%(RelativeDir)</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)\_1\_2\%(RelativeDir)</ObjectFileName>
+      <XMLDocumentationFileName>$(IntDir)\_1\_2\%(RelativeDir)</XMLDocumentationFileName>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>

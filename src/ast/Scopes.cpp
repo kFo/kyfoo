@@ -413,7 +413,7 @@ SymRes DataSumScope::resolveDeclarations(Context& ctx)
         return *myDeclRes;
 
     for ( auto const& d : myDeclarations ) {
-        auto dsCtor = d->as<DataSumDeclaration::Constructor>();
+        auto dsCtor = d->as<DataProductDeclaration>();
         ENFORCE(dsCtor, "data sum must only contain constructors");
 
         myCtors.emplace_back(dsCtor);
@@ -432,12 +432,12 @@ DataSumDeclaration* DataSumScope::declaration()
     return static_cast<DataSumDeclaration*>(myDeclaration);
 }
 
-Slice<DataSumDeclaration::Constructor*> DataSumScope::constructors()
+Slice<DataProductDeclaration*> DataSumScope::constructors()
 {
     return myCtors;
 }
 
-Slice<DataSumDeclaration::Constructor const*> DataSumScope::constructors() const
+Slice<DataProductDeclaration const*> DataSumScope::constructors() const
 {
     return myCtors;
 }

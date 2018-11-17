@@ -307,12 +307,6 @@ public:
         return traceDecl(ds);
     }
 
-    result_t declDataSumCtor(DataSumDeclaration::Constructor const& dsCtor)
-    {
-        REVERT = pushLocal(dsCtor);
-        return traceDecl(dsCtor);
-    }
-
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
         REVERT = pushLocal(dp);

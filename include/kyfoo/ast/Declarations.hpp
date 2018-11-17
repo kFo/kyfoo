@@ -21,7 +21,6 @@ namespace kyfoo {
 
 #define DECLARATION_KINDS(X)                                                      \
     X(DataSum           , "data sum"           , DataSumDeclaration             ) \
-    X(DataSumCtor       , "data sum ctor"      , DataSumDeclaration::Constructor) \
     X(DataProduct       , "data product"       , DataProductDeclaration         ) \
     X(Field             , "field"              , DataProductDeclaration::Field  ) \
     X(Symbol            , "symbol"             , SymbolDeclaration              ) \
@@ -170,44 +169,6 @@ class DataSumDeclaration : public DefinableMixin<DataSumScope>
 public:
     using base_t = DefinableMixin;
     friend class Context;
-
-public:
-    class Constructor : public Declaration
-    {
-    public:
-        friend class Context;
-
-    public:
-        Constructor(Symbol&& symbol,
-                    std::vector<Box<VariableDeclaration>>&& pattern);
-
-    protected:
-        Constructor(Constructor const& rhs);
-        Constructor& operator = (Constructor const& rhs);
-
-    public:
-        Constructor(Constructor&&) = delete;
-
-        ~Constructor() KYFOO_DEBUG_OVERRIDE;
-
-        void swap(Constructor& rhs) noexcept;
-
-        // Declaration
-    public:
-        DECL_CLONE_ALL(Declaration)
-
-    protected:
-        SymRes resolveSymbols(Context& ctx);
-
-    public:
-        void setParent(DataSumDeclaration* dsDecl);
-        DataSumDeclaration* parent();
-        DataSumDeclaration const* parent() const;
-
-    private:
-        DataSumDeclaration* myParent = nullptr;
-        std::vector<Box<VariableDeclaration>> myPattern;
-    };
 
 public:
     explicit DataSumDeclaration(Symbol&& symbol);

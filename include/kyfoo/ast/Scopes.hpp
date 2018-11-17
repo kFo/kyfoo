@@ -167,11 +167,11 @@ protected:
 public:
     DataSumDeclaration* declaration();
 
-    Slice<DataSumDeclaration::Constructor*> constructors();
-    Slice<DataSumDeclaration::Constructor const*> constructors() const;
+    Slice<DataProductDeclaration      *> constructors();
+    Slice<DataProductDeclaration const*> constructors() const;
 
 private:
-    std::vector<DataSumDeclaration::Constructor*> myCtors;
+    std::vector<DataProductDeclaration*> myCtors;
 };
 
 class DataProductScope : public Scope

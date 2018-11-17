@@ -37,6 +37,12 @@
     <Filter Include="include\kyfoo\allocators">
       <UniqueIdentifier>{7740a10e-323f-4354-a3cc-820da8f59362}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\kyfoo\codegen\llvm">
+      <UniqueIdentifier>{1d873074-ea02-45a2-97b5-f1de1c999aff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\codegen\llvm">
+      <UniqueIdentifier>{45d32ff0-e0b1-4bba-9146-7fefcaa4a006}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\kyfoo\Allocators.hpp">
@@ -156,9 +162,6 @@
     <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp">
       <Filter>include\kyfoo\codegen</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\codegen\LLVM.hpp">
-      <Filter>include\kyfoo\codegen</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\allocators\AscendingAllocator.hpp">
       <Filter>include\kyfoo\allocators</Filter>
     </ClInclude>
@@ -188,6 +191,21 @@
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Range.hpp">
       <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Math.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Intrinsics.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\codegen\llvm\Generator.hpp">
+      <Filter>include\kyfoo\codegen\llvm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\codegen\llvm\Visitors.hpp">
+      <Filter>src\codegen\llvm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\codegen\llvm\Context.hpp">
+      <Filter>src\codegen\llvm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -248,11 +266,14 @@
     <ClCompile Include="..\..\src\ast\Variance.cpp">
       <Filter>src\ast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\codegen\LLVM.cpp">
-      <Filter>src\codegen</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ast\Axioms.cpp">
       <Filter>src\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\codegen\llvm\Generator.cpp">
+      <Filter>src\codegen\llvm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\codegen\llvm\Context.cpp">
+      <Filter>src\codegen\llvm</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
