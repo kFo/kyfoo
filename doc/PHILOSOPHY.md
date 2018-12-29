@@ -5,7 +5,7 @@ largely incomplete, this gives lurkers insight into whether to "pass" on kyfoo a
 # Static vs Dynamic
 Kyfoo is a statically typed language. The core value for this decision is the desire to catch errors at compile-time before they have a chance to reach production systems. We value the addage "If it compiles, it works."
 
-In any decision of static vs dynamic, we favor static. The guiding principle is that static implies compile-time overhead as opposed to run-time overhead. Dynamic capabilities are be constructed from static ones, following the optional run-time overhead core value.
+In any decision of static vs dynamic, we favor static. The guiding principle is that static implies compile-time overhead as opposed to run-time overhead. Dynamic capabilities are to be constructed from static ones, following the optional run-time overhead core value.
 
 Kyfoo programs are to be thought of as proofs. The static checker evaluates all of the semantic rules of the language to decide whether a kyfoo program is well formed. This is analogous to checking one's deductive logic in a proof.
 
