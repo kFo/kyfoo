@@ -199,33 +199,6 @@ Scope const* DefinableDeclaration::definition() const
 }
 
 //
-// DataSumDeclaration
-
-DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
-    : base_t(DeclKind::DataSum, std::move(symbol))
-{
-}
-
-DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const&) = default;
-
-DataSumDeclaration::~DataSumDeclaration() = default;
-
-void DataSumDeclaration::swap(DataSumDeclaration& rhs) noexcept
-{
-    base_t::swap(rhs);
-}
-
-IMPL_CLONE_BEGIN(DataSumDeclaration, base_t, Declaration)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, base_t)
-IMPL_CLONE_REMAP_END
-
-SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
-{
-    return base_t::resolveSymbols(ctx);
-}
-
-//
 // Binder
 
 Binder::Binder(DeclKind kind,
@@ -319,6 +292,215 @@ Expression const* Binder::type() const
 }
 
 //
+// Field
+
+Field::Field(DataProductDeclaration& parent,
+             Symbol&& symbol,
+             std::vector<Box<Expression>> constraints,
+             Box<Expression> init)
+    : Binder(DeclKind::Field, std::move(symbol), nullptr, std::move(constraints))
+    , myParent(&parent)
+    , myInitializer(std::move(init))
+{
+}
+
+Field::Field(Field const& rhs)
+    : Binder(rhs)
+    , myParent(rhs.myParent)
+{
+    // clone myExpression
+}
+
+Field& Field::operator = (Field const& rhs)
+{
+    Field(rhs).swap(*this);
+    return *this;
+}
+
+Field::~Field() = default;
+
+void Field::swap(Field& rhs) noexcept
+{
+    Binder::swap(rhs);
+    using kyfoo::swap;
+    swap(myParent, rhs.myParent);
+}
+
+IMPL_CLONE_BEGIN(Field, Binder, Declaration)
+IMPL_CLONE_CHILD(myInitializer)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(Field, Binder)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myInitializer)
+IMPL_CLONE_REMAP_END
+
+SymRes Field::resolveSymbols(Context& ctx)
+{
+    Resolver resolver(*myParent->definition());
+    REVERT = ctx.pushResolver(resolver);
+    
+    auto ret = Binder::resolveSymbols(ctx);
+    if ( !ret )
+        return ret;
+
+    if ( myInitializer )
+        ret |= ctx.resolveExpression(myInitializer);
+
+    return ret;
+}
+
+DataProductDeclaration* Field::parent()
+{
+    return myParent;
+}
+
+DataProductDeclaration const* Field::parent() const
+{
+    return myParent;
+}
+
+//
+// Constructor
+
+Constructor::Constructor(DataSumDeclaration& parent,
+                         Symbol&& symbol)
+    : Declaration(DeclKind::Constructor, std::move(symbol), nullptr)
+    , myParent(&parent)
+    , myType(createIdentifier(myParent->symbol().token(), *myParent))
+{
+}
+
+Constructor::Constructor(Constructor const& rhs)
+    : Declaration(rhs)
+    , myParent(rhs.myParent)
+{
+    // clone myFields
+}
+
+Constructor& Constructor::operator = (Constructor const& rhs)
+{
+    Constructor(rhs).swap(*this);
+    return *this;
+}
+
+Constructor::~Constructor() = default;
+
+void Constructor::swap(Constructor& rhs) noexcept
+{
+    Declaration::swap(rhs);
+    using kyfoo::swap;
+    swap(myParent, rhs.myParent);
+    swap(myProduct, rhs.myProduct);
+}
+
+IMPL_CLONE_BEGIN(Constructor, Declaration, Declaration)
+IMPL_CLONE_CHILD(myProduct)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(Constructor, Declaration)
+IMPL_CLONE_REMAP(myParent)
+IMPL_CLONE_REMAP(myProduct)
+IMPL_CLONE_REMAP_END
+
+SymRes Constructor::resolveSymbols(Context& ctx)
+{
+    Resolver resolver(*myParent->definition());
+    REVERT = ctx.pushResolver(resolver);
+    
+    SymRes ret;
+    
+    if ( myProduct ) {
+        ret |= ctx.resolveDeclaration(*myProduct);
+        ret |= ctx.resolveScope(*myProduct->definition());
+    }
+
+    return ret;
+}
+
+DataSumDeclaration& Constructor::parent()
+{
+    return *myParent;
+}
+
+DataSumDeclaration const& Constructor::parent() const
+{
+    return *myParent;
+}
+
+DataProductDeclaration* Constructor::product()
+{
+    return myProduct.get();
+}
+
+DataProductDeclaration const* Constructor::product() const
+{
+    return myProduct.get();
+}
+
+Slice<Field*> Constructor::fields()
+{
+    if ( !myProduct )
+        return {};
+
+    return myProduct->definition()->fields();
+}
+
+Slice<Field const*> Constructor::fields() const
+{
+    return const_cast<Constructor*>(this)->fields();
+}
+
+Expression* Constructor::type()
+{
+    return myType.get();
+}
+
+Expression const* Constructor::type() const
+{
+    return myType.get();
+}
+
+void Constructor::appendField(Symbol&& symbol,
+                              std::vector<Box<Expression>> constraints,
+                              Box<Expression> init)
+{
+    if ( !myProduct ) {
+        myProduct = mk<DataProductDeclaration>(makeSym(*mySymbol));
+        auto defn = mk<DataProductScope>(*myParent->definition(), *myProduct);
+        myProduct->define(*defn);
+        myParent->definition()->append(std::move(defn));
+    }
+
+    myProduct->definition()->appendField(std::move(symbol), std::move(constraints), std::move(init));
+}
+
+//
+// DataSumDeclaration
+
+DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
+    : base_t(DeclKind::DataSum, std::move(symbol))
+{
+}
+
+DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const&) = default;
+
+DataSumDeclaration::~DataSumDeclaration() = default;
+
+void DataSumDeclaration::swap(DataSumDeclaration& rhs) noexcept
+{
+    base_t::swap(rhs);
+}
+
+IMPL_CLONE_BEGIN(DataSumDeclaration, base_t, Declaration)
+IMPL_CLONE_END
+IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, base_t)
+IMPL_CLONE_REMAP_END
+
+SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
+{
+    return base_t::resolveSymbols(ctx);
+}
+
+//
 // DataProductDeclaration
 
 DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
@@ -346,79 +528,6 @@ IMPL_CLONE_REMAP_END
 SymRes DataProductDeclaration::resolveSymbols(Context& ctx)
 {
     return base_t::resolveSymbols(ctx);
-}
-
-//
-// DataProductDeclaration::Field
-
-DataProductDeclaration::Field::Field(Symbol&& symbol,
-                                     std::vector<Box<Expression>> constraints,
-                                     Box<Expression> init)
-    : Binder(DeclKind::Field, std::move(symbol), nullptr, std::move(constraints))
-    , myInitializer(std::move(init))
-{
-}
-
-DataProductDeclaration::Field::Field(Field const& rhs)
-    : Binder(rhs)
-    , myParent(rhs.myParent)
-{
-    // clone myExpression
-}
-
-DataProductDeclaration::Field& DataProductDeclaration::Field::operator = (Field const& rhs)
-{
-    Field(rhs).swap(*this);
-    return *this;
-}
-
-DataProductDeclaration::Field::~Field() = default;
-
-void DataProductDeclaration::Field::swap(Field& rhs) noexcept
-{
-    Binder::swap(rhs);
-    using kyfoo::swap;
-    swap(myParent, rhs.myParent);
-}
-
-IMPL_CLONE_BEGIN(DataProductDeclaration::Field, Binder, Declaration)
-IMPL_CLONE_CHILD(myInitializer)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration::Field, Binder)
-IMPL_CLONE_REMAP(myParent)
-IMPL_CLONE_REMAP(myInitializer)
-IMPL_CLONE_REMAP_END
-
-SymRes DataProductDeclaration::Field::resolveSymbols(Context& ctx)
-{
-    Resolver resolver(*myParent->definition());
-    REVERT = ctx.pushResolver(resolver);
-    
-    auto ret = Binder::resolveSymbols(ctx);
-    if ( !ret )
-        return ret;
-
-    if ( myInitializer )
-        ret |= ctx.resolveExpression(myInitializer);
-
-    return ret;
-}
-
-void DataProductDeclaration::Field::setParent(DataProductDeclaration* dpDecl)
-{
-    ENFORCE(!parent(), "field can only belong to one product type");
-
-    myParent = dpDecl;
-}
-
-DataProductDeclaration* DataProductDeclaration::Field::parent()
-{
-    return myParent;
-}
-
-DataProductDeclaration const* DataProductDeclaration::Field::parent() const
-{
-    return myParent;
 }
 
 //
@@ -1015,10 +1124,13 @@ Expression const* getType(Declaration const& decl)
     if ( auto d = decl.as<DataSumDeclaration>() )
         return &Expression::universe(1);
 
+    if ( auto d = decl.as<Constructor>() )
+        return d->type();
+
     if ( auto d = decl.as<DataProductDeclaration>() )
         return &Expression::universe(1);
 
-    if ( auto d = decl.as<DataProductDeclaration::Field>() )
+    if ( auto d = decl.as<Field>() )
         return d->type();
 
     if ( auto d = decl.as<SymbolDeclaration>() )
@@ -1146,7 +1258,12 @@ struct DeclarationPrinter
         return stream << dp.symbol().token().lexeme();
     }
 
-    result_t declField(DataProductDeclaration::Field const& f)
+    result_t declConstructor(Constructor const& c)
+    {
+        return stream << c.symbol().token().lexeme();
+    }
+
+    result_t declField(Field const& f)
     {
         return stream << f.symbol().token().lexeme();
     }

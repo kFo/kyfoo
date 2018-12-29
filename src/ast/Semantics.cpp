@@ -310,15 +310,16 @@ public:
     result_t declDataProduct(DataProductDeclaration const& dp)
     {
         REVERT = pushLocal(dp);
-        auto ret = traceDecl(dp);
-        if ( auto defn = dp.definition() )
-            for ( auto const& field : defn->fields() )
-                ret |= declField(*field);
-
-        return ret;
+        return traceDecl(dp);
     }
 
-    result_t declField(DataProductDeclaration::Field const& dpField)
+    result_t declConstructor(Constructor const& c)
+    {
+        REVERT = pushLocal(c);
+        return traceDecl(c);
+    }
+
+    result_t declField(Field const& dpField)
     {
         REVERT = pushLocal(dpField);
         return traceDecl(dpField);
@@ -384,7 +385,19 @@ SymRes traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
 {
     DeepApply<SymbolDependencyBuilder> op(tracker, decl);
     tracker.add(decl);
-    return op(decl);
+    auto ret = op(decl);
+
+    // data-sum ctors are visible from their parent's scope
+    if ( auto ds = decl.as<DataSumDeclaration>() ) {
+        if ( auto defn = ds->definition() ) {
+            for ( auto ctor : defn->constructors() ) {
+                tracker.add(*ctor);
+                ret |= op(*ctor);
+            }
+        }
+    }
+
+    return ret;
 }
 
 struct MatchEquivalent
@@ -758,21 +771,12 @@ Expression const* dataType(Expression const& expr_)
     return nullptr;
 }
 
-UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression const*> exprs)
+UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression const*> exprs)
 {
     std::vector<Expression const*> potentialTypes;
     potentialTypes.reserve(exprs.card());
-    for ( auto e : exprs ) {
-        // todo: removeme
-        if ( auto tup = e->as<TupleExpression>() ) {
-            if ( !tup->expressions() ) {
-                potentialTypes.emplace_back(e);
-                continue;
-            }
-        }
-
-        potentialTypes.emplace_back(e->type());
-    }
+    for ( auto e : exprs )
+        potentialTypes.emplace_back(e->type()); // todo: type?
 
     if ( potentialTypes.empty() ) {
         ctx.error(gov) << "does not have any types in its context";
@@ -787,8 +791,8 @@ UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression c
     for ( uz i = 1; i < card; ++i ) {
         if ( potentialTypes[i]->kind() != commonKind ) {
             (ctx.error(gov) << "has conflicting kinds of types")
-                .see(gov.scope(), *potentialTypes.front())
-                .see(gov.scope(), *potentialTypes[i]);
+                .see(ctx.resolver().scope(), *potentialTypes.front())
+                .see(ctx.resolver().scope(), *potentialTypes[i]);
             return { SymRes::Fail, nullptr };
         }
     }
@@ -810,8 +814,8 @@ UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression c
         }
         else if ( v.invariant() ) {
             (ctx.error(gov) << "has conflicting types")
-                .see(gov.scope(), *common.expr)
-                .see(gov.scope(), *potentialTypes[i]);
+                .see(ctx.resolver().scope(), *common.expr)
+                .see(ctx.resolver().scope(), *potentialTypes[i]);
 
             return { SymRes::Fail, nullptr };
         }

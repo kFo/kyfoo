@@ -74,7 +74,6 @@ namespace
         case '_':
         case '+':
         case '*':
-        case '/':
         case '\\':
             return true;
         default:
@@ -540,6 +539,8 @@ L_lexNumber:
     case ',': return token(TokenKind::Comma     );
     case '@': return token(TokenKind::At        );
     case ';': return token(TokenKind::Semicolon );
+    case '?': return token(TokenKind::Question  );
+    case '/': return token(TokenKind::Slash     );
     }
 
 L_undefined:

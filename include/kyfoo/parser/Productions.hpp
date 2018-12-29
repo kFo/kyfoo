@@ -45,8 +45,10 @@ using colonPlus      = g::Terminal<lexer::TokenKind::ColonPlus>;
 using colonMinus     = g::Terminal<lexer::TokenKind::ColonMinus>;
 using colonDot       = g::Terminal<lexer::TokenKind::ColonDot>;
 
-using yield = g::Terminal<lexer::TokenKind::Yield>;
-using arrow = g::Terminal<lexer::TokenKind::Arrow>;
+using yield    = g::Terminal<lexer::TokenKind::Yield>;
+using arrow    = g::Terminal<lexer::TokenKind::Arrow>;
+using question = g::Terminal<lexer::TokenKind::Question>;
+using slash    = g::Terminal<lexer::TokenKind::Slash>;
 
 using at         = g::Terminal<lexer::TokenKind::At>;
 using minusMinus = g::Terminal<lexer::TokenKind::MinusMinus>;
@@ -419,37 +421,6 @@ struct ArrowExpression :
     }
 };
 
-Box<ast::ProcedureDeclaration> mkProc(Box<ast::Expression> expr)
-{
-    Box<ast::Expression> paramExpr;
-    Box<ast::Expression> returnExpr;
-    if ( auto arrow = expr->as<ast::ArrowExpression>() ) {
-        paramExpr = arrow->takeFrom();
-        returnExpr = arrow->takeTo();
-    }
-    else {
-        paramExpr = std::move(expr);
-    }
-
-    auto tok = ast::mkToken("", front(*paramExpr).location());
-    auto symParams = ast::createPtrList<ast::Expression>(std::move(paramExpr));
-    return mk<ast::ProcedureDeclaration>(ast::Symbol(tok, std::move(symParams)),
-                                         std::move(returnExpr));
-}
-
-Box<ast::LambdaExpression> mkLambda(DeclarationScopeParser& parser,
-                                    Box<ast::Expression> params,
-                                    Box<ast::Expression> body)
-{
-    auto proc = mkProc(std::move(params));
-    auto ret = mk<ast::LambdaExpression>(*proc);
-    auto defn = mk<ast::ProcedureScope>(parser.scope(), *proc);
-    defn->basicBlocks().back()->setJunction(mk<ast::ReturnJunction>(front(*body), std::move(body)));
-    parser.scope().appendLambda(std::move(proc), std::move(defn));
-
-    return ret;
-}
-
 using LambdaSingleLine = g::And<yield, g::Opt<colonDot>>;
 
 template <ExpressionProperties Prop>
@@ -461,7 +432,7 @@ struct TightLambdaExpression :
     {
         auto ret = this->template factor<0>().make(parser);
         if ( auto c = this->template factor<1>().capture() )
-            ret = mkLambda(parser, std::move(ret), c->template factor<2>().make(parser));
+            ret = mkLambda(parser.scope(), std::move(ret), c->template factor<2>().make(parser));
 
         return ret;
     }
@@ -476,7 +447,7 @@ struct LambdaExpression :
     {
         auto ret = this->template factor<0>().make(parser);
         if ( auto c = this->template factor<1>().capture() )
-            ret = mkLambda(parser, std::move(ret), c->template factor<1>().make(parser));
+            ret = mkLambda(parser.scope(), std::move(ret), c->template factor<1>().make(parser));
 
         return ret;
     }
@@ -772,30 +743,23 @@ struct DataSumDeclaration :
     }
 };
 
-struct DataProduct
-{
-    Box<ast::DataProductDeclaration> decl;
-    Box<ast::DataProductScope> defn;
-};
-
 struct DataSumConstructor :
     g::And<Symbol, g::Opt<g::And<g::Opt<vacuum>, openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
 {
-    DataProduct make(DeclarationScopeParser& parser)
+    Box<ast::Constructor> make(DeclarationScopeParser& parser)
     {
-        auto decl = mk<ast::DataProductDeclaration>(ast::Symbol(factor<0>().make(parser)));
-        Box<ast::DataProductScope> defn = mk<ast::DataProductScope>(parser.scope(), *decl);
+        auto ret = mk<ast::Constructor>(*parser.scope().as<ast::DataSumScope>()->declaration(),
+                                        ast::Symbol(factor<0>().make(parser)));
+
         if ( auto fields = factor<1>().capture() ) {
             for ( auto& f : fields->factor<2>().captures() ) {
-                defn->append(mk<ast::DataProductDeclaration::Field>(
-                    ast::Symbol(f.factor<0>().token()),
-                    ast::createPtrList<ast::Expression>(f.factor<2>().make(parser)),
-                    nullptr));
+                ret->appendField(ast::Symbol(f.factor<0>().token()),
+                                 ast::createPtrList<ast::Expression>(f.factor<2>().make(parser)),
+                                 nullptr);
             }
         }
 
-        decl->define(*defn);
-        return { std::move(decl), std::move(defn) };
+        return ret;
     }
 };
 
@@ -808,16 +772,27 @@ struct DataProductDeclaration :
     }
 };
 
+struct Field
+{
+    ast::Symbol symbol;
+    std::vector<Box<ast::Expression>> constraints;
+    Box<ast::Expression> init;
+};
+
 struct DataProductDeclarationField :
     g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
 {
-    Box<ast::DataProductDeclaration::Field> make(DeclarationScopeParser& parser)
+    Field make(DeclarationScopeParser& parser)
     {
         Box<ast::Expression> init;
         if ( auto c = factor<3>().capture() )
             init = c->factor<1>().make(parser);
 
-        return mk<ast::DataProductDeclaration::Field>(ast::Symbol(factor<0>().token()), flattenConstraints(factor<2>().make(parser)), std::move(init));
+        return {
+            ast::Symbol(factor<0>().token()),
+            flattenConstraints(factor<2>().make(parser)),
+            std::move(init)
+        };
     }
 };
 

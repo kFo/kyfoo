@@ -53,8 +53,10 @@ namespace kyfoo::lexer {
     X(ColonMinus        , "colonMinus"        ) \
     X(ColonDot          , "colonDot"          ) \
     \
-    X(Yield, "yield") \
-    X(Arrow, "arrow") \
+    X(Yield,    "yield"   ) \
+    X(Arrow,    "arrow"   ) \
+    X(Question, "question") \
+    X(Slash,    "slash"   ) \
     \
     X(At        , "at"         ) \
     X(MinusMinus, "minus minus") \

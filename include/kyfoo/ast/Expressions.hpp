@@ -728,6 +728,25 @@ IdentifierExpression const* identify(Expression const& expr);
 bool hasDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const& expr);
 Declaration const* getDeclaration(Expression const* expr);
+
+template <typename T>
+T const* as(Expression const& expr)
+{
+    if ( auto decl = getDeclaration(expr) )
+        return decl->as<T>();
+
+    return nullptr;
+}
+
+template <typename T>
+T const* as(Expression const* expr)
+{
+    if ( expr )
+        return as<T>(*expr);
+
+    return nullptr;
+}
+
 std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr);
 bool isUnit(Expression const& expr);
 

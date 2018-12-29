@@ -112,7 +112,7 @@ void Context::generate(ast::DataSumDeclaration const& ds)
     auto dsData = customData(ds);
 
     if ( auto t = intrinsicType(ds) ) {
-        dsData->type = t;
+        dsData->allocaType = t;
         return;
     }
 
@@ -124,25 +124,46 @@ void Context::generate(ast::DataSumDeclaration const& ds)
     if ( !ctors )
         return;
 
-    dsData->biggestCtor = toType(*ctors.front());
+    auto const bits = log2(roundUpToPow2(defn->constructors().card()));
+    dsData->tagType = ::llvm::dyn_cast<::llvm::IntegerType>(myDefaultDataLayout->getSmallestLegalIntType(*myContext, bits));
+
+    generate(*ctors.front());
+    dsData->allocaType = toType(*ctors.front());
     uz size = *sizeOf(*ctors.front());
     for ( ctors.popFront(); ctors; ctors.popFront() ) {
+        generate(*ctors.front());
         auto s = *sizeOf(*ctors.front());
         if ( s > size ) {
-            dsData->biggestCtor = toType(*ctors.front());
+            dsData->allocaType = toType(*ctors.front());
             size = s;
         }
     }
+}
 
-    auto const bits = roundUpToPow2(defn->constructors().card());
-    dsData->tagType = myDefaultDataLayout->getSmallestLegalIntType(*myContext, bits);
+void Context::generate(ast::Constructor const& ctor)
+{
+    if ( !ctor.symbol().prototype().isConcrete() || ctor.codegenData() )
+        return;
 
-    ::llvm::Type* fieldTypes[] = { dsData->tagType, dsData->biggestCtor };
+    ctor.setCodegenData(mk<LLVMCustomData<ast::Constructor>>());
+    auto cData = customData(ctor);
+
+    auto tagType = customData(ctor.parent())->tagType;
+
+    std::vector<::llvm::Type*> fieldTypes = { tagType };
+    for ( uz i = 0; i < ctor.fields().card(); ++i ) {
+        auto& field = *ctor.fields()[i];
+        field.setCodegenData(mk<LLVMCustomData<ast::Field>>());
+        customData(field)->index = static_cast<u32>(i + 1);
+        fieldTypes.emplace_back(toType(field));
+    }
+
     constexpr auto isPacked = false;
-    dsData->type = ::llvm::StructType::create(*myContext,
-                                              fieldTypes,
-                                              strRef(ds.symbol().token().lexeme()),
-                                              isPacked);
+    cData->type = ::llvm::StructType::create(
+        *myContext,
+        fieldTypes,
+        strRef(ctor.symbol().token().lexeme()),
+        isPacked);
 }
 
 void Context::generate(ast::DataProductDeclaration const& dp)
@@ -165,7 +186,7 @@ void Context::generate(ast::DataProductDeclaration const& dp)
     auto const& fields = defn->fields();
     fieldTypes.reserve(fields.card());
     for ( uz i = 0; i < fields.card(); ++i ) {
-        generate(*fields[i]);
+        fields[i]->setCodegenData(mk<LLVMCustomData<ast::Field>>());
         customData(*fields[i])->index = static_cast<u32>(i);
 
         auto d = getDeclaration(fields[i]->type());
@@ -179,10 +200,11 @@ void Context::generate(ast::DataProductDeclaration const& dp)
     }
 
     constexpr auto isPacked = false;
-    dpData->type = ::llvm::StructType::create(*myContext,
-                                              fieldTypes,
-                                              strRef(dp.symbol().token().lexeme()),
-                                              isPacked);
+    dpData->type = ::llvm::StructType::create(
+        *myContext,
+        fieldTypes,
+        strRef(dp.symbol().token().lexeme()),
+        isPacked);
 }
 
 std::optional<uz> Context::sizeOf(ast::Declaration const& decl)
@@ -210,7 +232,10 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
         generate(*d);
 
     if ( auto ds = d->as<ast::DataSumDeclaration>() )
-        return customData(*ds)->type;
+        return customData(*ds)->allocaType;
+
+    if ( auto ctor = d->as<ast::Constructor>() )
+        return customData(*ctor)->type;
 
     if ( auto dp = d->as<ast::DataProductDeclaration>() )
         return customData(*dp)->type;
@@ -274,14 +299,14 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
 {
     if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
         auto dsData = customData(*ds);
-        if ( dsData->type )
-            return dsData->type;
+        if ( dsData->allocaType )
+            return dsData->allocaType;
 
         if ( ds == axioms().intrinsic(ast::IntegerLiteralType )
             || ds == axioms().intrinsic(ast::RationalLiteralType) )
         {
-            dsData->type = (::llvm::Type*)0x1; // todo: choose width based on expression
-            return dsData->type;
+            dsData->allocaType = (::llvm::Type*)0x1; // todo: choose width based on expression
+            return dsData->allocaType;
         }
 
         auto const& sym = ds->symbol();
@@ -290,10 +315,10 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
         {
             auto t = toType(*sym.prototype().pattern()[0]);
             if ( t->isVoidTy() )
-                dsData->type = ::llvm::Type::getInt8PtrTy(*myContext);
+                dsData->allocaType = ::llvm::Type::getInt8PtrTy(*myContext);
             else
-                dsData->type = ::llvm::PointerType::getUnqual(t);
-            return dsData->type;
+                dsData->allocaType = ::llvm::PointerType::getUnqual(t);
+            return dsData->allocaType;
         }
     }
 

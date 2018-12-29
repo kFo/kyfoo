@@ -259,13 +259,21 @@ DataSumScopeParser::DataSumScopeParser(Diagnostics& dgn,
 
 DataSumScopeParser::~DataSumScopeParser() = default;
 
+ast::DataSumScope& DataSumScopeParser::scope()
+{
+    return *static_cast<ast::DataSumScope*>(myScope);
+}
+
+ast::DataSumScope const& DataSumScopeParser::scope() const
+{
+    return *static_cast<ast::DataSumScope*>(myScope);
+}
+
 DeclarationScopeParser::ParseResult
 DataSumScopeParser::parseNext()
 {
-    if ( auto [decl, defn] = parse<DataSumConstructor>(*this); decl ) {
-        myScope->append(std::move(decl));
-        if ( defn )
-            myScope->append(std::move(defn));
+    if ( auto ctor = parse<DataSumConstructor>(*this) ) {
+        scope().appendConstructor(std::move(ctor));
         return {true, nullptr};
     }
 
@@ -284,17 +292,27 @@ DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
 
 DataProductScopeParser::~DataProductScopeParser() = default;
 
+ast::DataProductScope& DataProductScopeParser::scope()
+{
+    return *static_cast<ast::DataProductScope*>(myScope);
+}
+
+ast::DataProductScope const& DataProductScopeParser::scope() const
+{
+    return *static_cast<ast::DataProductScope*>(myScope);
+}
+
 DeclarationScopeParser::ParseResult
 DataProductScopeParser::parseNext()
 {
-    if ( auto field = parse<DataProductDeclarationField>(*this) ) {
-        field->setParent(scope().declaration()->as<ast::DataProductDeclaration>());
-        myScope->append(std::move(field));
+    if ( DataProductDeclarationField field; parse(scanner(), field) ) {
+        auto [s, c, i] = field.make(*this);
+        scope().appendField(std::move(s), std::move(c), std::move(i));
         return {true, nullptr};
     }
     else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
         auto p = dsDecl.get();
-        myScope->append(std::move(dsDecl));
+        scope().append(std::move(dsDecl));
         auto newScopeParser = parseDataSumDefinition(*p);
 
         return {true, std::move(newScopeParser)};
@@ -362,7 +380,6 @@ ProcedureScopeParser::parseNext()
         if ( bdecl.expr ) {
             auto br = mk<ast::BranchJunction>(bdecl.open, bdecl.label, std::move(bdecl.expr));
             br->setBranch(0, s->basicBlocks().front());
-            br->setBranch(1, m);
             b->setJunction(std::move(br));
         }
         else {
@@ -398,7 +415,7 @@ ProcedureScopeParser::parseNext()
             return {false, nullptr};
 
         // todo: lifetime of transient parse objects in diagnostics
-        if ( !br->branch(0) ) {
+        if ( !br->isMatch() && !br->branch(0) ) {
             diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
             return {false, nullptr};
         }
@@ -440,7 +457,6 @@ ProcedureScopeParser::parseNext()
     }
 
     if ( auto branchJunc = parse<BranchJunction>(*this) ) {
-        auto br = branchJunc.get();
         auto s = &scope();
         auto b = s->basicBlocks().back();
         auto m = s->createBasicBlock();
@@ -453,14 +469,7 @@ ProcedureScopeParser::parseNext()
 
         b->setJunction(std::move(branchJunc));
 
-        if ( scanner().peek().kind() == lexer::TokenKind::IndentGT ) {
-            scanner().next();
-            s = s->createChildScope(m, lexer::Token(), lexer::Token());
-            br->setBranch(0, s->basicBlocks().front());
-            return {true, mk<ProcedureScopeParser>(diagnostics(), scanner(), *s)};
-        }
-
-        return {false, nullptr};
+        return {true, nullptr};
     }
 
     if ( auto loopJunc = parse<LoopJunction>(*this) ) {

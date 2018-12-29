@@ -24,7 +24,7 @@ using indent_width_t = uz;
  * values in range [0, 128). These meta-characters are non-ASCII
  * characters used as signals in ASCII character streams.
  */
-enum MetaChar : char
+enum MetaChar : unsigned char
 {
     EndOfInput = 0b1111'1111,
 };

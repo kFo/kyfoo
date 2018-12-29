@@ -19,17 +19,18 @@ namespace kyfoo {
 
     namespace ast {
 
-#define DECLARATION_KINDS(X)                                                      \
-    X(DataSum           , "data sum"           , DataSumDeclaration             ) \
-    X(DataProduct       , "data product"       , DataProductDeclaration         ) \
-    X(Field             , "field"              , DataProductDeclaration::Field  ) \
-    X(Symbol            , "symbol"             , SymbolDeclaration              ) \
-    X(Procedure         , "procedure"          , ProcedureDeclaration           ) \
-    X(ProcedureParameter, "procedure parameter", ProcedureParameter             ) \
-    X(Variable          , "variable"           , VariableDeclaration            ) \
-    X(Import            , "import"             , ImportDeclaration              ) \
-    X(SymbolVariable    , "symbol variable"    , SymbolVariable                 ) \
-    X(Template          , "template"           , TemplateDeclaration            )
+#define DECLARATION_KINDS(X)                                             \
+    X(Field             , "field"              , Field                 ) \
+    X(Constructor       , "constructor"        , Constructor           ) \
+    X(DataSum           , "data sum"           , DataSumDeclaration    ) \
+    X(DataProduct       , "data product"       , DataProductDeclaration) \
+    X(Symbol            , "symbol"             , SymbolDeclaration     ) \
+    X(Procedure         , "procedure"          , ProcedureDeclaration  ) \
+    X(ProcedureParameter, "procedure parameter", ProcedureParameter    ) \
+    X(Variable          , "variable"           , VariableDeclaration   ) \
+    X(Import            , "import"             , ImportDeclaration     ) \
+    X(SymbolVariable    , "symbol variable"    , SymbolVariable        ) \
+    X(Template          , "template"           , TemplateDeclaration   )
 
 enum class DeclKind
 {
@@ -162,36 +163,6 @@ public:
     }
 };
 
-class VariableDeclaration;
-
-class DataSumDeclaration : public DefinableMixin<DataSumScope>
-{
-public:
-    using base_t = DefinableMixin;
-    friend class Context;
-
-public:
-    explicit DataSumDeclaration(Symbol&& symbol);
-
-protected:
-    DataSumDeclaration(DataSumDeclaration const& rhs);
-    void operator = (DataSumDeclaration const& rhs) = delete;
-
-public:
-    DataSumDeclaration(DataSumDeclaration&&) = delete;
-
-    ~DataSumDeclaration() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(DataSumDeclaration& rhs) noexcept;
-
-    // Declaration
-public:
-    DECL_CLONE_ALL(Declaration)
-
-protected:
-    SymRes resolveSymbols(Context& ctx);
-};
-
 class Binder : public Declaration
 {
 protected:
@@ -236,50 +207,130 @@ protected:
     Expression const* myType = nullptr;
 };
 
-class DataProductDeclaration : public DefinableMixin<DataProductScope>
+class DataProductDeclaration;
+class Field : public Binder
+{
+public:
+    friend class Context;
+
+public:
+    Field(DataProductDeclaration& parent,
+          Symbol&& symbol,
+          std::vector<Box<Expression>> constraints,
+          Box<Expression> init);
+
+protected:
+    Field(Field const& rhs);
+    Field& operator = (Field const& rhs);
+
+public:
+    Field(Field&&) = delete;
+
+    ~Field() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(Field& rhs) noexcept;
+
+    // Declaration
+public:
+    DECL_CLONE_ALL(Declaration)
+
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    DataProductDeclaration* parent();
+    DataProductDeclaration const* parent() const;
+
+private:
+    DataProductDeclaration* myParent = nullptr;
+    Box<Expression> myInitializer;
+};
+
+class DataSumDeclaration;
+class Constructor : public Declaration
+{
+public:
+    friend class Context;
+
+public:
+    Constructor(DataSumDeclaration& parent,
+                Symbol&& symbol);
+
+protected:
+    Constructor(Constructor const& rhs);
+    Constructor& operator = (Constructor const& rhs);
+
+public:
+    Constructor(Constructor&&) = delete;
+
+    ~Constructor() KYFOO_DEBUG_OVERRIDE;
+
+    void swap(Constructor& rhs) noexcept;
+
+    // Declaration
+public:
+    DECL_CLONE_ALL(Declaration)
+
+protected:
+    SymRes resolveSymbols(Context& ctx);
+
+public:
+    DataSumDeclaration& parent();
+    DataSumDeclaration const& parent() const;
+
+    DataProductDeclaration* product();
+    DataProductDeclaration const* product() const;
+
+    Slice<Field*> fields();
+    Slice<Field const*> fields() const;
+
+    Expression* type();
+    Expression const* type() const;
+
+public:
+    void appendField(Symbol&& symbol,
+                     std::vector<Box<Expression>> constraints,
+                     Box<Expression> init);
+
+private:
+    DataSumDeclaration* myParent = nullptr;
+    Box<DataProductDeclaration> myProduct;
+    Box<Expression> myType;
+};
+
+class DataSumDeclaration : public DefinableMixin<DataSumScope>
 {
 public:
     using base_t = DefinableMixin;
     friend class Context;
 
 public:
-    class Field : public Binder
-    {
-    public:
-        friend class Context;
+    explicit DataSumDeclaration(Symbol&& symbol);
 
-    public:
-        Field(Symbol&& symbol,
-              std::vector<Box<Expression>> constraints,
-              Box<Expression> init);
+protected:
+    DataSumDeclaration(DataSumDeclaration const& rhs);
+    void operator = (DataSumDeclaration const& rhs) = delete;
 
-    protected:
-        Field(Field const& rhs);
-        Field& operator = (Field const& rhs);
+public:
+    DataSumDeclaration(DataSumDeclaration&&) = delete;
 
-    public:
-        Field(Field&&) = delete;
+    ~DataSumDeclaration() KYFOO_DEBUG_OVERRIDE;
 
-        ~Field() KYFOO_DEBUG_OVERRIDE;
+    void swap(DataSumDeclaration& rhs) noexcept;
 
-        void swap(Field& rhs) noexcept;
+    // Declaration
+public:
+    DECL_CLONE_ALL(Declaration)
 
-        // Declaration
-    public:
-        DECL_CLONE_ALL(Declaration)
+protected:
+    SymRes resolveSymbols(Context& ctx);
+};
 
-    protected:
-        SymRes resolveSymbols(Context& ctx);
-
-    public:
-        void setParent(DataProductDeclaration* dpDecl);
-        DataProductDeclaration* parent();
-        DataProductDeclaration const* parent() const;
-
-    private:
-        DataProductDeclaration* myParent = nullptr;
-        Box<Expression> myInitializer;
-    };
+class DataProductDeclaration : public DefinableMixin<DataProductScope>
+{
+public:
+    using base_t = DefinableMixin;
+    friend class Context;
 
 public:
     explicit DataProductDeclaration(Symbol&& symbol);

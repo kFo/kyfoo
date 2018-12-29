@@ -18,6 +18,7 @@
       <AssemblerListingLocation>$(IntDir)\_1\_2\%(RelativeDir)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)\_1\_2\%(RelativeDir)</ObjectFileName>
       <XMLDocumentationFileName>$(IntDir)\_1\_2\%(RelativeDir)</XMLDocumentationFileName>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>

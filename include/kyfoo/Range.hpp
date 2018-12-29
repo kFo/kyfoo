@@ -8,34 +8,32 @@ namespace kyfoo {
 
 namespace ranges {
 
-DEFINE_HAS_METHOD_SIG(front);
-DEFINE_HAS_METHOD_SIG(popFront);
-
-DEFINE_HAS_METHOD_SIG(back);
-DEFINE_HAS_METHOD_SIG(popBack);
-
-DEFINE_HAS_METHOD(card, uz);
+DEFINE_HAS_METHOD_ARGS(front);
+DEFINE_HAS_METHOD_ARGS(popFront);
+DEFINE_HAS_METHOD_ARGS(back);
+DEFINE_HAS_METHOD_ARGS(popBack);
+DEFINE_HAS_METHOD_SIG(card, uz);
 
 } // namespace ranges
 
 template <typename Range>
 constexpr bool is_input_range =
        std::is_class_v<Range>
-    && ranges::has_method_sig_front_v<Range>
-    && ranges::has_method_sig_popFront_v<Range>
+    && ranges::has_method_front<Range>
+    && ranges::has_method_popFront<Range>
     && is_explicitly_convertible<Range, bool>;
 
 template <typename Range>
 constexpr bool is_bidirectional_range =
        is_input_range<Range>
-    && ranges::has_method_sig_back_v<Range>
-    && ranges::has_method_sig_popBack_v<Range>;
+    && ranges::has_method_back<Range>
+    && ranges::has_method_popBack<Range>;
 
 template <typename Range>
 constexpr bool is_random_access_range =
        is_bidirectional_range<Range>
-    && has_index_operator_v<Range>
-    && ranges::has_method_card_v<Range>;
+    && has_index_operator<Range>
+    && ranges::has_method_card<Range>;
 
 //
 // Iota

@@ -214,6 +214,11 @@ Error& Context::error(Declaration const& decl)
     return myDiagnostics->error(resolver().scope().module(), decl);
 }
 
+Error& Context::error(Error::context_t gen)
+{
+    return std::visit([this](auto const* e) -> Error& { return error(*e); }, gen);
+}
+
 uz Context::errorCount() const
 {
     return myDiagnostics->errorCount();
@@ -465,6 +470,17 @@ SymRes Context::resolveStatements(std::vector<Statement>& stmts)
     return resolveStatements(begin(stmts), end(stmts));
 }
 
+SymRes Context::resolveJunction(Junction& junc, BasicBlock& bb)
+{
+    switch ( junc.kind() ) {
+#define X(a,b) case Junction::Kind::a: return static_cast<b&>(junc).resolveSymbols(*this, bb);
+        JUNCTION_KINDS(X)
+#undef X
+    }
+
+    ENFORCEU("unhandled junction");
+}
+
 bool Context::isTopLevel() const
 {
     return myExpressionDepth == 0;
@@ -498,9 +514,9 @@ SymRes Context::resolveSymbols(Expression& expr)
 
 SymRes Context::resolveSymbols(Statement& stmt)
 {
-    switch (stmt.kind()) {
+    switch ( stmt.kind() ) {
 #define X(a,b) case Statement::Kind::a: return static_cast<b&>(stmt).resolveSymbols(*this);
-    STATEMENT_KINDS(X)
+        STATEMENT_KINDS(X)
 #undef X
     }
 

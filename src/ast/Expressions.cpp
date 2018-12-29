@@ -776,11 +776,13 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
         ret = ctx.resolveExpression(myExpressions.front());
         if ( !ret ) {
             if ( failedAsAccessor ) {
-                auto appExpr = myExpressions[i]->as<ApplyExpression>();
-                ctx.error(*appExpr->subject()) << "does not match any members of "
-                                               << *appExpr->arguments()[0];
+                if ( auto appExpr = myExpressions[i]->as<ApplyExpression>() ) 
+                    ctx.error(*appExpr->subject()) << "does not match any members of "
+                                                   << *appExpr->arguments()[0];
+                else
+                    ctx.error(*this) << "invalid member access or application";
             }
-
+            
             return ret;
         }
     }
@@ -1946,7 +1948,7 @@ DeclRef getRef(Expression const& expr_)
                 if ( auto var = decl->as<VariableDeclaration>() )
                     return {var, dot->type()};
 
-                if ( auto field = decl->as<DataProductDeclaration::Field>() )
+                if ( auto field = decl->as<Field>() )
                     continue;
             }
 

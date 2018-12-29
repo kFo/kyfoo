@@ -277,8 +277,9 @@ ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) con
 
 bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 {
+    auto rootTempl = rootTemplate(decl.symbol());
     for ( uz i = 0; i < DataSumIntrinsicsCount; ++i )
-        if ( myDataSumDecls[i] == &decl )
+        if ( &myDataSumDecls[i]->symbol() == rootTempl )
             return true;
 
     return false;
@@ -286,8 +287,9 @@ bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
 
 bool AxiomsModule::isIntrinsic(DataProductDeclaration const& decl) const
 {
+    auto rootTempl = rootTemplate(decl.symbol());
     for ( uz i = 0; i < DataProductIntrinsicsCount; ++i )
-        if ( myDataProductDecls[i] == &decl )
+        if ( &myDataProductDecls[i]->symbol() == rootTempl )
             return true;
 
     return false;
@@ -295,8 +297,9 @@ bool AxiomsModule::isIntrinsic(DataProductDeclaration const& decl) const
 
 bool AxiomsModule::isIntrinsic(ProcedureDeclaration const& decl) const
 {
+    auto rootTempl = rootTemplate(decl.symbol());
     for ( uz i = 0; i < InstructionIntrinsicsCount; ++i )
-        if ( descendsFromTemplate(myInstructionDecls[i]->symbol(), decl.symbol()) )
+        if ( &myInstructionDecls[i]->symbol() == rootTempl )
             return true;
 
     return false;
@@ -306,6 +309,9 @@ bool AxiomsModule::isIntrinsic(Declaration const& decl) const
 {
     if ( auto ds = decl.as<DataSumDeclaration>() )
         return isIntrinsic(*ds);
+
+    if ( auto dp = decl.as<DataProductDeclaration>() )
+        return isIntrinsic(*dp);
 
     if ( auto proc = decl.as<ProcedureDeclaration>() )
         return isIntrinsic(*proc);

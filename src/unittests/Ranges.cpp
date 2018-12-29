@@ -2,8 +2,13 @@
 
 #include <kyfoo/Algorithm.hpp>
 #include <kyfoo/Range.hpp>
+#include <kyfoo/Slice.hpp>
 
 namespace kyfoo::unittests {
+
+static_assert(is_input_range<Slice<int>>);
+static_assert(is_bidirectional_range<Slice<int>>);
+static_assert(is_random_access_range<Slice<int>>);
 
 TEST_CASE("iota", "[Iota]") {
     {

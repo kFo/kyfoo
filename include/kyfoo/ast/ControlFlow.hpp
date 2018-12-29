@@ -157,6 +157,7 @@ private:
 class Junction
 {
 public:
+    friend class Context;
     friend class BasicBlock;
 
     enum class Kind
@@ -192,6 +193,7 @@ protected:
 class BranchJunction : public Junction
 {
 public:
+    friend class Context;
     friend class BasicBlock;
 
 public:
@@ -219,6 +221,9 @@ public:
     lexer::Token const& token() const;
     lexer::Token const& label() const;
 
+    bool isMatch() const;
+    bool isElse() const;
+
     Statement const* statement() const;
     Statement* statement();
 
@@ -239,6 +244,7 @@ private:
 class ReturnJunction : public Junction
 {
 public:
+    friend class Context;
     friend class BasicBlock;
 
 public:
@@ -278,6 +284,7 @@ private:
 class JumpJunction : public Junction
 {
 public:
+    friend class Context;
     friend class BasicBlock;
 
     enum class JumpKind

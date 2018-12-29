@@ -1,5 +1,6 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 
+#include <kyfoo/Algorithm.hpp>
 #include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/ast/Context.hpp>
@@ -388,16 +389,97 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
     if ( myCondition )
         ret |= ctx.resolveStatement(*myCondition);
 
-    if ( !branch(0) ) {
-        ctx.error(token()) << "is missing first branch";
-        return SymRes::Fail;
-    }
-
     if ( !branch(1) )
         setBranch(1, branch(0)->scope()->mergeBlock());
 
-    branch(0)->appendIncoming(bb);
     branch(1)->appendIncoming(bb);
+
+    if ( !isMatch() ) {
+        if ( !branch(0) ) {
+            ctx.error(token()) << "is missing first branch";
+            return SymRes::Fail;
+        }
+
+        branch(0)->appendIncoming(bb);
+        return ret;
+    }
+    else if ( branch(0) ) {
+        ctx.error(token()) << "match-statements must start with a branch";
+        return SymRes::Fail;
+    }
+
+    std::vector<BranchJunction*> branches;
+    for ( auto br = branch(1)->junction()->as<BranchJunction>(); br; ) {
+        ret |= ctx.resolveJunction(*br, bb);
+        if ( !ret )
+            continue;
+
+        if ( br->isElse() )
+            branches.emplace_back(br);
+
+        if ( !br->branch(1) )
+            break;
+
+        br = br->branch(1)->junction()->as<BranchJunction>();
+    }
+
+    if ( !ret )
+        return ret;
+
+    if ( branches.empty() ) {
+        ctx.error(token()) << "match-statement is missing branches";
+        return SymRes::Fail;
+    }
+
+    auto ds = ast::as<DataSumDeclaration>(condition()->type());
+    if ( !ds ) {
+        ctx.error(condition()) << "does not identify any data-sum";
+        return SymRes::Fail;
+    }
+
+    auto dsDefn = ds->definition();
+    if ( !dsDefn ) {
+        (ctx.error(*ds) << "data-sum does not have a definition")
+            .see(*ds);
+        return SymRes::Fail;
+    }
+
+    std::vector<Constructor const*> ctorsFound(dsDefn->constructors().card(), nullptr);
+    for ( auto br : branches ) {
+        if ( !br->condition() ) {
+            ctx.error(br->token()) << "match-branch must have a match-expression";
+            ret |= SymRes::Fail;
+            continue;
+        }
+
+        auto ctor = ast::as<Constructor>(br->condition());
+        if ( !ctor ) {
+            (ctx.error(br->condition()) << "does not identify a constructor")
+                .see(*ds);
+            ret |= SymRes::Fail;
+            continue;
+        }
+
+        auto const index = indexOf(dsDefn->constructors(), ctor);
+        if ( index == dsDefn->constructors().card() ) {
+            (ctx.error(*ctor) << "is not a constructor of the match subject")
+                .see(*ds);
+            return SymRes::Fail;
+        }
+
+        ctorsFound[index] = ctor;
+    }
+
+    if ( !ret )
+        return ret;
+
+    for ( uz i = 0; i < ctorsFound.size(); ++i ) {
+        if ( !ctorsFound[i] ) {
+            (ctx.error(token()) << "data-sum constructor is not covered by match-statement")
+                .see(*dsDefn->constructors()[i]);
+            ret |= SymRes::Fail;
+        }
+    }
 
     return ret;
 }
@@ -410,6 +492,18 @@ lexer::Token const& BranchJunction::token() const
 lexer::Token const& BranchJunction::label() const
 {
     return myLabel;
+}
+
+bool BranchJunction::isMatch() const
+{
+    return myToken.kind() == lexer::TokenKind::ColonQuestion
+        || myToken.kind() == lexer::TokenKind::ColonQuestionAngle;
+}
+
+bool BranchJunction::isElse() const
+{
+    return myToken.kind() == lexer::TokenKind::ColonSlash
+        || myToken.kind() == lexer::TokenKind::ColonSlashAngle;
 }
 
 Statement const* BranchJunction::statement() const
@@ -697,13 +791,8 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
         }
     }
 
-    switch (junction()->kind()) {
-#define X(a,b) case Junction::Kind::a: ret |= static_cast<b*>(junction())->resolveSymbols(ctx, *this); return ret;
-        JUNCTION_KINDS(X)
-#undef X
-    }
-
-    ENFORCEU("invalid junction");
+    ret |= ctx.resolveJunction(*junction(), *this);
+    return ret;
 }
 
 ProcedureScope const* BasicBlock::scope() const
@@ -992,7 +1081,7 @@ FlowTracer::Shape FlowTracer::advanceBlock()
 {
     auto bb = myPath.back();
     if ( auto br = bb->junction()->as<BranchJunction>() ) {
-        myPath.push_back(br->branch(0));
+        myPath.push_back(br->branch(0) ? br->branch(0) : br->branch(1));
         return checkRepetition();
     }
     else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {

@@ -136,7 +136,7 @@ struct UnificationResult
     SymRes resolution;
     Expression const* type;
 };
-UnificationResult unify(Context& ctx, Declaration const& gov, Slice<Expression const*> exprs);
+UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression const*> exprs);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
@@ -150,9 +150,9 @@ lexer::Token const& front(Statement    const& stmt);
 lexer::Token const& front(Junction     const& junc);
 lexer::Token const& front(Declaration  const& decl);
 
-std::ostream& print(std::ostream& stream, Expression   const& expr);
-std::ostream& print(std::ostream& stream, Statement    const& stmt);
-std::ostream& print(std::ostream& stream, Junction     const& junc);
+std::ostream& print(std::ostream& stream, Expression const& expr);
+std::ostream& print(std::ostream& stream, Statement  const& stmt);
+std::ostream& print(std::ostream& stream, Junction   const& junc);
 
 uz level(Expression const& expr);
 

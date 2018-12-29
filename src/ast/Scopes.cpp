@@ -252,7 +252,7 @@ void Scope::append(Box<Scope> definition)
 }
 
 void Scope::appendLambda(Box<ProcedureDeclaration> proc,
-                                    Box<ProcedureScope> defn)
+                         Box<ProcedureScope> defn)
 {
     myLambdas.emplace_back(std::move(proc));
     myLambdas.back()->setScope(*this);
@@ -386,6 +386,7 @@ DataSumScope::DataSumScope(Scope& parent,
 
 DataSumScope::DataSumScope(DataSumScope const& rhs)
     : Scope(rhs)
+    , myCtors(rhs.myCtors)
 {
 }
 
@@ -405,6 +406,7 @@ void DataSumScope::swap(DataSumScope& rhs) noexcept
 IMPL_CLONE_BEGIN(DataSumScope, Scope, Scope)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataSumScope, Scope)
+IMPL_CLONE_REMAP(myCtors)
 IMPL_CLONE_REMAP_END
 
 SymRes DataSumScope::resolveDeclarations(Context& ctx)
@@ -413,10 +415,8 @@ SymRes DataSumScope::resolveDeclarations(Context& ctx)
         return *myDeclRes;
 
     for ( auto const& d : myDeclarations ) {
-        auto dsCtor = d->as<DataProductDeclaration>();
+        auto dsCtor = d->as<Constructor>();
         ENFORCE(dsCtor, "data sum must only contain constructors");
-
-        myCtors.emplace_back(dsCtor);
     }
 
     return Scope::resolveDeclarations(ctx);
@@ -427,17 +427,23 @@ SymRes DataSumScope::resolveDefinitions(Context& ctx)
     return Scope::resolveDefinitions(ctx);
 }
 
+void DataSumScope::appendConstructor(Box<Constructor> ctor)
+{
+    myCtors.emplace_back(ctor.get());
+    Scope::append(std::move(ctor));
+}
+
 DataSumDeclaration* DataSumScope::declaration()
 {
     return static_cast<DataSumDeclaration*>(myDeclaration);
 }
 
-Slice<DataProductDeclaration*> DataSumScope::constructors()
+Slice<Constructor*> DataSumScope::constructors()
 {
     return myCtors;
 }
 
-Slice<DataProductDeclaration const*> DataSumScope::constructors() const
+Slice<Constructor const*> DataSumScope::constructors() const
 {
     return myCtors;
 }
@@ -454,8 +460,8 @@ DataProductScope::DataProductScope(Scope& parent,
 
 DataProductScope::DataProductScope(DataProductScope const& rhs)
     : Scope(rhs)
+    , myFields(rhs.myFields)
 {
-    // myFields is populated by the semantic pass
 }
 
 DataProductScope& DataProductScope::operator = (DataProductScope const& rhs)
@@ -476,16 +482,13 @@ void DataProductScope::swap(DataProductScope& rhs) noexcept
 IMPL_CLONE_BEGIN(DataProductScope, Scope, Scope)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DataProductScope, Scope)
+IMPL_CLONE_REMAP(myFields)
 IMPL_CLONE_REMAP_END
 
 SymRes DataProductScope::resolveDeclarations(Context& ctx)
 {
     if ( myDeclRes )
         return *myDeclRes;
-
-    for ( auto& d : myDeclarations )
-        if ( auto v = d->as<DataProductDeclaration::Field>() )
-            myFields.emplace_back(v);
 
     return Scope::resolveDeclarations(ctx);
 }
@@ -495,17 +498,29 @@ SymRes DataProductScope::resolveDefinitions(Context& ctx)
     return Scope::resolveDefinitions(ctx);
 }
 
+void DataProductScope::appendField(Symbol&& symbol,
+                                   std::vector<Box<Expression>> constraints,
+                                   Box<Expression> init)
+{
+    auto field = mk<Field>(*declaration(),
+                           std::move(symbol),
+                           std::move(constraints),
+                           std::move(init));
+    myFields.emplace_back(field.get());
+    Scope::append(std::move(field));
+}
+
 DataProductDeclaration* DataProductScope::declaration()
 {
     return static_cast<DataProductDeclaration*>(myDeclaration);
 }
 
-Slice<DataProductDeclaration::Field*> DataProductScope::fields()
+Slice<Field*> DataProductScope::fields()
 {
     return myFields;
 }
 
-Slice<DataProductDeclaration::Field const*> DataProductScope::fields() const
+Slice<Field const*> DataProductScope::fields() const
 {
     return myFields;
 }
@@ -716,7 +731,7 @@ Expression const* ProcedureScope::deduceReturnType(Context& ctx)
             rec(*c);
     })(*this);
 
-    auto [ret, type] = unify(ctx, *declaration(), returnTypes);
+    auto [ret, type] = unify(ctx, declaration(), returnTypes);
     if ( !ret )
         return nullptr;
 

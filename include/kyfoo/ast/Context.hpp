@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <variant>
 #include <vector>
 
 #include <kyfoo/Diagnostics.hpp>
@@ -16,6 +17,8 @@ namespace kyfoo {
     namespace ast {
 
 class AxiomsModule;
+class BasicBlock;
+class Junction;
 class Scope;
 class Statement;
 class Declaration;
@@ -99,6 +102,7 @@ public:
     Error& error(Statement const& stmt);
     Error& error(Junction const& junc);
     Error& error(Declaration const& decl);
+    Error& error(Error::context_t gen);
     uz errorCount() const;
 
     Lookup matchOverload(Scope const& scope,
@@ -135,6 +139,8 @@ public:
     SymRes resolveStatements(std::vector<Statement>::iterator left,
                              std::vector<Statement>::iterator right);
     SymRes resolveStatements(std::vector<Statement>& stmts);
+
+    SymRes resolveJunction(Junction& junc, BasicBlock& bb);
 
     bool isTopLevel() const;
 

@@ -89,6 +89,10 @@ public:
                        ast::DataSumScope& scope);
     ~DataSumScopeParser() override;
 
+public:
+    ast::DataSumScope& scope();
+    ast::DataSumScope const& scope() const;
+
 protected:
     ParseResult parseNext() override;
 };
@@ -100,6 +104,10 @@ public:
                            lexer::Scanner& scanner,
                            ast::DataProductScope& scope);
     ~DataProductScopeParser() override;
+
+public:
+    ast::DataProductScope& scope();
+    ast::DataProductScope const& scope() const;
 
 protected:
     ParseResult parseNext() override;

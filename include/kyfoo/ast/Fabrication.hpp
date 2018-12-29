@@ -7,6 +7,8 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Scopes.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo::ast {
 
@@ -182,6 +184,38 @@ createRefType(lexer::SourceLocation loc, Box<Expression> expr)
     return mk<ast::SymbolExpression>(
         ast::mkToken("ref", loc),
         ast::createPtrList<ast::Expression>(std::move(expr)));
+}
+
+inline Box<ProcedureDeclaration>
+mkProc(Box<Expression> expr)
+{
+    Box<Expression> paramExpr;
+    Box<Expression> returnExpr;
+    if ( auto arrow = expr->as<ArrowExpression>() ) {
+        paramExpr = arrow->takeFrom();
+        returnExpr = arrow->takeTo();
+    }
+    else {
+        paramExpr = std::move(expr);
+    }
+
+    auto tok = mkToken("", front(*paramExpr).location());
+    auto symParams = createPtrList<Expression>(std::move(paramExpr));
+    return mk<ast::ProcedureDeclaration>(
+        Symbol(tok, std::move(symParams)),
+        std::move(returnExpr));
+}
+
+inline Box<LambdaExpression>
+mkLambda(Scope& scope, Box<Expression> params, Box<Expression> body)
+{
+    auto proc = mkProc(std::move(params));
+    auto ret = mk<LambdaExpression>(*proc);
+    auto defn = mk<ProcedureScope>(scope, *proc);
+    defn->basicBlocks().back()->setJunction(mk<ReturnJunction>(front(*body), std::move(body)));
+    scope.appendLambda(std::move(proc), std::move(defn));
+
+    return ret;
 }
 
 } // namespace kyfoo::ast

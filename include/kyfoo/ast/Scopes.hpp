@@ -165,13 +165,15 @@ protected:
     SymRes resolveDefinitions(Context& ctx);
 
 public:
+    void appendConstructor(Box<Constructor> dp);
+
     DataSumDeclaration* declaration();
 
-    Slice<DataProductDeclaration      *> constructors();
-    Slice<DataProductDeclaration const*> constructors() const;
+    Slice<Constructor      *> constructors();
+    Slice<Constructor const*> constructors() const;
 
 private:
-    std::vector<DataProductDeclaration*> myCtors;
+    std::vector<Constructor*> myCtors;
 };
 
 class DataProductScope : public Scope
@@ -203,13 +205,17 @@ protected:
     SymRes resolveDefinitions(Context& ctx);
 
 public:
+    void appendField(Symbol&& symbol,
+                     std::vector<Box<Expression>> constraints,
+                     Box<Expression> init);
+
     DataProductDeclaration* declaration();
 
-    Slice<DataProductDeclaration::Field*> fields();
-    Slice<DataProductDeclaration::Field const*> fields() const;
+    Slice<Field*> fields();
+    Slice<Field const*> fields() const;
 
 private:
-    std::vector<DataProductDeclaration::Field*> myFields;
+    std::vector<Field*> myFields;
 };
 
 class ProcedureScope : public Scope

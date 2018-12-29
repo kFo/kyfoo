@@ -111,7 +111,7 @@ WriteWrapper(str : ascii) =>
 
 ftest (x y : s32) -> s32 =>
     WriteWrapper("hello world!\n")
-    :? add (add x y) y
+    :<> add (add x y) y
         WriteWrapper("branch 1\n")
         :. 42
     :/ add x y
@@ -181,10 +181,27 @@ htest() =>
     printLambda (c:u32)->u32=>c.mul 2
     putLine
 
+:| Variant
+    One
+    Two
+
+itest(v : Variant) =>
+    :? v
+    :/ One
+        put "one"
+    :/ Two
+        put "two"
+    :.
+
+jtest() =>
+    itest One
+    itest Two
+    
 start() =>
     ftest 1 2
     ftest 0 0
     gtest 5
     putLine
     htest
+    jtest
     ExitProcess 42

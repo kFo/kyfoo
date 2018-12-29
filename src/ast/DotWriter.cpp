@@ -68,57 +68,57 @@ public:
     result_t exprTuple(TupleExpression const& tup)
     {
         switch ( tup.kind() ) {
-        case TupleKind::Closed:    stream << "[] | {"; break;
-        case TupleKind::Open:      stream << "() | {"; break;
-        case TupleKind::OpenLeft:  stream << "(] | {"; break;
-        case TupleKind::OpenRight: stream << "[) | {"; break;
+        case TupleKind::Closed:    stream << "[] | { "; break;
+        case TupleKind::Open:      stream << "() | { "; break;
+        case TupleKind::OpenLeft:  stream << "(] | { "; break;
+        case TupleKind::OpenRight: stream << "[) | { "; break;
         }
         visit(tup.expressions());
-        stream << "}";
+        stream << " }";
     }
 
     result_t exprApply(ApplyExpression const& app)
     {
-        stream << "[apply] | {";
+        stream << "[apply] | { ";
         visit(app.expressions());
-        stream << "}";
+        stream << " }";
     }
 
     result_t exprSymbol(SymbolExpression const& sym)
     {
-        stream << "[sym][" << sym.token().lexeme() << "] | {";
+        stream << "[sym][" << sym.token().lexeme() << "] | { ";
         visit(sym.expressions());
-        stream << "}";
+        stream << " }";
     }
 
     result_t exprDot(DotExpression const& dot)
     {
-        stream << "[.] | {";
+        stream << "[.] | { ";
         visit(dot.expressions());
-        stream << "}";
+        stream << " }";
     }
 
     result_t exprAssign(AssignExpression const& ass)
     {
-        stream << "[=] | {";
+        stream << "[=] | { ";
         dispatch(ass.left());
         stream << " | ";
         dispatch(ass.right());
-        stream << "}";
+        stream << " }";
     }
 
     result_t exprLambda(LambdaExpression const&)
     {
-        stream << "[=>]";
+        stream << "[=\\>]";
     }
 
     result_t exprArrow(ArrowExpression const& arrow)
     {
-        stream << "[->] | {";
+        stream << "[-\\>] | { ";
         dispatch(arrow.from());
         stream << " | ";
         dispatch(arrow.to());
-        stream << "}";
+        stream << " }";
     }
 
     result_t exprUniverse(UniverseExpression const& univ)
@@ -273,7 +273,13 @@ struct NodeWriter
         endAttrs();
     }
 
-    result_t declField(DataProductDeclaration::Field const& dpField)
+    result_t declConstructor(Constructor const& c)
+    {
+        beginDecl(c);
+        endAttrs();
+    }
+
+    result_t declField(Field const& dpField)
     {
         beginDecl(dpField);
         endAttrs();
@@ -604,7 +610,12 @@ struct DotWriter
         return traceDefinable(dp);
     }
 
-    result_t declField(DataProductDeclaration::Field const& dpField)
+    result_t declConstructor(Constructor const& c)
+    {
+        return mkNode(c);
+    }
+
+    result_t declField(Field const& dpField)
     {
         return mkNode(dpField);
     }
