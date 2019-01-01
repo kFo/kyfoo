@@ -25,11 +25,10 @@ class ProcedureDeclaration;
 class Module;
 
 #define SCOPE_KINDS(X)               \
-    X(Base       , Scope           ) \
-    X(Procedure  , ProcedureScope  ) \
-    X(DataSum    , DataSumScope    ) \
-    X(DataProduct, DataProductScope) \
-    X(Template   , TemplateScope   )
+    X(Base      , Scope           ) \
+    X(Procedure , ProcedureScope  ) \
+    X(DataType  , DataTypeScope   ) \
+    X(Template  , TemplateScope   )
 
 class Scope
 {
@@ -42,7 +41,7 @@ public:
     };
 
     friend class Context;
-    friend class DataProductScope;
+    friend class DataTypeScope;
     template <typename T> friend class DefinableMixin;
     friend class Module;
     friend class Resolver;
@@ -136,65 +135,25 @@ protected:
     mutable std::map<std::string, ImportDeclaration*> myImports;
 };
 
-class DataSumScope : public Scope
+class DataTypeScope : public Scope
 {
 public:
     friend class Context;
 
 public:
-    DataSumScope(Scope& parent,
-                 DataSumDeclaration& declaration);
+    DataTypeScope(Scope& parent,
+                     DataTypeDeclaration& declaration);
 
 protected:
-    DataSumScope(DataSumScope const& rhs);
-    DataSumScope& operator = (DataSumScope const& rhs);
+    DataTypeScope(DataTypeScope const& rhs);
+    DataTypeScope& operator = (DataTypeScope const& rhs);
 
 public:
-    DataSumScope(DataSumScope&&) = delete;
+    DataTypeScope(DataTypeScope&&) = delete;
 
-    ~DataSumScope() KYFOO_DEBUG_OVERRIDE;
+    ~DataTypeScope() KYFOO_DEBUG_OVERRIDE;
 
-    void swap(DataSumScope& rhs) noexcept;
-
-    // DeclarationScope
-public:
-    DECL_CLONE_ALL(Scope)
-
-protected:
-    SymRes resolveDeclarations(Context& ctx);
-    SymRes resolveDefinitions(Context& ctx);
-
-public:
-    void appendConstructor(Box<Constructor> dp);
-
-    DataSumDeclaration* declaration();
-
-    Slice<Constructor      *> constructors();
-    Slice<Constructor const*> constructors() const;
-
-private:
-    std::vector<Constructor*> myCtors;
-};
-
-class DataProductScope : public Scope
-{
-public:
-    friend class Context;
-
-public:
-    DataProductScope(Scope& parent,
-                     DataProductDeclaration& declaration);
-
-protected:
-    DataProductScope(DataProductScope const& rhs);
-    DataProductScope& operator = (DataProductScope const& rhs);
-
-public:
-    DataProductScope(DataProductScope&&) = delete;
-
-    ~DataProductScope() KYFOO_DEBUG_OVERRIDE;
-
-    void swap(DataProductScope& rhs) noexcept;
+    void swap(DataTypeScope& rhs) noexcept;
 
     // DeclarationScope
 public:
@@ -209,13 +168,19 @@ public:
                      std::vector<Box<Expression>> constraints,
                      Box<Expression> init);
 
-    DataProductDeclaration* declaration();
+    void appendVariation(Symbol&& sym);
+
+    DataTypeDeclaration* declaration();
 
     Slice<Field*> fields();
     Slice<Field const*> fields() const;
 
+    Slice<DataTypeDeclaration*> variations();
+    Slice<DataTypeDeclaration const*> variations() const;
+
 private:
     std::vector<Field*> myFields;
+    std::vector<DataTypeDeclaration*> myVariations;
 };
 
 class ProcedureScope : public Scope

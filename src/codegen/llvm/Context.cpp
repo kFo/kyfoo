@@ -103,88 +103,56 @@ void Context::generate(ast::Declaration const& decl)
     gen(decl);
 }
 
-void Context::generate(ast::DataSumDeclaration const& ds)
+void Context::generate(ast::DataTypeDeclaration const& dt)
 {
-    if ( !ds.symbol().prototype().isConcrete() || ds.codegenData() )
+    if ( !dt.symbol().prototype().isConcrete() || dt.codegenData() )
         return;
 
-    ds.setCodegenData(mk<LLVMCustomData<ast::DataSumDeclaration>>());
-    auto dsData = customData(ds);
-
-    if ( auto t = intrinsicType(ds) ) {
-        dsData->allocaType = t;
+    dt.setCodegenData(mk<LLVMCustomData<ast::DataTypeDeclaration>>());
+    auto dtData = customData(dt);
+    if ( auto t = intrinsicType(dt) ) {
+        dtData->intrinsic = t;
         return;
     }
 
-    auto defn = ds.definition();
-    if ( !defn )
-        return;
-
-    auto ctors = defn->constructors();
-    if ( !ctors )
-        return;
-
-    auto const bits = log2(roundUpToPow2(defn->constructors().card()));
-    dsData->tagType = ::llvm::dyn_cast<::llvm::IntegerType>(myDefaultDataLayout->getSmallestLegalIntType(*myContext, bits));
-
-    generate(*ctors.front());
-    dsData->allocaType = toType(*ctors.front());
-    uz size = *sizeOf(*ctors.front());
-    for ( ctors.popFront(); ctors; ctors.popFront() ) {
-        generate(*ctors.front());
-        auto s = *sizeOf(*ctors.front());
-        if ( s > size ) {
-            dsData->allocaType = toType(*ctors.front());
-            size = s;
+    auto defn = dt.definition();
+    if ( !defn ) {
+        if ( auto s = dt.super() ) {
+            ::llvm::Type* fieldTypes[] = { toType(*s) };
+            constexpr auto isPacked = false;
+            dtData->type = ::llvm::StructType::create(
+                *myContext,
+                fieldTypes,
+                strRef(dt.symbol().token().lexeme()),
+                isPacked);
         }
-    }
-}
 
-void Context::generate(ast::Constructor const& ctor)
-{
-    if ( !ctor.symbol().prototype().isConcrete() || ctor.codegenData() )
-        return;
-
-    ctor.setCodegenData(mk<LLVMCustomData<ast::Constructor>>());
-    auto cData = customData(ctor);
-
-    auto tagType = customData(ctor.parent())->tagType;
-
-    std::vector<::llvm::Type*> fieldTypes = { tagType };
-    for ( uz i = 0; i < ctor.fields().card(); ++i ) {
-        auto& field = *ctor.fields()[i];
-        field.setCodegenData(mk<LLVMCustomData<ast::Field>>());
-        customData(field)->index = static_cast<u32>(i + 1);
-        fieldTypes.emplace_back(toType(field));
-    }
-
-    constexpr auto isPacked = false;
-    cData->type = ::llvm::StructType::create(
-        *myContext,
-        fieldTypes,
-        strRef(ctor.symbol().token().lexeme()),
-        isPacked);
-}
-
-void Context::generate(ast::DataProductDeclaration const& dp)
-{
-    if ( !dp.symbol().prototype().isConcrete() || dp.codegenData() )
-        return;
-
-    dp.setCodegenData(mk<LLVMCustomData<ast::DataProductDeclaration>>());
-    auto dpData = customData(dp);
-    if ( auto t = intrinsicType(dp) ) {
-        dpData->type = t;
         return;
     }
-
-    auto defn = dp.definition();
-    if ( !defn )
-        return;
 
     std::vector<::llvm::Type*> fieldTypes;
-    auto const& fields = defn->fields();
-    fieldTypes.reserve(fields.card());
+    auto fields = defn->fields();
+    auto variations = defn->variations();
+    {
+        auto n = fields.card();
+        if ( variations )
+            ++n;
+
+        if ( dt.super() )
+            ++n;
+
+        fieldTypes.reserve(n);
+    }
+
+    if ( dt.super() )
+        fieldTypes.push_back(toType(*dt.super()));
+
+    if ( variations ) {
+        auto const bits = log2(roundUpToPow2(variations.card()));
+        dtData->tagType = ::llvm::cast<::llvm::IntegerType>(myDefaultDataLayout->getSmallestLegalIntType(*myContext, bits));
+        fieldTypes.push_back(dtData->tagType);
+    }
+
     for ( uz i = 0; i < fields.card(); ++i ) {
         fields[i]->setCodegenData(mk<LLVMCustomData<ast::Field>>());
         customData(*fields[i])->index = static_cast<u32>(i);
@@ -200,11 +168,25 @@ void Context::generate(ast::DataProductDeclaration const& dp)
     }
 
     constexpr auto isPacked = false;
-    dpData->type = ::llvm::StructType::create(
+    dtData->type = ::llvm::StructType::create(
         *myContext,
         fieldTypes,
-        strRef(dp.symbol().token().lexeme()),
+        strRef(dt.symbol().token().lexeme()),
         isPacked);
+
+    if ( variations ) {
+        generate(*variations.front());
+        dtData->largestSubtype = ::llvm::cast<::llvm::StructType>(toType(*variations.front()));
+        uz size = *sizeOf(*variations.front());
+        for ( variations.popFront(); variations; variations.popFront() ) {
+            generate(*variations.front());
+            auto s = *sizeOf(*variations.front());
+            if ( s > size ) {
+                dtData->largestSubtype = ::llvm::cast<::llvm::StructType>(toType(*variations.front()));
+                size = s;
+            }
+        }
+    }
 }
 
 std::optional<uz> Context::sizeOf(ast::Declaration const& decl)
@@ -231,14 +213,13 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
     if ( !d->codegenData() )
         generate(*d);
 
-    if ( auto ds = d->as<ast::DataSumDeclaration>() )
-        return customData(*ds)->allocaType;
+    if ( auto dt = d->as<ast::DataTypeDeclaration>() ) {
+        auto dtData = customData(*dt);
+        if ( dtData->intrinsic )
+            return dtData->intrinsic;
 
-    if ( auto ctor = d->as<ast::Constructor>() )
-        return customData(*ctor)->type;
-
-    if ( auto dp = d->as<ast::DataProductDeclaration>() )
-        return customData(*dp)->type;
+        return dtData->type;
+    }
 
     return nullptr;
 }
@@ -297,48 +278,45 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
 
 ::llvm::Type* Context::intrinsicType(ast::Declaration const& decl)
 {
-    if ( auto ds = decl.as<ast::DataSumDeclaration>() ) {
-        auto dsData = customData(*ds);
-        if ( dsData->allocaType )
-            return dsData->allocaType;
+    auto dt = decl.as<ast::DataTypeDeclaration>();
+    if ( !dt )
+        return nullptr;
 
-        if ( ds == axioms().intrinsic(ast::IntegerLiteralType )
-            || ds == axioms().intrinsic(ast::RationalLiteralType) )
-        {
-            dsData->allocaType = (::llvm::Type*)0x1; // todo: choose width based on expression
-            return dsData->allocaType;
-        }
+    auto dtData = customData(*dt);
+    if ( dtData->intrinsic )
+        return dtData->intrinsic;
 
-        auto const& sym = ds->symbol();
-        if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate)->symbol()
-            || rootTemplate(sym) == &axioms().intrinsic(ast::ReferenceTemplate)->symbol() )
-        {
-            auto t = toType(*sym.prototype().pattern()[0]);
-            if ( t->isVoidTy() )
-                dsData->allocaType = ::llvm::Type::getInt8PtrTy(*myContext);
-            else
-                dsData->allocaType = ::llvm::PointerType::getUnqual(t);
-            return dsData->allocaType;
-        }
+    if ( dt == axioms().intrinsic(ast::IntegerLiteralType )
+      || dt == axioms().intrinsic(ast::RationalLiteralType) )
+    {
+        dtData->intrinsic = (::llvm::Type*)0x1; // todo: choose width based on expression
+        return dtData->intrinsic;
     }
 
-    if ( auto dp = decl.as<ast::DataProductDeclaration>() ) {
-        auto dpData = customData(*dp);
-        if ( dpData->type )
-            return dpData->type;
+    auto const& sym = dt->symbol();
+    if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate  )->symbol()
+      || rootTemplate(sym) == &axioms().intrinsic(ast::ReferenceTemplate)->symbol() )
+    {
+        auto t = toType(*sym.prototype().pattern().front());
+        if ( t->isVoidTy() )
+            dtData->intrinsic = ::llvm::Type::getInt8PtrTy(*myContext);
+        else
+            dtData->intrinsic = ::llvm::PointerType::getUnqual(t);
 
-             if ( dp == axioms().intrinsic(ast::u1  ) ) return dpData->type = ::llvm::Type::getInt1Ty  (*myContext);
-        else if ( dp == axioms().intrinsic(ast::u8  ) ) return dpData->type = ::llvm::Type::getInt8Ty  (*myContext);
-        else if ( dp == axioms().intrinsic(ast::u16 ) ) return dpData->type = ::llvm::Type::getInt16Ty (*myContext);
-        else if ( dp == axioms().intrinsic(ast::u32 ) ) return dpData->type = ::llvm::Type::getInt32Ty (*myContext);
-        else if ( dp == axioms().intrinsic(ast::u64 ) ) return dpData->type = ::llvm::Type::getInt64Ty (*myContext);
-        else if ( dp == axioms().intrinsic(ast::u128) ) return dpData->type = ::llvm::Type::getInt128Ty(*myContext);
-        else if ( dp == axioms().intrinsic(ast::s8  ) ) return dpData->type = ::llvm::Type::getInt8Ty  (*myContext);
-        else if ( dp == axioms().intrinsic(ast::s16 ) ) return dpData->type = ::llvm::Type::getInt16Ty (*myContext);
-        else if ( dp == axioms().intrinsic(ast::s32 ) ) return dpData->type = ::llvm::Type::getInt32Ty (*myContext);
-        else if ( dp == axioms().intrinsic(ast::s64 ) ) return dpData->type = ::llvm::Type::getInt64Ty (*myContext);
-        else if ( dp == axioms().intrinsic(ast::s128) ) return dpData->type = ::llvm::Type::getInt128Ty(*myContext);
+        return dtData->intrinsic;
     }
+
+         if ( dt == axioms().intrinsic(ast::u1  ) ) return dtData->intrinsic = ::llvm::Type::getInt1Ty  (*myContext);
+    else if ( dt == axioms().intrinsic(ast::u8  ) ) return dtData->intrinsic = ::llvm::Type::getInt8Ty  (*myContext);
+    else if ( dt == axioms().intrinsic(ast::u16 ) ) return dtData->intrinsic = ::llvm::Type::getInt16Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::u32 ) ) return dtData->intrinsic = ::llvm::Type::getInt32Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::u64 ) ) return dtData->intrinsic = ::llvm::Type::getInt64Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::u128) ) return dtData->intrinsic = ::llvm::Type::getInt128Ty(*myContext);
+    else if ( dt == axioms().intrinsic(ast::s8  ) ) return dtData->intrinsic = ::llvm::Type::getInt8Ty  (*myContext);
+    else if ( dt == axioms().intrinsic(ast::s16 ) ) return dtData->intrinsic = ::llvm::Type::getInt16Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::s32 ) ) return dtData->intrinsic = ::llvm::Type::getInt32Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::s64 ) ) return dtData->intrinsic = ::llvm::Type::getInt64Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::s128) ) return dtData->intrinsic = ::llvm::Type::getInt128Ty(*myContext);
 
     return nullptr;
 }

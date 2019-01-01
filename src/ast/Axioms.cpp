@@ -67,10 +67,10 @@ s64  := signed<64 >
 s128 := signed<128>
 
 @"intrininst" "ReferenceTemplate"
-:| ref<\T>
+:& ref<\T>
 
 @"intrininst" "PointerTemplate"
-:| ptr<\T>
+:& ptr<\T>
 
 @"intrininst" "ArrayStaticTemplate"
 :& array<\T, \card : integer>
@@ -249,25 +249,20 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
 {
     myScope = mk<ast::Scope>(*this);
 
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , lexer::SourceLocation()))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", lexer::SourceLocation()))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "string"  , lexer::SourceLocation()))));
-    myScope->append(mk<DataSumDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , lexer::SourceLocation()))));
+    myScope->append(mk<DataTypeDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "integer" , lexer::SourceLocation()))));
+    myScope->append(mk<DataTypeDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "rational", lexer::SourceLocation()))));
+    myScope->append(mk<DataTypeDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "string"  , lexer::SourceLocation()))));
+    myScope->append(mk<DataTypeDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , lexer::SourceLocation()))));
 
     for ( uz i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
-        myDataSumDecls[i] = scope()->childDeclarations()[i]->as<DataSumDeclaration>();
+        myDataTypeDecls[i] = scope()->childDeclarations()[i]->as<DataTypeDeclaration>();
 }
 
 AxiomsModule::~AxiomsModule() = default;
 
-DataSumDeclaration const* AxiomsModule::intrinsic(DataSumIntrinsics i) const
+DataTypeDeclaration const* AxiomsModule::intrinsic(DataTypeIntrinsics i) const
 {
-    return myDataSumDecls[i];
-}
-
-DataProductDeclaration const* AxiomsModule::intrinsic(DataProductIntrinsics i) const
-{
-    return myDataProductDecls[i];
+    return myDataTypeDecls[i];
 }
 
 ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) const
@@ -275,21 +270,11 @@ ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) con
     return myInstructionDecls[i];
 }
 
-bool AxiomsModule::isIntrinsic(DataSumDeclaration const& decl) const
+bool AxiomsModule::isIntrinsic(DataTypeDeclaration const& decl) const
 {
     auto rootTempl = rootTemplate(decl.symbol());
-    for ( uz i = 0; i < DataSumIntrinsicsCount; ++i )
-        if ( &myDataSumDecls[i]->symbol() == rootTempl )
-            return true;
-
-    return false;
-}
-
-bool AxiomsModule::isIntrinsic(DataProductDeclaration const& decl) const
-{
-    auto rootTempl = rootTemplate(decl.symbol());
-    for ( uz i = 0; i < DataProductIntrinsicsCount; ++i )
-        if ( &myDataProductDecls[i]->symbol() == rootTempl )
+    for ( uz i = 0; i < DataTypeIntrinsicsCount; ++i )
+        if ( &myDataTypeDecls[i]->symbol() == rootTempl )
             return true;
 
     return false;
@@ -307,11 +292,8 @@ bool AxiomsModule::isIntrinsic(ProcedureDeclaration const& decl) const
 
 bool AxiomsModule::isIntrinsic(Declaration const& decl) const
 {
-    if ( auto ds = decl.as<DataSumDeclaration>() )
-        return isIntrinsic(*ds);
-
-    if ( auto dp = decl.as<DataProductDeclaration>() )
-        return isIntrinsic(*dp);
+    if ( auto dt = decl.as<DataTypeDeclaration>() )
+        return isIntrinsic(*dt);
 
     if ( auto proc = decl.as<ProcedureDeclaration>() )
         return isIntrinsic(*proc);
@@ -319,19 +301,10 @@ bool AxiomsModule::isIntrinsic(Declaration const& decl) const
     return false;
 }
 
-bool AxiomsModule::isLiteral(DataSumDeclaration const& decl) const
+bool AxiomsModule::isLiteral(DataTypeDeclaration const& decl) const
 {
-    for ( uz i = 0; i < DataSumIntrinsicsCount; ++i )
-        if ( myDataSumDecls[i] == &decl )
-            return true;
-
-    return false;
-}
-
-bool AxiomsModule::isLiteral(DataProductDeclaration const& decl) const
-{
-    for ( uz i = 0; i < DataProductIntrinsicsCount; ++i )
-        if ( myDataProductDecls[i] == &decl )
+    for ( uz i = 0; i < DataTypeIntrinsicsCount; ++i )
+        if ( myDataTypeDecls[i] == &decl )
             return true;
 
     return false;
@@ -339,10 +312,8 @@ bool AxiomsModule::isLiteral(DataProductDeclaration const& decl) const
 
 bool AxiomsModule::isLiteral(Declaration const& decl) const
 {
-    if ( auto ds = decl.as<DataSumDeclaration>() )
-        return isLiteral(*ds);
-    else if ( auto dp = decl.as<DataProductDeclaration>() )
-        return isLiteral(*dp);
+    if ( auto dt = decl.as<DataTypeDeclaration>() )
+        return isLiteral(*dt);
 
     return false;
 }
@@ -359,11 +330,8 @@ AxiomsModule::IntegerMetaData const* AxiomsModule::integerMetaData(Declaration c
 void AxiomsModule::setIntrinsic(stringv nameLiteral, Declaration const* decl)
 {
 #define X(a) #a,
-    static stringv sums[] = {
-        INTRINSIC_DATASUMS(X)
-    };
-    static stringv prods[] = {
-        INTRINSIC_DATAPRODUCTS(X)
+    static stringv dts[] = {
+        INTRINSIC_DATATYPES(X)
     };
     static stringv instrs[] = {
         INTRINSIC_INSTRUCTIONS(X)
@@ -371,13 +339,8 @@ void AxiomsModule::setIntrinsic(stringv nameLiteral, Declaration const* decl)
 #undef X
 
     auto name = nameLiteral(1, $-1); // remove '"' from front and back
-    if ( auto ds = decl->as<DataSumDeclaration>() ) {
-        myDataSumDecls[std::find(sums, sums + DataSumIntrinsicsCount, name) - sums] = ds;
-        return;
-    }
-
-    if ( auto dp = decl->as<DataProductDeclaration>() ) {
-        myDataProductDecls[std::find(prods, prods + DataProductIntrinsicsCount, name) - prods] = dp;
+    if ( auto dt = decl->as<DataTypeDeclaration>() ) {
+        myDataTypeDecls[std::find(dts, dts + DataTypeIntrinsicsCount, name) - dts] = dt;
         return;
     }
 
@@ -428,21 +391,21 @@ bool AxiomsModule::init(Diagnostics& dgn)
         if ( dgn.errorCount() )
             return false;
 
-        myDataProductDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataProductDeclaration>();
+        myDataTypeDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataTypeDeclaration>();
 
-        myDataProductDecls[s8  ] = resolveIndirections(scope()->findEquivalent("s8"  ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[s16 ] = resolveIndirections(scope()->findEquivalent("s16" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[s32 ] = resolveIndirections(scope()->findEquivalent("s32" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[s64 ] = resolveIndirections(scope()->findEquivalent("s64" ).single())->as<DataProductDeclaration>();
-        myDataProductDecls[s128] = resolveIndirections(scope()->findEquivalent("s128").single())->as<DataProductDeclaration>();
+        myDataTypeDecls[s8  ] = resolveIndirections(scope()->findEquivalent("s8"  ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[s16 ] = resolveIndirections(scope()->findEquivalent("s16" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[s32 ] = resolveIndirections(scope()->findEquivalent("s32" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[s64 ] = resolveIndirections(scope()->findEquivalent("s64" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[s128] = resolveIndirections(scope()->findEquivalent("s128").single())->as<DataTypeDeclaration>();
 
-        myDataProductDecls[ascii ] = resolveIndirections(scope()->findEquivalent("ascii").single())->as<DataProductDeclaration>();
-        myDataProductDecls[size_t] = resolveIndirections(scope()->findEquivalent("uz").single())->as<DataProductDeclaration>();
+        myDataTypeDecls[ascii ] = resolveIndirections(scope()->findEquivalent("ascii").single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[size_t] = resolveIndirections(scope()->findEquivalent("uz"   ).single())->as<DataTypeDeclaration>();
 
         buildMetaData();
 

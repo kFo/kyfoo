@@ -7,29 +7,19 @@
 
 namespace kyfoo::ast {
 
-class DataSumDeclaration;
-class DataProductDeclaration;
+class DataTypeDeclaration;
 class ProcedureDeclaration;
 class ModuleSet;
 
-#define INTRINSIC_DATASUMS(X) \
+#define INTRINSIC_DATATYPES(X) \
     X(IntegerLiteralType    ) \
     X(RationalLiteralType   ) \
     X(StringLiteralType     ) \
     X(PointerNullLiteralType) \
     \
     X(ReferenceTemplate) \
-    X(PointerTemplate  )
-
-enum DataSumIntrinsics
-{
-#define X(a) a,
-    INTRINSIC_DATASUMS(X)
-#undef X
-    DataSumIntrinsicsCount
-};
-
-#define INTRINSIC_DATAPRODUCTS(X) \
+    X(PointerTemplate  ) \
+    \
     X(ArrayStaticTemplate ) \
     X(ArrayDynamicTemplate) \
     X(SliceTemplate       ) \
@@ -53,12 +43,12 @@ enum DataSumIntrinsics
     X(ascii) \
     X(size_t)
 
-enum DataProductIntrinsics
+enum DataTypeIntrinsics
 {
 #define X(a) a,
-    INTRINSIC_DATAPRODUCTS(X)
+    INTRINSIC_DATATYPES(X)
 #undef X
-    DataProductIntrinsicsCount
+    DataTypeIntrinsicsCount
 };
 
 #define INTRINSIC_INSTRUCTIONS(X) \
@@ -137,7 +127,7 @@ class AxiomsModule : public Module
 public:
     struct IntegerMetaData
     {
-        DataProductDeclaration const* decl;
+        DataTypeDeclaration const* decl;
         int bits;
     };
 
@@ -155,8 +145,7 @@ public:
      * Intrinsic accessors by ordinal
      */
     /** { */
-    DataSumDeclaration const* intrinsic(DataSumIntrinsics i) const;
-    DataProductDeclaration const* intrinsic(DataProductIntrinsics i) const;
+    DataTypeDeclaration const* intrinsic(DataTypeIntrinsics i) const;
     ProcedureDeclaration const* intrinsic(InstructionIntrinsics i) const;
     /** } */
 
@@ -164,8 +153,7 @@ public:
      * Test whether a declaration is an intrinsic
      */
     /** { */
-    bool isIntrinsic(DataSumDeclaration const& decl) const;
-    bool isIntrinsic(DataProductDeclaration const& decl) const;
+    bool isIntrinsic(DataTypeDeclaration const& decl) const;
     bool isIntrinsic(ProcedureDeclaration const& decl) const;
     bool isIntrinsic(Declaration const& decl) const;
     /** } */
@@ -174,8 +162,7 @@ public:
      * Test whether a declaration is a literal
      */
     /** { */
-    bool isLiteral(DataSumDeclaration const& decl) const;
-    bool isLiteral(DataProductDeclaration const& decl) const;
+    bool isLiteral(DataTypeDeclaration const& decl) const;
     bool isLiteral(Declaration const& decl) const;
     /** } */
 
@@ -185,8 +172,7 @@ private:
     void setIntrinsic(stringv name, Declaration const* decl);
     void findIntrinsics(Scope const* s);
 
-    DataSumDeclaration const* myDataSumDecls[DataSumIntrinsicsCount];
-    DataProductDeclaration const* myDataProductDecls[DataProductIntrinsicsCount];
+    DataTypeDeclaration const* myDataTypeDecls[DataTypeIntrinsicsCount];
     ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
 
 private:

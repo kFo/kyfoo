@@ -4,6 +4,7 @@
 #include <functional>
 #include <set>
 
+#include <kyfoo/Algorithm.hpp>
 #include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/TokenKind.hpp>
@@ -301,22 +302,10 @@ public:
 
     // declarations
 public:
-    result_t declDataSum(DataSumDeclaration const& ds)
+    result_t declDataType(DataTypeDeclaration const& dt)
     {
-        REVERT = pushLocal(ds);
-        return traceDecl(ds);
-    }
-
-    result_t declDataProduct(DataProductDeclaration const& dp)
-    {
-        REVERT = pushLocal(dp);
-        return traceDecl(dp);
-    }
-
-    result_t declConstructor(Constructor const& c)
-    {
-        REVERT = pushLocal(c);
-        return traceDecl(c);
+        REVERT = pushLocal(dt);
+        return traceDecl(dt);
     }
 
     result_t declField(Field const& dpField)
@@ -388,11 +377,11 @@ SymRes traceDependencies(SymbolDependencyTracker& tracker, Declaration& decl)
     auto ret = op(decl);
 
     // data-sum ctors are visible from their parent's scope
-    if ( auto ds = decl.as<DataSumDeclaration>() ) {
-        if ( auto defn = ds->definition() ) {
-            for ( auto ctor : defn->constructors() ) {
-                tracker.add(*ctor);
-                ret |= op(*ctor);
+    if ( auto dt = decl.as<DataTypeDeclaration>() ) {
+        if ( auto defn = dt->definition() ) {
+            for ( auto v : defn->variations() ) {
+                tracker.add(*v);
+                ret |= op(*v);
             }
         }
     }
@@ -699,22 +688,22 @@ TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc)
     return proc.scope().declaration()->as<TemplateDeclaration>();
 }
 
-Declaration const* outerDataDeclaration(Declaration const& decl)
+DataTypeDeclaration const* outerDataDeclaration(Declaration const& decl)
 {
     for ( auto scope = &decl.scope(); scope; scope = scope->parent() ) {
         if ( !scope->declaration() )
             return nullptr;
 
-        if ( isDataDeclaration(scope->declaration()->kind()) )
-            return scope->declaration();
+        if ( auto dt = scope->declaration()->as<DataTypeDeclaration>() )
+            return dt;
     }
 
     return nullptr;
 }
 
-Declaration* outerDataDeclaration(Declaration& decl)
+DataTypeDeclaration* outerDataDeclaration(Declaration& decl)
 {
-    return const_cast<Declaration*>(outerDataDeclaration(const_cast<Declaration const&>(decl)));
+    return const_cast<DataTypeDeclaration*>(outerDataDeclaration(const_cast<Declaration const&>(decl)));
 }
 
 Declaration const* callingContextDeclaration(Declaration const& decl)
@@ -735,14 +724,14 @@ Declaration* callingContextDeclaration(Declaration& decl)
     return const_cast<Declaration*>(callingContextDeclaration(const_cast<Declaration const&>(decl)));
 }
 
-DataProductDeclaration const* methodType(ProcedureDeclaration const& proc)
+DataTypeDeclaration const* methodType(ProcedureDeclaration const& proc)
 {
     auto decl = outerDataDeclaration(proc);
     if ( !decl )
         return nullptr;
 
-    if ( auto dp = decl->as<DataProductDeclaration>() )
-        return dp;
+    if ( auto dt = decl->as<DataTypeDeclaration>() )
+        return dt;
 
     return nullptr;
 }
@@ -751,7 +740,7 @@ Expression const* dataType(Expression const& expr_)
 {
     auto expr = resolveIndirections(&expr_);
     if ( auto decl = getDeclaration(*expr) ) {
-        if ( isDataDeclaration(decl->kind()) )
+        if ( decl->as<DataTypeDeclaration>() )
             return expr;
 
         return nullptr;
@@ -769,6 +758,14 @@ Expression const* dataType(Expression const& expr_)
         return expr;
 
     return nullptr;
+}
+
+uz variationOrdinal(DataTypeDeclaration const& dt)
+{
+    if ( auto s = dt.super() )
+        return indexOf(s->definition()->variations(), &dt);
+
+    return 1;
 }
 
 UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression const*> exprs)

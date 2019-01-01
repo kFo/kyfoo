@@ -260,22 +260,9 @@ struct NodeWriter
         beginAttrs(decl.symbol().token().lexeme());
     }
 
-    result_t declDataSum(DataSumDeclaration const& ds)
+    result_t declDataType(DataTypeDeclaration const& dt)
     {
-        beginDecl(ds);
-        attr("kind", "data-sum");
-        endAttrs();
-    }
-
-    result_t declDataProduct(DataProductDeclaration const& dp)
-    {
-        beginDecl(dp);
-        endAttrs();
-    }
-
-    result_t declConstructor(Constructor const& c)
-    {
-        beginDecl(c);
+        beginDecl(dt);
         endAttrs();
     }
 
@@ -600,19 +587,9 @@ struct DotWriter
         return node.id;
     }
 
-    result_t declDataSum(DataSumDeclaration const& ds)
+    result_t declDataType(DataTypeDeclaration const& dt)
     {
-        return traceDefinable(ds);
-    }
-
-    result_t declDataProduct(DataProductDeclaration const& dp)
-    {
-        return traceDefinable(dp);
-    }
-
-    result_t declConstructor(Constructor const& c)
-    {
-        return mkNode(c);
+        return traceDefinable(dt);
     }
 
     result_t declField(Field const& dpField)

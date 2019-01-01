@@ -455,7 +455,7 @@ void IdentifierExpression::setDeclaration(Declaration const& decl)
 {
     if ( myDeclaration ) {
         switch ( resolveIndirections(myDeclaration)->kind() ) {
-        case DeclKind::DataProduct:
+        case DeclKind::DataType:
         case DeclKind::Template:
             break;
         default:
@@ -719,23 +719,23 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
             }
 
             if ( auto decl = getDeclaration(*composite) ) {
-                auto dp = decl->as<DataProductDeclaration>();
-                if ( !dp ) {
+                auto dt = decl->as<DataTypeDeclaration>();
+                if ( !dt ) {
                     (ctx.error(*e) << "field accessor must refer to composite type")
-                        .see(*dp);
+                        .see(*dt);
                     return SymRes::Fail;
                 }
 
-                auto defn = dp->definition();
+                auto defn = dt->definition();
                 if ( !defn ) {
                     (ctx.error(*composite) << "is not defined")
-                        .see(*dp);
+                        .see(*dt);
                     return SymRes::Fail;
                 }
 
                 if ( uz(index) >= defn->fields().card() ) {
                     (ctx.error(*e) << "field accessor out of bounds")
-                        .see(*dp);
+                        .see(*dt);
                     return SymRes::Fail;
                 }
 
@@ -1050,34 +1050,32 @@ SymRes ApplyExpression::lowerToApplicable(Context& ctx)
         return SymRes::Fail;
     }
 
-    for ( auto ds = applicable->as<DataSumDeclaration>();
-         ds && isReference(*ds);
-         ds = applicable->as<DataSumDeclaration>() )
+    while ( isReference(*applicable) )
     {
-        applicable = resolveIndirections(getDeclaration(ds->symbol().prototype().pattern().front()));
+        applicable = resolveIndirections(getDeclaration(applicable->symbol().prototype().pattern().front()));
         if ( !applicable ) {
             ctx.error(subj) << "does not refer to an applicable type";
             return SymRes::Fail;
         }
     }
 
-    auto dp = applicable->as<DataProductDeclaration>();
-    if ( !dp ) {
+    auto dt = applicable->as<DataTypeDeclaration>();
+    if ( !dt ) {
         ctx.error(subj) << "only data-product types can be applied";
         return SymRes::Fail;
     }
 
-    auto defn = dp->definition();
+    auto defn = dt->definition();
     if ( !defn ) {
         (ctx.error(subj) << "missing definition")
-            .see(*dp);
+            .see(*dt);
         return SymRes::Fail;
     }
 
     auto hit = ctx.matchOverloadUsingImplicitConversions(*defn, Resolver::Narrow, "", myExpressions);
     if ( !hit ) {
         (ctx.error(subj) << "no suitable apply overload found")
-            .see(*dp);
+            .see(*dt);
         return SymRes::Fail;
     }
 
@@ -1085,7 +1083,7 @@ SymRes ApplyExpression::lowerToApplicable(Context& ctx)
     if ( !proc ) {
         (ctx.error(subj) << "is not a procedure")
             .see(*hit.single())
-            .see(*dp);
+            .see(*dt);
         return SymRes::Fail;
     }
 

@@ -375,117 +375,43 @@ Slice<ProcedureDeclaration const*> Scope::childLambdas() const
 }
 
 //
-// DataSumScope
+// DataTypeScope
 
-DataSumScope::DataSumScope(Scope& parent,
-                           DataSumDeclaration& declaration)
-    : Scope(Kind::DataSum, &parent.module(), &parent)
+DataTypeScope::DataTypeScope(Scope& parent,
+                             DataTypeDeclaration& declaration)
+    : Scope(Kind::DataType, &parent.module(), &parent)
 {
     declaration.define(*this);
 }
 
-DataSumScope::DataSumScope(DataSumScope const& rhs)
-    : Scope(rhs)
-    , myCtors(rhs.myCtors)
-{
-}
-
-DataSumScope& DataSumScope::operator = (DataSumScope const& rhs)
-{
-    DataSumScope(rhs).swap(*this);
-    return *this;
-}
-
-DataSumScope::~DataSumScope() = default;
-
-void DataSumScope::swap(DataSumScope& rhs) noexcept
-{
-    Scope::swap(rhs);
-}
-
-IMPL_CLONE_BEGIN(DataSumScope, Scope, Scope)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataSumScope, Scope)
-IMPL_CLONE_REMAP(myCtors)
-IMPL_CLONE_REMAP_END
-
-SymRes DataSumScope::resolveDeclarations(Context& ctx)
-{
-    if ( myDeclRes )
-        return *myDeclRes;
-
-    for ( auto const& d : myDeclarations ) {
-        auto dsCtor = d->as<Constructor>();
-        ENFORCE(dsCtor, "data sum must only contain constructors");
-    }
-
-    return Scope::resolveDeclarations(ctx);
-}
-
-SymRes DataSumScope::resolveDefinitions(Context& ctx)
-{
-    return Scope::resolveDefinitions(ctx);
-}
-
-void DataSumScope::appendConstructor(Box<Constructor> ctor)
-{
-    myCtors.emplace_back(ctor.get());
-    Scope::append(std::move(ctor));
-}
-
-DataSumDeclaration* DataSumScope::declaration()
-{
-    return static_cast<DataSumDeclaration*>(myDeclaration);
-}
-
-Slice<Constructor*> DataSumScope::constructors()
-{
-    return myCtors;
-}
-
-Slice<Constructor const*> DataSumScope::constructors() const
-{
-    return myCtors;
-}
-
-//
-// DataProductScope
-
-DataProductScope::DataProductScope(Scope& parent,
-                                   DataProductDeclaration& declaration)
-    : Scope(Kind::DataProduct, &parent.module(), &parent)
-{
-    declaration.define(*this);
-}
-
-DataProductScope::DataProductScope(DataProductScope const& rhs)
+DataTypeScope::DataTypeScope(DataTypeScope const& rhs)
     : Scope(rhs)
     , myFields(rhs.myFields)
 {
 }
 
-DataProductScope& DataProductScope::operator = (DataProductScope const& rhs)
+DataTypeScope& DataTypeScope::operator = (DataTypeScope const& rhs)
 {
-    DataProductScope(rhs).swap(*this);
+    DataTypeScope(rhs).swap(*this);
     return *this;
 }
 
-DataProductScope::~DataProductScope() = default;
+DataTypeScope::~DataTypeScope() = default;
 
-void DataProductScope::swap(DataProductScope& rhs) noexcept
+void DataTypeScope::swap(DataTypeScope& rhs) noexcept
 {
     Scope::swap(rhs);
     using kyfoo::swap;
     swap(myFields, rhs.myFields);
 }
 
-IMPL_CLONE_BEGIN(DataProductScope, Scope, Scope)
+IMPL_CLONE_BEGIN(DataTypeScope, Scope, Scope)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataProductScope, Scope)
+IMPL_CLONE_REMAP_BEGIN(DataTypeScope, Scope)
 IMPL_CLONE_REMAP(myFields)
 IMPL_CLONE_REMAP_END
 
-SymRes DataProductScope::resolveDeclarations(Context& ctx)
+SymRes DataTypeScope::resolveDeclarations(Context& ctx)
 {
     if ( myDeclRes )
         return *myDeclRes;
@@ -493,12 +419,12 @@ SymRes DataProductScope::resolveDeclarations(Context& ctx)
     return Scope::resolveDeclarations(ctx);
 }
 
-SymRes DataProductScope::resolveDefinitions(Context& ctx)
+SymRes DataTypeScope::resolveDefinitions(Context& ctx)
 {
     return Scope::resolveDefinitions(ctx);
 }
 
-void DataProductScope::appendField(Symbol&& symbol,
+void DataTypeScope::appendField(Symbol&& symbol,
                                    std::vector<Box<Expression>> constraints,
                                    Box<Expression> init)
 {
@@ -510,19 +436,36 @@ void DataProductScope::appendField(Symbol&& symbol,
     Scope::append(std::move(field));
 }
 
-DataProductDeclaration* DataProductScope::declaration()
+void DataTypeScope::appendVariation(Symbol&& sym)
 {
-    return static_cast<DataProductDeclaration*>(myDeclaration);
+    auto v = mk<DataTypeDeclaration>(std::move(sym), declaration());
+    myVariations.emplace_back(v.get());
+    Scope::append(std::move(v));
 }
 
-Slice<Field*> DataProductScope::fields()
+DataTypeDeclaration* DataTypeScope::declaration()
+{
+    return static_cast<DataTypeDeclaration*>(myDeclaration);
+}
+
+Slice<Field*> DataTypeScope::fields()
 {
     return myFields;
 }
 
-Slice<Field const*> DataProductScope::fields() const
+Slice<Field const*> DataTypeScope::fields() const
 {
     return myFields;
+}
+
+Slice<DataTypeDeclaration*> DataTypeScope::variations()
+{
+    return myVariations;
+}
+
+Slice<DataTypeDeclaration const*> DataTypeScope::variations() const
+{
+    return myVariations;
 }
 
 //

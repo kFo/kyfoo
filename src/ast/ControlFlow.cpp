@@ -431,52 +431,58 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         return SymRes::Fail;
     }
 
-    auto ds = ast::as<DataSumDeclaration>(condition()->type());
-    if ( !ds ) {
-        ctx.error(condition()) << "does not identify any data-sum";
+    auto dt = ast::as<DataTypeDeclaration>(condition()->type());
+    if ( !dt ) {
+        ctx.error(condition()) << "does not identify any data-type";
         return SymRes::Fail;
     }
 
-    auto dsDefn = ds->definition();
-    if ( !dsDefn ) {
-        (ctx.error(*ds) << "data-sum does not have a definition")
-            .see(*ds);
+    auto defn = dt->definition();
+    if ( !defn ) {
+        (ctx.error(*dt) << "data-type does not have a definition")
+            .see(*dt);
         return SymRes::Fail;
     }
 
-    std::vector<Constructor const*> ctorsFound(dsDefn->constructors().card(), nullptr);
+    if ( !defn->variations() ) {
+        (ctx.error(*dt) << "does not have any variations for match-statement")
+            .see(*dt);
+        return SymRes::Fail;
+    }
+
+    std::vector<DataTypeDeclaration const*> variationsFound(defn->variations().card(), nullptr);
     for ( auto br : branches ) {
         if ( !br->condition() ) {
-            ctx.error(br->token()) << "match-branch must have a match-expression";
+            ctx.error(br->token()) << "match-branch must have a match-statement";
             ret |= SymRes::Fail;
             continue;
         }
 
-        auto ctor = ast::as<Constructor>(br->condition());
-        if ( !ctor ) {
-            (ctx.error(br->condition()) << "does not identify a constructor")
-                .see(*ds);
+        auto v = ast::as<DataTypeDeclaration>(br->condition());
+        if ( !v ) {
+            (ctx.error(br->condition()) << "does not identify a variation")
+                .see(*dt);
             ret |= SymRes::Fail;
             continue;
         }
 
-        auto const index = indexOf(dsDefn->constructors(), ctor);
-        if ( index == dsDefn->constructors().card() ) {
-            (ctx.error(*ctor) << "is not a constructor of the match subject")
-                .see(*ds);
+        auto const index = indexOf(defn->variations(), v);
+        if ( index == defn->variations().card() ) {
+            (ctx.error(*v) << "is not a constructor of the match subject")
+                .see(*dt);
             return SymRes::Fail;
         }
 
-        ctorsFound[index] = ctor;
+        variationsFound[index] = v;
     }
 
     if ( !ret )
         return ret;
 
-    for ( uz i = 0; i < ctorsFound.size(); ++i ) {
-        if ( !ctorsFound[i] ) {
-            (ctx.error(token()) << "data-sum constructor is not covered by match-statement")
-                .see(*dsDefn->constructors()[i]);
+    for ( uz i = 0; i < variationsFound.size(); ++i ) {
+        if ( !variationsFound[i] ) {
+            (ctx.error(token()) << "data-type variation is not covered by match-statement")
+                .see(*defn->variations()[i]);
             ret |= SymRes::Fail;
         }
     }

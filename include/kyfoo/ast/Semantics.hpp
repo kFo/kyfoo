@@ -124,12 +124,13 @@ struct AccessorScope
 AccessorScope instanceAccessorScope(Expression const& expr);
 
 TemplateDeclaration const* procTemplate(ProcedureDeclaration const& proc);
-Declaration const* outerDataDeclaration(Declaration const& decl);
-Declaration* outerDataDeclaration(Declaration& decl);
+DataTypeDeclaration const* outerDataDeclaration(Declaration const& decl);
+DataTypeDeclaration* outerDataDeclaration(Declaration& decl);
 Declaration const* callingContextDeclaration(Declaration const& decl);
 Declaration* callingContextDeclaration(Declaration& decl);
-DataProductDeclaration const* methodType(ProcedureDeclaration const& proc);
+DataTypeDeclaration const* methodType(ProcedureDeclaration const& proc);
 Expression const* dataType(Expression const& expr);
+uz variationOrdinal(DataTypeDeclaration const& dt);
 
 struct UnificationResult 
 {

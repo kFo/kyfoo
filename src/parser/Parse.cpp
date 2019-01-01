@@ -31,8 +31,8 @@ DeclarationScopeParser::DeclarationScopeParser(Diagnostics& dgn,
 
 DeclarationScopeParser::~DeclarationScopeParser() = default;
 
-Box<DataSumScopeParser>
-DeclarationScopeParser::parseDataSumDefinition(ast::DataSumDeclaration& declaration)
+Box<DataTypeScopeParser>
+DeclarationScopeParser::parseDataTypeDefinition(ast::DataTypeDeclaration& declaration)
 {
     // Check if type definition follows
     if ( scanner().peek().kind() != lexer::TokenKind::IndentGT )
@@ -40,23 +40,9 @@ DeclarationScopeParser::parseDataSumDefinition(ast::DataSumDeclaration& declarat
 
     scanner().next();
 
-    auto dsDefn = mk<ast::DataSumScope>(*myScope, declaration);
-    scope().append(std::move(dsDefn));
-    return mk<DataSumScopeParser>(diagnostics(), scanner(), *declaration.definition());
-}
-
-Box<DataProductScopeParser>
-DeclarationScopeParser::parseDataProductDefinition(ast::DataProductDeclaration& declaration)
-{
-    // Check if type definition follows
-    if ( scanner().peek().kind() != lexer::TokenKind::IndentGT )
-        return nullptr;
-
-    scanner().next();
-
-    auto dpDefn = mk<ast::DataProductScope>(*myScope, declaration);
-    scope().append(std::move(dpDefn));
-    return mk<DataProductScopeParser>(diagnostics(), scanner(), *declaration.definition());
+    auto defn = mk<ast::DataTypeScope>(*myScope, declaration);
+    scope().append(std::move(defn));
+    return mk<DataTypeScopeParser>(diagnostics(), scanner(), *declaration.definition());
 }
 
 Box<ProcedureScopeParser>
@@ -111,19 +97,10 @@ DeclarationScopeParser::parseNonProcedural()
         append(std::move(symDecl));
         return {true, nullptr};
     }
-    else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
-        auto p = dsDecl.get();
-        append(std::move(dsDecl));
-        auto newScopeParser = parseDataSumDefinition(*p);
-
-        return {true, std::move(newScopeParser)};
-    }
-    else if ( auto dpDecl = parse<DataProductDeclaration>(*this) ) {
-        auto p = dpDecl.get();
-        append(std::move(dpDecl));
-        auto newScopeParser = parseDataProductDefinition(*p);
-
-        return {true, std::move(newScopeParser)};
+    else if ( auto dtDecl = parse<DataTypeDeclaration>(*this) ) {
+        auto p = dtDecl.get();
+        append(std::move(dtDecl));
+        return {true, parseDataTypeDefinition(*p) };
     }
 
     return {false, nullptr};
@@ -248,74 +225,38 @@ Box<DeclarationScopeParser> DeclarationScopeParser::next()
 }
 
 //
-// DataSumScopeParser
+// DataTypeScopeParser
 
-DataSumScopeParser::DataSumScopeParser(Diagnostics& dgn,
-                                       lexer::Scanner& scanner,
-                                       ast::DataSumScope& scope)
-    : DeclarationScopeParser(dgn, scanner, scope)
-{
-}
-
-DataSumScopeParser::~DataSumScopeParser() = default;
-
-ast::DataSumScope& DataSumScopeParser::scope()
-{
-    return *static_cast<ast::DataSumScope*>(myScope);
-}
-
-ast::DataSumScope const& DataSumScopeParser::scope() const
-{
-    return *static_cast<ast::DataSumScope*>(myScope);
-}
-
-DeclarationScopeParser::ParseResult
-DataSumScopeParser::parseNext()
-{
-    if ( auto ctor = parse<DataSumConstructor>(*this) ) {
-        scope().appendConstructor(std::move(ctor));
-        return {true, nullptr};
-    }
-
-    return {false, nullptr};
-}
-
-//
-// DataProductScopeParser
-
-DataProductScopeParser::DataProductScopeParser(Diagnostics& dgn,
+DataTypeScopeParser::DataTypeScopeParser(Diagnostics& dgn,
                                                lexer::Scanner& scanner,
-                                               ast::DataProductScope& scope)
+                                               ast::DataTypeScope& scope)
     : DeclarationScopeParser(dgn, scanner, scope)
 {
 }
 
-DataProductScopeParser::~DataProductScopeParser() = default;
+DataTypeScopeParser::~DataTypeScopeParser() = default;
 
-ast::DataProductScope& DataProductScopeParser::scope()
+ast::DataTypeScope& DataTypeScopeParser::scope()
 {
-    return *static_cast<ast::DataProductScope*>(myScope);
+    return *static_cast<ast::DataTypeScope*>(myScope);
 }
 
-ast::DataProductScope const& DataProductScopeParser::scope() const
+ast::DataTypeScope const& DataTypeScopeParser::scope() const
 {
-    return *static_cast<ast::DataProductScope*>(myScope);
+    return *static_cast<ast::DataTypeScope*>(myScope);
 }
 
 DeclarationScopeParser::ParseResult
-DataProductScopeParser::parseNext()
+DataTypeScopeParser::parseNext()
 {
-    if ( DataProductDeclarationField field; parse(scanner(), field) ) {
+    if ( DataTypeDeclarationField field; parse(scanner(), field) ) {
         auto [s, c, i] = field.make(*this);
         scope().appendField(std::move(s), std::move(c), std::move(i));
         return {true, nullptr};
     }
-    else if ( auto dsDecl = parse<DataSumDeclaration>(*this) ) {
-        auto p = dsDecl.get();
-        scope().append(std::move(dsDecl));
-        auto newScopeParser = parseDataSumDefinition(*p);
-
-        return {true, std::move(newScopeParser)};
+    else if ( auto sym = parse<DataVariation>(*this) ) {
+        scope().appendVariation(std::move(*sym));
+        return {true, parseDataTypeDefinition(*scope().variations().back())};
     }
 
     return DeclarationScopeParser::parseNext();

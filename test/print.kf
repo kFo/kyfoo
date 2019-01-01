@@ -181,9 +181,9 @@ htest() =>
     printLambda (c:u32)->u32=>c.mul 2
     putLine
 
-:| Variant
-    One
-    Two
+:& Variant
+    :| One
+    :| Two
 
 itest(v : Variant) =>
     :? v

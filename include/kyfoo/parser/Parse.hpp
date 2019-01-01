@@ -14,10 +14,8 @@ namespace kyfoo {
 
     namespace ast {
         class BasicBlock;
-        class DataProductDeclaration;
-        class DataProductScope;
-        class DataSumDeclaration;
-        class DataSumScope;
+        class DataTypeDeclaration;
+        class DataTypeScope;
         class Declaration;
         class Expression;
         class ProcedureDeclaration;
@@ -28,8 +26,7 @@ namespace kyfoo {
 
     namespace parser {
 
-class DataSumScopeParser;
-class DataProductScopeParser;
+class DataTypeScopeParser;
 class ProcedureScopeParser;
 
 class DeclarationScopeParser
@@ -43,8 +40,7 @@ public:
 public:
     Box<DeclarationScopeParser> next();
 
-    Box<DataSumScopeParser> parseDataSumDefinition(ast::DataSumDeclaration& declaration);
-    Box<DataProductScopeParser> parseDataProductDefinition(ast::DataProductDeclaration& declaration);
+    Box<DataTypeScopeParser> parseDataTypeDefinition(ast::DataTypeDeclaration& declaration);
     Box<ProcedureScopeParser> parseProcedureDefinition(ast::ProcedureDeclaration& declaration);
 
     struct ParseResult
@@ -81,33 +77,17 @@ protected:
     std::vector<Box<ast::Expression>> myParameterContext;
 };
 
-class DataSumScopeParser : public DeclarationScopeParser
+class DataTypeScopeParser : public DeclarationScopeParser
 {
 public:
-    DataSumScopeParser(Diagnostics& dgn,
-                       lexer::Scanner& scanner,
-                       ast::DataSumScope& scope);
-    ~DataSumScopeParser() override;
+    DataTypeScopeParser(Diagnostics& dgn,
+                        lexer::Scanner& scanner,
+                        ast::DataTypeScope& scope);
+    ~DataTypeScopeParser() override;
 
 public:
-    ast::DataSumScope& scope();
-    ast::DataSumScope const& scope() const;
-
-protected:
-    ParseResult parseNext() override;
-};
-
-class DataProductScopeParser : public DeclarationScopeParser
-{
-public:
-    DataProductScopeParser(Diagnostics& dgn,
-                           lexer::Scanner& scanner,
-                           ast::DataProductScope& scope);
-    ~DataProductScopeParser() override;
-
-public:
-    ast::DataProductScope& scope();
-    ast::DataProductScope const& scope() const;
+    ast::DataTypeScope& scope();
+    ast::DataTypeScope const& scope() const;
 
 protected:
     ParseResult parseNext() override;

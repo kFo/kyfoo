@@ -83,6 +83,12 @@ Variance variance(DiagnosticsContext dgn, Declaration const& target, Declaration
                         query.symbol().prototype().pattern());
     }
 
+    if ( auto t = target.as<DataTypeDeclaration>() )
+        if ( auto q = query.as<DataTypeDeclaration>() )
+            for ( auto s = q->super(); s; s = s->super() )
+                if ( t == s )
+                    return Variance::Covariant;
+
     return Variance::Invariant;
 }
 

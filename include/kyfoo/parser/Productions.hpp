@@ -734,41 +734,21 @@ struct ImportDeclaration :
     }
 };
 
-struct DataSumDeclaration :
+struct DataVariation :
     g::And<colonPipe, Symbol>
 {
-    Box<ast::DataSumDeclaration> make(DeclarationScopeParser& parser)
+    std::optional<ast::Symbol> make(DeclarationScopeParser& parser)
     {
-        return mk<ast::DataSumDeclaration>(factor<1>().make(parser));
+        return factor<1>().make(parser);
     }
 };
 
-struct DataSumConstructor :
-    g::And<Symbol, g::Opt<g::And<g::Opt<vacuum>, openParen, g::Repeat2<g::And<id, colon, Expression>, comma>, closeParen>>>
-{
-    Box<ast::Constructor> make(DeclarationScopeParser& parser)
-    {
-        auto ret = mk<ast::Constructor>(*parser.scope().as<ast::DataSumScope>()->declaration(),
-                                        ast::Symbol(factor<0>().make(parser)));
-
-        if ( auto fields = factor<1>().capture() ) {
-            for ( auto& f : fields->factor<2>().captures() ) {
-                ret->appendField(ast::Symbol(f.factor<0>().token()),
-                                 ast::createPtrList<ast::Expression>(f.factor<2>().make(parser)),
-                                 nullptr);
-            }
-        }
-
-        return ret;
-    }
-};
-
-struct DataProductDeclaration :
+struct DataTypeDeclaration :
     g::And<colonAmpersand, Symbol>
 {
-    Box<ast::DataProductDeclaration> make(DeclarationScopeParser& parser)
+    Box<ast::DataTypeDeclaration> make(DeclarationScopeParser& parser)
     {
-        return mk<ast::DataProductDeclaration>(factor<1>().make(parser));
+        return mk<ast::DataTypeDeclaration>(factor<1>().make(parser));
     }
 };
 
@@ -779,7 +759,7 @@ struct Field
     Box<ast::Expression> init;
 };
 
-struct DataProductDeclarationField :
+struct DataTypeDeclarationField :
     g::And<id, colon, Expression, g::Opt<g::And<equal, Expression>>>
 {
     Field make(DeclarationScopeParser& parser)

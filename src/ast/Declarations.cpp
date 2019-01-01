@@ -294,7 +294,7 @@ Expression const* Binder::type() const
 //
 // Field
 
-Field::Field(DataProductDeclaration& parent,
+Field::Field(DataTypeDeclaration& parent,
              Symbol&& symbol,
              std::vector<Box<Expression>> constraints,
              Box<Expression> init)
@@ -349,185 +349,50 @@ SymRes Field::resolveSymbols(Context& ctx)
     return ret;
 }
 
-DataProductDeclaration* Field::parent()
+DataTypeDeclaration* Field::parent()
 {
     return myParent;
 }
 
-DataProductDeclaration const* Field::parent() const
+DataTypeDeclaration const* Field::parent() const
 {
     return myParent;
 }
 
 //
-// Constructor
+// DataTypeDeclaration
 
-Constructor::Constructor(DataSumDeclaration& parent,
-                         Symbol&& symbol)
-    : Declaration(DeclKind::Constructor, std::move(symbol), nullptr)
-    , myParent(&parent)
-    , myType(createIdentifier(myParent->symbol().token(), *myParent))
+DataTypeDeclaration::DataTypeDeclaration(Symbol&& symbol, DataTypeDeclaration const* super)
+    : base_t(DeclKind::DataType, std::move(symbol))
+    , mySuper(super)
 {
 }
 
-Constructor::Constructor(Constructor const& rhs)
-    : Declaration(rhs)
-    , myParent(rhs.myParent)
-{
-    // clone myFields
-}
+DataTypeDeclaration::DataTypeDeclaration(DataTypeDeclaration const&) = default;
 
-Constructor& Constructor::operator = (Constructor const& rhs)
-{
-    Constructor(rhs).swap(*this);
-    return *this;
-}
+DataTypeDeclaration::~DataTypeDeclaration() = default;
 
-Constructor::~Constructor() = default;
-
-void Constructor::swap(Constructor& rhs) noexcept
-{
-    Declaration::swap(rhs);
-    using kyfoo::swap;
-    swap(myParent, rhs.myParent);
-    swap(myProduct, rhs.myProduct);
-}
-
-IMPL_CLONE_BEGIN(Constructor, Declaration, Declaration)
-IMPL_CLONE_CHILD(myProduct)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(Constructor, Declaration)
-IMPL_CLONE_REMAP(myParent)
-IMPL_CLONE_REMAP(myProduct)
-IMPL_CLONE_REMAP_END
-
-SymRes Constructor::resolveSymbols(Context& ctx)
-{
-    Resolver resolver(*myParent->definition());
-    REVERT = ctx.pushResolver(resolver);
-    
-    SymRes ret;
-    
-    if ( myProduct ) {
-        ret |= ctx.resolveDeclaration(*myProduct);
-        ret |= ctx.resolveScope(*myProduct->definition());
-    }
-
-    return ret;
-}
-
-DataSumDeclaration& Constructor::parent()
-{
-    return *myParent;
-}
-
-DataSumDeclaration const& Constructor::parent() const
-{
-    return *myParent;
-}
-
-DataProductDeclaration* Constructor::product()
-{
-    return myProduct.get();
-}
-
-DataProductDeclaration const* Constructor::product() const
-{
-    return myProduct.get();
-}
-
-Slice<Field*> Constructor::fields()
-{
-    if ( !myProduct )
-        return {};
-
-    return myProduct->definition()->fields();
-}
-
-Slice<Field const*> Constructor::fields() const
-{
-    return const_cast<Constructor*>(this)->fields();
-}
-
-Expression* Constructor::type()
-{
-    return myType.get();
-}
-
-Expression const* Constructor::type() const
-{
-    return myType.get();
-}
-
-void Constructor::appendField(Symbol&& symbol,
-                              std::vector<Box<Expression>> constraints,
-                              Box<Expression> init)
-{
-    if ( !myProduct ) {
-        myProduct = mk<DataProductDeclaration>(makeSym(*mySymbol));
-        auto defn = mk<DataProductScope>(*myParent->definition(), *myProduct);
-        myProduct->define(*defn);
-        myParent->definition()->append(std::move(defn));
-    }
-
-    myProduct->definition()->appendField(std::move(symbol), std::move(constraints), std::move(init));
-}
-
-//
-// DataSumDeclaration
-
-DataSumDeclaration::DataSumDeclaration(Symbol&& symbol)
-    : base_t(DeclKind::DataSum, std::move(symbol))
-{
-}
-
-DataSumDeclaration::DataSumDeclaration(DataSumDeclaration const&) = default;
-
-DataSumDeclaration::~DataSumDeclaration() = default;
-
-void DataSumDeclaration::swap(DataSumDeclaration& rhs) noexcept
-{
-    base_t::swap(rhs);
-}
-
-IMPL_CLONE_BEGIN(DataSumDeclaration, base_t, Declaration)
-IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataSumDeclaration, base_t)
-IMPL_CLONE_REMAP_END
-
-SymRes DataSumDeclaration::resolveSymbols(Context& ctx)
-{
-    return base_t::resolveSymbols(ctx);
-}
-
-//
-// DataProductDeclaration
-
-DataProductDeclaration::DataProductDeclaration(Symbol&& symbol)
-    : base_t(DeclKind::DataProduct, std::move(symbol))
-{
-}
-
-DataProductDeclaration::DataProductDeclaration(DataProductDeclaration const&) = default;
-
-DataProductDeclaration::~DataProductDeclaration() = default;
-
-void DataProductDeclaration::swap(DataProductDeclaration& rhs) noexcept
+void DataTypeDeclaration::swap(DataTypeDeclaration& rhs) noexcept
 {
     base_t::swap(rhs);
     using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
-IMPL_CLONE_BEGIN(DataProductDeclaration, base_t, Declaration)
+IMPL_CLONE_BEGIN(DataTypeDeclaration, base_t, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataProductDeclaration, base_t)
+IMPL_CLONE_REMAP_BEGIN(DataTypeDeclaration, base_t)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
-SymRes DataProductDeclaration::resolveSymbols(Context& ctx)
+SymRes DataTypeDeclaration::resolveSymbols(Context& ctx)
 {
     return base_t::resolveSymbols(ctx);
+}
+
+DataTypeDeclaration const* DataTypeDeclaration::super() const
+{
+    return mySuper;
 }
 
 //
@@ -1049,18 +914,6 @@ void TemplateDeclaration::merge(TemplateDeclaration& rhs)
 //
 // Utilities
 
-bool isDataDeclaration(DeclKind kind)
-{
-    switch (kind) {
-    case DeclKind::DataProduct:
-    case DeclKind::DataSum:
-        return true;
-
-    default:
-        return false;
-    }
-}
-
 bool isBinder(DeclKind kind)
 {
     switch ( kind ) {
@@ -1085,8 +938,7 @@ Binder const* getBinder(Declaration const& decl)
 bool isCallableDeclaration(DeclKind kind)
 {
     switch ( kind ) {
-    case DeclKind::DataProduct:
-    case DeclKind::DataSum:
+    case DeclKind::DataType:
     case DeclKind::Procedure:
         return true;
 
@@ -1121,13 +973,7 @@ bool hasIndirection(Expression const& expr)
 
 Expression const* getType(Declaration const& decl)
 {
-    if ( auto d = decl.as<DataSumDeclaration>() )
-        return &Expression::universe(1);
-
-    if ( auto d = decl.as<Constructor>() )
-        return d->type();
-
-    if ( auto d = decl.as<DataProductDeclaration>() )
+    if ( auto d = decl.as<DataTypeDeclaration>() )
         return &Expression::universe(1);
 
     if ( auto d = decl.as<Field>() )
@@ -1177,8 +1023,7 @@ bool isDefinableDeclaration(DeclKind kind)
 {
     switch (kind)
     {
-    case DeclKind::DataSum:
-    case DeclKind::DataProduct:
+    case DeclKind::DataType:
     case DeclKind::Procedure:
     case DeclKind::Template:
         return true;
@@ -1216,13 +1061,9 @@ Scope* getDefinition(Declaration& decl)
 
 void define(Declaration& decl, Scope& defn)
 {
-    if ( auto ds = decl.as<DataSumDeclaration>() )
-        if ( auto dsDefn = defn.as<DataSumScope>() )
-            return ds->define(*dsDefn);
-
-    if ( auto dp = decl.as<DataProductDeclaration>() )
-        if ( auto dpDefn = defn.as<DataProductScope>() )
-            return dp->define(*dpDefn);
+    if ( auto dt = decl.as<DataTypeDeclaration>() )
+        if ( auto dtDefn = defn.as<DataTypeScope>() )
+            return dt->define(*dtDefn);
 
     if ( auto proc = decl.as<ProcedureDeclaration>() )
         if ( auto procDefn = defn.as<ProcedureScope>() )
@@ -1248,19 +1089,9 @@ struct DeclarationPrinter
     {
     }
 
-    result_t declDataSum(DataSumDeclaration const& ds)
+    result_t declDataType(DataTypeDeclaration const& dt)
     {
-        return stream << ds.symbol().token().lexeme();
-    }
-
-    result_t declDataProduct(DataProductDeclaration const& dp)
-    {
-        return stream << dp.symbol().token().lexeme();
-    }
-
-    result_t declConstructor(Constructor const& c)
-    {
-        return stream << c.symbol().token().lexeme();
+        return stream << dt.symbol().token().lexeme();
     }
 
     result_t declField(Field const& f)

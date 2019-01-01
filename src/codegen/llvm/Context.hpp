@@ -18,9 +18,7 @@ namespace kyfoo {
 
     namespace ast {
         class AxiomsModule;
-        class Constructor;
-        class DataSumDeclaration;
-        class DataProductDeclaration;
+        class DataTypeDeclaration;
         class Declaration;
         class Expression;
         class Module;
@@ -49,9 +47,7 @@ public:
 
     void generate(ast::Module const& module);
     void generate(ast::Declaration const& decl);
-    void generate(ast::DataSumDeclaration const& ds);
-    void generate(ast::Constructor const& ctor);
-    void generate(ast::DataProductDeclaration const& dp);
+    void generate(ast::DataTypeDeclaration const& dt);
 
     std::optional<uz> sizeOf(ast::Declaration const& decl);
     std::optional<uz> sizeOf(ast::Expression const& expr);
