@@ -68,16 +68,17 @@ void Statement::swap(Statement& rhs) noexcept
 {
     using kyfoo::swap;
     swap(myKind, rhs.myKind);
-    swap(myUnnamedVariables, rhs.myUnnamedVariables);
-    swap(myAssignExpressions, rhs.myAssignExpressions);
+    swap(myTempVariables, rhs.myTempVariables);
+    swap(myTempExpressions, rhs.myTempExpressions);
 }
 
 IMPL_CLONE_NOBASE_BEGIN(Statement, Statement)
-IMPL_CLONE_CHILD(myUnnamedVariables)
+IMPL_CLONE_CHILD(myTempVariables)
+IMPL_CLONE_CHILD(myTempExpressions)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_NOBASE_BEGIN(Statement)
-IMPL_CLONE_REMAP(myUnnamedVariables)
-IMPL_CLONE_REMAP(myAssignExpressions)
+IMPL_CLONE_REMAP(myTempVariables)
+IMPL_CLONE_REMAP(myTempExpressions)
 IMPL_CLONE_REMAP_END
 
 SymRes Statement::resolveSymbols(Context&)
@@ -90,48 +91,23 @@ Statement::Kind Statement::kind() const
     return myKind;
 }
 
-Slice<VariableDeclaration const*> Statement::unnamedVariables() const
+Slice<VariableDeclaration const*> Statement::tempVariables() const
 {
-    return myUnnamedVariables;
+    return myTempVariables;
 }
 
-Slice<AssignExpression const*> Statement::assignExpressions() const
+Slice<Expression const*> Statement::tempExpressions() const
 {
-    return myAssignExpressions;
+    return myTempExpressions;
 }
 
-VariableDeclaration const* Statement::createUnnamedVariable(ProcedureScope& scope,
-                                                            Expression const& type)
+VariableDeclaration const& Statement::createTemp(ProcedureScope& scope,
+                                                 Expression const& type,
+                                                 Box<Expression> expr)
 {
-    myUnnamedVariables.emplace_back(mk<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
-    return myUnnamedVariables.back().get();
-}
-
-Box<AssignExpression> Statement::appendUnnamedExpression(ProcedureScope& scope,
-                                                         Box<Expression> expr)
-{
-    auto var = createUnnamedVariable(scope, *expr->type());
-    auto ret = mk<AssignExpression>(*var, std::move(expr));
-    myAssignExpressions.push_back(ret.get());
-    return ret;
-}
-
-void Statement::flattenTopSubexpression(Box<Expression>& topExpr) noexcept
-{
-    if ( auto ass = topExpr->as<AssignExpression>() ) {
-        if ( auto id = ass->left().as<IdentifierExpression>() ) {
-            if ( id->token().kind() == lexer::TokenKind::Undefined ) {
-                auto e = find_if(begin(myUnnamedVariables), end(myUnnamedVariables),
-                                 [&](auto const& rhs) { return rhs.get() == id->declaration(); });
-                if ( e != end(myUnnamedVariables) ) {
-                    myUnnamedVariables.erase(e);
-                    myAssignExpressions.erase(find(begin(myAssignExpressions), end(myAssignExpressions),
-                                                   ass));
-                    topExpr = ass->takeRight();
-                }
-            }
-        }
-    }
+    myTempVariables.emplace_back(mk<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
+    myTempExpressions.emplace_back(std::move(expr));
+    return *myTempVariables.back();
 }
 
 //
@@ -180,7 +156,6 @@ SymRes ExpressionStatement::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
-    flattenTopSubexpression(myExpression);
     return SymRes::Success;
 }
 
@@ -262,8 +237,6 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
     auto ret = ctx.resolveExpression(myInitializer);
     if ( !ret )
         return ret;
-
-    flattenTopSubexpression(myInitializer);
 
     if ( myVariable->type() ) {
         if ( variance(ctx, *myVariable->type(), *myInitializer) )
@@ -1183,6 +1156,7 @@ struct Sequencer
     result_t stmtExpression(ExpressionStatement const& estmt)
     {
         currentStmt = &estmt;
+        recurse(estmt.tempExpressions());
         return dispatch(estmt.expression());
     }
 
@@ -1190,6 +1164,7 @@ struct Sequencer
     {
         if ( auto expr = vstmt.initializer() ) {
             currentStmt = &vstmt;
+            recurse(vstmt.tempExpressions());
             dispatch(*expr);
 
             if ( auto ext = extents.find(vstmt.variable()); ext != end(extents) )

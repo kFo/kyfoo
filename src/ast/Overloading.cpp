@@ -410,9 +410,8 @@ ViableSet SymbolSpace::findViableOverloads(Context& ctx, Slice<Expression const*
 
         auto targetProto = e.proto.params;
         auto relativeCtx = &ctx;
-        std::unique_ptr<Declaration> substDecl;
         if ( !substs.empty() ) {
-            substDecl = ast::clone(e.proto.decl);
+            auto substDecl = ctx.module().fabricate(ast::clone(e.proto.decl));
             substDecl->symbol().prototype().bindVariables(substs);
             auto result = sfinaeCtx.resolveDeclaration(*substDecl);
             if ( !result )

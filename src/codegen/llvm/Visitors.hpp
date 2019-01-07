@@ -297,11 +297,6 @@ struct CodeGenPass
         }
     }
 
-    ::llvm::AllocaInst* createAlloca(::llvm::Type* type, ::llvm::Value* arraySize = nullptr)
-    {
-        return allocaBuilder.CreateAlloca(type, arraySize);
-    }
-
     void generateProcBody(ast::ProcedureDeclaration const& decl)
     {
         auto defn = decl.definition();
@@ -321,43 +316,6 @@ struct CodeGenPass
         }
 
         ::llvm::IRBuilder<> allocaBuilder(::llvm::BasicBlock::Create(module->getContext(), "", fun));
-
-        std::function<void(ast::ProcedureScope const&)> gatherAllocas =
-        [&](ast::ProcedureScope const& scope) {
-            for ( auto const& d : scope.childDeclarations() ) {
-                if ( auto var = d->as<ast::VariableDeclaration>() ) {
-                    declVariable(*var);
-                    customData(*var)->inst = allocaBuilder.CreateAlloca(ctx.toType(*var->type()));
-                }
-            }
-
-            auto gatherStatement = [this, &allocaBuilder](ast::Statement const& stmt) {
-                for ( auto const& v : stmt.unnamedVariables() ) {
-                    declVariable(*v);
-                    auto type = ctx.toType(*v->type());
-                    if ( !type->isVoidTy() )
-                        customData(*v)->inst = allocaBuilder.CreateAlloca(type);
-                }
-            };
-
-            for ( auto const& bb : scope.basicBlocks() ) {
-                for ( auto const& stmt : bb->statements() )
-                    gatherStatement(*stmt);
-
-                if ( auto brJunc = bb->junction()->as<ast::BranchJunction>() ) {
-                    if ( brJunc->statement() )
-                        gatherStatement(*brJunc->statement());
-                }
-                else if ( auto retJunc = bb->junction()->as<ast::ReturnJunction>() ) {
-                    gatherStatement(retJunc->statement());
-                }
-            }
-
-            for ( auto const& s : scope.childScopes() )
-                gatherAllocas(*s);
-        };
-        gatherAllocas(*defn);
-
         auto entryBlock = ::llvm::BasicBlock::Create(module->getContext(), "", fun);
         toBlock(allocaBuilder, *defn, *defn->basicBlocks().front(), fun, entryBlock, nullptr);
         allocaBuilder.CreateBr(entryBlock);
@@ -426,11 +384,23 @@ struct CodeGenPass
         //    }
         //};
 
-        for ( auto const& stmt : block.statements() ) {
+        for ( auto stmt : block.statements() ) {
+            for ( uz tempCard = stmt->tempVariables().card(), i = 0; i < tempCard; ++i ) {
+                auto& var = *stmt->tempVariables()[i];
+                auto& expr = *stmt->tempExpressions()[i];
+                declVariable(var);
+                auto vdata = customData(var);
+                vdata->inst = allocaBuilder.CreateAlloca(ctx.toType(*var.type()));
+                auto val = toValue(allocaBuilder, builder, ctx.toType(*var.type()), expr);
+                builder.CreateStore(val, vdata->inst);
+            }
+
             if ( auto estmt = stmt->as<ast::ExpressionStatement>() ) {
                 toValue(allocaBuilder, builder, builder.getVoidTy(), estmt->expression());
             }
             else if ( auto vstmt = stmt->as<ast::VariableStatement>() ) {
+                declVariable(vstmt->variable());
+                customData(vstmt->variable())->inst = allocaBuilder.CreateAlloca(ctx.toType(*vstmt->variable().type()));
                 if ( auto expr = vstmt->initializer() ) {
                     auto varType = ctx.toType(*vstmt->variable().type());
                     auto val = toValue(allocaBuilder, builder, varType, *expr);
@@ -894,23 +864,6 @@ private:
             return builder.CreateCall(fptr, args);
         }
 
-        if ( auto assign = expr.as<ast::AssignExpression>() ) {
-            auto ref = toRef(allocaBuilder, builder, assign->left());
-            if ( !ref )
-                ref = toValue(allocaBuilder, builder, nullptr, assign->left());
-
-            auto leftType = ref ? ref->getType()->getPointerElementType() : builder.getVoidTy();
-            auto val = toValue(allocaBuilder, builder, leftType, assign->right());
-            if ( val->getType()->isVoidTy() )
-                return nullptr;
-
-            if ( !ref || !val )
-                die("cannot determine reference");
-
-            builder.CreateStore(val, ref);
-            return builder.CreateLoad(ref);
-        }
-
         if ( auto l = expr.as<ast::LambdaExpression>() ) {
             auto pdata = cgd(l->procedure());
             return pdata->getFunction(module);
@@ -1012,10 +965,29 @@ private:
         auto const& exprs = a->expressions();
 
         auto const rootTempl = rootTemplate(proc->symbol());
-        if ( rootTempl == &axioms.intrinsic(ast::UnsignedFromInteger      )->symbol()
-          || rootTempl == &axioms.intrinsic(ast::SignedFromInteger        )->symbol()
-          || rootTempl == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
-          || rootTempl == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
+        if ( rootTempl == &axioms.intrinsic(ast::Copyu)->symbol()
+          || rootTempl == &axioms.intrinsic(ast::Copys)->symbol()
+          || rootTempl == &axioms.intrinsic(ast::Bind)->symbol() )
+        {
+            auto ref = toRef(allocaBuilder, builder, *exprs[1]);
+            if ( !ref )
+                ref = toValue(allocaBuilder, builder, nullptr, *exprs[1]);
+
+            auto leftType = ref ? ref->getType()->getPointerElementType() : builder.getVoidTy();
+            auto val = toValue(allocaBuilder, builder, leftType, *exprs[2]);
+            if ( val->getType()->isVoidTy() )
+                return nullptr;
+
+            if ( !ref || !val )
+                die("cannot determine reference");
+
+            builder.CreateStore(val, ref);
+            return ref;
+        }
+        else if ( rootTempl == &axioms.intrinsic(ast::UnsignedFromInteger      )->symbol()
+               || rootTempl == &axioms.intrinsic(ast::SignedFromInteger        )->symbol()
+               || rootTempl == &axioms.intrinsic(ast::implicitIntegerToUnsigned)->symbol()
+               || rootTempl == &axioms.intrinsic(ast::implicitIntegerToSigned  )->symbol() )
         {
             return toLiteral(builder,
                              ctx.toType(*proc->result()->type()),

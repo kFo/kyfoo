@@ -854,7 +854,7 @@ void SymbolVariable::appendConstraint(Expression const& expr)
 
 void SymbolVariable::bindExpression(Expression const* expr)
 {
-    ENFORCE(!myBoundExpression, "symbol variable is already bound to an expression");
+    ENFORCE(!myBoundExpression || myBoundExpression == expr, "symbol variable is already bound to an expression");
 
     myBoundExpression = expr;
 }

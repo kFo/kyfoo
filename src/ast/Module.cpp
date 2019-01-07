@@ -396,6 +396,12 @@ Slice<Declaration const*> Module::templateInstantiations() const
     return myTemplateInstantiations;
 }
 
+Declaration* Module::fabricate(Box<Declaration> decl)
+{
+    myFabDeclarations.emplace_back(std::move(decl));
+    return myFabDeclarations.back().get();
+}
+
 codegen::CustomData* Module::codegenData() const
 {
     return myCodegenData.get();

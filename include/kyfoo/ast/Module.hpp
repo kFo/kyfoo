@@ -108,6 +108,8 @@ public:
     stringv interpretString(Diagnostics& dgn, lexer::Token const& token) const;
     Slice<Declaration const*> templateInstantiations() const;
 
+    Declaration* fabricate(Box<Declaration> decl);
+
     codegen::CustomData* codegenData() const;
     void setCodegenData(Box<codegen::CustomData> data) const;
 
@@ -118,6 +120,7 @@ protected:
     MMFile myFile;
     Box<Scope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;
+    std::vector<Box<Declaration>> myFabDeclarations;
 
     mutable std::vector<Module*> myImports;
     mutable std::map<std::string, std::string, StringComp> myStrings; // todo: shared

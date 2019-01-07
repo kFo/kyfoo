@@ -90,8 +90,8 @@ s128 := signed<128>
 
     // todo: removeme
     ctor(this : ref slice<T>, p : ptr T, c : uz) -> () =>
-        this.base = p
-        this.card = c
+        this.base.bind p
+        this.card.copy c
         :.
 
     @"intrininst" "Slice_idx"
@@ -101,7 +101,7 @@ s128 := signed<128>
         := i : uz = 0
         :* lt i this.card
             f (this i)
-            i = add i 1
+            i.inc
         :.
 
 ascii := slice<u8>
@@ -113,6 +113,15 @@ wordSize := 64
 uz := unsigned<wordSize>
 
 staticSize(p : ptr \T) -> uz => wordSize
+
+@"intrininst" "Copyu"
+copy(d : ref unsigned<\n>, s : unsigned<n>) -> ref unsigned<n>
+
+@"intrininst" "Copys"
+copy(d : ref signed<\n>, s : signed<n>) -> ref signed<n>
+
+@"intrininst" "Bind"
+bind(d : ref ptr<\T>, s : ptr<T>) -> ref ptr<T>
 
 @"intrininst" "Addu"
 add(x y : unsigned<\n>) -> unsigned<n>

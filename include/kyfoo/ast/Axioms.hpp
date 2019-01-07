@@ -74,6 +74,9 @@ enum DataTypeIntrinsics
     X(Slice_idx            ) \
     X(implicitStringToAscii) \
     \
+    X(Copyu  ) \
+    X(Copys  ) \
+    X(Bind   ) \
     X(Addu   ) \
     X(Adds   ) \
     X(Subu   ) \

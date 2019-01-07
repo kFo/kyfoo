@@ -61,21 +61,17 @@ public:
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
 
-    Slice<VariableDeclaration const*> unnamedVariables() const;
-    Slice<AssignExpression const*> assignExpressions() const;
+    Slice<VariableDeclaration const*> tempVariables() const;
+    Slice<Expression const*> tempExpressions() const;
 
-    VariableDeclaration const* createUnnamedVariable(ProcedureScope& scope,
-                                                     Expression const& type);
-    Box<AssignExpression> appendUnnamedExpression(ProcedureScope& scope,
-                                                  Box<Expression> expr);
-
-protected:
-    void flattenTopSubexpression(Box<Expression>& topExpr) noexcept;
+    VariableDeclaration const& createTemp(ProcedureScope& scope,
+                                          Expression const& type,
+                                          Box<Expression> expr);
 
 protected:
     Kind myKind;
-    std::vector<Box<VariableDeclaration>> myUnnamedVariables;
-    std::vector<AssignExpression const*> myAssignExpressions;
+    std::vector<Box<VariableDeclaration>> myTempVariables;
+    std::vector<Box<Expression>> myTempExpressions;
 };
 
 class ExpressionStatement : public Statement

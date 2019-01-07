@@ -142,8 +142,7 @@ Variance variance(DiagnosticsContext dgn,
                     return variance(dgn, *t, *queryType);
             }
 
-            // todo: hack
-            if ( auto app = q->as<AssignExpression>() )
+            if ( queryType->kind() != Expression::Kind::Universe )
                 return variance(dgn, *t, *queryType);
 
             return Variance::Invariant;

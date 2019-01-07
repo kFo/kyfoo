@@ -1009,14 +1009,6 @@ L_notMethod:
 
     myType = &arrow->to();
 
-    if ( !ctx.isTopLevel() ) {
-        return ctx.rewrite([&ctx](Box<Expression>& expr) {
-            // todo: explicit proc scope knowledge
-            auto& procScope = static_cast<ProcedureScope&>(ctx.resolver().scope());
-            return ctx.statement().appendUnnamedExpression(procScope, std::move(expr));
-        });
-    }
-
     return ret;
 }
 
@@ -1371,44 +1363,8 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
-    auto ret = ctx.resolveExpression(myLeft);
-    if ( !ret )
-        return ret;
-
-    ret = ctx.resolveExpression(myRight);
-    if ( !ret )
-        return ret;
-
-    auto checkVariance = [&, this]() {
-        if ( isReference(*myLeft->type()) )
-            return variance(ctx, getDeclaration(myLeft->type())->symbol().prototype().pattern(), *myRight->type());
-        else
-            return variance(ctx, *myLeft, *myRight);
-    };
-    Variance result = checkVariance();
-
-    if ( !result ) {
-        ProcedureDeclaration const* proc = nullptr;
-        if ( isReference(*myLeft->type()) )
-            proc = findImplicitConversion(ctx, *getDeclaration(myLeft->type())->symbol().prototype().pattern().front(), *myRight->type());
-        else
-            proc = findImplicitConversion(ctx, *myLeft, *myRight);
-
-        if ( proc ) {
-            myRight = createApply(createIdentifier(*proc), std::move(myRight));
-            ENFORCE(ctx.resolveExpression(myRight), "implicit conversion error");
-
-            result = checkVariance();
-        }
-    }
-
-    if ( !result ) {
-        ctx.error(*this) << "assignment expression type does not match variable type";
-        return SymRes::Fail;
-    }
-
-    myType = myLeft->type();
-    return SymRes::Success;
+    ctx.error(*this) << "assign-expression is in an unexpected context";
+    return SymRes::Fail;
 }
 
 Expression const& AssignExpression::left() const
@@ -1935,6 +1891,7 @@ bool isUnit(Expression const& expr)
     return tup && tup->kind() == TupleKind::Open && !tup->expressions();
 }
 
+// todo: removeme -- replace with better ref concept
 DeclRef getRef(Expression const& expr_)
 {
     auto expr = resolveIndirections(&expr_);
@@ -1945,6 +1902,9 @@ DeclRef getRef(Expression const& expr_)
             if ( auto decl = getDeclaration(e) ) {
                 if ( auto var = decl->as<VariableDeclaration>() )
                     return {var, dot->type()};
+
+                if ( isReference(*getType(*decl)) )
+                    return { decl, dot->type() };
 
                 if ( auto field = decl->as<Field>() )
                     continue;
