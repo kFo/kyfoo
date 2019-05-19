@@ -471,7 +471,11 @@ VariableDeclaration::VariableDeclaration(Symbol&& symbol,
 {
 }
 
-VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs) = default;
+VariableDeclaration::VariableDeclaration(VariableDeclaration const& rhs)
+    : Binder(rhs)
+{
+    // clone myTypeAsRef
+}
 
 VariableDeclaration& VariableDeclaration::operator = (VariableDeclaration const& rhs)
 {
@@ -484,16 +488,30 @@ VariableDeclaration::~VariableDeclaration() = default;
 void VariableDeclaration::swap(VariableDeclaration& rhs) noexcept
 {
     Binder::swap(rhs);
+    using kyfoo::swap;
+    swap(myTypeAsRef, rhs.myTypeAsRef);
 }
 
 IMPL_CLONE_BEGIN(VariableDeclaration, Binder, Declaration)
+IMPL_CLONE_CHILD(myTypeAsRef)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(VariableDeclaration, Binder)
+IMPL_CLONE_REMAP(myTypeAsRef)
 IMPL_CLONE_REMAP_END
 
 SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 {
-    return Binder::resolveSymbols(ctx);
+    auto ret = Binder::resolveSymbols(ctx);
+    if ( !ret )
+        return ret;
+
+    if ( myType ) {
+        myTypeAsRef = createRefType(front(*myType).location(), clone(myType));
+        ret |= ctx.resolveExpression(myTypeAsRef);
+        myType = myTypeAsRef.get();
+    }
+
+    return ret;
 }
 
 //
@@ -599,7 +617,11 @@ IMPL_CLONE_REMAP_END
 SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 {
     // todo: hack
-    mySymbol->prototype().resolveVariables(scope());
+    {
+        Resolver resolver(scope());
+        REVERT = ctx.changeResolver(resolver);
+        mySymbol->prototype().resolveVariables(ctx);
+    }
 
     // deduce parameters
     auto const& id = symbol().token();
@@ -931,6 +953,14 @@ Binder const* getBinder(Declaration const& decl)
 {
     if ( isBinder(decl.kind()) )
         return static_cast<Binder const*>(&decl);
+
+    return nullptr;
+}
+
+Binder const* getBinder(Expression const& expr)
+{
+    if ( auto decl = getDeclaration(expr) )
+        return getBinder(*decl);
 
     return nullptr;
 }

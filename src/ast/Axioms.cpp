@@ -97,12 +97,8 @@ s128 := signed<128>
     @"intrininst" "Slice_idx"
     (this : ref slice<T>, i : uz) -> ref T
 
-    (this : ref slice<T>, f : (ref T) -> ()) -> () =>
-        := i : uz = 0
-        :* lt i this.card
-            f (this i)
-            i.inc
-        :.
+    @"intrininst" "Slice_apply"
+    (this : ref slice<T>, f : (ref T) -> ()) -> ()
 
 ascii := slice<u8>
 
@@ -241,6 +237,8 @@ cast<ptr \T>(p : ptr \U) -> ptr T
 #include <algorithm>
 
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Fabrication.hpp>
+#include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Overloading.hpp>
@@ -263,18 +261,18 @@ AxiomsModule::AxiomsModule(ModuleSet* moduleSet,
     myScope->append(mk<DataTypeDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "string"  , lexer::SourceLocation()))));
     myScope->append(mk<DataTypeDeclaration>(Symbol(lexer::Token(lexer::TokenKind::Identifier, "null_t"  , lexer::SourceLocation()))));
 
-    for ( uz i = IntegerLiteralType; i <= PointerNullLiteralType; ++i )
+    for ( uz i = intrin::type::IntegerLiteralType; i <= intrin::type::PointerNullLiteralType; ++i )
         myDataTypeDecls[i] = scope()->childDeclarations()[i]->as<DataTypeDeclaration>();
 }
 
 AxiomsModule::~AxiomsModule() = default;
 
-DataTypeDeclaration const* AxiomsModule::intrinsic(DataTypeIntrinsics i) const
+DataTypeDeclaration const* AxiomsModule::intrinsic(intrin::type::Enum i) const
 {
     return myDataTypeDecls[i];
 }
 
-ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) const
+ProcedureDeclaration const* AxiomsModule::intrinsic(intrin::instr::Enum i) const
 {
     return myInstructionDecls[i];
 }
@@ -282,7 +280,7 @@ ProcedureDeclaration const* AxiomsModule::intrinsic(InstructionIntrinsics i) con
 bool AxiomsModule::isIntrinsic(DataTypeDeclaration const& decl) const
 {
     auto rootTempl = rootTemplate(decl.symbol());
-    for ( uz i = 0; i < DataTypeIntrinsicsCount; ++i )
+    for ( uz i = 0; i < intrin::type::ECount; ++i )
         if ( &myDataTypeDecls[i]->symbol() == rootTempl )
             return true;
 
@@ -292,7 +290,7 @@ bool AxiomsModule::isIntrinsic(DataTypeDeclaration const& decl) const
 bool AxiomsModule::isIntrinsic(ProcedureDeclaration const& decl) const
 {
     auto rootTempl = rootTemplate(decl.symbol());
-    for ( uz i = 0; i < InstructionIntrinsicsCount; ++i )
+    for ( uz i = 0; i < intrin::instr::ECount; ++i )
         if ( &myInstructionDecls[i]->symbol() == rootTempl )
             return true;
 
@@ -312,7 +310,7 @@ bool AxiomsModule::isIntrinsic(Declaration const& decl) const
 
 bool AxiomsModule::isLiteral(DataTypeDeclaration const& decl) const
 {
-    for ( uz i = 0; i < DataTypeIntrinsicsCount; ++i )
+    for ( uz i = 0; i < intrin::type::ECount; ++i )
         if ( myDataTypeDecls[i] == &decl )
             return true;
 
@@ -349,12 +347,12 @@ void AxiomsModule::setIntrinsic(stringv nameLiteral, Declaration const* decl)
 
     auto name = nameLiteral(1, $-1); // remove '"' from front and back
     if ( auto dt = decl->as<DataTypeDeclaration>() ) {
-        myDataTypeDecls[std::find(dts, dts + DataTypeIntrinsicsCount, name) - dts] = dt;
+        myDataTypeDecls[std::find(dts, dts + intrin::type::ECount, name) - dts] = dt;
         return;
     }
 
     if ( auto proc = decl->as<ProcedureDeclaration>() ) {
-        myInstructionDecls[std::find(instrs, instrs + InstructionIntrinsicsCount, name) - instrs] = proc;
+        myInstructionDecls[std::find(instrs, instrs + intrin::instr::ECount, name) - instrs] = proc;
         return;
     }
 
@@ -400,22 +398,22 @@ bool AxiomsModule::init(Diagnostics& dgn)
         if ( dgn.errorCount() )
             return false;
 
-        myDataTypeDecls[u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::u1  ] = resolveIndirections(scope()->findEquivalent("u1"  ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::u8  ] = resolveIndirections(scope()->findEquivalent("u8"  ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::u16 ] = resolveIndirections(scope()->findEquivalent("u16" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::u32 ] = resolveIndirections(scope()->findEquivalent("u32" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::u64 ] = resolveIndirections(scope()->findEquivalent("u64" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::u128] = resolveIndirections(scope()->findEquivalent("u128").single())->as<DataTypeDeclaration>();
 
-        myDataTypeDecls[s8  ] = resolveIndirections(scope()->findEquivalent("s8"  ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[s16 ] = resolveIndirections(scope()->findEquivalent("s16" ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[s32 ] = resolveIndirections(scope()->findEquivalent("s32" ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[s64 ] = resolveIndirections(scope()->findEquivalent("s64" ).single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[s128] = resolveIndirections(scope()->findEquivalent("s128").single())->as<DataTypeDeclaration>();
-
-        myDataTypeDecls[ascii ] = resolveIndirections(scope()->findEquivalent("ascii").single())->as<DataTypeDeclaration>();
-        myDataTypeDecls[size_t] = resolveIndirections(scope()->findEquivalent("uz"   ).single())->as<DataTypeDeclaration>();
-
+        myDataTypeDecls[intrin::type::s8  ] = resolveIndirections(scope()->findEquivalent("s8"  ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::s16 ] = resolveIndirections(scope()->findEquivalent("s16" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::s32 ] = resolveIndirections(scope()->findEquivalent("s32" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::s64 ] = resolveIndirections(scope()->findEquivalent("s64" ).single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::s128] = resolveIndirections(scope()->findEquivalent("s128").single())->as<DataTypeDeclaration>();
+        
+        myDataTypeDecls[intrin::type::ascii ] = resolveIndirections(scope()->findEquivalent("ascii").single())->as<DataTypeDeclaration>();
+        myDataTypeDecls[intrin::type::size_t] = resolveIndirections(scope()->findEquivalent("uz"   ).single())->as<DataTypeDeclaration>();
+        
         buildMetaData();
 
         return true;
@@ -432,18 +430,18 @@ bool AxiomsModule::init(Diagnostics& dgn)
 
 void AxiomsModule::buildMetaData()
 {
-    myIntegerMetaData[0 ] = IntegerMetaData{ intrinsic(u1  ), 1   };
-    myIntegerMetaData[1 ] = IntegerMetaData{ intrinsic(u8  ), 8   };
-    myIntegerMetaData[2 ] = IntegerMetaData{ intrinsic(u16 ), 16  };
-    myIntegerMetaData[3 ] = IntegerMetaData{ intrinsic(u32 ), 32  };
-    myIntegerMetaData[4 ] = IntegerMetaData{ intrinsic(u64 ), 64  };
-    myIntegerMetaData[5 ] = IntegerMetaData{ intrinsic(u128), 128 };
+    myIntegerMetaData[0 ] = IntegerMetaData{ intrinsic(intrin::type::u1  ), 1   };
+    myIntegerMetaData[1 ] = IntegerMetaData{ intrinsic(intrin::type::u8  ), 8   };
+    myIntegerMetaData[2 ] = IntegerMetaData{ intrinsic(intrin::type::u16 ), 16  };
+    myIntegerMetaData[3 ] = IntegerMetaData{ intrinsic(intrin::type::u32 ), 32  };
+    myIntegerMetaData[4 ] = IntegerMetaData{ intrinsic(intrin::type::u64 ), 64  };
+    myIntegerMetaData[5 ] = IntegerMetaData{ intrinsic(intrin::type::u128), 128 };
 
-    myIntegerMetaData[6 ] = IntegerMetaData{ intrinsic(s8  ), -8   };
-    myIntegerMetaData[7 ] = IntegerMetaData{ intrinsic(s16 ), -16  };
-    myIntegerMetaData[8 ] = IntegerMetaData{ intrinsic(s32 ), -32  };
-    myIntegerMetaData[9 ] = IntegerMetaData{ intrinsic(s64 ), -64  };
-    myIntegerMetaData[10] = IntegerMetaData{ intrinsic(s128), -128 };
+    myIntegerMetaData[6 ] = IntegerMetaData{ intrinsic(intrin::type::s8  ), -8   };
+    myIntegerMetaData[7 ] = IntegerMetaData{ intrinsic(intrin::type::s16 ), -16  };
+    myIntegerMetaData[8 ] = IntegerMetaData{ intrinsic(intrin::type::s32 ), -32  };
+    myIntegerMetaData[9 ] = IntegerMetaData{ intrinsic(intrin::type::s64 ), -64  };
+    myIntegerMetaData[10] = IntegerMetaData{ intrinsic(intrin::type::s128), -128 };
 }
 
 } // namespace kyfoo::ast

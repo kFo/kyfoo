@@ -3,3 +3,5 @@ doc/_build/*
 vc15/*
 .vscode
 /lib/*
+/vc16/.vs
+/vc16/*/*/*/*/*

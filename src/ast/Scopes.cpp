@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <functional>
+#include <sstream>
 
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Utilities.hpp>
@@ -23,8 +24,8 @@ namespace kyfoo::ast {
 // DeclarationScope
 
 Scope::Scope(Kind kind,
-                                   Module* module,
-                                   Scope* parent)
+             Module* module,
+             Scope* parent)
     : myKind(kind)
     , myModule(module)
     , myParent(parent)
@@ -208,12 +209,10 @@ Lookup Scope::findEquivalent(SymbolReference const& symbol) const
 
 SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
 {
-    std::string name = "?";
-    name += myMetaVariables.size();
-    name += "_";
-    myMetaVariableNames.emplace_back(std::move(name));
+    std::ostringstream ss;
+    ss << '?' << myMetaVariables.size() << '_' << tok.lexeme();
+    myMetaVariableNames.emplace_back(ss.str());
 
-    name.append(begin(tok.lexeme()), end(tok.lexeme()));
     lexer::Token metaTok(lexer::TokenKind::MetaVariable,
                          myMetaVariableNames.back(),
                          tok.location());
@@ -274,7 +273,6 @@ void Scope::merge(Scope& rhs)
 
     rhs.myDeclarations.clear();
 }
-
 
 bool Scope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
 {

@@ -7,6 +7,7 @@
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Scopes.hpp>
+#include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo::ast {
 
@@ -36,12 +37,25 @@ Variance variance(DiagnosticsContext /*dgn*/, Declaration const& target, lexer::
     auto const& axioms = getAxioms(target);
 
     if ( query.kind() == lexer::TokenKind::Integer ) {
-        if ( &target == axioms.intrinsic(IntegerLiteralType) )
+        if ( auto intMeta = axioms.integerMetaData(target) ) {
+            if ( query.kind() != lexer::TokenKind::Integer )
+                return Variance::Invariant; // todo: diagnostics
+
+            BigInt const n(stoi(query.lexeme())); // todo: fix overflow
+            auto const bounds = bitsToBounds(intMeta->bits);
+
+            if ( !in(n, bounds) )
+                return Variance::Contravariant; // todo: error diagnostics
+
+            return Variance::Covariant;
+        }
+
+        if ( &target == axioms.intrinsic(intrin::type::IntegerLiteralType) )
             return Variance::Exact;
     }
 
     if ( query.kind() == lexer::TokenKind::String ) {
-        if ( &target == axioms.intrinsic(StringLiteralType) )
+        if ( &target == axioms.intrinsic(intrin::type::StringLiteralType) )
             return Variance::Exact;
     }
 
@@ -69,8 +83,8 @@ Variance variance(DiagnosticsContext dgn, Declaration const& target, Declaration
     }
 
     // todo: removeme
-    if ( &query == axioms.intrinsic(PointerNullLiteralType) ) {
-        if ( descendsFromTemplate(axioms.intrinsic(PointerTemplate)->symbol(), target.symbol()) )
+    if ( &query == axioms.intrinsic(intrin::type::PointerNullLiteralType) ) {
+        if ( descendsFromTemplate(axioms.intrinsic(intrin::type::PointerTemplate)->symbol(), target.symbol()) )
             return Variance::Covariant;
 
         return Variance::Invariant;
@@ -130,27 +144,18 @@ Variance variance(DiagnosticsContext dgn,
     }
 
     if ( auto targetDecl = getDeclaration(*t) ) {
-        if ( isReference(*targetDecl) ) {
-            if ( auto queryRef = getRefType(*q) )
-                return variance(dgn, targetDecl->symbol().prototype().pattern(), *queryRef);
+        if ( auto targetRefType = refType(*targetDecl) ) {
+            if ( auto queryRefType = refType(*q) )
+                return variance(dgn, *targetRefType, *queryRefType);
 
-            if ( auto queryDecl = getDeclaration(*q) ) {
-                if ( isReference(*queryDecl) )
-                    return variance(dgn, targetDecl->symbol().prototype().pattern(), queryDecl->symbol().prototype().pattern());
+            /*if ( queryType->kind() != Expression::Kind::Universe )
+                return variance(dgn, *t, *queryType);*/
+            return variance(dgn, *targetRefType, *q);
 
-                if ( auto queryBinder = getBinder(*queryDecl) )
-                    return variance(dgn, *t, *queryType);
-            }
-
-            if ( queryType->kind() != Expression::Kind::Universe )
-                return variance(dgn, *t, *queryType);
-
-            return Variance::Invariant;
+            //return Variance::Invariant;
         }
-        else if ( auto queryDecl = getDeclaration(*q) ) {
-            if ( isReference(*queryDecl) )
-                if ( variance(dgn, *t, queryDecl->symbol().prototype().pattern()) )
-                    return Variance::Covariant;
+        else if ( auto queryRefType = refType(*q) ) {
+            return variance(dgn, *t, *queryRefType);
         }
 
         if ( auto targetBinder = getBinder(*targetDecl) ) {

@@ -26,22 +26,24 @@ class Expression;
 class Lookup;
 class Module;
 class SymRes;
+class Viability;
 
 class Resolver
 {
 public:
-    enum Options
+    
+    using options_t = u32;
+    enum Options : options_t
     {
-        None        = 0,
-        Narrow      = 1 << 0,
-        SkipImports = 1 << 1,
+        None                  = 0,
+        Narrow                = 1 << 0,
+        SkipImports           = 1 << 1,
+        NoImplicitConversions = 1 << 2,
     };
 
-    using options_t = Options;
-
 public:
-    explicit Resolver(Scope& scope, Options opts = None);
-    explicit Resolver(Scope const& scope, Options opts = None);
+    explicit Resolver(Scope& scope, options_t opts = None);
+    explicit Resolver(Scope const& scope, options_t opts = None);
 
     ~Resolver();
 
@@ -52,6 +54,8 @@ public:
     Scope const& scope() const;
     Scope& scope();
 
+    options_t options() const;
+
     Lookup matchEquivalent(SymbolReference const& symbol) const;
     Lookup matchOverload(Context& ctx, SymbolReference const& symbol);
 
@@ -61,7 +65,7 @@ public:
 
 private:
     Scope* myScope = nullptr;
-    Options myOptions = None;
+    options_t myOptions = None;
     std::vector<PatternsPrototype*> mySupplementaryPrototypes;
 };
 
@@ -70,12 +74,11 @@ class Context
 public:
     friend class ResolverReverter;
 
-    enum Options
+    using options_t = u32;
+    enum Options : options_t
     {
         DisableCacheTemplateInstantiations = 1 << 0,
     };
-
-    using options_t = kyfoo::u32;
 
 public:
     Context(Module& module, Diagnostics& dgn, Resolver& resolver, options_t options);
@@ -106,15 +109,20 @@ public:
     uz errorCount() const;
 
     Lookup matchOverload(Scope const& scope,
-                         Resolver::Options options,
+                         Resolver::options_t options,
                          SymbolReference const& sym);
     Lookup matchOverload(SymbolReference const& sym);
-    Lookup matchOverloadUsingImplicitConversions(Scope const& scope,
-                                                 Resolver::Options options,
-                                                 stringv name,
-                                                 Slice<Box<Expression>> args);
     Lookup matchOverloadUsingImplicitConversions(stringv name,
                                                  Slice<Box<Expression>> args);
+    Lookup matchOverloadUsingImplicitConversions(Scope const& scope,
+                                                 Resolver::options_t options,
+                                                 stringv name,
+                                                 Slice<Box<Expression>> args);
+    Lookup matchOverloadUsingImplicitConversions(Resolver& resolver,
+                                                 stringv name,
+                                                 Slice<Box<Expression>> args);
+
+    void shimConversion(Box<Expression>& expr, Viability const& v);
 
     Resolver* changeResolver(Resolver& resolver);
     ResolverReverter pushResolver(Resolver& resolver);

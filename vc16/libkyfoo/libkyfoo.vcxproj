@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <ProjectGuid>{EBDCDB43-D390-4EDC-BD95-51EA6BB6A814}</ProjectGuid>
+    <RootNamespace>libkyfoo</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\shared.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\shared.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\shared.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\shared.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <PropertyGroup Label="LLVM" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <UseLldLink>true</UseLldLink>
+  </PropertyGroup>
+  <PropertyGroup Label="LLVM" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <UseLldLink>true</UseLldLink>
+  </PropertyGroup>
+  <PropertyGroup Label="LLVM" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <UseLldLink>true</UseLldLink>
+  </PropertyGroup>
+  <PropertyGroup Label="LLVM" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <UseLldLink>true</UseLldLink>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>$(LLVM_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(LLVM_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>$(LLVM_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(LLVM_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>$(LLVM_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(LLVM_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>$(LLVM_INCLUDE_PATH);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+    <Lib>
+      <AdditionalDependencies>$(LLVM_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(LLVM_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\Allocators.cpp" />
+    <ClCompile Include="..\..\src\ast\Axioms.cpp" />
+    <ClCompile Include="..\..\src\ast\Context.cpp" />
+    <ClCompile Include="..\..\src\ast\ControlFlow.cpp" />
+    <ClCompile Include="..\..\src\ast\Declarations.cpp" />
+    <ClCompile Include="..\..\src\ast\DotWriter.cpp" />
+    <ClCompile Include="..\..\src\ast\Expressions.cpp" />
+    <ClCompile Include="..\..\src\ast\Module.cpp" />
+    <ClCompile Include="..\..\src\ast\Overloading.cpp" />
+    <ClCompile Include="..\..\src\ast\Scopes.cpp" />
+    <ClCompile Include="..\..\src\ast\Semantics.cpp" />
+    <ClCompile Include="..\..\src\ast\Substitutions.cpp" />
+    <ClCompile Include="..\..\src\ast\Symbol.cpp" />
+    <ClCompile Include="..\..\src\ast\Variance.cpp" />
+    <ClCompile Include="..\..\src\codegen\llvm\Context.cpp">
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="..\..\src\codegen\llvm\Generator.cpp">
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="..\..\src\Diagnostics.cpp" />
+    <ClCompile Include="..\..\src\lexer\Scanner.cpp" />
+    <ClCompile Include="..\..\src\lexer\TokenKind.cpp" />
+    <ClCompile Include="..\..\src\parser\Grammar.cpp" />
+    <ClCompile Include="..\..\src\parser\Parse.cpp" />
+    <ClCompile Include="..\..\src\Stream.cpp" />
+    <ClCompile Include="..\..\src\String.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\kyfoo\Algorithm.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Allocators.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\AscendingAllocator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\AscendingPageAllocator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\FallbackAllocator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\Mallocator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\NullAllocator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\PageAllocator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\allocators\Region.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Array.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Clone.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\ControlFlow.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Declarations.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\DotWriter.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Expressions.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Fabrication.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Module.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Overloading.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Scopes.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Semantics.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Substitutions.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Symbol.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Tuples.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Variance.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\ast\Visitors.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\BigInt.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Box.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\codegen\Codegen.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\codegen\llvm\Generator.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Dollar.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Factory.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Interval.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Intrinsics.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\lexer\Scanner.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\lexer\Token.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Math.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Meta.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Range.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Stream.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\String.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Tribool.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Types.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Utilities.hpp" />
+    <ClInclude Include="..\..\src\codegen\llvm\Context.hpp" />
+    <ClInclude Include="..\..\src\codegen\llvm\Visitors.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\kyfoo.natvis" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

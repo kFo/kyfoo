@@ -148,7 +148,7 @@ void Context::generate(ast::DataTypeDeclaration const& dt)
         fieldTypes.push_back(toType(*dt.super()));
 
     if ( variations ) {
-        auto const bits = log2(roundUpToPow2(variations.card()));
+        auto const bits = trunc<unsigned>(log2(roundUpToPow2(variations.card())));
         dtData->tagType = ::llvm::cast<::llvm::IntegerType>(myDefaultDataLayout->getSmallestLegalIntType(*myContext, bits));
         fieldTypes.push_back(dtData->tagType);
     }
@@ -286,16 +286,16 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
     if ( dtData->intrinsic )
         return dtData->intrinsic;
 
-    if ( dt == axioms().intrinsic(ast::IntegerLiteralType )
-      || dt == axioms().intrinsic(ast::RationalLiteralType) )
+    if ( dt == axioms().intrinsic(ast::intrin::type::IntegerLiteralType )
+      || dt == axioms().intrinsic(ast::intrin::type::RationalLiteralType) )
     {
         dtData->intrinsic = (::llvm::Type*)0x1; // todo: choose width based on expression
         return dtData->intrinsic;
     }
 
     auto const& sym = dt->symbol();
-    if ( rootTemplate(sym) == &axioms().intrinsic(ast::PointerTemplate  )->symbol()
-      || rootTemplate(sym) == &axioms().intrinsic(ast::ReferenceTemplate)->symbol() )
+    if ( rootTemplate(sym) == &axioms().intrinsic(ast::intrin::type::PointerTemplate  )->symbol()
+      || rootTemplate(sym) == &axioms().intrinsic(ast::intrin::type::ReferenceTemplate)->symbol() )
     {
         auto t = toType(*sym.prototype().pattern().front());
         if ( t->isVoidTy() )
@@ -306,17 +306,17 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
         return dtData->intrinsic;
     }
 
-         if ( dt == axioms().intrinsic(ast::u1  ) ) return dtData->intrinsic = ::llvm::Type::getInt1Ty  (*myContext);
-    else if ( dt == axioms().intrinsic(ast::u8  ) ) return dtData->intrinsic = ::llvm::Type::getInt8Ty  (*myContext);
-    else if ( dt == axioms().intrinsic(ast::u16 ) ) return dtData->intrinsic = ::llvm::Type::getInt16Ty (*myContext);
-    else if ( dt == axioms().intrinsic(ast::u32 ) ) return dtData->intrinsic = ::llvm::Type::getInt32Ty (*myContext);
-    else if ( dt == axioms().intrinsic(ast::u64 ) ) return dtData->intrinsic = ::llvm::Type::getInt64Ty (*myContext);
-    else if ( dt == axioms().intrinsic(ast::u128) ) return dtData->intrinsic = ::llvm::Type::getInt128Ty(*myContext);
-    else if ( dt == axioms().intrinsic(ast::s8  ) ) return dtData->intrinsic = ::llvm::Type::getInt8Ty  (*myContext);
-    else if ( dt == axioms().intrinsic(ast::s16 ) ) return dtData->intrinsic = ::llvm::Type::getInt16Ty (*myContext);
-    else if ( dt == axioms().intrinsic(ast::s32 ) ) return dtData->intrinsic = ::llvm::Type::getInt32Ty (*myContext);
-    else if ( dt == axioms().intrinsic(ast::s64 ) ) return dtData->intrinsic = ::llvm::Type::getInt64Ty (*myContext);
-    else if ( dt == axioms().intrinsic(ast::s128) ) return dtData->intrinsic = ::llvm::Type::getInt128Ty(*myContext);
+         if ( dt == axioms().intrinsic(ast::intrin::type::u1  ) ) return dtData->intrinsic = ::llvm::Type::getInt1Ty  (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::u8  ) ) return dtData->intrinsic = ::llvm::Type::getInt8Ty  (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::u16 ) ) return dtData->intrinsic = ::llvm::Type::getInt16Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::u32 ) ) return dtData->intrinsic = ::llvm::Type::getInt32Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::u64 ) ) return dtData->intrinsic = ::llvm::Type::getInt64Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::u128) ) return dtData->intrinsic = ::llvm::Type::getInt128Ty(*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::s8  ) ) return dtData->intrinsic = ::llvm::Type::getInt8Ty  (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::s16 ) ) return dtData->intrinsic = ::llvm::Type::getInt16Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::s32 ) ) return dtData->intrinsic = ::llvm::Type::getInt32Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::s64 ) ) return dtData->intrinsic = ::llvm::Type::getInt64Ty (*myContext);
+    else if ( dt == axioms().intrinsic(ast::intrin::type::s128) ) return dtData->intrinsic = ::llvm::Type::getInt128Ty(*myContext);
 
     return nullptr;
 }

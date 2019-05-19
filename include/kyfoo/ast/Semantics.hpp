@@ -107,10 +107,11 @@ bool hasSubstitutions(Symbol const& sym);
 Symbol const* rootTemplate(Symbol const& symbol);
 bool descendsFromTemplate(Symbol const& parent, Symbol const& instance);
 
-bool isReference(Declaration const& decl);
-bool isReference(Expression const& expr);
+Expression const* refType(Declaration const& decl);
+Expression const* refType(Expression const& expr);
 Expression const& removeReference(Declaration const& decl);
 Declaration const* removeAllReferences(Declaration const& decl);
+Expression const* removeAllReferences(Expression const& expr);
 
 Scope const* staticAccessorScope(Expression const& expr);
 Scope const* staticAccessorScope(Declaration const& decl);

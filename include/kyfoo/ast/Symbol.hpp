@@ -61,7 +61,7 @@ public:
     DECL_CLONE_ALL_NOBASE(PatternsPrototype)
 
 public:
-    void resolveVariables(Scope const& scope);
+    SymRes resolveVariables(Context& ctx);
     SymRes resolveSymbols(Context& ctx);
 
 public:

@@ -117,7 +117,7 @@ public:
     template <typename Range>
     /*implicit*/ Array(Range r) noexcept
     {
-        auto m = allocate<value_type>(this->allocator(), r.card());
+        auto m = kyfoo::allocate<value_type>(this->allocator(), r.card());
         myData = m.data();
         mySize = m.card();
 
@@ -486,7 +486,7 @@ protected:
             return mi;
         }
 
-        ENFORCE(reallocate(this->allocator(), m, newCapacity), "cannot allocate");
+        ENFORCE(kyfoo::reallocate(this->allocator(), m, newCapacity), "cannot allocate");
 
         auto index = i - this->myData;
         shift_down(this->myData, mi, m.data());

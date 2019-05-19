@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Substitutions.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/Variance.hpp>
@@ -146,7 +147,10 @@ public:
     uz card() const;
 
     std::vector<Via>::const_iterator begin() const;
+    std::vector<Via>::iterator       begin();
+
     std::vector<Via>::const_iterator end() const;
+    std::vector<Via>::iterator       end();
 
     Via const& operator [] (uz index) const;
     Via& operator [] (uz index);
@@ -170,6 +174,11 @@ private:
     std::vector<Via> myVias;
     Declaration* myDeclaration = nullptr;
 };
+
+inline std::vector<Via>::const_iterator begin(ViableSet const& v) { return v.begin(); }
+inline std::vector<Via>::iterator       begin(ViableSet      & v) { return v.begin(); }
+inline std::vector<Via>::const_iterator end  (ViableSet const& v) { return v.end  (); }
+inline std::vector<Via>::iterator       end  (ViableSet      & v) { return v.end  (); }
 
 struct PatternsDecl {
     PatternsPrototype const* params;
@@ -284,8 +293,10 @@ private:
     Declaration* myDecl = nullptr;
 };
 
+Via::Rank rank(Variance v, bool hasSubsts);
 ProcedureDeclaration const* findImplicitConversion(Context& ctx, Expression const& dest, Expression const& src);
 Viability implicitViability(Context& ctx, Expression const& dest, Expression const& src);
-OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest, Slice<Expression const*> src);
+Viability implicitViability(Context& ctx, Resolver& implicitResolver, Expression const& dest, Expression const& src);
+OverloadViability implicitViability(Context& ctx, Resolver& implicitResolver, Slice<Expression const*> dest, Slice<Expression const*> src);
 
 } // namespace kyfoo::ast

@@ -402,6 +402,12 @@ Declaration* Module::fabricate(Box<Declaration> decl)
     return myFabDeclarations.back().get();
 }
 
+Expression* Module::fabricate(Box<Expression> expr)
+{
+    myFabExpressions.emplace_back(std::move(expr));
+    return myFabExpressions.back().get();
+}
+
 codegen::CustomData* Module::codegenData() const
 {
     return myCodegenData.get();

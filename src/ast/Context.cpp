@@ -13,13 +13,13 @@ namespace kyfoo::ast {
 //
 // Resolver
 
-Resolver::Resolver(Scope& scope, Options opts)
+Resolver::Resolver(Scope& scope, options_t opts)
     : myScope(&scope)
     , myOptions(opts)
 {
 }
 
-Resolver::Resolver(Scope const& scope, Options opts)
+Resolver::Resolver(Scope const& scope, options_t opts)
     : myScope(const_cast<Scope*>(&scope))
     , myOptions(opts)
 {
@@ -43,6 +43,11 @@ Scope const& Resolver::scope() const
 Scope& Resolver::scope()
 {
     return *myScope;
+}
+
+Resolver::options_t Resolver::options() const
+{
+    return myOptions;
 }
 
 Lookup Resolver::matchEquivalent(SymbolReference const& symbol) const
@@ -225,7 +230,7 @@ uz Context::errorCount() const
 }
 
 Lookup Context::matchOverload(Scope const& scope,
-                              Resolver::Options options,
+                              Resolver::options_t options,
                               SymbolReference const& sym)
 {
     Resolver resolver(scope, options);
@@ -238,38 +243,47 @@ Lookup Context::matchOverload(SymbolReference const& sym)
     return trackForModule(myResolver->matchOverload(*this, sym));
 }
 
+Lookup Context::matchOverloadUsingImplicitConversions(stringv name,
+                                                      Slice<Box<Expression>> args)
+{
+    return matchOverloadUsingImplicitConversions(*myResolver, name, args);
+}
+
 Lookup Context::matchOverloadUsingImplicitConversions(Scope const& scope,
-                                                      Resolver::Options options,
+                                                      Resolver::options_t options,
                                                       stringv name,
                                                       Slice<Box<Expression>> args)
 {
     Resolver resolver(scope, options);
-    REVERT = pushResolver(resolver);
-    return matchOverloadUsingImplicitConversions(name, args);
+    return matchOverloadUsingImplicitConversions(resolver, name, args);
 }
 
-Lookup
-Context::matchOverloadUsingImplicitConversions(stringv name,
-                                               Slice<Box<Expression>> args)
+Lookup Context::matchOverloadUsingImplicitConversions(Resolver& resolver,
+                                                      stringv name,
+                                                      Slice<Box<Expression>> args)
 {
-    auto hit = myResolver->matchOverload(*this, SymbolReference(name, args));
+    auto hit = resolver.matchOverload(*this, SymbolReference(name, args));
     if ( !hit )
         return hit;
 
     if ( hit.viable().result() == ViableSet::NeedsConversion ) {
         auto const& v = hit.viable().best().viability();
-        for ( uz i = 0, arity = args.card(); i != arity; ++i ) {
-            if ( auto proc = v[i].conversion() ) {
-                args[i] = createApply(createIdentifier(*proc), std::move(args[i]));
-                ENFORCE(resolveExpression(args[i]), "invalid implicit conversion");
-            }
-        }
+        for ( uz i = 0, arity = args.card(); i != arity; ++i )
+            shimConversion(args[i], v[i]);
 
         if ( auto decl = hit.viable().best().instantiate(*this) )
             hit.resolveTo(*decl);
     }
 
     return trackForModule(std::move(hit));
+}
+
+void Context::shimConversion(Box<Expression>& expr, Viability const& v)
+{
+    if ( auto proc = v.conversion() ) {
+        expr = createApply(createIdentifier(*proc), std::move(expr));
+        ENFORCE(resolveExpression(expr), "invalid implicit conversion");
+    }
 }
 
 Resolver* Context::changeResolver(Resolver& resolver)

@@ -8,6 +8,7 @@
 #include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Module.hpp>
+#include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Substitutions.hpp>
@@ -68,19 +69,39 @@ IMPL_CLONE_REMAP(myPattern)
 IMPL_CLONE_REMAP(myVariables)
 IMPL_CLONE_REMAP_END
 
-void PatternsPrototype::resolveVariables(Scope const& scope)
+SymRes PatternsPrototype::resolveVariables(Context& ctx)
 {
+    SymRes ret;
     if ( myVariables.empty() ) {
         for ( auto const& param : myPattern ) {
             auto fv = gatherMetaVariables(*param);
             for ( auto& p : fv ) {
-                myVariables.emplace_back(mk<SymbolVariable>(p->token(), const_cast<Scope&>(scope)));
+                if ( auto hit = ctx.matchOverload(p->token().lexeme()) ) {
+                    (ctx.error(p->token()) << "already defined")
+                        .see(*hit.single());
+                    ret |= SymRes::Fail;
+                    continue;
+                }
+
+                auto existing = find_if(begin(myVariables), end(myVariables), [&](auto const& var) {
+                    return var->symbol().token().lexeme() == p->token().lexeme();
+                    });
+                if ( existing != end(myVariables) ) {
+                    (ctx.error(p->token()) << "already defined")
+                        .see(**existing);
+                    ret |= SymRes::Fail;
+                    continue;
+                }
+
+                myVariables.emplace_back(mk<SymbolVariable>(p->token(), ctx.resolver().scope()));
                 p->setDeclaration(*myVariables.back());
                 for ( auto c : p->constraints() )
                     myVariables.back()->appendConstraint(*c);
             }
         }
     }
+
+    return ret;
 }
 
 SymRes PatternsPrototype::resolveSymbols(Context& ctx)
@@ -219,7 +240,7 @@ IMPL_CLONE_REMAP_END
 
 SymRes Symbol::resolveSymbols(Context& ctx)
 {
-    myPrototype->resolveVariables(ctx.resolver().scope());
+    myPrototype->resolveVariables(ctx);
     return myPrototype->resolveSymbols(ctx);
 }
 

@@ -74,7 +74,7 @@ public:
     mems alignedAllocate(uz bytes, uz a) noexcept
     {
         if ( !myAllocators ) {
-            myAllocators.append(myReserved);
+            myAllocators.append(myReserve);
             return myAllocators.back().alignedAllocate(bytes);
         }
 

@@ -33,4 +33,10 @@ bool subset(Interval<T> const& lhs, Interval<T> const& rhs)
     return lhs.lower() >= rhs.lower() && lhs.upper() <= rhs.upper();
 }
 
+template <typename T>
+bool in(T const& lhs, Interval<T> const& rhs)
+{
+    return rhs.lower() <= lhs && lhs <= rhs.upper();
+}
+
 } // namespace kyfoo

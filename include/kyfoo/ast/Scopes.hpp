@@ -10,21 +10,25 @@
 #include <kyfoo/lexer/Scanner.hpp>
 #include <kyfoo/lexer/Token.hpp>
 
-#include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Clone.hpp>
-#include <kyfoo/ast/Semantics.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 
 namespace kyfoo::ast {
 
 class BasicBlock;
+class DataTypeDeclaration;
 class Declaration;
+class DefinableDeclaration;
+class Field;
+class ImportDeclaration;
 class SymbolDeclaration;
 class ProcedureDeclaration;
 class Module;
+class TemplateDeclaration;
 
-#define SCOPE_KINDS(X)               \
+#define SCOPE_KINDS(X)              \
     X(Base      , Scope           ) \
     X(Procedure , ProcedureScope  ) \
     X(DataType  , DataTypeScope   ) \

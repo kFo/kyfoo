@@ -18,6 +18,12 @@ mkToken(stringv id, lexer::SourceLocation loc = {})
     return lexer::Token(lexer::TokenKind::Identifier, id, loc);
 }
 
+inline lexer::Token
+mkToken(stringv id, lexer::TokenKind kind, lexer::SourceLocation loc = {})
+{
+    return lexer::Token(kind, id, loc);
+}
+
 inline Symbol
 makeSym(lexer::Token const& token, std::vector<Box<Expression>>&& exprs)
 {
@@ -86,6 +92,12 @@ inline Box<IdentifierExpression>
 createIdentifier(Declaration const& decl)
 {
     return createIdentifier(lexer::Token(), decl);
+}
+
+inline Box<LiteralExpression>
+mkIntegerLiteral(const char* lexeme, lexer::SourceLocation loc = {})
+{
+    return mk<LiteralExpression>(mkToken(sliceCString(lexeme), lexer::TokenKind::Integer, loc));
 }
 
 template <typename T, typename F, typename Head, typename... Args>

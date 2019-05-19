@@ -174,6 +174,18 @@ private:
         return ret;
     }
 
+    SymRes traceBasicBlock(BasicBlock const& bb)
+    {
+        SymRes ret = SymRes::Success;
+        for ( auto stmt : bb.statements() )
+            ret |= dispatch(*stmt);
+
+        if ( auto junc = bb.junction() )
+            ret |= dispatch(*junc);
+
+        return ret;
+    }
+
     // expressions
 public:
     result_t exprLiteral(LiteralExpression const&)
@@ -268,7 +280,11 @@ public:
 
     result_t stmtVariable(VariableStatement const& s)
     {
-        return dispatch(s.expression());
+        auto ret = dispatch(s.variable());
+        if ( s.initializer() )
+            ret |= *s.initializer();
+
+        return ret;
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -277,11 +293,9 @@ public:
         if ( b.condition() )
             ret |= dispatch(*b.condition());
 
-        for ( auto const& stmt : b.scope()->statements() )
-            ret |= dispatch(stmt.expression());
-
-        if ( b.next() )
-            ret |= exprBranch(*b.next());
+        for ( uz i = 0; i < 2; ++i )
+            if ( auto bb = b->branch(i) )
+                ret |= traceBasicBlock(*bb);
 
         return ret;
     }
@@ -290,7 +304,7 @@ public:
     {
         SymRes ret = SymRes::Success;
         if ( r.expression() )
-            ret |= dispatch(*r.expression());
+            ret |= dispatch(r.expression());
 
         return ret;
     }
@@ -631,17 +645,20 @@ bool descendsFromTemplate(Symbol const& parent, Symbol const& instance)
     return false;
 }
 
-bool isReference(Declaration const& decl)
+Expression const* refType(Declaration const& decl)
 {
-    return rootTemplate(decl.symbol()) == &decl.scope().module().axioms().intrinsic(ReferenceTemplate)->symbol();
+    if ( rootTemplate(decl.symbol()) == &decl.scope().module().axioms().intrinsic(intrin::type::ReferenceTemplate)->symbol() )
+        return &removeReference(decl);
+
+    return nullptr;
 }
 
-bool isReference(Expression const& expr)
+Expression const* refType(Expression const& expr)
 {
     if ( auto d = getDeclaration(expr) )
-        return isReference(*d);
+        return refType(*d);
 
-    return false;
+    return nullptr;
 }
 
 Expression const& removeReference(Declaration const& decl)
@@ -651,9 +668,27 @@ Expression const& removeReference(Declaration const& decl)
 
 Declaration const* removeAllReferences(Declaration const& decl)
 {
-    auto ret = &decl;
-    while ( ret && isReference(*ret) )
-        ret = resolveIndirections(getDeclaration(removeReference(*ret)));
+    auto ret = resolveIndirections(decl);
+    if ( !ret )
+        return nullptr;
+
+    while ( auto r = refType(*ret) ) {
+        ret = getDeclaration(resolveIndirections(*r));
+        if ( !ret )
+            break;
+    }
+
+    return ret;
+}
+
+Expression const* removeAllReferences(Expression const& expr)
+{
+    auto ret = resolveIndirections(expr);
+    if ( !ret )
+        return nullptr;
+
+    while ( auto r = refType(*ret) )
+        ret = resolveIndirections(r);
 
     return ret;
 }
@@ -906,7 +941,11 @@ struct MetaVariableVisitor
 
     result_t stmtVariable(VariableStatement& s)
     {
-        return dispatch(s.expression());
+        auto ret = dispatch(s.variable());
+        if ( s.initializer() )
+            ret |= dispatch(*s.initializer());
+
+        return ret;
     }
 
     result_t juncBranch(BranchJunction& b)
@@ -925,7 +964,7 @@ struct MetaVariableVisitor
     result_t juncReturn(ReturnJunction& r)
     {
         if ( r.expression() )
-            return dispatch(*r.expression());
+            return dispatch(r.expression());
 
         return false;
     }
@@ -1048,7 +1087,7 @@ struct HasMetaVariable
 
     result_t stmtVariable(VariableStatement const& s)
     {
-        return dispatch(s.expression());
+        return dispatch(s.variable()) | dispatch(s.initializer());
     }
 
     result_t juncBranch(BranchJunction const& b)
@@ -1056,13 +1095,11 @@ struct HasMetaVariable
         if ( b.condition() && dispatch(*b.condition()) )
             return true;
 
-        for ( auto& bb : b.scope()->basicBlocks() ) {
-            for ( auto& s : bb->statements() )
-                if ( dispatch(s) )
+        for ( uz i = 0; i < 2; ++i ) {
+            if ( auto bb = b->branch(i) ) {
+                if ( traceBasicBlock(*bb) )
                     return true;
-
-            if ( bb->junction() && dispatch(*bb->junction()) )
-                return true;
+            }
         }
 
         return false;
@@ -1071,7 +1108,7 @@ struct HasMetaVariable
     result_t juncReturn(ReturnJunction const& r)
     {
         if ( r.expression() )
-            return dispatch(*r.expression());
+            return dispatch(r.expression());
 
         return false;
     }

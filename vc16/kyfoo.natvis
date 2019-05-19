@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="kyfoo::Slice&lt;char const&gt;">
+        <Intrinsic Name="size" Expression="myCard" />
+        <Intrinsic Name="data" Expression="myData" />
+        <DisplayString>{myData,[myCard]}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">size()</Item>
+            <ArrayItems>
+                <Size>size()</Size>
+                <ValuePointer>data()</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="kyfoo::Slice&lt;char&gt;">
+        <Intrinsic Name="size" Expression="myCard" />
+        <Intrinsic Name="data" Expression="myData" />
+        <DisplayString>{myData,[myCard]}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">size()</Item>
+            <ArrayItems>
+                <Size>size()</Size>
+                <ValuePointer>data()</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="kyfoo::Slice&lt;*&gt;">
+        <DisplayString>{{ card={myCard} }}</DisplayString>
+        <Expand>
+            <ArrayItems>
+                <Size>myCard</Size>
+                <ValuePointer>myData</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+</AutoVisualizer>

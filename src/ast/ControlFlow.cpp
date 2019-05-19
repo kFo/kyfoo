@@ -239,19 +239,22 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
         return ret;
 
     if ( myVariable->type() ) {
-        if ( variance(ctx, *myVariable->type(), *myInitializer) )
+        auto t = refType(*myVariable->type());
+        ENFORCE(t, "variables must be typed as ref");
+
+        if ( variance(ctx, *t, *myInitializer) )
             return ret;
 
-        ProcedureDeclaration const* proc = findImplicitConversion(ctx, *myVariable->type(), *myInitializer);
+        ProcedureDeclaration const* proc = findImplicitConversion(ctx, *t, *myInitializer);
         if ( proc ) {
             myInitializer = createApply(createIdentifier(*proc), std::move(myInitializer));
             ENFORCE(ctx.resolveExpression(myInitializer), "implicit conversion error");
 
-            if ( variance(ctx, *myVariable->type(), *myInitializer) )
+            if ( variance(ctx, *t, *myInitializer) )
                 return ret;
         }
 
-        ctx.error(*myVariable) << "cannot convert " << *myInitializer << " to " << *myVariable->type();
+        ctx.error(*myVariable) << "cannot convert " << *myInitializer << " to " << *t;
         return SymRes::Fail;
     }
 
@@ -1227,7 +1230,7 @@ struct Sequencer
             auto p = proc->parameters();
             check_point refCtx;
             for ( uz i = 0; i < args.card(); ++i ) {
-                refCtx = o[i] >= 0 && isReference(*p[o[i]]->type());
+                refCtx = o[i] >= 0 && refType(*p[o[i]]->type());
                 dispatch(*args[i]);
             }
 

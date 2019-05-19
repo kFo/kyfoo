@@ -34,6 +34,12 @@ int stoi(stringv s)
         throw std::invalid_argument("stoi argument invalid");
 
     int ret = 0;
+    bool negative = false;
+    if ( *first == '-' ) {
+        negative = true;
+        ++first;
+    }
+
     for ( ; first != last; ++first ) {
         if ( *first < '0' )
             goto L_outOfRange;
@@ -46,7 +52,7 @@ int stoi(stringv s)
         ret += digit;
     }
 
-    return ret;
+    return negative ? -ret : ret;
 
 L_outOfRange:
     throw std::out_of_range("stoi argument out of range");

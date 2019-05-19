@@ -8,6 +8,7 @@
 #include <kyfoo/ast/Clone.hpp>
 #include <kyfoo/ast/Symbol.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Scopes.hpp>
 
 #include <kyfoo/codegen/Codegen.hpp>
 
@@ -344,6 +345,9 @@ public:
 
 protected:
     SymRes resolveSymbols(Context& ctx);
+
+private:
+    Box<Expression> myTypeAsRef;
 };
 
 class ProcedureDeclaration;
@@ -576,6 +580,7 @@ inline void remap(Declaration& decl, clone_map_t const& map)
 
 bool isBinder(DeclKind kind);
 Binder const* getBinder(Declaration const& decl);
+Binder const* getBinder(Expression const& expr);
 bool isCallableDeclaration(DeclKind kind);
 bool isMacroDeclaration(DeclKind kind);
 Expression const* getType(Declaration const& decl);

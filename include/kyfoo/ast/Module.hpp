@@ -24,6 +24,7 @@ namespace kyfoo {
 
 class AxiomsModule;
 class Declaration;
+class Expression;
 class Scope;
 class Module;
 
@@ -109,6 +110,7 @@ public:
     Slice<Declaration const*> templateInstantiations() const;
 
     Declaration* fabricate(Box<Declaration> decl);
+    Expression* fabricate(Box<Expression> expr);
 
     codegen::CustomData* codegenData() const;
     void setCodegenData(Box<codegen::CustomData> data) const;
@@ -121,6 +123,7 @@ protected:
     Box<Scope> myScope;
     std::vector<Declaration const*> myTemplateInstantiations;
     std::vector<Box<Declaration>> myFabDeclarations;
+    std::vector<Box<Expression>> myFabExpressions;
 
     mutable std::vector<Module*> myImports;
     mutable std::map<std::string, std::string, StringComp> myStrings; // todo: shared

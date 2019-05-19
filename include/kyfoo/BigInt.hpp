@@ -188,13 +188,15 @@ public:
         uz const invShift = limbBits - shift;
 
         auto const size = myLimbs.size();
-        for ( uz i = 0; i < size - offset - 1; ++i ) {
+        auto const msl = size - offset - 1;
+        for ( uz i = 0; i < msl; ++i ) {
             auto const s = myLimbs[i + offset] >> shift;
             auto const ss = myLimbs[i + offset + 1] << invShift;
             myLimbs[i] = s | ss;
         }
-        myLimbs[size - offset] = myLimbs[size] >> shift;
-        myLimbs.resize(size - offset + 1);
+
+        myLimbs[msl] = myLimbs[msl + offset] >> shift;
+        myLimbs.resize(msl + 1);
 
         normalize();
 

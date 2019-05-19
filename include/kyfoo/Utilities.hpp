@@ -116,7 +116,8 @@ swap(L& lhs, R& rhs) noexcept
 }
 
 template <typename L, typename R>
-std::enable_if_t<std::is_scalar_v<L>>
+std::enable_if_t<std::is_scalar_v<L>
+              || (std::is_pointer_v<L> && std::is_pointer_v<R>)>
 swap(L& lhs, R& rhs) noexcept
 {
     using std::swap;
@@ -139,6 +140,15 @@ constexpr T const& max(T const& lhs, T const& rhs) noexcept
         return rhs;
 
     return lhs;
+}
+
+template <typename Dst, typename Src>
+std::enable_if_t<std::is_integral_v<Src>
+              && std::is_integral_v<Dst>
+              && (sizeof(Src) > sizeof(Dst)),
+Dst> trunc(Src x)
+{
+    return static_cast<Dst>(x);
 }
 
 class RuntimeException : public std::exception

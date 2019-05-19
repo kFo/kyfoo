@@ -43,13 +43,15 @@ class ModuleSet;
     X(ascii) \
     X(size_t)
 
-enum DataTypeIntrinsics
-{
+namespace intrin::type {
+    enum Enum
+    {
 #define X(a) a,
-    INTRINSIC_DATATYPES(X)
+        INTRINSIC_DATATYPES(X)
 #undef X
-    DataTypeIntrinsicsCount
-};
+        ECount
+    };
+}
 
 #define INTRINSIC_INSTRUCTIONS(X) \
     X(UnsignedFromInteger       ) \
@@ -72,6 +74,7 @@ enum DataTypeIntrinsics
     \
     X(Array_idx            ) \
     X(Slice_idx            ) \
+    X(Slice_apply          ) \
     X(implicitStringToAscii) \
     \
     X(Copyu  ) \
@@ -117,13 +120,15 @@ enum DataTypeIntrinsics
     X(Addr  ) \
     X(Cast  )
 
-enum InstructionIntrinsics
-{
+namespace intrin::instr {
+    enum Enum
+    {
 #define X(a) a,
-    INTRINSIC_INSTRUCTIONS(X)
+        INTRINSIC_INSTRUCTIONS(X)
 #undef X
-    InstructionIntrinsicsCount
-};
+        ECount
+    };
+}
 
 class AxiomsModule : public Module
 {
@@ -148,8 +153,8 @@ public:
      * Intrinsic accessors by ordinal
      */
     /** { */
-    DataTypeDeclaration const* intrinsic(DataTypeIntrinsics i) const;
-    ProcedureDeclaration const* intrinsic(InstructionIntrinsics i) const;
+    DataTypeDeclaration const* intrinsic(intrin::type::Enum i) const;
+    ProcedureDeclaration const* intrinsic(intrin::instr::Enum i) const;
     /** } */
 
     /**
@@ -175,13 +180,13 @@ private:
     void setIntrinsic(stringv name, Declaration const* decl);
     void findIntrinsics(Scope const* s);
 
-    DataTypeDeclaration const* myDataTypeDecls[DataTypeIntrinsicsCount];
-    ProcedureDeclaration const* myInstructionDecls[InstructionIntrinsicsCount];
+    DataTypeDeclaration const* myDataTypeDecls[intrin::type::ECount];
+    ProcedureDeclaration const* myInstructionDecls[intrin::instr::ECount];
 
 private:
     void buildMetaData();
 
-    std::array<IntegerMetaData, s128 - u1 + 1> myIntegerMetaData;
+    std::array<IntegerMetaData, intrin::type::s128 - intrin::type::u1 + 1> myIntegerMetaData;
 };
 
 } // namespace kyfoo::ast

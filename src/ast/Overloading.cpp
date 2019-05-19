@@ -1,5 +1,6 @@
 #include <kyfoo/ast/Overloading.hpp>
 
+#include <kyfoo/ast/Axioms.hpp>
 #include <kyfoo/ast/Context.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
@@ -94,7 +95,7 @@ Variance OverloadViability::variance() const
             return Variance::Invariant;
         else if ( p.variance().exact() )
             continue;
-            
+
         ret = Variance::Covariant;
     }
 
@@ -236,7 +237,17 @@ std::vector<Via>::const_iterator ViableSet::begin() const
     return myVias.begin();
 }
 
+std::vector<Via>::iterator ViableSet::begin()
+{
+    return myVias.begin();
+}
+
 std::vector<Via>::const_iterator ViableSet::end() const
+{
+    return myVias.end();
+}
+
+std::vector<Via>::iterator ViableSet::end()
 {
     return myVias.end();
 }
@@ -287,16 +298,8 @@ ViableSet::Result ViableSet::result() const
 
 void ViableSet::append(OverloadViability&& viability, Prototype& proto, Substitutions&& substs)
 {
-    Via::Rank rank;
-    auto variance = viability.variance();
-    if ( variance.exact() )
-        rank = substs.empty() ? Via::Exact : Via::Parametric;
-    else if ( variance.covariant() )
-        rank = Via::Covariant;
-    else
-        rank = Via::Conversion;
-
-    Via c(rank, std::move(viability), proto, std::move(substs));
+    auto r = rank(viability.variance(), !substs.empty());
+    Via c(r, std::move(viability), proto, std::move(substs));
     myVias.emplace(upper_bound(begin(), end(), c), std::move(c));
 }
 
@@ -394,7 +397,8 @@ ViableSet SymbolSpace::findViableOverloads(Context& ctx, Slice<Expression const*
 {
     ViableSet ret;
 
-    Resolver resolver(*myScope);
+    auto& callerResolver = ctx.resolver();
+    Resolver resolver(*myScope, ctx.resolver().options());
     REVERT = ctx.pushResolver(resolver);
 
     Diagnostics sfinaeDgn;
@@ -421,7 +425,7 @@ ViableSet SymbolSpace::findViableOverloads(Context& ctx, Slice<Expression const*
             relativeCtx = &sfinaeCtx;
         }
 
-        if ( auto v = implicitViability(*relativeCtx, targetProto->pattern(), paramlist) )
+        if ( auto v = implicitViability(*relativeCtx, callerResolver, targetProto->pattern(), paramlist) )
             ret.append(std::move(v), e, std::move(substs));
     }
 
@@ -549,6 +553,17 @@ Declaration* Lookup::single()
 //
 // misc
 
+Via::Rank rank(Variance v, bool hasSubsts)
+{
+    if ( v.exact() )
+        return hasSubsts ? Via::Parametric : Via::Exact;
+
+    if ( v.covariant() )
+        return Via::Covariant;
+
+    return Via::Conversion;
+}
+
 ProcedureDeclaration const*
 findImplicitConversion(Context& ctx, Expression const& dest, Expression const& src)
 {
@@ -560,7 +575,7 @@ findImplicitConversion(Context& ctx, Expression const& dest, Expression const& s
     if ( !s )
         return nullptr;
 
-    if ( auto dstDecl = getDeclaration(dest) ) {
+    if ( auto dstDecl = getDeclaration(*d) ) {
         if ( auto dstBinder = getBinder(*dstDecl) ) {
             d = resolveIndirections(dstBinder->type());
             if ( !d )
@@ -568,22 +583,46 @@ findImplicitConversion(Context& ctx, Expression const& dest, Expression const& s
         }
     }
 
+    Lookup ret(SymbolReference("", slice(s)));
     auto hit = ctx.matchOverload(SymbolReference("implicitTo", slice(d)));
-    auto templ = hit.singleAs<TemplateDeclaration>();
-    if ( !templ )
-        return nullptr;
+    for ( auto& via : hit.viable() ) {
+        if ( via.rank() == Via::Conversion )
+            continue;
 
-    auto templDefn = templ->definition();
-    if ( !templDefn )
-        return nullptr;
+        auto templ = via.instantiate(ctx)->as<TemplateDeclaration>();
+        if ( !templ )
+            continue;
 
-    return ctx.matchOverload(*templDefn, Resolver::Narrow, SymbolReference("", slice(s))).singleAs<ProcedureDeclaration>();
+        auto templDefn = templ->definition();
+        if ( !templDefn )
+            continue;
+
+        auto const opts = Resolver::Narrow | Resolver::NoImplicitConversions;
+        ret.append(ctx.matchOverload(*templDefn, opts, SymbolReference("", slice(s))));
+    }
+
+    ret.viable().condense(ctx);
+    if ( auto single = ret.viable().single() )
+        return single->as<ProcedureDeclaration>();
+
+    return nullptr;
 }
 
-Viability implicitViability(Context& ctx, Expression const& dest, Expression const& src)
+Viability implicitViability(Context& ctx,
+                            Expression const& dest,
+                            Expression const& src)
+{
+    return implicitViability(ctx, ctx.resolver(), dest, src);
+}
+
+Viability implicitViability(Context& ctx,
+                            Resolver& implicitResolver,
+                            Expression const& dest,
+                            Expression const& src)
 {
     auto v = variance(ctx, dest, src);
-    if ( !v ) {
+    if ( !v && !(ctx.resolver().options() & Resolver::NoImplicitConversions) ) {
+        REVERT = ctx.pushResolver(implicitResolver);
         if ( auto proc = findImplicitConversion(ctx, dest, src) )
             return Viability(v, proc);
     }
@@ -591,14 +630,17 @@ Viability implicitViability(Context& ctx, Expression const& dest, Expression con
     return Viability(v, nullptr);
 }
 
-OverloadViability implicitViability(Context& ctx, Slice<Expression const*> dest, Slice<Expression const*> src)
+OverloadViability implicitViability(Context& ctx,
+                                    Resolver& implicitResolver,
+                                    Slice<Expression const*> dest,
+                                    Slice<Expression const*> src)
 {
     OverloadViability ret;
     auto const card = dest.card();
     ENFORCE(card == src.card(), "overload arity mismatch");
 
     for ( uz i = 0; i < card; ++i )
-        ret.append(implicitViability(ctx, *dest[i], *src[i]));
+        ret.append(implicitViability(ctx, implicitResolver, *dest[i], *src[i]));
 
     return ret;
 }

@@ -260,20 +260,20 @@ SymRes LiteralExpression::resolveSymbols(Context& ctx)
     switch ( myToken.kind() ) {
     case lexer::TokenKind::Integer:
     {
-        setType(*ctx.axioms().intrinsic(IntegerLiteralType));
+        setType(*ctx.axioms().intrinsic(intrin::type::IntegerLiteralType));
         return SymRes::Success;
     }
 
     case lexer::TokenKind::Rational:
     {
-        setType(*ctx.axioms().intrinsic(RationalLiteralType));
+        setType(*ctx.axioms().intrinsic(intrin::type::RationalLiteralType));
         return SymRes::Success;
     }
 
     case lexer::TokenKind::String:
     {
         ctx.module().interpretString(ctx.diagnostics(), myToken);
-        setType(*ctx.axioms().intrinsic(StringLiteralType));
+        setType(*ctx.axioms().intrinsic(intrin::type::StringLiteralType));
         return SymRes::Success;
     }
 
@@ -378,7 +378,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
     else if ( token().kind() == lexer::TokenKind::Identifier ) {
         // todo: remove by generalization
         if ( token().lexeme() == "null" ) {
-            setType(*ctx.axioms().intrinsic(PointerNullLiteralType));
+            setType(*ctx.axioms().intrinsic(intrin::type::PointerNullLiteralType));
             return ensureType();
         }
 
@@ -626,6 +626,7 @@ DotExpression::DotExpression(DotExpression const& rhs)
     : Expression(rhs)
     , myModScope(rhs.myModScope)
 {
+    // clone myExpressions, myTypeAsRef
 }
 
 DotExpression& DotExpression::operator = (DotExpression const& rhs)
@@ -641,14 +642,17 @@ void DotExpression::swap(DotExpression& rhs) noexcept
     Expression::swap(rhs);
     using kyfoo::swap;
     swap(myExpressions, rhs.myExpressions);
+    swap(myTypeAsRef, rhs.myTypeAsRef);
     swap(myModScope, rhs.myModScope);
 }
 
 IMPL_CLONE_BEGIN(DotExpression, Expression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_CHILD(myTypeAsRef)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(DotExpression, Expression)
 IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP(myTypeAsRef)
 IMPL_CLONE_REMAP_END
 
 SymRes DotExpression::resolveSymbols(Context& ctx)
@@ -669,11 +673,25 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
     if ( !ret )
         return ret;
 
-    for ( uz i = 1; i < subExpressionLimit; ++i ) {
-        if ( myExpressions[i]->type() )
-            continue;
+    auto isConstituent = [](Expression const& expr) {
+        if ( auto lit = expr.as<LiteralExpression>() )
+            return lit->token().kind() == lexer::TokenKind::Integer;
 
-        auto lhs = myExpressions[i - 1].get();
+        return ast::as<Field>(expr) != nullptr;
+    };
+
+    bool isRef = false;
+    for ( uz i = 1; i < subExpressionLimit; ++i ) {
+        auto const* lhs = myExpressions[i - 1].get();
+        if ( refType(*lhs->type()) )
+            isRef = true;
+
+        if ( myExpressions[i]->type() ) {
+            if ( !isConstituent(*myExpressions[i]) )
+                isRef = false;
+
+            continue;
+        }
 
         auto failedAsAccessor = false;
         if ( auto rhs = identify(*myExpressions[i]) ) {
@@ -681,6 +699,9 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                 ret |= *o;
                 if ( !ret )
                     return ret;
+
+                if ( !isConstituent(*rhs) )
+                    isRef = false;
 
                 continue;
             }
@@ -711,11 +732,9 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
 
             auto const* composite = resolveIndirections(lhs);
             bool binder = false;
-            if ( auto decl = getDeclaration(*composite) ) {
-                if ( auto b = getBinder(*decl) ) {
-                    composite = resolveIndirections(b->type());
-                    binder = true;
-                }
+            if ( auto b = getBinder(*composite) ) {
+                composite = removeAllReferences(*b->type());
+                binder = true;
             }
 
             if ( auto decl = getDeclaration(*composite) ) {
@@ -792,8 +811,19 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
     else if ( myExpressions.size() == 1 )
         return ctx.rewrite(std::move(myExpressions.front()));
 
-    if ( subExpressionLimit == myExpressions.size() )
-        setType(myExpressions.back()->type());
+    if ( subExpressionLimit == myExpressions.size() ) {
+        auto t = myExpressions.back()->type();
+        if ( isRef ) {
+            myTypeAsRef = createRefType(front(*t).location(), clone(t));
+            ret |= ctx.resolveExpression(myTypeAsRef);
+            if ( !ret )
+                return ret;
+
+            t = myTypeAsRef.get();
+        }
+
+        setType(t);
+    }
 
     return SymRes::Success;
 }
@@ -962,7 +992,7 @@ L_notMethod:
             return ret;
     }
 
-    auto const subjType = myExpressions.front()->type();
+    auto const subjType = removeAllReferences(*myExpressions.front()->type());
     switch ( subjType->kind() ) {
     case Kind::Tuple:
         return elaborateTuple(ctx);
@@ -1036,19 +1066,10 @@ Declaration const* ApplyExpression::resolveSubjectAsUFCSMethod(Context& ctx, Ide
 SymRes ApplyExpression::lowerToApplicable(Context& ctx)
 {
     auto const& subj = *subject();
-    auto applicable = resolveIndirections(getDeclaration(subj.type()));
+    auto applicable = getDeclaration(removeAllReferences(*subj.type()));
     if ( !applicable ) {
         ctx.error(subj) << "does not have an applicable type";
         return SymRes::Fail;
-    }
-
-    while ( isReference(*applicable) )
-    {
-        applicable = resolveIndirections(getDeclaration(applicable->symbol().prototype().pattern().front()));
-        if ( !applicable ) {
-            ctx.error(subj) << "does not refer to an applicable type";
-            return SymRes::Fail;
-        }
     }
 
     auto dt = applicable->as<DataTypeDeclaration>();
@@ -1121,7 +1142,8 @@ SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
 
 SymRes ApplyExpression::elaborateTuple(Context& ctx)
 {
-    auto subjectType = resolveIndirections(*myExpressions.front())->type()->as<TupleExpression>();
+    auto subjectTypeRef = resolveIndirections(resolveIndirections(*myExpressions.front())->type());
+    auto subjectType = removeAllReferences(*subjectTypeRef)->as<TupleExpression>();
     if ( !subjectType ) {
         ctx.error(*myExpressions.front()) << "is not a tuple";
         return SymRes::Fail;
@@ -1157,7 +1179,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
     if ( auto arrow = argType->as<ArrowExpression>() ) {
         Box<IdentifierExpression> refStorage;
         auto refElementType = elementType;
-        if ( !isReference(*refElementType) ) {
+        if ( !refType(*refElementType) ) {
             refStorage = createIdentifier(*ctx.matchOverload(SymbolReference("ref", slice(elementType))).single());
             refElementType = refStorage.get();
         }
@@ -1173,16 +1195,30 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
         return SymRes::Success;
     }
 
-    auto indexType = createIdentifier(*ctx.axioms().intrinsic(size_t));
-    if ( !variance(ctx, *indexType, *argType) ) {
+    auto indexType = createIdentifier(*ctx.axioms().intrinsic(intrin::type::size_t));
+    auto via = implicitViability(ctx, *indexType, *argType);
+    if ( !via ) {
         ctx.error(*myExpressions[1]) << "cannot be converted to size_t";
         return SymRes::Fail;
     }
 
-    if ( subjectType->expressions().card() == 1 )
-        myType = subjectType->expressions().front();
-    else
+    ctx.shimConversion(myExpressions[1], via);
+
+    if ( subjectType->expressions().card() == 1 ) {
+        auto type = subjectType->expressions().front();
+        if ( refType(*subjectTypeRef) ) {
+            Box<Expression> t = createRefType(front(*type).location(), clone(type));
+            if ( auto r = ctx.resolveExpression(t); !r )
+                return r;
+            type = t.get();
+            ctx.module().fabricate(std::move(t));
+        }
+
+        myType = type;
+    }
+    else {
         myType = &Expression::tuple(subjectType->expressions());
+    }
 
     return SymRes::Success;
 }
@@ -1488,6 +1524,9 @@ TupleExpression::TupleExpression(std::vector<Box<Expression>>&& expressions,
 TupleExpression::TupleExpression(TupleExpression const& rhs)
     : Expression(rhs)
     , myKind(rhs.myKind)
+    , myCard(rhs.myCard)
+    , myOpenToken(rhs.myOpenToken)
+    , myCloseToken(rhs.myCloseToken)
 {
 }
 
@@ -1504,15 +1543,21 @@ void TupleExpression::swap(TupleExpression& rhs) noexcept
     using kyfoo::swap;
     swap(myKind, rhs.myKind);
     swap(myExpressions, rhs.myExpressions);
+    swap(myCardExpression, rhs.myCardExpression);
+    swap(myCard, rhs.myCard);
+    swap(myOpenToken, rhs.myOpenToken);
+    swap(myCloseToken, rhs.myCloseToken);
 }
 
 TupleExpression::~TupleExpression() = default;
 
 IMPL_CLONE_BEGIN(TupleExpression, Expression, Expression)
 IMPL_CLONE_CHILD(myExpressions)
+IMPL_CLONE_CHILD(myCardExpression)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(TupleExpression, Expression)
 IMPL_CLONE_REMAP(myExpressions)
+IMPL_CLONE_REMAP(myCardExpression)
 IMPL_CLONE_REMAP_END
 
 SymRes TupleExpression::resolveSymbols(Context& ctx)
@@ -1889,58 +1934,6 @@ bool isUnit(Expression const& expr)
 {
     auto tup = expr.as<TupleExpression>();
     return tup && tup->kind() == TupleKind::Open && !tup->expressions();
-}
-
-// todo: removeme -- replace with better ref concept
-DeclRef getRef(Expression const& expr_)
-{
-    auto expr = resolveIndirections(&expr_);
-    if ( auto dot = expr->as<DotExpression>() ) {
-        uz i = 0;
-        auto e = resolveIndirections(dot->top(i));
-        for ( ; e; e = resolveIndirections(dot->top(++i)) ) {
-            if ( auto decl = getDeclaration(e) ) {
-                if ( auto var = decl->as<VariableDeclaration>() )
-                    return {var, dot->type()};
-
-                if ( isReference(*getType(*decl)) )
-                    return { decl, dot->type() };
-
-                if ( auto field = decl->as<Field>() )
-                    continue;
-            }
-
-            if ( auto lit = e->as<LiteralExpression>() ) {
-                if ( lit->token().kind() == lexer::TokenKind::Integer )
-                    continue;
-            }
-
-            break;
-        }
-
-        return {nullptr, nullptr};
-    }
-
-    if ( auto decl = getDeclaration(expr) ) {
-        if ( auto var = decl->as<VariableDeclaration>() )
-            return {var, var->type()};
-    }
-
-    if ( auto app = expr->as<ApplyExpression>() ) {
-        if ( app->subject()->type()->kind() == Expression::Kind::Tuple )
-            if ( auto decl = getDeclaration(app->subject()) )
-                if ( auto var = decl->as<VariableDeclaration>() )
-                    return {var, app->type()};
-
-        return {nullptr, nullptr};
-    }
-
-    return {nullptr, nullptr};
-}
-
-Expression const* getRefType(Expression const& expr)
-{
-    return getRef(expr).type;
 }
 
 ProcedureDeclaration const* getProcedure(Expression const& expr)

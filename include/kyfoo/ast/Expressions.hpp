@@ -337,6 +337,7 @@ protected:
 
 private:
     std::vector<Box<Expression>> myExpressions;
+    Box<Expression> myTypeAsRef;
     bool myModScope = false;
 };
 
@@ -750,14 +751,6 @@ T const* as(Expression const* expr)
 std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr);
 bool isUnit(Expression const& expr);
 
-struct DeclRef
-{
-    Declaration const* decl;
-    Expression const* type;
-};
-
-DeclRef getRef(Expression const& expr);
-Expression const* getRefType(Expression const& expr);
 ProcedureDeclaration const* getProcedure(Expression const& expr);
 
     } // namespace ast

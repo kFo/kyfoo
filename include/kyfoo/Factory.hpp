@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kyfoo/Allocators.hpp>
+
 namespace kyfoo {
 
 template <typename T, typename Allocator>
@@ -16,7 +18,7 @@ public:
     template <typename... Args>
     T const& mk(Args&&... args) noexcept
     {
-        auto m = allocate<T>(*static_cast<Allocator*>(this), 1);
+        auto m = kyfoo::allocate<T>(*static_cast<Allocator*>(this), 1);
         new (m.data()) T(std::forward<Args>(args)...);
         return m.front();
     }

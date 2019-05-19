@@ -195,10 +195,10 @@ public:
     using Base::Base;
 
 public:
-    value_type back()       { return myRange.front(); }
-    value_type back() const { return myRange.back(); }
+    value_type back()       { return this->myRange.front(); }
+    value_type back() const { return this->myRange.back(); }
 
-    void popBack() { myRange.popFront(); }
+    void popBack() { this->myRange.popFront(); }
 };
 
 template <typename R>
@@ -212,10 +212,10 @@ public:
     using Base::Base;
 
 public:
-    uz card() const { return myRange.card(); }
+    uz card() const { return this->myRange.card(); }
 
-    value_type operator [] (uz i)       { return myRange[card() - 1 - i]; }
-    value_type operator [] (uz i) const { return myRange[card() - 1 - i]; }
+    value_type operator [] (uz i)       { return this->myRange[card() - 1 - i]; }
+    value_type operator [] (uz i) const { return this->myRange[card() - 1 - i]; }
 };
 
 template <typename R>

@@ -113,6 +113,8 @@ private:
                   uz& matches)
     {
         if constexpr( N == sizeof...(T) ) {
+            (void)scan;
+            (void)matches;
             return true;
         }
         else {
@@ -127,6 +129,12 @@ private:
 
             return false;
         }
+    }
+
+    template <>
+    bool subMatch<sizeof...(T)>(lexer::ScanPoint&, uz&)
+    {
+        return true;
     }
 
 private:
@@ -145,6 +153,8 @@ struct MonomorphicMaker
     static T makeImpl(parser::DeclarationScopeParser& parser, G<Branches...>& rhs)
     {
         if constexpr (N == sizeof...(Branches)) {
+            (void)parser;
+            (void)rhs;
             ENFORCEU("invalid or make");
         }
         else {
@@ -255,6 +265,12 @@ private:
 
             return subMatch<N + 1>(scan, matches);
         }
+    }
+
+    template <>
+    bool subMatch<sizeof...(T)>(lexer::ScanPoint&, uz&)
+    {
+        return false;
     }
 
 private:

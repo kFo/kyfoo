@@ -66,19 +66,19 @@ public:
         return ret;
     }
 
-    mems alignedAllocate(uz bytes) noexcept
+    mems alignedAllocate(uz bytes, uz a) noexcept
     {
         auto const goodSize = goodAllocSize(bytes);
         if ( !bytes || goodSize < bytes || reserved() < goodSize )
             return {};
 
-        auto newEnd = alignUp(myEnd, a);
+        auto newEnd = alignedUp(myEnd, a);
         if ( newEnd < myEnd || newEnd > myLimit )
             return {};
 
         auto save = myEnd;
         myEnd = newEnd;
-        if ( auto ret = allocate(n) )
+        if ( auto ret = allocate(bytes) )
             return ret;
 
         myEnd = save;
