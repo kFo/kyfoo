@@ -472,7 +472,7 @@ i-value
     Read as "identity-value," an i-value is a value that is sourced from a binder declaration that has a name. Variable declarations, a binder, is the only declaration that implicitly converts to a reference.
 
 x-value
-    Read as "cross-value," a x-value is categorized as both an l-value and an r-value. x-values are unnamed temporary variables associated with statements.
+    Read as "eXpiring-value," a x-value is categorized as both an l-value and an r-value. x-values are unnamed temporary variables associated with statements.
 
 pr-value
     Read as "pure-r-value" or "pure right-hand-side value," a pr-value is a literal value than can never be assigned a new value.
