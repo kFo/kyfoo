@@ -152,7 +152,7 @@ IMPL_CLONE_REMAP_END
 SymRes ExpressionStatement::resolveSymbols(Context& ctx)
 {
     if ( !ctx.resolveExpression(myExpression) ) {
-        ctx.error(*myExpression) << "unresolved symbols in sequence";
+        ctx.error(diag::unresolved_symbol, *myExpression);
         return SymRes::Fail;
     }
 
@@ -227,7 +227,7 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
 {
     if ( !myInitializer ) {
         if ( !myVariable->type() ) {
-            ctx.error(*myVariable) << "is not typed";
+            ctx.error(diag::no_type, *myVariable);
             return SymRes::Fail;
         }
 
@@ -254,7 +254,8 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
                 return ret;
         }
 
-        ctx.error(*myVariable) << "cannot convert " << *myInitializer << " to " << *t;
+        ctx.error(diag::no_conversion, *myVariable);
+            // todo: conversion .directObject(*t);
         return SymRes::Fail;
     }
 
@@ -264,7 +265,7 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
         return ret;
 
     if ( !myVariable->type() ) {
-        ctx.error(*myVariable) << "cannot be typed";
+        ctx.error(diag::no_type, *myVariable);
         return SymRes::Fail;
     }
 
@@ -372,7 +373,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 
     if ( !isMatch() ) {
         if ( !branch(0) ) {
-            ctx.error(token()) << "is missing first branch";
+            ctx.error(diag::no_branch, token());
             return SymRes::Fail;
         }
 
@@ -380,7 +381,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         return ret;
     }
     else if ( branch(0) ) {
-        ctx.error(token()) << "match-statements must start with a branch";
+        ctx.error(diag::no_match_initial_branch, token());
         return SymRes::Fail;
     }
 
@@ -403,40 +404,38 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         return ret;
 
     if ( branches.empty() ) {
-        ctx.error(token()) << "match-statement is missing branches";
+        ctx.error(diag::no_match_branches, token());
         return SymRes::Fail;
     }
 
     auto dt = ast::as<DataTypeDeclaration>(condition()->type());
     if ( !dt ) {
-        ctx.error(condition()) << "does not identify any data-type";
+        ctx.error(diag::expected_datatype, *condition());
         return SymRes::Fail;
     }
 
     auto defn = dt->definition();
     if ( !defn ) {
-        (ctx.error(*dt) << "data-type does not have a definition")
-            .see(*dt);
+        ctx.error(diag::no_definition, *dt); // todo: wrong subj
         return SymRes::Fail;
     }
 
     if ( !defn->variations() ) {
-        (ctx.error(*dt) << "does not have any variations for match-statement")
-            .see(*dt);
+        ctx.error(diag::no_match_datatype_variations, *dt); // todo: wrong subj
         return SymRes::Fail;
     }
 
     std::vector<DataTypeDeclaration const*> variationsFound(defn->variations().card(), nullptr);
     for ( auto br : branches ) {
         if ( !br->condition() ) {
-            ctx.error(br->token()) << "match-branch must have a match-statement";
+            ctx.error(diag::no_match_initial_branch, br->token());
             ret |= SymRes::Fail;
             continue;
         }
 
         auto v = ast::as<DataTypeDeclaration>(br->condition());
         if ( !v ) {
-            (ctx.error(br->condition()) << "does not identify a variation")
+            ctx.error(diag::expected_variation, *br->condition())
                 .see(*dt);
             ret |= SymRes::Fail;
             continue;
@@ -444,7 +443,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 
         auto const index = indexOf(defn->variations(), v);
         if ( index == defn->variations().card() ) {
-            (ctx.error(*v) << "is not a constructor of the match subject")
+            ctx.error(diag::expected_constructor, *v)
                 .see(*dt);
             return SymRes::Fail;
         }
@@ -457,7 +456,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
 
     for ( uz i = 0; i < variationsFound.size(); ++i ) {
         if ( !variationsFound[i] ) {
-            (ctx.error(token()) << "data-type variation is not covered by match-statement")
+            ctx.error(diag::missing_match_variation, token())
                 .see(*defn->variations()[i]);
             ret |= SymRes::Fail;
         }
@@ -672,7 +671,7 @@ SymRes JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
             }
         }
 
-        ctx.error(token()) << "jump does not occur in a block";
+        ctx.error(diag::no_block_jump, token());
         return SymRes::Fail;
     }
 
@@ -689,7 +688,7 @@ SymRes JumpJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         }
     }
 
-    ctx.error(myTargetLabel) << "block does not exist";
+    ctx.error(diag::no_block, myTargetLabel);
     return SymRes::Fail;
 }
 
@@ -768,7 +767,7 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
             setJunction(mk<ReturnJunction>(tok, createEmptyExpression(tok.location())));
         }
         else {
-            ctx.error(*scope()->declaration()) << "expected terminating junction";
+            ctx.error(diag::expected_terminal_junction, *scope()->declaration());
             return SymRes::Fail;
         }
     }
@@ -948,7 +947,7 @@ void Extent::pruneEmptyBlocks()
 SymRes Extent::cacheLocalFlows(Context& ctx)
 {
     if ( myBlocks.empty() ) {
-        ctx.error(*myDeclaration) << "declared but never used";
+        ctx.error(diag::unused, *myDeclaration);
         return SymRes::Fail;
     }
 
@@ -1024,9 +1023,9 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
 
         for ( auto p : b->pred ) {
             if ( !providesValue(p) ) {
-                auto& err = b->uses[0].expr ? ctx.error(*b->uses[0].expr)
-                                            : ctx.error(*b->uses[0].stmt);
-                err << "is not defined on all incoming paths";
+                auto err = ctx.error(diag::missing_control_flow_definition,
+                    b->uses[0].expr ? Report::Subject(*b->uses[0].expr)
+                                    : Report::Subject(*b->uses[0].stmt));
                 if ( p->uses[0].expr )
                     err.see(*p->bb->scope(), *p->uses[0].expr);
                 else

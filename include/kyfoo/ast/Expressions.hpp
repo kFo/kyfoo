@@ -14,7 +14,7 @@
 namespace kyfoo {
     
     class Diagnostics;
-    class Error;
+    class Report;
 
     namespace codegen {
         struct CustomData;
@@ -709,19 +709,6 @@ inline void remap(Expression& expr, clone_map_t const& map)
     ENFORCEU("invalid expression type");
 }
 
-std::ostream& operator << (std::ostream& stream, Expression        const& expr );
-std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs);
-std::ostream& operator << (std::ostream& stream, Slice<Expression      *> exprs);
-
-struct get_types {
-    Slice<Expression const*> exprs;
-
-    explicit get_types(Slice<Expression const*> rhs) : exprs(rhs) {}
-    explicit get_types(Slice<Expression*> rhs) : exprs(rhs) {}
-};
-
-std::ostream& operator << (std::ostream& stream, get_types&& types);
-
 lexer::SourceLocation getSourceLocation(Expression const& expr);
 Expression const* createInferredType(Expression& expr, Declaration const& decl);
 IdentifierExpression* identify(Expression& expr);
@@ -753,5 +740,45 @@ bool isUnit(Expression const& expr);
 
 ProcedureDeclaration const* getProcedure(Expression const& expr);
 
+struct get_types {
+    Slice<ast::Expression const*> exprs;
+
+    explicit get_types(Slice<Expression const*> rhs) : exprs(rhs) {}
+    explicit get_types(Slice<Expression*> rhs) : exprs(rhs) {}
+};
+
     } // namespace ast
+
+    namespace ascii {
+        template <typename Sink>
+        void write(Sink& sink, Slice<ast::Expression*> exprs)
+        {
+            return write(sink, static_cast<Slice<ast::Expression const*>>(exprs));
+        }
+
+        template <typename Sink>
+        void write(Sink& sink, Slice<ast::Expression const*> exprs)
+        {
+            if ( exprs )
+                write(sink, *exprs.front());
+
+            for ( auto e : exprs(1, $) ) {
+                write(sink, ", ");
+                write(sink, *e);
+            }
+        }
+
+        template <typename Sink>
+        void write(Sink& sink, ast::get_types&& types)
+        {
+            if ( types.exprs )
+                write(sink, *types.exprs.front()->type());
+
+            for ( auto e : types.exprs(1, $) ) {
+                write(sink, ", ");
+                write(sink, *e->type());
+            }
+        }
+    }
+
 } // namespace kyfoo

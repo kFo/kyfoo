@@ -56,7 +56,7 @@ DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& decl
         if ( !isIndent(scanner().peek().kind()) ) {
             auto expr = parse<Expression>(*this);
             if ( !expr ) {
-                diagnostics().error(myScope->module(), scanner().peek()) << "expected expression following procedure declaration";
+                diagnostics().error(myScope->module(), diag::parser_expected_expression, scanner().peek());
                 diagnostics().die();
             }
 
@@ -66,7 +66,7 @@ DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& decl
 
         auto indent = scanner().next();
         if ( indent.kind() != lexer::TokenKind::IndentGT ) {
-            diagnostics().error(myScope->module(), scanner().peek()) << "expected new scope for procedure definition";
+            diagnostics().error(myScope->module(), diag::parser_expected_scope, scanner().peek());
             diagnostics().die();
         }
 
@@ -151,7 +151,7 @@ void DeclarationScopeParser::parseAttributes()
     while ( auto attr = parse<Attribute>(*this) ) {
         myAttributes.emplace_back(std::move(attr));
         if ( scanner().peek().kind() != lexer::TokenKind::IndentEQ ) {
-            diagnostics().error(myScope->module(), scanner().peek()) << "expected declaration to follow attribute";
+            diagnostics().error(myScope->module(), diag::parser_expected_declaration, scanner().peek());
             return;
         }
         scanner().next();
@@ -208,7 +208,7 @@ Box<DeclarationScopeParser> DeclarationScopeParser::next()
         auto [success, newScopeParser] = parseNext();
 
         if ( !success ) {
-            diagnostics().error(myScope->module(), scanner().peek()) << "grammar at this point is not recognized";
+            diagnostics().error(myScope->module(), diag::parser_unexpected, scanner().peek());
             diagnostics().die();
         }
         
@@ -346,7 +346,7 @@ ProcedureScopeParser::parseNext()
             }
         }
 
-        diagnostics().error(s.module(), j) << "expected preceding branch-statement";
+        diagnostics().error(s.module(), diag::parser_expected_preceding_branch, j);
         return nullptr;
     };
 
@@ -357,25 +357,25 @@ ProcedureScopeParser::parseNext()
 
         // todo: lifetime of transient parse objects in diagnostics
         if ( !br->isMatch() && !br->branch(0) ) {
-            diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
+            diagnostics().error(scope().module(), diag::parser_expected_preceding_branch, *elseJunc);
             return {false, nullptr};
         }
 
         while ( br->branch(1) ) {
             if ( !br->branch(1)->junction() ) {
-                diagnostics().error(scope().module(), *elseJunc) << "is missing preceding branch-statement";
+                diagnostics().error(scope().module(), diag::parser_expected_preceding_branch, *elseJunc);
                 return {false, nullptr};
             }
 
             br = br->branch(1)->junction()->as<ast::BranchJunction>();
             if ( !br || !br->branch(0) ) {
-                diagnostics().error(scope().module(), *elseJunc) << "else-branch-statement must proceed a branch-statement";
+                diagnostics().error(scope().module(), diag::parser_branch_else_proceeds, *elseJunc);
                 return {false, nullptr};
             }
         }
 
         if ( br->branch(1) ) {
-            diagnostics().error(scope().module(), *elseJunc) << "preceding branch-statement already has an else-branch-statement";
+            diagnostics().error(scope().module(), diag::parser_branch_multiple_else, *elseJunc);
             return {false, nullptr};
         }
 
@@ -444,7 +444,7 @@ ProcedureScopeParser::parseNext()
     if ( auto retJunc = parse<ReturnJunction>(*this) ) {
         auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
-            diagnostics().error(scope().module(), *retJunc) << "statement is unreachable";
+            diagnostics().error(scope().module(), diag::parser_unreachable, *retJunc);
             return {false, nullptr};
         }
         b->setJunction(std::move(retJunc));
@@ -454,7 +454,7 @@ ProcedureScopeParser::parseNext()
     if ( auto jmpJunc = parse<JumpJunction>(*this) ) {
         auto b = scope().basicBlocks().back();
         if ( b->junction() ) {
-            diagnostics().error(scope().module(), *jmpJunc) << "statement is unreachable";
+            diagnostics().error(scope().module(), diag::parser_unreachable, *jmpJunc);
             return {false, nullptr};
         }
         b->setJunction(std::move(jmpJunc));
@@ -506,19 +506,19 @@ void parseScope(Box<DeclarationScopeParser> parser)
 
             case lexer::TokenKind::IndentGT:
             {
-                dgn.error(mod, scanner.peek()) << "unexpected scope opening";
+                dgn.error(mod, diag::parser_unexpected_scope, scanner.peek());
                 dgn.die();
                 return;
             }
 
             default:
-                dgn.error(mod, scanner.peek()) << "expected end of scope";
+                dgn.error(mod, diag::parser_expected_scope_end, scanner.peek());
                 dgn.die();
             }
 
             while ( scanner.peek().kind() == lexer::TokenKind::IndentLT ) {
                 if ( scopeStack.empty() ) {
-                    dgn.error(mod, scanner.peek()) << "indentation doesn't match an existing scope";
+                    dgn.error(mod, diag::parser_indentation_mismatch, scanner.peek());
                     dgn.die();
                 }
 
@@ -529,7 +529,7 @@ void parseScope(Box<DeclarationScopeParser> parser)
     }
 
     if ( scanner.hasError() ) {
-        dgn.error(mod, scanner.peek()) << "lexical error";
+        dgn.error(mod, diag::lexer_error, scanner.peek());
         dgn.die();
     }
 

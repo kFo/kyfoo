@@ -100,12 +100,7 @@ public:
     Statement const& statement() const;
 
 public:
-    Error& error(lexer::Token const& token);
-    Error& error(Expression const& expr);
-    Error& error(Statement const& stmt);
-    Error& error(Junction const& junc);
-    Error& error(Declaration const& decl);
-    Error& error(Error::context_t gen);
+    ReportProxy error(diag code, Report::Subject gen);
     uz errorCount() const;
 
     Lookup matchOverload(Scope const& scope,

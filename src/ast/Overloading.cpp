@@ -442,21 +442,6 @@ Lookup::Lookup(SymbolReference query)
 {
 }
 
-Lookup::Lookup(Lookup&& rhs)
-    : myQuery(std::move(rhs.myQuery))
-    , mySpaces(std::move(rhs.mySpaces))
-    , mySet(std::move(rhs.mySet))
-    , myDecl(rhs.myDecl)
-{
-    rhs.myDecl = nullptr;
-}
-
-Lookup& Lookup::operator = (Lookup&& rhs)
-{
-    Lookup(std::move(rhs)).swap(*this);
-    return *this;
-}
-
 Lookup::~Lookup() = default;
 
 void Lookup::swap(Lookup& rhs)

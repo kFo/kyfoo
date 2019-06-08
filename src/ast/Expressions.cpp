@@ -39,7 +39,7 @@ namespace {
             if ( auto hit = ctx.matchOverload(*lhsScope, Resolver::Narrow, sym) ) {
                 auto rhsDecl = hit.single();
                 if ( !rhsDecl ) {
-                    ctx.error(rhs) << "is ambiguous";
+                    ctx.error(diag::ambiguous, rhs);
                     // todo: enumerate ambiguities
                     return SymRes::Fail;
                 }
@@ -340,8 +340,8 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
 
     auto ensureType = [this, &ctx]() {
         if ( !myType ) {
-            auto& err = ctx.error(*this) << "cannot be typed";
-            err.see(*myDeclaration);
+            ctx.error(diag::no_type, *this)
+                .see(*myDeclaration);
             return SymRes::Fail;
         }
 
@@ -364,7 +364,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
 
     if ( token().kind() == lexer::TokenKind::MetaVariable ) {
         if ( !myDeclaration ) {
-            ctx.error(token()) << "meta-variable not expected in this context";
+            ctx.error(diag::unexpected_meta_variable, token());
             return SymRes::Fail;
         }
 
@@ -385,7 +385,7 @@ SymRes IdentifierExpression::resolveSymbols(Context& ctx)
         auto hit = ctx.matchOverload(token().lexeme());
         myDeclaration = hit.single();
         if ( !myDeclaration ) {
-            ctx.error(token()) << "undeclared identifier";
+            ctx.error(diag::no_declaration, token());
             return SymRes::Fail;
         }
 
@@ -429,20 +429,20 @@ SymRes IdentifierExpression::tryLowerTemplateToProc(Context& ctx)
 
     auto defn = templ->definition();
     if ( !defn ) {
-        auto& err = ctx.error(*this) << "missing definition";
-        err.see(*templ);
+        ctx.error(diag::no_definition, *this)
+            .see(*templ);
         return SymRes::Fail;
     }
 
     auto proc = ctx.matchOverload(*defn, Resolver::Narrow, "").singleAs<ProcedureDeclaration>();
     if ( !proc ) {
-        ctx.error(*this) << "does not refer to any procedure";
+        ctx.error(diag::expected_procedure, *this);
         return SymRes::Fail;
     }
 
     myDeclaration = proc;
     if ( !proc->type() ) {
-        (ctx.error(*this) << "refers to a procedure that is not typed")
+        ctx.error(diag::no_type, *this) // todo: this is wrong subject
             .see(*proc);
         return SymRes::Fail;
     }
@@ -546,7 +546,7 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
 
         auto subject = myExpressions.front()->as<IdentifierExpression>();
         if ( !subject ) {
-            ctx.error(*this) << "symbol tuples must start with an identifier";
+            ctx.error(diag::expected_symbol_tuple_identifier, *this);
             return SymRes::Fail;
         }
 
@@ -567,13 +567,13 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
     SymbolReference sym(token().lexeme(), myExpressions);
     auto hit = ctx.matchOverload(sym);
     if ( !hit ) {
-        ctx.error(*this) << "undeclared symbol identifier";
+        ctx.error(diag::no_declaration, *this);
         return SymRes::Fail;
     }
 
     auto decl = hit.single();
     if ( !decl ) {
-        ctx.error(*this) << "failed to instantiate symbol";
+        ctx.error(diag::instantiate_error, *this);
         return SymRes::Fail;
     }
 
@@ -720,13 +720,13 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
 
         if ( auto lit = e->as<LiteralExpression>() ) {
             if ( lit->token().kind() != lexer::TokenKind::Integer ) {
-                ctx.error(*e) << "cannot be an accessor";
+                ctx.error(diag::expected_integer, *e);
                 return SymRes::Fail;
             }
 
             int index = stoi(lit->token().lexeme());
             if ( index < 0 ) {
-                ctx.error(*e) << "field accessor cannot be negative";
+                ctx.error(diag::no_field, *e);
                 return SymRes::Fail;
             }
 
@@ -740,20 +740,20 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
             if ( auto decl = getDeclaration(*composite) ) {
                 auto dt = decl->as<DataTypeDeclaration>();
                 if ( !dt ) {
-                    (ctx.error(*e) << "field accessor must refer to composite type")
+                    ctx.error(diag::expected_composite, *e)
                         .see(*dt);
                     return SymRes::Fail;
                 }
 
                 auto defn = dt->definition();
                 if ( !defn ) {
-                    (ctx.error(*composite) << "is not defined")
+                    ctx.error(diag::no_definition, *composite)
                         .see(*dt);
                     return SymRes::Fail;
                 }
 
                 if ( uz(index) >= defn->fields().card() ) {
-                    (ctx.error(*e) << "field accessor out of bounds")
+                    ctx.error(diag::no_field, *e)
                         .see(*dt);
                     return SymRes::Fail;
                 }
@@ -765,7 +765,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
             }
             else if ( auto tup = composite->as<TupleExpression>() ) {
                 if ( uz(index) >= tup->elementsCount() ) {
-                    ctx.error(*e) << "field index out of bounds";
+                    ctx.error(diag::no_field, *e);
                     return SymRes::Fail;
                 }
 
@@ -775,7 +775,7 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
                     lit->setType(tup->elements()[index]->type());
             }
             else {
-                ctx.error(*e) << "cannot be indexed";
+                ctx.error(diag::no_field, *e);
                 return SymRes::Fail;
             }
 
@@ -796,10 +796,10 @@ SymRes DotExpression::resolveSymbols(Context& ctx, uz subExpressionLimit)
         if ( !ret ) {
             if ( failedAsAccessor ) {
                 if ( auto appExpr = myExpressions[i]->as<ApplyExpression>() ) 
-                    ctx.error(*appExpr->subject()) << "does not match any members of "
-                                                   << *appExpr->arguments()[0];
+                    ctx.error(diag::no_member, *appExpr->subject());
+                        //.directObject(*appExpr->arguments()[0]); todo: direct object
                 else
-                    ctx.error(*this) << "invalid member access or application";
+                    ctx.error(diag::no_member_or_application, *this);
             }
             
             return ret;
@@ -1016,7 +1016,7 @@ L_notMethod:
     if ( myProc ) {
         arrow = myProc->type();
         if ( !arrow ) {
-            (ctx.error(*this) << "depends on untyped procedure")
+            ctx.error(diag::no_type, *this)
                 .see(*myProc);
             return SymRes::Fail;
         }
@@ -1024,15 +1024,15 @@ L_notMethod:
     else {
         arrow = subjType->as<ArrowExpression>();
         if ( !arrow ) {
-            (ctx.error(*this) << "attempting to apply non-arrow expression")
+            ctx.error(diag::no_conversion, *this)
                 .see(ctx.resolver().scope(), *myExpressions.front());
             return SymRes::Fail;
         }
     }
 
     if ( !variance(ctx, arrow->from(), arguments()) ) {
-        (ctx.error(*this) << "types do not agree")
-            .expectedTypes(ctx.resolver().scope(), arrow->sliceFrom())
+        ctx.error(diag::no_conversion, *this)
+            .expected(ctx.resolver().scope(), arrow->sliceFrom())
             .received(ctx.resolver().scope(), arguments());
         return SymRes::Fail;
     }
@@ -1068,33 +1068,33 @@ SymRes ApplyExpression::lowerToApplicable(Context& ctx)
     auto const& subj = *subject();
     auto applicable = getDeclaration(removeAllReferences(*subj.type()));
     if ( !applicable ) {
-        ctx.error(subj) << "does not have an applicable type";
+        ctx.error(diag::expected_applicable, subj);
         return SymRes::Fail;
     }
 
     auto dt = applicable->as<DataTypeDeclaration>();
     if ( !dt ) {
-        ctx.error(subj) << "only data-product types can be applied";
+        ctx.error(diag::expected_applicable, subj);
         return SymRes::Fail;
     }
 
     auto defn = dt->definition();
     if ( !defn ) {
-        (ctx.error(subj) << "missing definition")
+        ctx.error(diag::no_definition, subj)
             .see(*dt);
         return SymRes::Fail;
     }
 
     auto hit = ctx.matchOverloadUsingImplicitConversions(*defn, Resolver::Narrow, "", myExpressions);
     if ( !hit ) {
-        (ctx.error(subj) << "no suitable apply overload found")
+        ctx.error(diag::no_conversion, subj)
             .see(*dt);
         return SymRes::Fail;
     }
 
     auto proc = hit.singleAs<ProcedureDeclaration>();
     if ( !proc ) {
-        (ctx.error(subj) << "is not a procedure")
+        ctx.error(diag::expected_procedure, subj)
             .see(*hit.single())
             .see(*dt);
         return SymRes::Fail;
@@ -1111,27 +1111,27 @@ SymRes ApplyExpression::lowerToStaticCall(Context& ctx)
     auto const& subj = *subject();
     auto decl = resolveIndirections(getDeclaration(subj));
     if ( !decl ) {
-        ctx.error(subj) << "does not refer to a declaration";
+        ctx.error(diag::no_declaration, subj);
         return SymRes::Fail;
     }
 
     auto defDecl = getDefinableDeclaration(*decl);
     if ( !defDecl ) {
-        (ctx.error(subj) << "does not refer to a callable declaration")
+        ctx.error(diag::no_definition, subj)
             .see(*decl);
         return SymRes::Fail;
     }
 
     auto defn = defDecl->definition();
     if ( !defn ) {
-        ctx.error(*defDecl) << "missing definition";
+        ctx.error(diag::no_definition, *defDecl);
         return SymRes::Fail;
     }
 
     auto hit = ctx.matchOverloadUsingImplicitConversions(*defn, Resolver::Narrow, "", mutableArgs());
     auto proc = hit.singleAs<ProcedureDeclaration>();
     if ( !proc ) {
-        (ctx.error(*this) << "failed to find static call")
+        ctx.error(diag::no_invocation, *this)
             .see(std::move(hit));
         return SymRes::Fail;
     }
@@ -1145,23 +1145,23 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
     auto subjectTypeRef = resolveIndirections(resolveIndirections(*myExpressions.front())->type());
     auto subjectType = removeAllReferences(*subjectTypeRef)->as<TupleExpression>();
     if ( !subjectType ) {
-        ctx.error(*myExpressions.front()) << "is not a tuple";
+        ctx.error(diag::expected_tuple, *myExpressions.front());
         return SymRes::Fail;
     }
 
     if ( subjectType->kind() != TupleKind::Closed ) {
-        ctx.error(*subject()) << "non-closed tuple application not implemented";
+        ctx.error(diag::not_implemented, *subject());
         return SymRes::Fail;
     }
 
     if ( myExpressions.size() != 2 ) {
-        ctx.error(*subject()) << "too many arguments to tuple";
+        ctx.error(diag::expected_arity, *subject());
         return SymRes::Fail;
     }
 
     if ( auto lit = myExpressions[1]->as<LiteralExpression>() ) {
         if ( lit->token().kind() != lexer::TokenKind::Integer ) {
-            ctx.error(*lit) << "expected integer for index";
+            ctx.error(diag::expected_integer, *lit);
             return SymRes::Fail;
         }
 
@@ -1169,7 +1169,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
     }
 
     if ( subjectType->elementsCount() <= 1 ) {
-        ctx.error(*subject()) << "index only implemented for arrays";
+        ctx.error(diag::not_implemented, *subject());
         return SymRes::Fail;
     }
 
@@ -1185,9 +1185,10 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
         }
 
         if ( !variance(ctx, arrow->from(), *refElementType) ) {
-            (ctx.error(*myExpressions[1]) << "cannot be applied to " << *myExpressions[0])
-                .expectedTypes(ctx.resolver().scope(), subjectType->expressions()(0, 1))
-                .receivedTypes(ctx.resolver().scope(), arrow->sliceFrom());
+            ctx.error(diag::no_conversion, *myExpressions[1])
+                // .directObject(*myExpressions[0]) todo
+                .expected(ctx.resolver().scope(), subjectType->expressions()(0, 1))
+                .received(ctx.resolver().scope(), arrow->sliceFrom());
             return SymRes::Fail;
         }
 
@@ -1198,7 +1199,7 @@ SymRes ApplyExpression::elaborateTuple(Context& ctx)
     auto indexType = createIdentifier(*ctx.axioms().intrinsic(intrin::type::size_t));
     auto via = implicitViability(ctx, *indexType, *argType);
     if ( !via ) {
-        ctx.error(*myExpressions[1]) << "cannot be converted to size_t";
+        ctx.error(diag::no_conversion, *myExpressions[1]);
         return SymRes::Fail;
     }
 
@@ -1399,7 +1400,7 @@ SymRes AssignExpression::resolveSymbols(Context& ctx)
     if ( myType )
         return SymRes::Success;
 
-    ctx.error(*this) << "assign-expression is in an unexpected context";
+    ctx.error(diag::unexpected_assign_expression, *this);
     return SymRes::Fail;
 }
 
@@ -1573,13 +1574,13 @@ SymRes TupleExpression::resolveSymbols(Context& ctx)
 
         auto lit = resolveIndirections(myCardExpression.get())->as<LiteralExpression>();
         if ( !lit || lit->token().kind() != lexer::TokenKind::Integer ) {
-            ctx.error(*myCardExpression) << "array cardinality must be an integer";
+            ctx.error(diag::expected_integer, *myCardExpression);
             return SymRes::Fail;
         }
 
         auto n = stoi(lit->token().lexeme());
         if ( n < 0 ) {
-            ctx.error(*myCardExpression) << "array cardinality cannot be negative";
+            ctx.error(diag::unexpected_negative_integer, *myCardExpression);
             return SymRes::Fail;
         }
 
@@ -1820,42 +1821,6 @@ UniverseExpression::natural_t UniverseExpression::level() const
 
 //
 // Utilities
-
-std::ostream& operator << (std::ostream& stream, Expression const& expr)
-{
-    return print(stream, expr);
-}
-
-std::ostream& operator << (std::ostream& stream, Slice<Expression const*> exprs)
-{
-    if ( exprs )
-        print(stream, *exprs.front());
-
-    for ( auto e : exprs(1, $) ) {
-        stream << ", ";
-        print(stream, *e);
-    }
-
-    return stream;
-}
-
-std::ostream& operator << (std::ostream& stream, Slice<Expression*> exprs)
-{
-    return operator << (stream, static_cast<Slice<Expression const*>>(exprs));
-}
-
-std::ostream& operator << (std::ostream& stream, get_types&& types)
-{
-    if ( types.exprs )
-        print(stream, *types.exprs.front()->type());
-
-    for ( auto e : types.exprs(1, $) ) {
-        stream << ", ";
-        print(stream, *e->type());
-    }
-
-    return stream;
-}
 
 lexer::SourceLocation getSourceLocation(Expression const& expr)
 {

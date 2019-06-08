@@ -52,9 +52,6 @@
     <ClCompile Include="..\..\src\Diagnostics.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\Stream.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\String.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -114,6 +111,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\parser\Parse.cpp">
       <Filter>src\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\SystemError.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\MMFile.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\File.cpp">
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -277,6 +283,21 @@
       <Filter>include\kyfoo</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Utilities.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\SystemError.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\win32.hpp">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\MMFile.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\File.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Ascii.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
   </ItemGroup>

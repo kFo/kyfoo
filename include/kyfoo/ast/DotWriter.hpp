@@ -1,13 +1,14 @@
 #pragma once
 
 #include <filesystem>
-#include <ostream>
+
+#include <kyfoo/Stream.hpp>
 
 namespace kyfoo::ast {
 
 class Module;
 
 void writeDot(Module const& mod, std::filesystem::path const& path);
-std::ostream& writeDot(std::ostream& stream, Module const& mod);
+DefaultOutStream& writeDot(DefaultOutStream& stream, Module const& mod);
 
 } // namespace kyfoo::ast

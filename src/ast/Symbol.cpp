@@ -77,7 +77,7 @@ SymRes PatternsPrototype::resolveVariables(Context& ctx)
             auto fv = gatherMetaVariables(*param);
             for ( auto& p : fv ) {
                 if ( auto hit = ctx.matchOverload(p->token().lexeme()) ) {
-                    (ctx.error(p->token()) << "already defined")
+                    ctx.error(diag::multiple_definition, p->token())
                         .see(*hit.single());
                     ret |= SymRes::Fail;
                     continue;
@@ -87,7 +87,7 @@ SymRes PatternsPrototype::resolveVariables(Context& ctx)
                     return var->symbol().token().lexeme() == p->token().lexeme();
                     });
                 if ( existing != end(myVariables) ) {
-                    (ctx.error(p->token()) << "already defined")
+                    ctx.error(diag::multiple_definition, p->token())
                         .see(**existing);
                     ret |= SymRes::Fail;
                     continue;
@@ -305,30 +305,6 @@ stringv SymbolReference::name() const
 const_pattern_t const& SymbolReference::pattern() const
 {
     return myPattern;
-}
-
-//
-// misc
-
-std::ostream& print(std::ostream& stream, Symbol const& sym)
-{
-    stream << sym.token().lexeme();
-    if ( sym.prototype().pattern() ) {
-        stream << "<";
-        auto first = begin(sym.prototype().pattern());
-        auto last = end(sym.prototype().pattern());
-        if ( first != last )
-            print(stream, **first);
-
-        for ( ++first; first != last; ++first ) {
-            stream << ", ";
-            print(stream, **first);
-        }
-
-        stream << ">";
-    }
-
-    return stream;
 }
 
 } // namespace kyfoo::ast

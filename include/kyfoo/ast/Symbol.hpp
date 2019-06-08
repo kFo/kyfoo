@@ -1,7 +1,6 @@
 #pragma once
 
 #include <map>
-#include <ostream>
 #include <vector>
 
 #include <kyfoo/Slice.hpp>
@@ -139,6 +138,12 @@ public:
     {
     }
 
+    SymbolReference(SymbolReference const&) noexcept = default;
+    SymbolReference& operator = (SymbolReference const&) noexcept = default;
+
+    SymbolReference(SymbolReference&&) noexcept = default;
+    SymbolReference& operator = (SymbolReference&&) noexcept = default;
+
     ~SymbolReference();
 
     void swap(SymbolReference& rhs);
@@ -172,7 +177,28 @@ inline void remap(Symbol& sym, clone_map_t const& map)
     return sym.remapReferences(map);
 }
 
-std::ostream& print(std::ostream& stream, Symbol const& sym);
-
     } // namespace ast
+
+    namespace ascii {
+        template <typename Sink>
+        void write(Sink& stream, ast::Symbol const& sym)
+        {
+            write(stream, sym.token().lexeme());
+            if ( sym.prototype().pattern() ) {
+                write(stream, "<");
+                auto first = begin(sym.prototype().pattern());
+                auto last = end(sym.prototype().pattern());
+                if ( first != last )
+                    write(stream, **first);
+
+                for ( ++first; first != last; ++first ) {
+                    write(stream, ", ");
+                    write(stream, **first);
+                }
+
+                write(stream, ">");
+            }
+        }
+    }
+
 } // namespace kyfoo

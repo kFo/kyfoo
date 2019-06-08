@@ -209,9 +209,9 @@ Lookup Scope::findEquivalent(SymbolReference const& symbol) const
 
 SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
 {
-    std::ostringstream ss;
-    ss << '?' << myMetaVariables.size() << '_' << tok.lexeme();
-    myMetaVariableNames.emplace_back(ss.str());
+    ascii::Formatter<ArrayBuffer<>> buf(tok.lexeme().card() + 2 + 5);
+    buf('?')(myMetaVariables.size())('_')(tok.lexeme());
+    myMetaVariableNames.emplace_back(mkString(buf));
 
     lexer::Token metaTok(lexer::TokenKind::MetaVariable,
                          myMetaVariableNames.back(),
@@ -281,15 +281,15 @@ bool Scope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
     if ( auto other = symSpace->findEquivalent(sym.prototype().pattern()) ) {
         auto templDecl = decl.as<TemplateDeclaration>();
         if ( !templDecl ) {
-            auto& err = dgn.error(module(), sym.token()) << "symbol is already defined";
-            err.see(*other);
+            dgn.error(module(), diag::multiple_definition, sym.token())
+                .see(*other);
             return false;
         }
 
         auto otherTemplDecl = other->as<TemplateDeclaration>();
         if ( !otherTemplDecl ) {
-            auto& err = dgn.error(module(), sym.token()) << "symbol was not first defined as a template";
-            err.see(*other);
+            dgn.error(module(), diag::expected_template, sym.token())
+                .see(*other);
             return false;
         }
 
@@ -672,7 +672,7 @@ Expression const* ProcedureScope::deduceReturnType(Context& ctx)
             rec(*c);
     })(*this);
 
-    auto [ret, type] = unify(ctx, declaration(), returnTypes);
+    auto [ret, type] = unify(ctx, *declaration(), returnTypes);
     if ( !ret )
         return nullptr;
 
@@ -731,7 +731,8 @@ SymRes ProcedureScope::resolveReturn(Context& ctx)
             if ( auto r = bb->junction()->as<ReturnJunction>() ) {
                 auto iv = implicitViability(ctx, *returnType, r->expression());
                 if ( !iv ) {
-                    ctx.error(*r) << "cannot be converted to " << *returnType;
+                    ctx.error(diag::no_conversion, *r);
+                        //.directObject*returnType; // todo
                     ret = SymRes::Fail;
                 }
 

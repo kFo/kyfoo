@@ -102,12 +102,6 @@ ScopeExit<F> operator*(deducto_syntacto_impl<ScopeExit>, F&& f)
 #define KYFOO_LABEL_REVERT(a) KYFOO_LABEL_CAT(revert_, a)
 #define REVERT [[maybe_unused]] auto KYFOO_LABEL_REVERT(__COUNTER__)
 
-#define GUARD_ERR(id) err_guard_##id
-#define GUARD(id, expr)                       \
-    auto GUARD_ERR(id) = expr;                \
-    auto&& id = *GUARD_ERR(id);               \
-    if ( std::error_code ec = GUARD_ERR(id) )
-
 template <typename L, typename R>
 std::enable_if_t<!std::is_scalar_v<L>>
 swap(L& lhs, R& rhs) noexcept

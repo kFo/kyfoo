@@ -25,7 +25,7 @@ void Context::write(ast::Module const& module, std::filesystem::path const& path
 
     auto sourcePath = module.path();
     if ( sourcePath.empty() ) {
-        myDgn.error(module) << "cannot determine output name for module";
+        myDgn.error(module, diag::module_no_name);
         return;
     }
 
@@ -33,13 +33,15 @@ void Context::write(ast::Module const& module, std::filesystem::path const& path
     ::llvm::raw_fd_ostream outFile(path.string(), ec, ::llvm::sys::fs::F_None);
 
     if ( ec ) {
-        myDgn.error(module) << "failed to write object file: " << ec.message();
+        myDgn.error(module, diag::module_cannot_write_object_file);
+            // .reason(ec.message()); // todo
         return;
     }
 
     ::llvm::legacy::PassManager pass;
     if ( myTargetMachine->addPassesToEmitFile(pass, outFile, nullptr, ::llvm::TargetMachine::CGFT_ObjectFile) ) {
-        myDgn.error(module) << "cannot emit a file of this type for target machine " << myTargetTriple;
+        myDgn.error(module, diag::module_unsupported_target);
+            // .subject(myTargetTriple);
         return;
     }
 
@@ -51,7 +53,7 @@ void Context::writeIR(ast::Module const& module, std::filesystem::path const& pa
 {
     auto sourcePath = module.path();
     if ( sourcePath.empty() ) {
-        myDgn.error(module) << "cannot determine output name for module";
+        myDgn.error(module, diag::module_no_name);
         return;
     }
 
@@ -59,7 +61,8 @@ void Context::writeIR(ast::Module const& module, std::filesystem::path const& pa
     ::llvm::raw_fd_ostream outFile(path.string(), ec, ::llvm::sys::fs::F_None);
 
     if ( ec ) {
-        myDgn.error(module) << "failed to write IR file: " << ec.message();
+        myDgn.error(module, diag::module_cannot_write_object_file);
+            // .reason(ec.message()); // todo
         return;
     }
 
@@ -88,7 +91,7 @@ void Context::generate(ast::Module const& module)
 #ifndef NDEBUG
         mdata->module->dump();
 #endif
-        myDgn.die();
+        myDgn.die("LLVM module errors");
     }
 }
 
@@ -159,10 +162,8 @@ void Context::generate(ast::DataTypeDeclaration const& dt)
 
         auto d = getDeclaration(fields[i]->type());
         auto type = toType(*resolveIndirections(d));
-        if ( !type ) {
-            myDgn.error(d->scope().module(), *d) << "type is not registered";
-            myDgn.die();
-        }
+        if ( !type )
+            myDgn.die("type is not registered");
 
         fieldTypes.push_back(type);
     }

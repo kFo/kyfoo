@@ -81,3 +81,13 @@ private:
 };
 
 } // namespace kyfoo::lexer
+
+namespace kyfoo::ascii {
+    template <typename Sink>
+    void write(Sink& sink, lexer::SourceLocation loc)
+    {
+        write(sink, loc.line);
+        write(sink, ':');
+        write(sink, loc.column);
+    }
+}

@@ -15,7 +15,8 @@
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Visitors.hpp>
 
-namespace kyfoo::ast {
+namespace kyfoo {
+    namespace ast {
 
 //
 // Declaration
@@ -255,7 +256,7 @@ SymRes Binder::resolveSymbols(Context& ctx)
     for ( auto const& c : myConstraints ) {
         if ( auto type = dataType(*c) ) {
             if ( myType ) {
-                ctx.error(*this) << "more than one type found for binder";
+                ctx.error(diag::expected_one_type, *this);
                 return SymRes::Fail;
             }
 
@@ -558,7 +559,7 @@ SymRes ProcedureParameter::resolveSymbols(Context& ctx)
         return ret;
 
     if ( !myType ) {
-        ctx.error(*this) << "could not deduce type for parameter";
+        ctx.error(diag::no_deduction, *this);
         return SymRes::Fail;
     }
 
@@ -1109,11 +1110,11 @@ void define(Declaration& decl, Scope& defn)
 template <typename Dispatch>
 struct DeclarationPrinter
 {
-    using result_t = std::ostream&;
+    using result_t = DefaultOutStream&;
     Dispatch& dispatch;
     result_t stream;
 
-    explicit DeclarationPrinter(Dispatch& dispatch, std::ostream& stream)
+    explicit DeclarationPrinter(Dispatch& dispatch, DefaultOutStream& stream)
         : dispatch(dispatch)
         , stream(stream)
     {
@@ -1121,23 +1122,23 @@ struct DeclarationPrinter
 
     result_t declDataType(DataTypeDeclaration const& dt)
     {
-        return stream << dt.symbol().token().lexeme();
+        return stream(dt.symbol().token().lexeme());
     }
 
     result_t declField(Field const& f)
     {
-        return stream << f.symbol().token().lexeme();
+        return stream(f.symbol().token().lexeme());
     }
 
     result_t declSymbol(SymbolDeclaration const& s)
     {
-        return stream << s.symbol().token().lexeme();
+        return stream(s.symbol().token().lexeme());
     }
 
     result_t declProcedure(ProcedureDeclaration const& proc)
     {
         if ( auto templ = parentTemplate(proc) )
-            print(stream, templ->symbol());
+            stream(templ->symbol());
 
         auto sink = [this](Expression const& e) {
             if ( auto decl = getDeclaration(e) ) {
@@ -1147,25 +1148,25 @@ struct DeclarationPrinter
                 }
             }
 
-            print(stream, e);
+            stream(e);
         };
 
-        stream << "(";
+        stream("(");
         auto first = begin(proc.symbol().prototype().pattern());
         auto last = end(proc.symbol().prototype().pattern());
         if ( first != last ) {
             sink(**first);
 
             for ( ++first; first != last; ++first ) {
-                stream << ", ";
+                stream(", ");
                 sink(**first);
             }
         }
 
-        stream << ")";
-        
+        stream(")");
+
         if ( proc.returnType() ) {
-            stream << " -> ";
+            stream(" -> ");
             sink(*proc.returnType());
         }
 
@@ -1174,44 +1175,44 @@ struct DeclarationPrinter
 
     result_t declProcedureParameter(ProcedureParameter const& p)
     {
-        stream << p.token().lexeme();
+        stream(p.token().lexeme());
         for ( auto const& c : p.constraints() ) {
-            stream << " : ";
-            print(stream, *c);
+            stream(" : ")(*c);
         }
         return stream;
     }
 
     result_t declVariable(VariableDeclaration const& var)
     {
-        stream << var.symbol().token().lexeme();
+        stream(var.symbol().token().lexeme());
         for ( auto const& c : var.constraints() ) {
-            stream << " : ";
-            print(stream, *c);
+            stream(" : ")(*c);
         }
         return stream;
     }
 
     result_t declImport(ImportDeclaration const& imp)
     {
-        return stream << imp.symbol().token().lexeme();
+        return stream(imp.symbol().token().lexeme());
     }
 
     result_t declSymbolVariable(SymbolVariable const& symVar)
     {
-        return stream << symVar.symbol().token().lexeme();
+        return stream(symVar.symbol().token().lexeme());
     }
 
     result_t declTemplate(TemplateDeclaration const& t)
     {
-        return stream << t.symbol().token().lexeme();
+        return stream(t.symbol().token().lexeme());
     }
 };
 
-std::ostream& print(std::ostream& stream, Declaration const& decl)
-{
-    ShallowApply<DeclarationPrinter> op(stream);
-    return op(decl);
-}
+    } // namespace ast
 
-} // namespace kyfoo::ast
+    void ascii::write(DefaultOutStream& sink, ast::Declaration const& decl)
+    {
+        ast::ShallowApply<ast::DeclarationPrinter> op(sink);
+        op(decl);
+    }
+
+} // namespace kyfoo

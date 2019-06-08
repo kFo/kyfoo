@@ -2,8 +2,8 @@
 
 #include <filesystem>
 
+#include <kyfoo/MMFile.hpp>
 #include <kyfoo/Slice.hpp>
-#include <kyfoo/Stream.hpp>
 #include <kyfoo/String.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/Utilities.hpp>
@@ -132,4 +132,16 @@ protected:
 };
 
     } // namespace ast
+
+    namespace ascii {
+        template <typename Sink>
+        void write(Sink& sink, ast::Module const& mod)
+        {
+            if ( mod.path().empty() )
+                return write(sink, mod.name());
+
+            return write(sink, relative(mod.path(), mod.moduleSet().path()).string());
+        }
+    }
+
 } // namespace kyfoo

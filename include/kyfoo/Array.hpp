@@ -518,4 +518,28 @@ private:
     size_type myCapacity = 0;
 };
 
+template <typename Allocator = allocators::Mallocator,
+          uz (*GrowFn)(uz, uz, uz) = DefaultArrayBuilderGrowFn>
+class ArrayBuffer : private ArrayBuilder<char, Allocator, GrowFn>
+{
+public:
+    explicit ArrayBuffer(uz size)
+        : ArrayBuilder(size)
+    {
+    }
+
+public:
+    void write(Slice<void const> rhs) noexcept
+    {
+        insertRange(end(), rhs.cast<char const>());
+    }
+
+    Slice<void const> data() const noexcept { return operator Slice<char const> (); }
+    Slice<void      > data()       noexcept { return operator Slice<char      > (); }
+
+    using ArrayBuilder::operator Slice<char>;
+    using ArrayBuilder::operator Slice<char const>;
+    using ArrayBuilder::operator bool;
+};
+
 } // namespace kyfoo

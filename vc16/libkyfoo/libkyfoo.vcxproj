@@ -170,12 +170,14 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="..\..\src\Diagnostics.cpp" />
+    <ClCompile Include="..\..\src\File.cpp" />
     <ClCompile Include="..\..\src\lexer\Scanner.cpp" />
     <ClCompile Include="..\..\src\lexer\TokenKind.cpp" />
+    <ClCompile Include="..\..\src\MMFile.cpp" />
     <ClCompile Include="..\..\src\parser\Grammar.cpp" />
     <ClCompile Include="..\..\src\parser\Parse.cpp" />
-    <ClCompile Include="..\..\src\Stream.cpp" />
     <ClCompile Include="..\..\src\String.cpp" />
+    <ClCompile Include="..\..\src\SystemError.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\kyfoo\Algorithm.hpp" />
@@ -188,6 +190,7 @@
     <ClInclude Include="..\..\include\kyfoo\allocators\PageAllocator.hpp" />
     <ClInclude Include="..\..\include\kyfoo\allocators\Region.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Array.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\Ascii.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Axioms.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Clone.hpp" />
     <ClInclude Include="..\..\include\kyfoo\ast\Context.hpp" />
@@ -212,6 +215,7 @@
     <ClInclude Include="..\..\include\kyfoo\Diagnostics.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Dollar.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Factory.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\File.hpp" />
     <ClInclude Include="..\..\include\kyfoo\FlatSet.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Interval.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Intrinsics.hpp" />
@@ -220,6 +224,7 @@
     <ClInclude Include="..\..\include\kyfoo\lexer\TokenKind.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Math.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Meta.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\MMFile.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Grammar.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Parse.hpp" />
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp" />
@@ -227,11 +232,13 @@
     <ClInclude Include="..\..\include\kyfoo\Slice.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Stream.hpp" />
     <ClInclude Include="..\..\include\kyfoo\String.hpp" />
+    <ClInclude Include="..\..\include\kyfoo\SystemError.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Tribool.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Types.hpp" />
     <ClInclude Include="..\..\include\kyfoo\Utilities.hpp" />
     <ClInclude Include="..\..\src\codegen\llvm\Context.hpp" />
     <ClInclude Include="..\..\src\codegen\llvm\Visitors.hpp" />
+    <ClInclude Include="..\..\src\win32.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\kyfoo.natvis" />

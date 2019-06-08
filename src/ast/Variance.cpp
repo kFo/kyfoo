@@ -114,12 +114,12 @@ Variance variance(DiagnosticsContext dgn,
     auto q = lookThrough(&query);
 
     if ( !t ) {
-        dgn.error(target) << "is an unresolved alias";
+        dgn.error(diag::unresolved, target);
         return Variance::Invariant;
     }
 
     if ( !q ) {
-        dgn.error(query) << "is an unresolved alias";
+        dgn.error(diag::unresolved, query);
         return Variance::Invariant;
     }
 
@@ -127,11 +127,11 @@ Variance variance(DiagnosticsContext dgn,
     auto queryType = lookThrough(q->type());
 
     if ( !targetType ) {
-        dgn.error(target) << "is not typed";
+        dgn.error(diag::no_type, target);
         return Variance::Invariant;
     }
     else if ( !queryType ) {
-        dgn.error(query) << "is not typed";
+        dgn.error(diag::no_type, query);
         return Variance::Invariant;
     }
 

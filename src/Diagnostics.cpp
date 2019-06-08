@@ -1,374 +1,106 @@
 #include <kyfoo/Diagnostics.hpp>
 
+#include <kyfoo/Stream.hpp>
+
+#include <kyfoo/lexer/Token.hpp>
+
 #include <kyfoo/ast/Module.hpp>
 #include <kyfoo/ast/Declarations.hpp>
+#include <kyfoo/ast/Expressions.hpp>
 #include <kyfoo/ast/Overloading.hpp>
 #include <kyfoo/ast/Scopes.hpp>
 #include <kyfoo/ast/Semantics.hpp>
 
 namespace kyfoo {
 
-//
-// ContextReference
+namespace {
+    constexpr const char* toString(diag d) {
+        const char* DIAG_STRING[] = {
+        #define X(a,b) b,
+            DEFINE_DIAGNOSTIC_KINDS(X)
+        #undef X
+        };
 
-ContextReference::~ContextReference()
-{
-    if ( myKind == SeeLookup )
-        delete myContext.miss;
-}
-
-ContextReference::Ctx::Ctx(ast::Lookup&& miss)
-    : miss(new ast::Lookup(std::move(miss)))
-{
+        return DIAG_STRING[unsigned(d)];
+    }
 }
 
 //
 // Error
 
-Error::Error(ast::Module const& mod)
-    : myModule(&mod)
-{
-}
-
-Error::Error(ast::Module const& mod, Code code)
+Report::Report(ast::Module const& mod, diag code)
     : myModule(&mod)
     , myCode(code)
 {
 }
 
-Error::Error(ast::Module const& mod,
-             Error::Code code,
-             lexer::Token const& tok)
+Report::Report(ast::Module const& mod,
+             diag code,
+             Subject subj)
     : myModule(&mod)
     , myCode(code)
-    , myContext(&tok)
+    , mySubject(subj)
 {
 }
 
-Error::Error(ast::Module const& mod,
-             Code code,
-             ast::Expression const& expr)
-    : myModule(&mod)
-    , myCode(code)
-    , myContext(&expr)
-{
-}
-
-Error::Error(ast::Module const& mod,
-             Code code,
-             ast::Statement const& stmt)
-    : myModule(&mod)
-    , myCode(code)
-    , myContext(&stmt)
-{
-}
-
-Error::Error(ast::Module const& mod,
-             Code code,
-             ast::Junction const& junc)
-    : myModule(&mod)
-    , myCode(code)
-    , myContext(&junc)
-{
-}
-
-Error::Error(ast::Module const& mod,
-             Code code,
-             ast::Declaration const& decl)
-    : myModule(&mod)
-    , myCode(code)
-    , myContext(&decl)
-{
-}
-
-ast::Module const& Error::module() const
+ast::Module const& Report::module() const
 {
     return *myModule;
 }
 
-Error::Code Error::code() const
+diag Report::code() const
 {
     return myCode;
 }
 
-Error::context_t const& Error::context() const
+Report::Subject Report::subject() const
 {
-    return myContext;
+    return mySubject;
 }
 
-std::string Error::what() const
+Slice<Word const> Report::sentence() const
 {
-    return myInfo.str();
+    return mySentence;
 }
 
-Slice<ContextReference const> Error::references() const
+void Report::append(Word word)
 {
-    return myReferences;
+    mySentence.emplace_back(std::move(word));
 }
 
-Error& Error::see(ast::Declaration const& declaration)
+lexer::Token const& front(Report::Subject const& subj)
 {
-    myReferences.emplace_back(declaration);
-    return *this;
-}
-
-Error& Error::see(ast::Scope const& scope,
-                  ast::Expression const& expression)
-{
-    myReferences.emplace_back(ContextReference::ExpressionContextBase::Value, scope, expression);
-    return *this;
-}
-
-Error& Error::see(ast::Lookup&& miss)
-{
-    myReferences.emplace_back(std::move(miss));
-    return *this;
-}
-
-Error& Error::expected(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
-{
-    myReferences.emplace_back(ContextReference::MismatchExpected,
-                              ContextReference::ExpressionContextBase::Value,
-                              scope,
-                              exprs);
-    return *this;
-}
-
-Error& Error::expectedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
-{
-    myReferences.emplace_back(ContextReference::MismatchExpected,
-                              ContextReference::ExpressionContextBase::Type,
-                              scope,
-                              exprs);
-    return *this;
-}
-
-Error& Error::received(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
-{
-    myReferences.emplace_back(ContextReference::MismatchReceived,
-                              ContextReference::ExpressionContextBase::Value,
-                              scope,
-                              exprs);
-    return *this;
-}
-
-Error& Error::receivedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
-{
-    myReferences.emplace_back(ContextReference::MismatchReceived,
-                              ContextReference::ExpressionContextBase::Type,
-                              scope,
-                              exprs);
-    return *this;
-}
-
-std::ostream& Error::stream()
-{
-    return myInfo;
-}
-
-Error& Error::operator << (lexer::Token const& token)
-{
-    myInfo << '\'' << token.lexeme() << '\'';
-    return *this;
-}
-
-lexer::Token const& front(Error::context_t const& ctx)
-{
-    return std::visit([](auto r) -> lexer::Token const& { return ast::front(*r); }, ctx);
-}
-
-struct PrintId {
-    std::ostream& stream;
-
-    void operator()(lexer::Token const* tok) const
-    {
-        stream << "'" << tok->lexeme() << "'";
-    }
-
-    void operator()(ast::Expression const* expr) const
-    {
-        stream << "'";
-        print(stream, *expr);
-        stream << "'";
-    }
-
-    void operator()(ast::Statement const* stmt) const
-    {
-        return operator()(&front(*stmt));
-    }
-
-    void operator()(ast::Junction const* junc) const
-    {
-        return operator()(&front(*junc));
-    }
-
-    void operator()(ast::Declaration const* decl) const
-    {
-        if ( auto proc = decl->as<ast::ProcedureDeclaration>() )
-            return operator()(proc->scope().declaration());
-
-        return operator()(&decl->symbol().token());
-    }
-};
-
-std::ostream& operator << (std::ostream& sink, Error const& err)
-{
-    auto startLine = [&sink](ast::Module const& mod,
-                             lexer::SourceLocation loc) -> std::ostream& {
-        return sink << mod << ':' << loc;
-    };
-
-    auto const& frontToken = front(err.context());
-    startLine(err.module(), frontToken.location()) << ": error: ";
-
-    auto printId = [&sink](Error const& err) -> std::ostream& {
-        std::visit(PrintId{sink}, err.context());
-        return sink;
-    };
-
-    switch (err.code()) {
-    case Error::General:
-        printId(err) << " " << err.what() << std::endl;
-        break;
-
-    case Error::Undeclared:
-        printId(err);
-        sink << ": undeclared identifier" << std::endl;
-        break;
-
-    default:
-        ENFORCEU("unknown error");
-    }
-
-    for ( auto const& r : err.references() ) {
-        if ( auto decl = r.seeDecl() ) {
-            startLine(decl->scope().module(),
-                      decl->token().location())
-                 << ":  see '";
-            print(sink, *decl);
-            sink << "' declared as " << to_string(decl->kind()) << std::endl;
-        }
-        else if ( auto exprCtx = r.seeExpr() ) {
-            startLine(exprCtx.scope->module(),
-                      front(*exprCtx.expr).location())
-                 << ":  see '";
-            print(sink, *exprCtx.expr);
-            sink << "'" << std::endl;
-        }
-        else if ( auto miss = r.seeLookup() ) {
-            startLine(err.module(), frontToken.location());
-            switch ( miss->viable().result() ) {
-            case ast::ViableSet::None:
-                if ( miss->symSpace() ) {
-                    sink << ": did not match any of:\n";
-                    for ( auto const& p : miss->symSpace()->prototypes() ) {
-                        auto d = p.proto.decl;
-                        startLine(d->scope().module(), d->token().location())
-                            << ":  ";
-                        print(sink, *d);
-                        sink << std::endl;
-                    }
-                }
-                else {
-                    sink << ": did not match anything" << std::endl;
-                }
-                break;
-
-            case ast::ViableSet::Single:
-            case ast::ViableSet::NeedsConversion:
-                sink << ": has a matching overload" << std::endl;
-                break;
-
-            case ast::ViableSet::Ambiguous:
-                sink << ": could be one of:\n";
-                auto const& set = miss->viable();
-                auto const rank = set.best().rank();
-                for ( auto const& v : set ) {
-                    if ( v.rank() != rank )
-                        break;
-
-                    auto d = v.prototype().proto.decl;
-                    startLine(d->scope().module(), d->token().location())
-                        << ":  ";
-                    print(sink, *d);
-                    sink << std::endl;
-                }
-                break;
-            }
-        }
-        else if ( auto expected = r.expected() ) {
-            startLine(expected.scope->module(),
-                      front(*expected.exprs.front()).location())
-                 << ":  expected: ";
-            if ( expected.isValue() )
-                sink << ast::get_types(expected.exprs);
-            else
-                sink << expected.exprs;
-            sink << std::endl;
-        }
-        else if ( auto received = r.received() ) {
-            startLine(received.scope->module(),
-                      front(*received.exprs.front()).location())
-                 << ":  received: ";
-            if ( received.isValue() )
-                sink << ast::get_types(received.exprs);
-            else
-                sink << received.exprs;
-            sink << std::endl;
-        }
-    }
-
-    return sink;
+    return *subj.visit([](auto const& r) -> lexer::Token const* { return &ast::front(r); });
 }
 
 //
 // Diagnostics
 
-void Diagnostics::die()
+Diagnostics::Diagnostics() noexcept = default;
+
+Diagnostics::~Diagnostics() noexcept = default;
+
+void Diagnostics::die(const char* reason)
 {
+    myDieReason = reason;
     throw this;
 }
 
-Error& Diagnostics::error(ast::Module const& mod)
+ReportProxy Diagnostics::error(ast::Module const& mod, diag code)
 {
-    myErrors.emplace_back(mk<Error>(mod));
-    return *myErrors.back();
+    myErrors.emplace_back(mk<Report>(mod, code));
+    return { *this, *myErrors.back() };
 }
 
-Error& Diagnostics::error(ast::Module const& mod, lexer::Token const& token)
+ReportProxy Diagnostics::error(ast::Module const& mod, diag code, Report::Subject subj)
 {
-    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, token));
-    return *myErrors.back();
+    myErrors.emplace_back(mk<Report>(mod, code, subj));
+    return { *this, *myErrors.back() };
 }
 
-Error& Diagnostics::error(ast::Module const& mod, ast::Expression const& expr)
+const char* Diagnostics::dieReason() const
 {
-    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, expr));
-    return *myErrors.back();
-}
-
-Error& Diagnostics::error(ast::Module const& mod, ast::Statement const& stmt)
-{
-    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, stmt));
-    return *myErrors.back();
-}
-
-Error& Diagnostics::error(ast::Module const& mod, ast::Junction const& junc)
-{
-    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, junc));
-    return *myErrors.back();
-}
-
-Error& Diagnostics::error(ast::Module const& mod, ast::Declaration const& decl)
-{
-    myErrors.emplace_back(mk<Error>(mod, Error::Code::General, decl));
-    return *myErrors.back();
-}
-
-void Diagnostics::dumpErrors(std::ostream& stream)
-{
-    for ( auto&& e : myErrors )
-        stream << *e;
+    return myDieReason;
 }
 
 uz Diagnostics::errorCount() const
@@ -376,9 +108,22 @@ uz Diagnostics::errorCount() const
     return myErrors.size();
 }
 
-void Diagnostics::bunkExpression(Box<ast::Expression> expr)
+void Diagnostics::dumpErrors(DefaultOutStream& stream)
+{
+    for ( auto const& e : myErrors )
+        stream(*e);
+}
+
+ast::Expression const& Diagnostics::bunkExpression(Box<ast::Expression> expr)
 {
     myBunkedExpressions.emplace_back(std::move(expr));
+    return *myBunkedExpressions.back();
+}
+
+ast::Lookup const& Diagnostics::bunkLookup(ast::Lookup lookup)
+{
+    myBunkedLookups.emplace_back(mk<ast::Lookup>(std::move(lookup)));
+    return *myBunkedLookups.back();
 }
 
 //
@@ -390,34 +135,14 @@ DiagnosticsContext::DiagnosticsContext(Diagnostics& dgn, ast::Module const& mod)
 {
 }
 
-Error& DiagnosticsContext::error()
+ReportProxy DiagnosticsContext::error(diag code)
 {
-    return myDiagnostics->error(*myModule);
+    return myDiagnostics->error(*myModule, code);
 }
 
-Error& DiagnosticsContext::error(lexer::Token const& token)
+ReportProxy DiagnosticsContext::error(diag code, Report::Subject subj)
 {
-    return myDiagnostics->error(*myModule, token);
-}
-
-Error& DiagnosticsContext::error(ast::Expression const& expr)
-{
-    return myDiagnostics->error(*myModule, expr);
-}
-
-Error& DiagnosticsContext::error(ast::Statement const& stmt)
-{
-    return myDiagnostics->error(*myModule, stmt);
-}
-
-Error& DiagnosticsContext::error(ast::Junction const& junc)
-{
-    return myDiagnostics->error(*myModule, junc);
-}
-
-Error& DiagnosticsContext::error(ast::Declaration const& decl)
-{
-    return myDiagnostics->error(*myModule, decl);
+    return myDiagnostics->error(*myModule, code, subj);
 }
 
 Diagnostics& DiagnosticsContext::diagnostics()
@@ -431,19 +156,168 @@ ast::Module const& DiagnosticsContext::module()
 }
 
 //
+// ReportProxy
+
+ReportProxy& ReportProxy::see(ast::Declaration const& declaration)
+{
+    myReport->append(Anchor(declaration));
+    return *this;
+}
+
+ReportProxy& ReportProxy::see(ast::Scope const& scope,
+                              ast::Expression const& expression)
+{
+    myReport->append(Anchor(SingleExpressionAnchor(scope, expression)));
+    return *this;
+}
+
+ReportProxy& ReportProxy::see(ast::Lookup miss)
+{
+    myReport->append(myDiagnostics->bunkLookup(std::move(miss)));
+    return *this;
+}
+
+ReportProxy& ReportProxy::expected(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
+{
+    myReport->append(Anchor(MultiExpressionAnchor(scope, exprs)));
+    return *this;
+}
+
+ReportProxy& ReportProxy::received(ast::Scope const& scope, Slice<ast::Expression const*> exprs)
+{
+    myReport->append(Anchor(MultiExpressionAnchor(scope, exprs)));
+    return *this;
+}
+
+//
 // misc
 
-std::ostream& operator << (std::ostream& sink, ast::Module const& mod)
+void reportSubject(DefaultOutStream& sink, Subject subj)
 {
-    if ( mod.path().empty() )
-        return sink << mod.name();
+    if ( auto tok = subj.as<lexer::Token>() ) {
+        sink("'")(tok->lexeme())("'");
+        return;
+    }
 
-    return sink << relative(mod.path(), mod.moduleSet().path()).string();
+    if ( auto expr = subj.as<ast::Expression>() ){
+        sink("'")(*expr)("'");
+        return;
+    }
+
+    if ( auto stmt = subj.as<ast::Statement>() ) {
+        sink("'")(front(*stmt).lexeme())("'");
+        return;
+    }
+
+    if ( auto junc = subj.as<ast::Junction>() ) {
+        sink("'")(front(*junc).lexeme())("'");
+        return;
+    }
+
+    if ( auto decl = subj.as<ast::Declaration>() ) {
+        for (;;) {
+            if ( auto proc = decl->as<ast::ProcedureDeclaration>() ) {
+                decl = proc->scope().declaration();
+                continue;
+            }
+            break;
+        }
+
+        sink("'")(decl->symbol().token().lexeme())("'");
+        return;
+    }
+
+    ENFORCEU("invalid subject");
 }
 
-std::ostream& operator << (std::ostream& sink, lexer::SourceLocation loc)
+void reportLine(DefaultOutStream& sink, ast::Module const& mod, lexer::SourceLocation loc)
 {
-    return sink << loc.line << ':' << loc.column;
+    sink(mod)(':')(loc);
 }
+
+void reportAnchor(DefaultOutStream& sink, Anchor anchor)
+{
+    if ( auto decl = anchor.as<ast::Declaration>() ) {
+        reportLine(sink, decl->scope().module(), decl->token().location());
+        sink(": see '")(*decl)("' declared as ")(to_string(decl->kind()))('\n');
+        return;
+    }
+    
+    if ( auto single = anchor.as<SingleExpressionAnchor>() ) {
+        reportLine(sink, single->scope().module(), front(single->expr()).location());
+        sink(": see '")(single->expr())("'\n");
+        return;
+    }
+
+    if ( auto multi = anchor.as<MultiExpressionAnchor>() ) {
+        reportLine(sink, multi->scope().module(), front(*multi->exprs().front()).location());
+        sink(": see: ")(multi->exprs());
+        return;
+    }
+
+    ENFORCEU("invalid anchor");
+}
+
+void reportLookup(DefaultOutStream& sink, ast::Lookup const& lookup)
+{
+    switch ( lookup.viable().result() ) {
+    case ast::ViableSet::None:
+        if ( lookup.symSpace() ) {
+            sink(": did not match any of:\n");
+            for ( auto const& p : lookup.symSpace()->prototypes() ) {
+                auto d = p.proto.decl;
+                reportLine(sink, d->scope().module(), d->token().location());
+                sink(": ")(*d)('\n');
+            }
+        }
+        else {
+            sink(": did not match anything\n");
+        }
+        break;
+
+    case ast::ViableSet::Single:
+    case ast::ViableSet::NeedsConversion:
+        sink(": has a matching overload\n");
+        break;
+
+    case ast::ViableSet::Ambiguous:
+        sink(": invocation is ambiguous -- it could be any of these:\n");
+        auto const& set = lookup.viable();
+        auto const rank = set.best().rank();
+        for ( auto const& v : set ) {
+            if ( v.rank() != rank )
+                break;
+
+            auto d = v.prototype().proto.decl;
+            reportLine(sink, d->scope().module(), d->token().location());
+            sink(": ")(*d)('\n');
+        }
+        break;
+    }
+}
+
+    namespace ascii {
+        void write(DefaultOutStream& sink, Report const& err)
+        {
+            auto const& frontToken = front(err.subject());
+            reportLine(sink, err.module(), frontToken.location());
+            sink(": error: ");
+            reportSubject(sink, err.subject());
+            sink(" ")(toString(err.code()))('\n');
+
+            for ( auto& word : err.sentence() ) {
+                if ( auto anchor = word.as<Anchor>() ) {
+                    reportAnchor(sink, *anchor);
+                    continue;
+                }
+
+                if ( auto lookup = word.as<ast::Lookup>() ) {
+                    reportLine(sink, err.module(), frontToken.location());
+                    reportLookup(sink, *lookup);
+                    continue;
+                }
+            }
+        }
+    }
 
 } // namespace kyfoo

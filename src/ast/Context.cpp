@@ -194,34 +194,9 @@ Statement const& Context::statement() const
     return const_cast<Statement const&>(const_cast<Context*>(this)->statement());
 }
 
-Error& Context::error(lexer::Token const& token)
+ReportProxy Context::error(diag code, Report::Subject subj)
 {
-    return myDiagnostics->error(resolver().scope().module(), token);
-}
-
-Error& Context::error(Expression const& expr)
-{
-    return myDiagnostics->error(resolver().scope().module(), expr);
-}
-
-Error& Context::error(Statement const& stmt)
-{
-    return myDiagnostics->error(resolver().scope().module(), stmt);
-}
-
-Error& Context::error(Junction const& junc)
-{
-    return myDiagnostics->error(resolver().scope().module(), junc);
-}
-
-Error& Context::error(Declaration const& decl)
-{
-    return myDiagnostics->error(resolver().scope().module(), decl);
-}
-
-Error& Context::error(Error::context_t gen)
-{
-    return std::visit([this](auto const* e) -> Error& { return error(*e); }, gen);
+    return myDiagnostics->error(resolver().scope().module(), code, subj);
 }
 
 uz Context::errorCount() const

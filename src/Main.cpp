@@ -1,5 +1,3 @@
-#include <iomanip>
-#include <iostream>
 #include <filesystem>
 #include <queue>
 #include <set>
@@ -21,35 +19,37 @@
 
 namespace kyfoo {
 
-int runScannerDump(std::filesystem::path const& file)
+int runScannerDump(DefaultOutStream& out, std::filesystem::path const& file)
 {
-    GUARD( fin, openFile(file) ) {
-        std::cout << file << ec.message() << std::endl;
+    GUARD( auto fin, MMFile::open(file) ) {
+        out("Error: ")(file)(": ")(ec)();
         return EXIT_FAILURE;
     }
 
     lexer::DefaultTokenFactory tokenFactory;
     lexer::Scanner scanner(tokenFactory, fin.view());
     if ( !scanner ) {
-        std::cout << "could not open file: " << file << std::endl;
+        out("could not open file: ")(file)();
         return EXIT_FAILURE;
     }
 
     while (scanner)
     {
         auto const& token = scanner.next();
-        std::cout << std::right << std::setfill('0')
-                  << 'L' << std::setw(4) << token.line()
-                  << 'C' << std::setw(3) << token.column()
-                  << std::left << std::setfill(' ')
-                  << '[' << std::setw(20) << to_string(token.kind()) << "]["
-                  << std::setw(0) << token.lexeme() << "]\n";
+        //std::cout << std::right << std::setfill('0')
+        //          << 'L' << std::setw(4) << token.line()
+        //          << 'C' << std::setw(3) << token.column()
+        //          << std::left << std::setfill(' ')
+        //          << '[' << std::setw(20) << to_string(token.kind()) << "]["
+        //          << std::setw(0) << token.lexeme() << "]\n";
+        out('L')(token.line())('C')(token.column())
+           ('[')(to_string(token.kind()))("][")(token.lexeme())("]\n");
     }
 
     return EXIT_SUCCESS;
 }
 
-int runParserDump(std::filesystem::path const& filepath)
+int runParserDump(DefaultOutStream& out, std::filesystem::path const& filepath)
 {
     Diagnostics dgn;
     lexer::DefaultTokenFactory tokenFactory;
@@ -62,18 +62,18 @@ int runParserDump(std::filesystem::path const& filepath)
         writeDot(*main, outFilepath);
     }
     catch (RuntimeException const& e) {
-        std::cout << filepath << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        out(filepath)(": ICE:")(e.file())(":")(e.line())(": ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
-        std::cout << filepath << ": ICE: " << e.what() << std::endl;
+        out(filepath)(": ICE: ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (Diagnostics*) {
         // Handled below
     }
 
-    dgn.dumpErrors(std::cout);
+    dgn.dumpErrors(out);
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -81,7 +81,7 @@ int runParserDump(std::filesystem::path const& filepath)
     return EXIT_SUCCESS;
 }
 
-int analyzeModule(ast::Module& m, bool treeDump)
+int analyzeModule(DefaultOutStream& out, ast::Module& m, bool treeDump)
 {
     Diagnostics dgn;
     StopWatch sw;
@@ -94,11 +94,11 @@ int analyzeModule(ast::Module& m, bool treeDump)
         }
     }
     catch (RuntimeException const& e) {
-        std::cout << m << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        out(m)(": ICE:")(e.file())(":")(e.line())(": ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
-        std::cout << m << ": ICE: " << e.what() << std::endl;
+        out(m)(": ICE: ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (Diagnostics*) {
@@ -106,8 +106,8 @@ int analyzeModule(ast::Module& m, bool treeDump)
     }
 
     auto semTime = sw.reset();
-    dgn.dumpErrors(std::cout);
-    std::cout << "semantics: " << m << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+    dgn.dumpErrors(out);
+    out("semantics: ")(m)("; errors: ")(dgn.errorCount())("; time: ")(semTime.count())();
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -115,7 +115,8 @@ int analyzeModule(ast::Module& m, bool treeDump)
     return EXIT_SUCCESS;
 }
 
-int codegenModule(Diagnostics& dgn,
+int codegenModule(DefaultOutStream& out,
+                  Diagnostics& dgn,
                   codegen::llvm::Generator& gen,
                   ast::Module const& m,
                   bool writeIR)
@@ -134,11 +135,11 @@ int codegenModule(Diagnostics& dgn,
             gen.write(m, codegen::toObjectFilepath(m.path()));
     }
     catch (RuntimeException const& e) {
-        std::cout << m << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        out(m)(": ICE:")(e.file())(":")(e.line())(": ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
-        std::cout << m << ": ICE: " << e.what() << std::endl;
+        out(m)(": ICE: ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (Diagnostics*) {
@@ -146,8 +147,8 @@ int codegenModule(Diagnostics& dgn,
     }
 
     auto semTime = sw.reset();
-    dgn.dumpErrors(std::cout);
-    std::cout << "codegen: " << m << "; errors: " << dgn.errorCount() << "; time: " << semTime.count() << std::endl;
+    dgn.dumpErrors(out);
+    out("codegen: ")(m)("; errors: ")(dgn.errorCount())("; time: ")(semTime.count())();
 
     if ( dgn.errorCount() )
         return EXIT_FAILURE;
@@ -163,7 +164,7 @@ enum Options
     IR            = 1 << 2,
 };
 
-int compile(std::vector<std::filesystem::path> const& files, u32 options)
+int compile(DefaultOutStream& out, std::vector<std::filesystem::path> const& files, u32 options)
 {
     auto ret = EXIT_SUCCESS;
     lexer::DefaultTokenFactory tokenFactory;
@@ -172,16 +173,16 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
         Diagnostics dgn;
         try {
             if ( !moduleSet.init(dgn) ) {
-                dgn.dumpErrors(std::cout);
+                dgn.dumpErrors(out);
                 return EXIT_FAILURE;
             }
         }
         catch (RuntimeException const& e) {
-            std::cout << "ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+            out("ICE:")(e.file())(":")(e.line())(": ")(e.what())();
             return EXIT_FAILURE;
         }
         catch (std::exception const& e) {
-            std::cout << "ICE: " << e.what() << std::endl;
+            out("ICE: ")(e.what())();
             return EXIT_FAILURE;
         }
     }
@@ -230,11 +231,11 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
             }
         }
         catch (RuntimeException const& e) {
-            std::cout << *m << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+            out(*m)(": ICE:")(e.file())(":")(e.line())(": ")(e.what())();
             return EXIT_FAILURE;
         }
         catch (std::exception const& e) {
-            std::cout << *m << ": ICE: " << e.what() << std::endl;
+            out(*m)(": ICE: ")(e.what())();
             return EXIT_FAILURE;
         }
         catch (Diagnostics*) {
@@ -242,8 +243,8 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
         }
 
         parseTime = sw.reset();
-        dgn.dumpErrors(std::cout);
-        std::cout << "parse: " << *m << "; errors: " << dgn.errorCount() << "; time: " << parseTime.count() << std::endl;
+        dgn.dumpErrors(out);
+        out("parse: ")(*m)("; errors: ")(dgn.errorCount())("; time: ")(parseTime.count())();
 
         if ( dgn.errorCount() )
             ret = EXIT_FAILURE;
@@ -272,11 +273,11 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
         gen.generate(moduleSet.axioms());
     }
     catch (RuntimeException const& e) {
-        std::cout << moduleSet.axioms() << ": ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        out(moduleSet.axioms())(": ICE:")(e.file())(":")(e.line())(": ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (std::exception const& e) {
-        std::cout << moduleSet.axioms() << ": ICE: " << e.what() << std::endl;
+        out(moduleSet.axioms())(": ICE: ")(e.what())();
         return EXIT_FAILURE;
     }
     catch (Diagnostics*) {
@@ -284,29 +285,29 @@ int compile(std::vector<std::filesystem::path> const& files, u32 options)
     }
 
     if ( dgn.errorCount() ) {
-        dgn.dumpErrors(std::cout);
+        dgn.dumpErrors(out);
         return EXIT_FAILURE;
     }
 
     for ( auto m : allModules ) {
-        if ( (ret = analyzeModule(*m, options & TreeDump)) != EXIT_SUCCESS )
+        if ( (ret = analyzeModule(out, *m, options & TreeDump)) != EXIT_SUCCESS )
             return ret;
 
         if ( options & SemanticsOnly )
             continue;
 
-        if ( (ret = codegenModule(dgn, gen, *m, options & IR)) != EXIT_SUCCESS )
+        if ( (ret = codegenModule(out, dgn, gen, *m, options & IR)) != EXIT_SUCCESS )
             return ret;
     }
 
     return ret;
 }
 
-void printHelp(std::filesystem::path const& arg0)
+void printHelp(DefaultOutStream& out, std::filesystem::path const& arg0)
 {
     auto cmd = arg0.filename().string();
 
-    std::cout << cmd <<
+    out(cmd)(
         " COMMAND FILE [FILE2 FILE3 ...]\n"
         "\n"
         "COMMAND:\n"
@@ -316,18 +317,19 @@ void printHelp(std::filesystem::path const& arg0)
         "  semdump             Checks semantics and prints tree\n"
         "  c, compile          Compiles the module\n"
         "  ir                  Generates LLVM IR code"
-        << std::endl;
+        )();
 }
 
 } // namespace kyfoo
 
-int main(int argc, char* argv[])
+int main(int argc, char const* argv[])
 {
     using namespace kyfoo;
 
+    DefaultOutStream out(openStdout());
     try {
         if ( argc < 3 ) {
-            printHelp(argv[0]);
+            printHelp(out, argv[0]);
             return EXIT_FAILURE;
         }
 
@@ -336,20 +338,20 @@ int main(int argc, char* argv[])
 
         if ( command == "scan" || command == "lex" || command == "lexer" ) {
             if ( argc != 3 ) {
-                printHelp(argv[0]);
+                printHelp(out, argv[0]);
                 return EXIT_FAILURE;
             }
 
-            return runScannerDump(file);
+            return runScannerDump(out, file);
         }
 
         if ( command == "parse" || command == "grammar" ) {
             if ( argc != 3 ) {
-                printHelp(argv[0]);
+                printHelp(out, argv[0]);
                 return EXIT_FAILURE;
             }
 
-            return runParserDump(file);
+            return runParserDump(out, file);
         }
 
         if ( command == "semantics" || command == "sem" || command == "semdump" ) {
@@ -361,7 +363,7 @@ int main(int argc, char* argv[])
             if ( command == "semdump" )
                 options |= TreeDump;
 
-            return compile(files, options);
+            return compile(out, files, options);
         }
 
         if ( command == "compile" || command == "c" || command == "ir" ) {
@@ -369,17 +371,17 @@ int main(int argc, char* argv[])
             for ( int i = 2; i != argc; ++i )
                 files.emplace_back(argv[i]);
 
-            return compile(files, command == "ir" ? IR : None);
+            return compile(out, files, command == "ir" ? IR : None);
         }
 
-        std::cout << "Unknown option: " << command << std::endl;
-        printHelp(argv[0]);
+        out("Unknown option: ")(command)();
+        printHelp(out, argv[0]);
     }
     catch (kyfoo::RuntimeException const& e) {
-        std::cout << "ICE:" << e.file() << ":" << e.line() << ": " << e.what() << std::endl;
+        out("ICE:")(e.file())(":")(e.line())(": ")(e.what())();
     }
     catch (std::exception const& e) {
-        std::cout << "ICE: " << e.what() << std::endl;
+        out("ICE: ")(e.what())();
     }
 
     return EXIT_FAILURE;

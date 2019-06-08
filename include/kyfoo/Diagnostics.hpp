@@ -3,9 +3,9 @@
 #include <chrono>
 #include <sstream>
 #include <vector>
-#include <variant>
 
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Stream.hpp>
 #include <kyfoo/Types.hpp>
 
 #include <kyfoo/lexer/Token.hpp>
@@ -47,244 +47,381 @@ private:
     std::chrono::system_clock::time_point myStart;
 };
 
-class ContextReference
+#define DEFINE_DIAGNOSTIC_KINDS(X) \
+    X(unresolved_symbol, "unresolved symbols in expression") \
+    X(unresolved, "is an unresolved expression") \
+    X(unused, "declared but never used") \
+    X(multiple_definition, "already defined") \
+    X(cycle, "definition cycle") \
+    X(ambiguous, "is ambiguous") \
+    X(conflict_types, "has conflicting types") \
+    X(instantiate_error, "errors occured during instantiation") \
+    X(not_implemented, "feature is not implemented") \
+    \
+    X(no_import, "import does not exist") \
+    X(no_type, "expression is not typed") \
+    X(no_conversion, "no conversion exists") \
+    X(no_invocation, "no suitable invocation was found") \
+    X(no_branch, "missing initial branch statement") \
+    X(no_match_initial_branch, "match-statements must start with a branch") \
+    X(no_match_branches, "match-statement is missing branches") \
+    X(no_match_datatype_variations, "data-type does not have any variations") \
+    X(no_declaration, "is not declared") \
+    X(no_definition, "declaration is missing its definition") \
+    X(no_block_jump, "jump does not occur in a block") \
+    X(no_block, "block does not exist") \
+    X(no_field, "field does not exist") \
+    X(no_member, "member does not exist") \
+    X(no_member_or_application, "no matching member access or application") \
+    X(no_deduction, "no deduction exists for parameter") \
+    \
+    X(missing_match_variation, "variation is not covered by match-statement") \
+    X(missing_control_flow_definition, "is not defined on all paths") \
+    \
+    X(expected_variation, "expression does not identify a variation") \
+    X(expected_datatype, "expression is not a datatype") \
+    X(expected_constructor, "expected a constructor") \
+    X(expected_terminal_junction, "expected terminating junction") \
+    X(expected_procedure, "expected a procedure-declaration") \
+    X(expected_symbol_tuple_identifier, "expected identifier at the start of a symbol-tuple") \
+    X(expected_integer, "expected integer") \
+    X(expected_composite, "expected composite") \
+    X(expected_applicable, "expected an applicable data-type") \
+    X(expected_tuple, "expected a tuple-expression") \
+    X(expected_arity, "expected a different arity than was received") \
+    X(expected_one_type, "too many types provided") \
+    X(expected_string_escape, "expected a string escape") \
+    X(expected_string_escape_two_hex, "expected two hex characters for escape sequence") \
+    X(expected_template, "expected template declaration") \
+    \
+    X(unexpected_meta_variable, "meta-variable not expected") \
+    X(unexpected_assign_expression, "assign-expression is in an unexpected context") \
+    X(unexpected_negative_integer, "unexpected negative integer") \
+    \
+    X(module_no_name, "cannot determine output name for module") \
+    X(module_cannot_write_object_file, "failed to write object file") \
+    X(module_unsupported_target, "cannot emit a file of this type for target machine") \
+    \
+    X(codegen, "codegen ICE") \
+    X(codegen_multiple_definitions, "defined more than once") \
+    X(codegen_notype, "does not have a type") \
+    \
+    X(parser_expected_expression, "expected expression") \
+    X(parser_expected_scope, "expected scope") \
+    X(parser_expected_declaration, "expected declaration") \
+    X(parser_unexpected, "grammar at this point is not recognized") \
+    X(parser_expected_preceding_branch, "expcted preceding branch-statement") \
+    X(parser_branch_else_proceeds, "else-branch-statement must proceed a branch-statement") \
+    X(parser_branch_multiple_else, "preceding branch-statement already has an else-branch-statement") \
+    X(parser_unreachable, "is unreachable") \
+    X(parser_unexpected_scope, "unexpected scope") \
+    X(parser_expected_scope_end, "expected end of scope") \
+    X(parser_indentation_mismatch, "indentation doesn't match an existing scope") \
+    \
+    X(lexer_error, "a lexical error has occured")
+
+enum class diag
+{
+#define X(a,b) a,
+    DEFINE_DIAGNOSTIC_KINDS(X)
+#undef X
+};
+
+class ExpressionAnchor
+{
+protected:
+    ExpressionAnchor(ast::Scope const& scope)
+        : myScope(&scope)
+    {
+    }
+
+public:
+    ast::Scope const& scope() const { return *myScope; }
+
+private:
+    ast::Scope const* myScope = nullptr;
+};
+
+class SingleExpressionAnchor : public ExpressionAnchor
 {
 public:
-    enum Kind {
-        SeeDeclaration,
-        SeeExpression,
-        SeeLookup,
-        MismatchExpected,
-        MismatchReceived,
-    };
+    SingleExpressionAnchor(ast::Scope const& scope, ast::Expression const& expr)
+        : ExpressionAnchor(scope)
+        , myExpr(&expr)
+    {
+    }
 
-    struct ExpressionContextBase {
-        enum Kind {
-            Value,
-            Type,
-        };
+public:
+    ast::Expression const& expr() const { return *myExpr; }
 
-        Kind kind = Value;
-        ast::Scope const* scope = nullptr;
+private:
+    ast::Expression const* myExpr = nullptr;
+};
 
-        ExpressionContextBase() = default;
+class MultiExpressionAnchor : public ExpressionAnchor
+{
+public:
+    MultiExpressionAnchor(ast::Scope const& scope,
+                          Slice<ast::Expression const*> exprs)
+        : ExpressionAnchor(scope)
+        , myExprs(exprs)
+    {
+    }
 
-        ExpressionContextBase(Kind kind, ast::Scope const& scope)
-            : kind(kind)
-            , scope(&scope)
-        {
-        }
+public:
+    Slice<ast::Expression const*> exprs() const { return myExprs; }
 
-        explicit operator bool() const { return scope != nullptr; }
+private:
+    Slice<ast::Expression const*> myExprs;
+};
 
-        bool isValue() const { return kind == Value; }
-    };
-
-    struct SingleExpressionContext : ExpressionContextBase {
-        ast::Expression const* expr = nullptr;
-
-        SingleExpressionContext() = default;
-
-        SingleExpressionContext(Kind kind,
-                          ast::Scope const& scope,
-                          ast::Expression const& expr)
-            : ExpressionContextBase(kind, scope)
-            , expr(&expr)
-        {
-        }
-    };
-
-    struct ManyExpressionContext : ExpressionContextBase {
-        Slice<ast::Expression const*> exprs;
-
-        ManyExpressionContext() = default;
-
-        ManyExpressionContext(Kind kind,
-                           ast::Scope const& scope,
-                           Slice<ast::Expression const*> exprs)
-            : ExpressionContextBase(kind, scope)
-            , exprs(exprs)
-        {
-        }
+class Anchor
+{
+public:
+    enum class Kind
+    {
+        Declaration,
+        Single,
+        Multi,
     };
 
 public:
-    explicit ContextReference(ast::Declaration const& decl)
-        : myKind(SeeDeclaration)
-        , myContext(&decl)
+    /*implicit*/ Anchor(ast::Declaration const& decl)
+        : myKind(Kind::Declaration)
+        , myDecl(&decl)
     {
     }
 
-    ContextReference(ExpressionContextBase::Kind kind,
-                     ast::Scope const& scope,
-                     ast::Expression const& expr)
-        : myKind(SeeExpression)
-        , myContext(kind, scope, expr)
+    /*implicit*/ Anchor(SingleExpressionAnchor single)
+        : myKind(Kind::Single)
+        , mySingle(std::move(single))
     {
     }
 
-    ContextReference(Kind kind,
-                     ExpressionContextBase::Kind exprKind,
-                     ast::Scope const& scope,
-                     Slice<ast::Expression const*> exprs)
-        : myKind(kind)
-        , myContext(exprKind, scope, exprs)
+    /*implicit*/ Anchor(MultiExpressionAnchor multi)
+        : myKind(Kind::Multi)
+        , myMulti(std::move(multi))
     {
     }
-
-    ContextReference(ast::Lookup&& miss)
-        : myKind(SeeLookup)
-        , myContext(std::move(miss))
-    {
-    }
-
-    ContextReference(ContextReference const& rhs)
-        : myKind(rhs.myKind)
-    {
-        std::memcpy(&myContext, &rhs.myContext, sizeof(rhs.myContext));
-    }
-
-    ~ContextReference();
 
 public:
-    ast::Declaration const* seeDecl() const
+    Kind kind() const { return myKind; }
+
+    template <typename T> T const* as() const = delete;
+
+    template<>
+    ast::Declaration const* as<ast::Declaration>() const
     {
-        return myKind == SeeDeclaration ? myContext.decl : nullptr;
+        if ( myKind == Kind::Declaration )
+            return myDecl;
+
+        return nullptr;
     }
 
-    SingleExpressionContext seeExpr() const
+    template<>
+    SingleExpressionAnchor const* as<SingleExpressionAnchor>() const
     {
-        return myKind == SeeExpression ? myContext.exprSingle : SingleExpressionContext();
+        if ( myKind == Kind::Single )
+            return &mySingle;
+
+        return nullptr;
     }
 
-    ast::Lookup const* seeLookup() const
+    template<>
+    MultiExpressionAnchor const* as<MultiExpressionAnchor>() const
     {
-        return myKind == SeeLookup ? myContext.miss : nullptr;
-    }
+        if ( myKind == Kind::Multi )
+            return &myMulti;
 
-    ManyExpressionContext expected() const
-    {
-        return myKind == MismatchExpected ? myContext.exprMany : ManyExpressionContext();
-    }
-
-    ManyExpressionContext received() const
-    {
-        return myKind == MismatchReceived ? myContext.exprMany : ManyExpressionContext();
+        return nullptr;
     }
 
 private:
     Kind myKind;
-    union Ctx {
-        Ctx() {};
-
-        Ctx(ast::Declaration const* decl) : decl(decl) {}
-        ast::Declaration const* decl;
-
-        Ctx(ExpressionContextBase::Kind kind,
-            ast::Scope const& scope,
-            ast::Expression const& expr) : exprSingle(kind, scope, expr) {}
-        SingleExpressionContext exprSingle;
-
-        Ctx(ExpressionContextBase::Kind kind,
-            ast::Scope const& scope,
-            Slice<ast::Expression const*> exprs) : exprMany(kind, scope, exprs) {}
-        ManyExpressionContext exprMany;
-
-        Ctx(ast::Lookup&& miss);
-        ast::Lookup* miss;
-    } myContext;
+    union {
+        ast::Declaration const* myDecl;
+        SingleExpressionAnchor mySingle;
+        MultiExpressionAnchor myMulti;
+    };
 };
 
-class Error
+class Subject
 {
 public:
-    enum Code
+    #define DEFINE_SUBJECT_KINDS(X) \
+        X(Token      , lexer::Token    , tok  ) \
+        X(Expression , ast::Expression , expr ) \
+        X(Statement  , ast::Statement  , stmt ) \
+        X(Junction   , ast::Junction   , junc ) \
+        X(Declaration, ast::Declaration, decl )
+
+    enum Kind
     {
-        General,
-        Undeclared,
+        None,
+        #define X(a,b,c) a,
+        DEFINE_SUBJECT_KINDS(X)
+        #undef X
     };
 
-    using context_t = std::variant<
-        lexer::Token const*,
-        ast::Expression const*,
-        ast::Statement const*,
-        ast::Junction const*,
-        ast::Declaration const*>;
+    Subject() = default;
+
+    #define X(a,b,c) /*implicit*/ Subject(b const& c) : myKind(a), c(&c) {}
+    DEFINE_SUBJECT_KINDS(X)
+    #undef X
+
+    Kind kind() const { return myKind; }
+
+    template <typename T> T const* as() const = delete;
+
+    #define X(a,b,c) template<> b const* as<b>() const { if (myKind == a) return c; return nullptr; }
+    DEFINE_SUBJECT_KINDS(X)
+    #undef X
+
+    template <typename F>
+    auto visit(F&& f) const
+    {
+        switch (myKind)
+        {
+        #define X(a,b,c) case a: return f(*c);
+        DEFINE_SUBJECT_KINDS(X)
+        #undef X
+        }
+
+        ENFORCEU("unknown word kind");
+    }
+
+    template <typename F>
+    auto tryVisit(F&& f) const
+    {
+        switch (myKind)
+        {
+        #define X(a,b,c) case a: return f(*c);
+        DEFINE_SUBJECT_KINDS(X)
+        #undef X
+        }
+
+        return f(void);
+    }
+
+private:
+    Kind myKind = None;
+    union
+    {
+        void const* ptr = nullptr;
+        #define X(a,b,c) b const* c;
+        DEFINE_SUBJECT_KINDS(X)
+        #undef X
+    };
+};
+
+class Word
+{
+public:
+    enum class Kind
+    {
+        Anchor,
+        Lookup,
+    };
 
 public:
-    explicit Error(ast::Module const& mod);
-    Error(ast::Module const& mod, Code code);
-    Error(ast::Module const& mod, Code code, lexer::Token const& tok);
-    Error(ast::Module const& mod, Code code, ast::Expression const& expr);
-    Error(ast::Module const& mod, Code code, ast::Statement const& stmt);
-    Error(ast::Module const& mod, Code code, ast::Junction const& junc);
-    Error(ast::Module const& mod, Code code, ast::Declaration const& decl);
+    /*implicit*/ Word(Anchor rhs)
+        : myKind(Kind::Anchor)
+        , myAnchor(std::move(rhs))
+    {
+    }
 
-    Error(Error& rhs) = delete;
-    void operator = (Error&) = delete;
+    /*implicit*/ Word(ast::Lookup const& rhs)
+        : myKind(Kind::Lookup)
+        , myLookup(&rhs)
+    {
+    }
+
+public:
+    Kind kind() const { return myKind; }
+
+    template <typename T> T const* as() const = delete;
+
+    template<>
+    Anchor const* as<Anchor>() const
+    {
+        if ( myKind == Kind::Anchor )
+            return &myAnchor;
+
+        return nullptr;
+    }
+
+    template<>
+    ast::Lookup const* as<ast::Lookup>() const
+    {
+        if ( myKind == Kind::Lookup )
+            return myLookup;
+
+        return nullptr;
+    }
+
+public:
+    Kind myKind;
+    union {
+        Anchor myAnchor;
+        ast::Lookup const* myLookup;
+    };
+};
+
+class Report
+{
+public:
+    using Subject = Subject;
+
+public:
+    Report(ast::Module const& mod, diag code);
+    Report(ast::Module const& mod, diag code, Subject subj);
+
+    Report(Report& rhs) = delete;
+    void operator = (Report&) = delete;
 
 public:
     ast::Module const& module() const;
-    Code code() const;
-    context_t const& context() const;
-    std::string what() const;
-    Slice<ContextReference const> references() const;
+    diag code() const;
+    Subject subject() const;
+    Slice<Word const> sentence() const;
 
 public:
-    Error& see(ast::Declaration const& declaration);
-    Error& see(ast::Scope const& scope, ast::Expression const& expression);
-    Error& see(ast::Lookup&& miss);
-    Error& expected(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
-    Error& expectedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
-    Error& received(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
-    Error& receivedTypes(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
-
-public:
-    std::ostream& stream();
-    Error& operator << (lexer::Token const& token);
-
-    template <typename T>
-    friend Error& operator << (Error& err, T&& rhs);
+    void append(Word word);
 
 private:
     ast::Module const* myModule = nullptr;
-    Code myCode = General;
-    context_t myContext;
-
-    std::ostringstream myInfo;
-    std::vector<ContextReference> myReferences;
+    diag myCode;
+    Subject mySubject;
+    std::vector<Word> mySentence;
 };
 
-template <typename T>
-Error& operator << (Error& err, T&& rhs)
-{
-    err.myInfo << std::forward<T>(rhs);
-    return err;
-}
-
-std::ostream& operator << (std::ostream& sink, Error const& err);
+class ReportProxy;
 
 class Diagnostics
 {
 public:
-    void die();
+    Diagnostics() noexcept;
+    ~Diagnostics() noexcept;
 
-    Error& error(ast::Module const& mod);
-    Error& error(ast::Module const& mod, lexer::Token const& token);
-    Error& error(ast::Module const& mod, ast::Expression const& expr);
-    Error& error(ast::Module const& mod, ast::Statement const& stmt);
-    Error& error(ast::Module const& mod, ast::Junction const& junc);
-    Error& error(ast::Module const& mod, ast::Declaration const& decl);
+public:
+    void die(const char* reason = "");
 
-    void dumpErrors(std::ostream& stream);
+    ReportProxy error(ast::Module const& mod, diag code);
+    ReportProxy error(ast::Module const& mod, diag code, Report::Subject subj);
 
+    const char* dieReason() const;
     uz errorCount() const;
 
-    void bunkExpression(Box<ast::Expression> expr);
+    void dumpErrors(DefaultOutStream& stream);
+
+    ast::Expression const& bunkExpression(Box<ast::Expression> expr);
+    ast::Lookup const& bunkLookup(ast::Lookup lookup);
 
 private:
-    std::vector<Box<Error>> myErrors;
+    const char* myDieReason = nullptr;
+    std::vector<Box<Report>> myErrors;
     std::vector<Box<ast::Expression>> myBunkedExpressions;
+    std::vector<Box<ast::Lookup>> myBunkedLookups;
 };
 
 class DiagnosticsContext
@@ -293,12 +430,8 @@ public:
     DiagnosticsContext(Diagnostics& dgn, ast::Module const& mod);
 
 public:
-    Error& error();
-    Error& error(lexer::Token const& token);
-    Error& error(ast::Expression const& expr);
-    Error& error(ast::Statement const& stmt);
-    Error& error(ast::Junction const& junc);
-    Error& error(ast::Declaration const& decl);
+    ReportProxy error(diag code);
+    ReportProxy error(diag code, Report::Subject subj);
 
 public:
     Diagnostics& diagnostics();
@@ -309,7 +442,29 @@ private:
     ast::Module const* myModule = nullptr;
 };
 
-std::ostream& operator << (std::ostream& sink, ast::Module const& mod);
-std::ostream& operator << (std::ostream& sink, lexer::SourceLocation loc);
+class ReportProxy
+{
+public:
+    /*implicit*/ ReportProxy(Diagnostics& d, Report& r)
+        : myDiagnostics(&d)
+        , myReport(&r)
+    {
+    }
+
+public:
+    ReportProxy& see(ast::Declaration const& declaration);
+    ReportProxy& see(ast::Scope const& scope, ast::Expression const& expression);
+    ReportProxy& see(ast::Lookup miss);
+    ReportProxy& expected(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
+    ReportProxy& received(ast::Scope const& scope, Slice<ast::Expression const*> exprs);
+
+private:
+    Diagnostics* myDiagnostics = nullptr;
+    Report* myReport = nullptr;
+};
+
+namespace ascii {
+    void write(DefaultOutStream& sink, Report const& err);
+}
 
 } // namespace kyfoo

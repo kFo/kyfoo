@@ -236,26 +236,20 @@ struct CodeGenPass
             return;
 
         auto fdata = customData(decl);
-        if ( fdata->isDefined() ) {
-            error(decl.symbol().token()) << "defined more than once";
-            die();
-        }
+        if ( fdata->isDefined() )
+            die("symbol defined more than once");
 
         auto returnType = ctx.toType(*decl.returnType());
-        if ( !returnType ) {
-            error(decl.symbol().token()) << "cannot resolve return type";
-            die();
-        }
+        if ( !returnType )
+            die("missing return type");
 
         std::vector<::llvm::Type*> params;
         params.reserve(decl.parameters().card());
         for ( auto const& p : decl.parameters() ) {
             declProcedureParameter(*p);
             ::llvm::Type* paramType = ctx.toType(*p->type());
-            if ( !paramType ) {
-                error(p->symbol().token()) << "cannot resolve parameter type";
-                die();
-            }
+            if ( !paramType )
+                die("missing parameter type");
 
             // todo: variations hack
             if ( auto dt = ast::as<ast::DataTypeDeclaration>(*p->type()) ) {
@@ -552,35 +546,9 @@ struct CodeGenPass
     }
 
 private:
-    Error& error()
+    void die(const char* ice)
     {
-        return dgn.error(sourceModule) << "codegen: ";
-    }
-
-    Error& error(ast::Declaration const& decl)
-    {
-        return dgn.error(sourceModule, decl) << "codegen: ";
-    }
-
-    Error& error(ast::Expression const& expr)
-    {
-        return dgn.error(sourceModule, expr) << "codegen: ";
-    }
-
-    Error& error(lexer::Token const& token)
-    {
-        return dgn.error(sourceModule, token) << "codegen: ";
-    }
-
-    void die(const char* msg)
-    {
-        error() << msg;
-        die();
-    }
-
-    void die()
-    {
-        dgn.die();
+        dgn.die(ice);
     }
 
 private:

@@ -19,7 +19,10 @@ namespace kyfoo::ast {
 
 void writeDot(Module const& mod, std::filesystem::path const& path)
 {
-    std::ofstream fout(path);
+    GUARD( DefaultOutStream fout, FileOutput::open(path) ) {
+        throw SystemException(ec);
+    }
+
     writeDot(fout, mod);
 }
 
@@ -29,9 +32,9 @@ struct ExprStructWriter
     using result_t = void;
 
     Dispatcher& dispatch;
-    std::ostream& stream;
+    DefaultOutStream& stream;
 
-    ExprStructWriter(Dispatcher& dispatch, std::ostream& stream)
+    ExprStructWriter(Dispatcher& dispatch, DefaultOutStream& stream)
         : dispatch(dispatch)
         , stream(stream)
     {
@@ -42,15 +45,15 @@ public:
     {
         for ( auto c : lit.token().lexeme() ) {
             if ( c == '"' )
-                stream << "\\\"";
+                stream("\\\"");
             else
-                stream << c;
+                stream(c);
         }
     }
 
     result_t exprIdentifier(IdentifierExpression const& ident)
     {
-        stream << ident.token().lexeme();
+        stream(ident.token().lexeme());
     }
 
     void visit(Slice<Expression const*> exprs)
@@ -59,7 +62,7 @@ public:
             dispatch(*exprs.front());
 
             for ( auto e : exprs(1, $) ) {
-                stream << " | ";
+                stream(" | ");
                 dispatch(*e);
             }
         }
@@ -68,62 +71,62 @@ public:
     result_t exprTuple(TupleExpression const& tup)
     {
         switch ( tup.kind() ) {
-        case TupleKind::Closed:    stream << "[] | { "; break;
-        case TupleKind::Open:      stream << "() | { "; break;
-        case TupleKind::OpenLeft:  stream << "(] | { "; break;
-        case TupleKind::OpenRight: stream << "[) | { "; break;
+        case TupleKind::Closed:    stream("[] | { "); break;
+        case TupleKind::Open:      stream("() | { "); break;
+        case TupleKind::OpenLeft:  stream("(] | { "); break;
+        case TupleKind::OpenRight: stream("[) | { "); break;
         }
         visit(tup.expressions());
-        stream << " }";
+        stream(" }");
     }
 
     result_t exprApply(ApplyExpression const& app)
     {
-        stream << "[apply] | { ";
+        stream("[apply] | { ");
         visit(app.expressions());
-        stream << " }";
+        stream(" }");
     }
 
     result_t exprSymbol(SymbolExpression const& sym)
     {
-        stream << "[sym][" << sym.token().lexeme() << "] | { ";
+        stream("[sym][")(sym.token().lexeme())("] | { ");
         visit(sym.expressions());
-        stream << " }";
+        stream(" }");
     }
 
     result_t exprDot(DotExpression const& dot)
     {
-        stream << "[.] | { ";
+        stream("[.] | { ");
         visit(dot.expressions());
-        stream << " }";
+        stream(" }");
     }
 
     result_t exprAssign(AssignExpression const& ass)
     {
-        stream << "[=] | { ";
+        stream("[=] | { ");
         dispatch(ass.left());
-        stream << " | ";
+        stream(" | ");
         dispatch(ass.right());
-        stream << " }";
+        stream(" }");
     }
 
     result_t exprLambda(LambdaExpression const&)
     {
-        stream << "[=\\>]";
+        stream("[=\\>]");
     }
 
     result_t exprArrow(ArrowExpression const& arrow)
     {
-        stream << "[-\\>] | { ";
+        stream("[-\\>] | { ");
         dispatch(arrow.from());
-        stream << " | ";
+        stream(" | ");
         dispatch(arrow.to());
-        stream << " }";
+        stream(" }");
     }
 
     result_t exprUniverse(UniverseExpression const& univ)
     {
-        stream << "[universe" << univ.level() << "]";
+        stream("[universe")(univ.level())("]");
     }
 };
 
@@ -136,10 +139,10 @@ struct NodeWriter
     using result_t = void;
 
     Dispatcher& dispatch;
-    std::ostream& stream;
+    DefaultOutStream& stream;
     stringv id;
 
-    NodeWriter(Dispatcher& dispatch, std::ostream& stream, stringv id)
+    NodeWriter(Dispatcher& dispatch, DefaultOutStream& stream, stringv id)
         : dispatch(dispatch)
         , stream(stream)
         , id(id)
@@ -148,17 +151,17 @@ struct NodeWriter
 
     void beginAttrs(stringv label)
     {
-        stream << id << " [label=" << quoted(label);
+        stream(id)(" [label=")(quoted(label));
     }
 
     void endAttrs()
     {
-        stream << "]\n";
+        stream("]\n");
     }
 
     void attr(stringv key, stringv value)
     {
-        stream << "," << key << "=" << value;
+        stream(",")(key)("=")(value);
     }
 
     result_t exprLiteral(LiteralExpression const& lit)
@@ -225,16 +228,16 @@ struct NodeWriter
     {
         beginAttrs("stmt");
         endAttrs();
-        stream << "subgraph " << id << " {\n";
-        stream << "}\n";
+        stream("subgraph ")(id)(" {\n");
+        stream("}\n");
     }
 
     result_t stmtVariable(VariableStatement const&)
     {
         beginAttrs("stmt-var");
         endAttrs();
-        stream << "subgraph " << id << " {\n";
-        stream << "}\n";
+        stream("subgraph ")(id)(" {\n");
+        stream("}\n");
     }
 
     result_t juncBranch(BranchJunction const&)
@@ -325,7 +328,7 @@ struct DotWriter
 {
     using result_t = stringv;
     Dispatcher& dispatch;
-    std::ostream& stream;
+    DefaultOutStream& stream;
 
     std::map<void const*, std::string> idMap;
 
@@ -341,7 +344,7 @@ struct DotWriter
 
     std::array<unsigned, NCount> counts = {};
 
-    DotWriter(Dispatcher& dispatch, std::ostream& stream)
+    DotWriter(Dispatcher& dispatch, DefaultOutStream& stream)
         : dispatch(dispatch)
         , stream(stream)
     {
@@ -355,13 +358,13 @@ struct DotWriter
 
     void beginFile()
     {
-        stream << "digraph {\n"
-                  "compound=true\n";
+        stream("digraph {\n"
+               "compound=true\n");
     }
 
     void endFile()
     {
-        stream << "}\n";
+        stream("}\n");
     }
 
     struct NodeID {
@@ -422,7 +425,7 @@ struct DotWriter
 
     void mkEdge(stringv from, stringv to)
     {
-        stream << from << " -> " << to << '\n';
+        stream(from)(" -> ")(to)('\n');
     }
 
     result_t exprLiteral(LiteralExpression const& lit)
@@ -506,9 +509,9 @@ struct DotWriter
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(stmt);
-        stream << node.id << " [label=\"";
+        stream(node.id)(" [label=\"");
         op(stmt.expression());
-        stream << "\"]\n";
+        stream("\"]\n");
 
         return node.id;
     }
@@ -517,13 +520,12 @@ struct DotWriter
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(stmt);
-        stream << node.id << " [label=\"[=] | {";
-        stream << stmt.variable().symbol().token().lexeme();
+        stream(node.id)(" [label=\"[=] | {")(stmt.variable().symbol().token().lexeme());
         if ( auto expr = stmt.initializer() ) {
-            stream << " | ";
+            stream(" | ");
             op(*expr);
         }
-        stream << "}\"]\n";
+        stream("}\"]\n");
 
         return node.id;
     }
@@ -533,12 +535,12 @@ struct DotWriter
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(br);
         if ( auto c = br.condition() ) {
-            stream << node.id << " [label=\"[?] | ";
+            stream(node.id)(" [label=\"[?] | ");
             op(*c);
-            stream << "\"]\n";
+            stream("\"]\n");
         }
         else {
-            stream << node.id << " [label=\"[?]\"]\n";
+            stream(node.id)(" [label=\"[?]\"]\n");
         }
 
         return node.id;
@@ -548,9 +550,9 @@ struct DotWriter
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(ret);
-        stream << node.id << " [label=\"[:.] | ";
+        stream(node.id)(" [label=\"[:.] | ");
         op(ret.expression());
-        stream << "\"]\n";
+        stream("\"]\n");
 
         return node.id;
     }
@@ -558,9 +560,10 @@ struct DotWriter
     result_t juncJump(JumpJunction const& jmp)
     {
         auto node = id(jmp);
-        stream << node.id << " [label=\"["
-            << (jmp.jumpKind() == JumpJunction::JumpKind::Continue ? "+" : "-")
-            << "]\"]\n";
+        stream(node.id)
+            (" [label=\"[")
+            (jmp.jumpKind() == JumpJunction::JumpKind::Continue ? "+" : "-")
+            ("]\"]\n");
 
         return node.id;
     }
@@ -577,12 +580,12 @@ struct DotWriter
     result_t traceDefinable(DefinableDeclaration const& decl)
     {
         auto node = id(decl);
-        stream << "subgraph cluster" << node.id << " {\n"
-                  "label=" << quoted(decl.symbol().token().lexeme()) << "\n";
+        stream("subgraph cluster")(node.id)(" {\n"
+               "label=")(quoted(decl.symbol().token().lexeme()))("\n");
         if ( auto defn = decl.definition() )
             for ( auto const& c : defn->childDeclarations() )
                 dispatch(*c);
-        stream << "}\n";
+        stream("}\n");
 
         return node.id;
     }
@@ -609,9 +612,9 @@ struct DotWriter
             return mkNode(proc);
 
         auto node = id(proc);
-        stream << "subgraph cluster" << node.id << " {\n"
-                  "node [shape=record]\n"
-                  "label=" << quoted(proc.scope().declaration()->symbol().token().lexeme()) << "\n";
+        stream("subgraph cluster")(node.id)(" {\n"
+               "node [shape=record]\n"
+               "label=")(quoted(proc.scope().declaration()->symbol().token().lexeme()))("\n");
 
         ycomb([this](auto rec, ProcedureScope const& scope) -> void {
             for ( auto bb : scope.basicBlocks() ) {
@@ -642,16 +645,17 @@ struct DotWriter
 
                 auto bbNode = tail(*bb);
                 if ( auto br = junc->as<BranchJunction>() ) {
-                    assert(br->branch(0));
-                    mkEdge(bbNode.id, head(*br->branch(0)).id);
+                    if ( br->branch(0) ) {
+                        mkEdge(bbNode.id, head(*br->branch(0)).id);
 
-                    stringv mb;
-                    if ( auto b = br->branch(1) )
-                        mb = head(*b).id;
-                    else
-                        mb = head(*bb->scope()->mergeBlock()).id;
+                        stringv mb;
+                        if ( auto b = br->branch(1) )
+                            mb = head(*b).id;
+                        else
+                            mb = head(*bb->scope()->mergeBlock()).id;
 
-                    stream << bbNode.id << ":w -> " << mb << ":w\n";
+                        stream(bbNode.id)(":w -> ")(mb)(":w\n");
+                    }
                 }
                 else if ( auto j = junc->as<JumpJunction>() ) {
                     if ( auto b = j->targetBlock() ) {
@@ -667,7 +671,7 @@ struct DotWriter
             }
         })(*defn);
 
-        stream << "}\n";
+        stream("}\n");
 
         return node.id;
     }
@@ -702,7 +706,7 @@ struct DotWriter
     }
 };
 
-std::ostream& writeDot(std::ostream& stream, Module const& mod)
+DefaultOutStream& writeDot(DefaultOutStream& stream, Module const& mod)
 {
     ShallowApply<DotWriter> op(stream);
     op.getOperator().traceModule(mod);

@@ -239,8 +239,8 @@ public:
     Lookup(Lookup const&) = delete;
     void operator = (Lookup const&) = delete;
 
-    Lookup(Lookup&& rhs);
-    Lookup& operator = (Lookup&& rhs);
+    Lookup(Lookup&& rhs) noexcept = default;
+    Lookup& operator = (Lookup&& rhs) noexcept = default;
 
     ~Lookup();
 

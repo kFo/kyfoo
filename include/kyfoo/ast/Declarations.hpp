@@ -595,7 +595,10 @@ Scope const* getDefinition(Declaration const& decl);
 Scope* getDefinition(Declaration& decl);
 void define(Declaration& decl, Scope& defn);
 
-std::ostream& print(std::ostream& stream, Declaration const& decl);
-
     } // namespace ast
+
+    namespace ascii {
+        void write(DefaultOutStream& sink, ast::Declaration const& decl);
+    }
+
 } // namespace kyfoo

@@ -377,11 +377,12 @@ public:
     }
 };
 
-template <typename T> Slice(T*      , uz      ) -> Slice<T>;
-template <typename T> Slice(T const*, uz      ) -> Slice<T>;
-template <typename T> Slice(T*      , T*      ) -> Slice<T>;
-template <typename T> Slice(T const*, T const*) -> Slice<T>;
+template <typename T> Slice(T*, uz) -> Slice<T>;
+template <typename T> Slice(T*, T*) -> Slice<T>;
 template <typename T> Slice(std::initializer_list<T>) -> Slice<T const>;
+template <typename T> Slice(std::basic_string<T>) -> Slice<T>;
+template <typename T> Slice(std::vector<T>) -> Slice<T>;
+template <typename T, unsigned N> Slice(T (&)[N]) -> Slice<T>;
 
 //
 // operators

@@ -7,15 +7,18 @@
 
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Slice.hpp>
+#include <kyfoo/Stream.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Expressions.hpp>
+#include <kyfoo/ast/Visitors.hpp>
 
-namespace kyfoo::lexer {
-    class Token;
-}
+namespace kyfoo {
+    namespace lexer {
+        class Token;
+    }
 
-namespace kyfoo::ast {
+    namespace ast {
 
 class Module;
 
@@ -138,7 +141,7 @@ struct UnificationResult
     SymRes resolution;
     Expression const* type;
 };
-UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression const*> exprs);
+UnificationResult unify(Context& ctx, Report::Subject gov, Slice<Expression const*> exprs);
 
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
@@ -152,10 +155,14 @@ lexer::Token const& front(Statement    const& stmt);
 lexer::Token const& front(Junction     const& junc);
 lexer::Token const& front(Declaration  const& decl);
 
-std::ostream& print(std::ostream& stream, Expression const& expr);
-std::ostream& print(std::ostream& stream, Statement  const& stmt);
-std::ostream& print(std::ostream& stream, Junction   const& junc);
-
 uz level(Expression const& expr);
 
-} // namespace kyfoo::ast
+    } // namespace ast
+
+    namespace ascii {
+        void write(DefaultOutStream& sink, ast::Expression const& expr);
+        void write(DefaultOutStream& sink, ast::Statement  const& stmt);
+        void write(DefaultOutStream& sink, ast::Junction   const& junc);
+    }
+
+} // namespace kyfoo

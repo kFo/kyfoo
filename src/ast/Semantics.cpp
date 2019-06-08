@@ -18,7 +18,8 @@
 #include <kyfoo/ast/Variance.hpp>
 #include <kyfoo/ast/Visitors.hpp>
 
-namespace kyfoo::ast {
+namespace kyfoo {
+    namespace ast {
 
 namespace {
     template <typename T>
@@ -83,7 +84,7 @@ SymRes SymbolDependencyTracker::addDependency(Declaration& dependent,
 
     if ( group->level <= dependency->level ) {
         if ( !group->defer(group, dependency->level + 1) ) {
-            auto& err = dgn.error(mod, dependent.symbol().token()) << "circular reference detected";
+            auto err = dgn.error(mod, diag::cycle, dependent.symbol().token());
             for ( auto const& d : dependency->declarations )
                 err.see(*d);
 
@@ -803,7 +804,7 @@ uz variationOrdinal(DataTypeDeclaration const& dt)
     return 1;
 }
 
-UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression const*> exprs)
+UnificationResult unify(Context& ctx, Report::Subject gov, Slice<Expression const*> exprs)
 {
     std::vector<Expression const*> potentialTypes;
     potentialTypes.reserve(exprs.card());
@@ -811,7 +812,7 @@ UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression con
         potentialTypes.emplace_back(e->type()); // todo: type?
 
     if ( potentialTypes.empty() ) {
-        ctx.error(gov) << "does not have any types in its context";
+        ctx.error(diag::no_type, gov);
         return { SymRes::Fail, nullptr };
     }
 
@@ -822,7 +823,7 @@ UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression con
     auto const card = potentialTypes.size();
     for ( uz i = 1; i < card; ++i ) {
         if ( potentialTypes[i]->kind() != commonKind ) {
-            (ctx.error(gov) << "has conflicting kinds of types")
+            ctx.error(diag::conflict_types, gov)
                 .see(ctx.resolver().scope(), *potentialTypes.front())
                 .see(ctx.resolver().scope(), *potentialTypes[i]);
             return { SymRes::Fail, nullptr };
@@ -830,7 +831,7 @@ UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression con
     }
 
     if ( commonKind != Expression::Kind::Identifier ) {
-        ctx.error(gov) << "type deduction for tuples and arrows not implemented";
+        ctx.error(diag::not_implemented, gov);
         return { SymRes::Fail, nullptr };
     }
 
@@ -845,7 +846,7 @@ UnificationResult unify(Context& ctx, Error::context_t gov, Slice<Expression con
             common = ExprType{ potentialTypes[i], type };
         }
         else if ( v.invariant() ) {
-            (ctx.error(gov) << "has conflicting types")
+            ctx.error(diag::conflict_types, gov)
                 .see(ctx.resolver().scope(), *common.expr)
                 .see(ctx.resolver().scope(), *potentialTypes[i]);
 
@@ -1260,74 +1261,72 @@ lexer::Token const& front(Declaration const& decl)
 template <typename Dispatcher>
 struct PrintOperator
 {
-    using result_t = std::ostream&;
+    using result_t = void;
 
     Dispatcher& dispatch;
-    result_t stream;
+    DefaultOutStream& sink;
     int nest = 0;
 
-    PrintOperator(Dispatcher& dispatch, result_t stream)
+    PrintOperator(Dispatcher& dispatch, DefaultOutStream& sink)
         : dispatch(dispatch)
-        , stream(stream)
+        , sink(sink)
     {
     }
 
     result_t printConstraints(Expression const& expr)
     {
         for ( auto c : expr.constraints() ) {
-            stream << " : ";
+            sink(" : ");
             dispatch(*c);
         }
-
-        return stream;
     }
 
     result_t printType(Expression const& expr)
     {
         if ( expr.type() ) {
-            stream << " : ";
+            sink(" : ");
             return dispatch(*expr.type());
         }
 
-        return stream << " : ~err";
+        sink(" : ~err");
     }
 
     result_t showTyped(Expression const& expr)
     {
         dispatch(expr);
-        return printType(expr);
+        printType(expr);
     }
 
     result_t exprLiteral(LiteralExpression const& p)
     {
-        return stream << p.token().lexeme();
+        sink(p.token().lexeme());
     }
 
     result_t exprIdentifier(IdentifierExpression const& id)
     {
-        return stream << id.token().lexeme();
+        sink(id.token().lexeme());
     }
 
     result_t exprTuple(TupleExpression const& t)
     {
-        stream << presentTupleOpen(t.kind());
+        sink(presentTupleOpen(t.kind()));
 
         if ( t.expressions() ) {
             showTyped(*t.expressions()[0]);
 
             for ( auto const& e : t.expressions()(1, $) ) {
-                stream << presentTupleWeave(t.kind());
+                sink(presentTupleWeave(t.kind()));
                 showTyped(*e);
             }
         }
 
-        return stream << presentTupleClose(t.kind());;
+        sink(presentTupleClose(t.kind()));
     }
 
     result_t exprApply(ApplyExpression const& a)
     {
         if ( nest )
-            stream << "(";
+            sink("(");
 
         ++nest;
         auto first = true;
@@ -1338,7 +1337,7 @@ struct PrintOperator
 
         for ( ; e; e.popFront() ) {
             if ( !first )
-                stream << " ";
+                sink(" ");
             else
                 first = false;
 
@@ -1346,39 +1345,36 @@ struct PrintOperator
         }
         --nest;
         if ( nest )
-            stream << ")";
-
-        return stream;
+            sink(")");
     }
 
     result_t exprSymbol(SymbolExpression const& s)
     {
         auto const& id = s.token().lexeme();
         if ( id )
-            stream << id;
+            sink(id);
 
         if ( s.expressions() ) {
-            stream << '<';
+            sink('<');
             dispatch(*s.expressions()[0]);
 
             for ( auto const& e : s.expressions()(1, $) ) {
-                stream << ", ";
+                sink(", ");
                 dispatch(*e);
             }
 
-            return stream << '>';
+            sink('>');
+            return;
         }
 
         if ( !id )
-            stream << "<>";
-
-        return stream;
+            sink("<>");
     }
 
     result_t exprDot(DotExpression const& d)
     {
         if ( d.isModuleScope() )
-            stream << ".";
+            sink(".");
 
         auto l = begin(d.expressions());
         auto r = end(d.expressions());
@@ -1387,11 +1383,9 @@ struct PrintOperator
 
         ++l;
         for ( ; l != r; ++l ) {
-            stream << ".";
+            sink(".");
             dispatch(*(*l));
         }
-
-        return stream;
     }
 
     result_t exprAssign(AssignExpression const& v)
@@ -1403,43 +1397,43 @@ struct PrintOperator
         }
 
         if ( nest )
-            stream << "(";
+            sink("(");
 
         dispatch(v.left());
-        stream << " = ";
+        sink(" = ");
         dispatch(v.right());
 
         if ( nest )
-            stream << ")";
-
-        return stream;
+            sink(")");
     }
 
     result_t exprLambda(LambdaExpression const& l)
     {
-        stream << "(";
+        sink("(");
         for ( auto p : l.procedure().parameters() ) {
-            stream << p->symbol().token().lexeme();
+            sink(p->symbol().token().lexeme());
             if ( p->constraints() )
-                stream << " : ";
+                sink(" : ");
 
             for ( auto c : p->constraints() )
                 dispatch(*c);
         }
 
-        return stream << ")";
+        sink(")");
     }
 
     result_t exprArrow(ArrowExpression const& a)
     {
         dispatch(a.from());
-        stream << " -> ";
-        return dispatch(a.to());
+        sink(" -> ");
+        dispatch(a.to());
     }
 
     result_t exprUniverse(UniverseExpression const& u)
     {
-        return stream << "Universe<" << u.level() << ">";
+        sink("Universe<");
+        sink(u.level());
+        sink(">");
     }
 
     result_t stmtExpression(ExpressionStatement const& s)
@@ -1449,54 +1443,33 @@ struct PrintOperator
 
     result_t stmtVariable(VariableStatement const& s)
     {
-        stream << ":= " << s.variable().symbol().token().lexeme();
+        sink(":= ");
+        sink(s.variable().symbol().token().lexeme());
         if ( auto e = s.initializer() ) {
-            stream << " = ";
+            sink(" = ");
             dispatch(*e);
         }
-
-        return stream;
     }
 
     result_t juncBranch(BranchJunction const& b)
     {
-        stream << ":? ";
+        sink(":? ");
         return dispatch(*b.condition());
     }
 
     result_t juncReturn(ReturnJunction const& r)
     {
-        stream << "return ";
+        sink("return ");
         return dispatch(r.expression());
     }
 
     result_t juncJump(JumpJunction const& j)
     {
-        stream << j.token().lexeme();
+        sink(j.token().lexeme());
         if ( j.targetLabel().kind() != lexer::TokenKind::Undefined )
-            stream << j.targetLabel().lexeme();
-
-        return stream;
+            sink(j.targetLabel().lexeme());
     }
 };
-
-std::ostream& print(std::ostream& stream, Expression const& expr)
-{
-    ShallowApply<PrintOperator> op(stream);
-    return op(expr);
-}
-
-std::ostream& print(std::ostream& stream, Statement const& stmt)
-{
-    ShallowApply<PrintOperator> op(stream);
-    return op(stmt);
-}
-
-std::ostream& print(std::ostream& stream, Junction const& junc)
-{
-    ShallowApply<PrintOperator> op(stream);
-    return op(junc);
-}
 
 template <typename Dispatcher>
 struct LevelFinder
@@ -1583,4 +1556,26 @@ uz level(Expression const& expr)
     return op(expr);
 }
 
-} // namespace kyfoo::ast
+    } // namespace ast
+
+    namespace ascii {
+        void write(DefaultOutStream& sink, ast::Expression const& expr)
+        {
+            ast::ShallowApply<ast::PrintOperator> op(sink);
+            return op(expr);
+        }
+
+        void write(DefaultOutStream& sink, ast::Statement const& stmt)
+        {
+            ast::ShallowApply<ast::PrintOperator> op(sink);
+            return op(stmt);
+        }
+
+        void write(DefaultOutStream& sink, ast::Junction const& junc)
+        {
+            ast::ShallowApply<ast::PrintOperator> op(sink);
+            return op(junc);
+        }
+    }
+
+} // namespace kyfoo

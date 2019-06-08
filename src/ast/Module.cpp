@@ -190,8 +190,8 @@ std::filesystem::path const& Module::path() const
 
 void Module::parse(Diagnostics& dgn)
 {
-    if ( auto err = openFile(path()) )
-        throw std::system_error(err, path().string());
+    if ( auto err = MMFile::open(path()) )
+        throw SystemException(err);
     else
         myFile = unwrap(err);
 
@@ -240,7 +240,8 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
         importPath.replace_extension(".kf");
 
         if ( !exists(importPath) ) {
-            dgn.error(*this, token) << "import does not exist: " << importPath.string();
+            dgn.error(*this, diag::no_import, token);
+                //.see(importPath.string()); todo
             return nullptr;
         }
 
@@ -343,7 +344,8 @@ stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) con
         else {
             ++i;
             if ( i == in.card() - 1 ) {
-                dgn.error(*this, token) << "lone escape character at " << i;
+                dgn.error(*this, diag::expected_string_escape, token);
+                    //.see(i); // todo
                 return token.lexeme();
             }
 
@@ -362,13 +364,15 @@ stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) con
             case '\\': out.push_back(0x5c); break;
             case 'x': {
                 if ( i + 2 >= in.card() - 1 ) {
-                    dgn.error(*this, token) << "not enough hex characters for escape sequence at " << i;
+                    dgn.error(*this, diag::expected_string_escape_two_hex, token);
+                        //.see(i) // todo
                     return token.lexeme();
                 }
 
                 int digit[2] = { toHex(in[i + 1]), toHex(in[i + 2]) };
                 if ( digit[0] < 0 || digit[1] < 0 ) {
-                    dgn.error(*this, token) << "invalid hex escape sequence at " << i;
+                    dgn.error(*this, diag::expected_string_escape_two_hex, token);
+                        // .see(i) // todo
                     return token.lexeme();
                 }
 
@@ -377,12 +381,13 @@ stringv Module::interpretString(Diagnostics& dgn, lexer::Token const& token) con
             }
 
             case 'u': {
-                dgn.error(*this, token) << "unicode codepoint sequence not implemented at " << i;
+                dgn.error(*this, diag::not_implemented, token);
                 return token.lexeme();
             }
 
             default:
-                dgn.error(*this, token) << "invalid escape sequence at " << i;
+                dgn.error(*this, diag::expected_string_escape, token);
+                    // .see(i); // todo
                 return token.lexeme();
             }
         }
