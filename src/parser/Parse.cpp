@@ -54,13 +54,19 @@ DeclarationScopeParser::parseProcedureDefinition(ast::ProcedureDeclaration& decl
         auto p = mk<ast::ProcedureScope>(*myScope, declaration);
         declaration.scope().append(std::move(p));
         if ( !isIndent(scanner().peek().kind()) ) {
-            auto expr = parse<Expression>(*this);
-            if ( !expr ) {
-                diagnostics().error(myScope->module(), diag::parser_expected_expression, scanner().peek());
-                diagnostics().die();
+            auto junc = parse<ReturnJunction>(*this);
+            if ( !junc ) {
+                auto expr = parse<Expression>(*this);
+                if ( !expr ) {
+                    diagnostics().error(myScope->module(), diag::parser_expected_expression, scanner().peek());
+                    diagnostics().die();
+                }
+
+                junc = mk<ast::ReturnJunction>(ast::mkToken(":.", lexer::TokenKind::ColonDot, front(*expr).location()),
+                                               std::move(expr));
             }
 
-            declaration.definition()->append(std::move(expr));
+            declaration.definition()->basicBlocks().back()->setJunction(std::move(junc));
             return nullptr;
         }
 
