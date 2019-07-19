@@ -29,7 +29,7 @@ void writeDot(Module const& mod, std::filesystem::path const& path)
 template <typename Dispatcher>
 struct ExprStructWriter
 {
-    using result_t = void;
+    using Result = void;
 
     Dispatcher& dispatch;
     DefaultOutStream& stream;
@@ -41,7 +41,7 @@ struct ExprStructWriter
     }
 
 public:
-    result_t exprLiteral(LiteralExpression const& lit)
+    Result exprLiteral(LiteralExpression const& lit)
     {
         for ( auto c : lit.token().lexeme() ) {
             if ( c == '"' )
@@ -51,7 +51,7 @@ public:
         }
     }
 
-    result_t exprIdentifier(IdentifierExpression const& ident)
+    Result exprIdentifier(IdentifierExpression const& ident)
     {
         stream(ident.token().lexeme());
     }
@@ -68,7 +68,7 @@ public:
         }
     }
 
-    result_t exprTuple(TupleExpression const& tup)
+    Result exprTuple(TupleExpression const& tup)
     {
         switch ( tup.kind() ) {
         case TupleKind::Closed:    stream("[] | { "); break;
@@ -80,28 +80,28 @@ public:
         stream(" }");
     }
 
-    result_t exprApply(ApplyExpression const& app)
+    Result exprApply(ApplyExpression const& app)
     {
         stream("[apply] | { ");
         visit(app.expressions());
         stream(" }");
     }
 
-    result_t exprSymbol(SymbolExpression const& sym)
+    Result exprSymbol(SymbolExpression const& sym)
     {
         stream("[sym][")(sym.token().lexeme())("] | { ");
         visit(sym.expressions());
         stream(" }");
     }
 
-    result_t exprDot(DotExpression const& dot)
+    Result exprDot(DotExpression const& dot)
     {
         stream("[.] | { ");
         visit(dot.expressions());
         stream(" }");
     }
 
-    result_t exprAssign(AssignExpression const& ass)
+    Result exprAssign(AssignExpression const& ass)
     {
         stream("[=] | { ");
         dispatch(ass.left());
@@ -110,12 +110,12 @@ public:
         stream(" }");
     }
 
-    result_t exprLambda(LambdaExpression const&)
+    Result exprLambda(LambdaExpression const&)
     {
         stream("[=\\>]");
     }
 
-    result_t exprArrow(ArrowExpression const& arrow)
+    Result exprArrow(ArrowExpression const& arrow)
     {
         stream("[-\\>] | { ");
         dispatch(arrow.from());
@@ -124,7 +124,7 @@ public:
         stream(" }");
     }
 
-    result_t exprUniverse(UniverseExpression const& univ)
+    Result exprUniverse(UniverseExpression const& univ)
     {
         stream("[universe")(univ.level())("]");
     }
@@ -136,7 +136,7 @@ struct DotWriter;
 template <typename Dispatcher>
 struct NodeWriter
 {
-    using result_t = void;
+    using Result = void;
 
     Dispatcher& dispatch;
     DefaultOutStream& stream;
@@ -164,67 +164,67 @@ struct NodeWriter
         stream(",")(key)("=")(value);
     }
 
-    result_t exprLiteral(LiteralExpression const& lit)
+    Result exprLiteral(LiteralExpression const& lit)
     {
         beginAttrs(lit.token().lexeme());
         endAttrs();
     }
 
-    result_t exprIdentifier(IdentifierExpression const& ident)
+    Result exprIdentifier(IdentifierExpression const& ident)
     {
         beginAttrs(ident.token().lexeme());
         endAttrs();
     }
 
-    result_t exprTuple(TupleExpression const&)
+    Result exprTuple(TupleExpression const&)
     {
         beginAttrs("tuple");
         endAttrs();
     }
 
-    result_t exprApply(ApplyExpression const&)
+    Result exprApply(ApplyExpression const&)
     {
         beginAttrs("apply");
         endAttrs();
     }
 
-    result_t exprSymbol(SymbolExpression const&)
+    Result exprSymbol(SymbolExpression const&)
     {
         beginAttrs("symexpr");
         endAttrs();
     }
 
-    result_t exprDot(DotExpression const&)
+    Result exprDot(DotExpression const&)
     {
         beginAttrs("dot");
         endAttrs();
     }
 
-    result_t exprAssign(AssignExpression const&)
+    Result exprAssign(AssignExpression const&)
     {
         beginAttrs("assign");
         endAttrs();
     }
 
-    result_t exprLambda(LambdaExpression const&)
+    Result exprLambda(LambdaExpression const&)
     {
         beginAttrs("lambda");
         endAttrs();
     }
 
-    result_t exprArrow(ArrowExpression const&)
+    Result exprArrow(ArrowExpression const&)
     {
         beginAttrs("arrow");
         endAttrs();
     }
 
-    result_t exprUniverse(UniverseExpression const&)
+    Result exprUniverse(UniverseExpression const&)
     {
         beginAttrs("universe");
         endAttrs();
     }
 
-    result_t stmtExpression(ExpressionStatement const&)
+    Result stmtExpression(ExpressionStatement const&)
     {
         beginAttrs("stmt");
         endAttrs();
@@ -232,7 +232,7 @@ struct NodeWriter
         stream("}\n");
     }
 
-    result_t stmtVariable(VariableStatement const&)
+    Result stmtVariable(VariableStatement const&)
     {
         beginAttrs("stmt-var");
         endAttrs();
@@ -240,19 +240,19 @@ struct NodeWriter
         stream("}\n");
     }
 
-    result_t juncBranch(BranchJunction const&)
+    Result juncBranch(BranchJunction const&)
     {
         beginAttrs("br");
         endAttrs();
     }
 
-    result_t juncReturn(ReturnJunction const&)
+    Result juncReturn(ReturnJunction const&)
     {
         beginAttrs("return");
         endAttrs();
     }
 
-    result_t juncJump(JumpJunction const&)
+    Result juncJump(JumpJunction const&)
     {
         beginAttrs("jump");
         endAttrs();
@@ -263,25 +263,25 @@ struct NodeWriter
         beginAttrs(decl.symbol().token().lexeme());
     }
 
-    result_t declDataType(DataTypeDeclaration const& dt)
+    Result declDataType(DataTypeDeclaration const& dt)
     {
         beginDecl(dt);
         endAttrs();
     }
 
-    result_t declField(Field const& dpField)
+    Result declField(Field const& dpField)
     {
         beginDecl(dpField);
         endAttrs();
     }
 
-    result_t declSymbol(SymbolDeclaration const& sym)
+    Result declSymbol(SymbolDeclaration const& sym)
     {
         beginDecl(sym);
         endAttrs();
     }
 
-    result_t declProcedure(ProcedureDeclaration const& proc)
+    Result declProcedure(ProcedureDeclaration const& proc)
     {
         stringv label = proc.symbol().token().lexeme();
         if ( auto decl = proc.scope().declaration() )
@@ -292,31 +292,31 @@ struct NodeWriter
         endAttrs();
     }
 
-    result_t declProcedureParameter(ProcedureParameter const& param)
+    Result declProcedureParameter(ProcedureParameter const& param)
     {
         beginDecl(param);
         endAttrs();
     }
 
-    result_t declVariable(VariableDeclaration const& var)
+    Result declVariable(VariableDeclaration const& var)
     {
         beginDecl(var);
         endAttrs();
     }
 
-    result_t declImport(ImportDeclaration const& imp)
+    Result declImport(ImportDeclaration const& imp)
     {
         beginDecl(imp);
         endAttrs();
     }
 
-    result_t declSymbolVariable(SymbolVariable const& symVar)
+    Result declSymbolVariable(SymbolVariable const& symVar)
     {
         beginDecl(symVar);
         endAttrs();
     }
 
-    result_t declTemplate(TemplateDeclaration const& templ)
+    Result declTemplate(TemplateDeclaration const& templ)
     {
         beginDecl(templ);
         endAttrs();
@@ -326,7 +326,7 @@ struct NodeWriter
 template <typename Dispatcher>
 struct DotWriter
 {
-    using result_t = stringv;
+    using Result = stringv;
     Dispatcher& dispatch;
     DefaultOutStream& stream;
 
@@ -428,17 +428,17 @@ struct DotWriter
         stream(from)(" -> ")(to)('\n');
     }
 
-    result_t exprLiteral(LiteralExpression const& lit)
+    Result exprLiteral(LiteralExpression const& lit)
     {
         return mkNode(lit);
     }
 
-    result_t exprIdentifier(IdentifierExpression const& ident)
+    Result exprIdentifier(IdentifierExpression const& ident)
     {
         return mkNode(ident);
     }
 
-    result_t exprTuple(TupleExpression const& tup)
+    Result exprTuple(TupleExpression const& tup)
     {
         auto node = mkNode(tup);
         for ( auto const& e : tup.expressions() )
@@ -447,7 +447,7 @@ struct DotWriter
         return node;
     }
 
-    result_t exprApply(ApplyExpression const& app)
+    Result exprApply(ApplyExpression const& app)
     {
         auto node = mkNode(app);
         for ( auto const& e : app.expressions() )
@@ -456,7 +456,7 @@ struct DotWriter
         return node;
     }
 
-    result_t exprSymbol(SymbolExpression const& sym)
+    Result exprSymbol(SymbolExpression const& sym)
     {
         auto node = mkNode(sym);
         for ( auto const& e : sym.expressions() )
@@ -465,7 +465,7 @@ struct DotWriter
         return node;
     }
 
-    result_t exprDot(DotExpression const& dot)
+    Result exprDot(DotExpression const& dot)
     {
         auto node = mkNode(dot);
         for ( auto const& e : dot.expressions() )
@@ -474,7 +474,7 @@ struct DotWriter
         return node;
     }
 
-    result_t exprAssign(AssignExpression const& ass)
+    Result exprAssign(AssignExpression const& ass)
     {
         auto node = mkNode(ass);
         mkEdge(node, dispatch(ass.left()));
@@ -483,7 +483,7 @@ struct DotWriter
         return node;
     }
 
-    result_t exprLambda(LambdaExpression const& lam)
+    Result exprLambda(LambdaExpression const& lam)
     {
         auto node = mkNode(lam);
         mkEdge(node, declProcedure(lam.procedure()));
@@ -491,7 +491,7 @@ struct DotWriter
         return node;
     }
 
-    result_t exprArrow(ArrowExpression const& arrow)
+    Result exprArrow(ArrowExpression const& arrow)
     {
         auto node = mkNode(arrow);
         mkEdge(node, dispatch(arrow.from()));
@@ -500,12 +500,12 @@ struct DotWriter
         return node;
     }
 
-    result_t exprUniverse(UniverseExpression const& univ)
+    Result exprUniverse(UniverseExpression const& univ)
     {
         return mkNode(univ);
     }
 
-    result_t stmtExpression(ExpressionStatement const& stmt)
+    Result stmtExpression(ExpressionStatement const& stmt)
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(stmt);
@@ -516,7 +516,7 @@ struct DotWriter
         return node.id;
     }
 
-    result_t stmtVariable(VariableStatement const& stmt)
+    Result stmtVariable(VariableStatement const& stmt)
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(stmt);
@@ -530,7 +530,7 @@ struct DotWriter
         return node.id;
     }
 
-    result_t juncBranch(BranchJunction const& br)
+    Result juncBranch(BranchJunction const& br)
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(br);
@@ -546,7 +546,7 @@ struct DotWriter
         return node.id;
     }
 
-    result_t juncReturn(ReturnJunction const& ret)
+    Result juncReturn(ReturnJunction const& ret)
     {
         ShallowApply<ExprStructWriter> op(stream);
         auto node = id(ret);
@@ -557,7 +557,7 @@ struct DotWriter
         return node.id;
     }
 
-    result_t juncJump(JumpJunction const& jmp)
+    Result juncJump(JumpJunction const& jmp)
     {
         auto node = id(jmp);
         stream(node.id)
@@ -577,7 +577,7 @@ struct DotWriter
             dispatch(*decl);
     }
 
-    result_t traceDefinable(DefinableDeclaration const& decl)
+    Result traceDefinable(DefinableDeclaration const& decl)
     {
         auto node = id(decl);
         stream("subgraph cluster")(node.id)(" {\n"
@@ -590,22 +590,22 @@ struct DotWriter
         return node.id;
     }
 
-    result_t declDataType(DataTypeDeclaration const& dt)
+    Result declDataType(DataTypeDeclaration const& dt)
     {
         return traceDefinable(dt);
     }
 
-    result_t declField(Field const& dpField)
+    Result declField(Field const& dpField)
     {
         return mkNode(dpField);
     }
 
-    result_t declSymbol(SymbolDeclaration const& sym)
+    Result declSymbol(SymbolDeclaration const& sym)
     {
         return mkNode(sym);
     }
 
-    result_t declProcedure(ProcedureDeclaration const& proc)
+    Result declProcedure(ProcedureDeclaration const& proc)
     {
         auto defn = proc.definition();
         if ( !defn )
@@ -676,27 +676,27 @@ struct DotWriter
         return node.id;
     }
 
-    result_t declProcedureParameter(ProcedureParameter const& param)
+    Result declProcedureParameter(ProcedureParameter const& param)
     {
         return mkNode(param);
     }
 
-    result_t declVariable(VariableDeclaration const& var)
+    Result declVariable(VariableDeclaration const& var)
     {
         return mkNode(var);
     }
 
-    result_t declImport(ImportDeclaration const& imp)
+    Result declImport(ImportDeclaration const& imp)
     {
         return mkNode(imp);
     }
 
-    result_t declSymbolVariable(SymbolVariable const& symVar)
+    Result declSymbolVariable(SymbolVariable const& symVar)
     {
         return mkNode(symVar);
     }
 
-    result_t declTemplate(TemplateDeclaration const& templ)
+    Result declTemplate(TemplateDeclaration const& templ)
     {
         if ( auto defn = templ.definition() )
             for ( auto const& decl : defn->childDeclarations() )

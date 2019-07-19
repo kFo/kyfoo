@@ -14,12 +14,11 @@ class SymbolVariable;
 class Substitutions
 {
 public:
-    enum State
+    using State = kyfoo::u32;
+    enum : State
     {
         Mismatch = 1 << 0,
     };
-
-    using state_t = kyfoo::u32;
 
     struct Item
     {
@@ -67,7 +66,7 @@ private:
     void setMismatch();
 
 private:
-    state_t myState = 0;
+    State myState = 0;
     std::vector<SymbolVariable const*> myVariables;
     std::vector<Expression const*> myContexts;
 };

@@ -10,7 +10,7 @@ namespace kyfoo {
 class MMFile
 {
 public:
-    using handle_t = void*;
+    using Handle = void*;
 
     static ErrorWrapper<MMFile> open(std::filesystem::path const& path);
 
@@ -44,8 +44,8 @@ public:
     explicit operator bool () const noexcept { return valid(); }
 
 private:
-    handle_t myFile = nullptr;
-    handle_t myMap = nullptr;
+    Handle myFile = nullptr;
+    Handle myMap = nullptr;
     void const* myBegin = nullptr;
     void const* myEnd = nullptr;
 };

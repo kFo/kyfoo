@@ -93,7 +93,7 @@ void Scope::resolveImports(Diagnostics& dgn)
 {
     for ( auto& e : myDeclarations ) {
         if ( auto d = e->as<ImportDeclaration>() ) {
-            module().import(dgn, d->token());
+            module().import(dgn, d->symbol().token());
         }
     }
 
@@ -216,7 +216,7 @@ SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
     lexer::Token metaTok(lexer::TokenKind::MetaVariable,
                          myMetaVariableNames.back(),
                          tok.location());
-    myMetaVariables.emplace_back(mk<SymbolVariable>(std::move(metaTok), *this));
+    myMetaVariables.emplace_back(mk<SymbolVariable>(std::move(metaTok), *this, std::vector<std::unique_ptr<Expression>>()));
     return *myMetaVariables.back();
 }
 
@@ -422,9 +422,9 @@ SymRes DataTypeScope::resolveDefinitions(Context& ctx)
     return Scope::resolveDefinitions(ctx);
 }
 
-void DataTypeScope::appendField(Symbol&& symbol,
-                                   std::vector<Box<Expression>> constraints,
-                                   Box<Expression> init)
+void DataTypeScope::appendField(Symbol symbol,
+                                std::vector<Box<Expression>> constraints,
+                                Box<Expression> init)
 {
     auto field = mk<Field>(*declaration(),
                            std::move(symbol),
@@ -434,7 +434,7 @@ void DataTypeScope::appendField(Symbol&& symbol,
     Scope::append(std::move(field));
 }
 
-void DataTypeScope::appendVariation(Symbol&& sym)
+void DataTypeScope::appendVariation(Symbol sym)
 {
     auto v = mk<DataTypeDeclaration>(std::move(sym), declaration());
     myVariations.emplace_back(v.get());

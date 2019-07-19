@@ -25,7 +25,7 @@ mkToken(stringv id, lexer::TokenKind kind, lexer::SourceLocation loc = {})
 }
 
 inline Symbol
-makeSym(lexer::Token const& token, std::vector<Box<Expression>>&& exprs)
+makeSym(lexer::Token const& token, std::vector<Box<Expression>> exprs)
 {
     return Symbol(token, PatternsPrototype(std::move(exprs)));
 }
@@ -51,7 +51,7 @@ copyProcSym(Symbol const& s)
         if ( auto decl = getDeclaration(*p) ) {
             if ( auto param = decl->as<ProcedureParameter>() ) {
                 exprs.emplace_back(mk<IdentifierExpression>(param->symbol().token()));
-                exprs.back()->addConstraints(ast::clone(param->constraints()));
+                exprs.back()->appendConstraints(ast::clone(param->constraints()));
                 continue;
             }
         }

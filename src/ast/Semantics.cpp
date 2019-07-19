@@ -60,7 +60,7 @@ SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::create(std::string n
 
 SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(stringv name, uz arity)
 {
-    for ( auto const& e : groups)
+    for ( auto const& e : groups )
         if ( e->name == name && e->arity == arity )
             return e.get();
 
@@ -107,7 +107,7 @@ void SymbolDependencyTracker::sortPasses()
 template <typename Dispatcher>
 struct SymbolDependencyBuilder
 {
-    using result_t = SymRes;
+    using Result = SymRes;
     Dispatcher& dispatch;
     SymbolDependencyTracker& tracker;
     Declaration& dependent;
@@ -128,7 +128,7 @@ struct SymbolDependencyBuilder
     }
 
 private:
-    result_t addDep(stringv name, uz arity)
+    Result addDep(stringv name, uz arity)
     {
         if ( arity == 0 )
             for ( auto localDecl = localDecls.rbegin(); localDecl != localDecls.rend(); ++localDecl )
@@ -189,12 +189,12 @@ private:
 
     // expressions
 public:
-    result_t exprLiteral(LiteralExpression const&)
+    Result exprLiteral(LiteralExpression const&)
     {
         return SymRes::Success;
     }
 
-    result_t exprIdentifier(IdentifierExpression const& p)
+    Result exprIdentifier(IdentifierExpression const& p)
     {
         switch (p.token().kind())
         {
@@ -208,7 +208,7 @@ public:
         }
     }
 
-    result_t exprTuple(TupleExpression const& t)
+    Result exprTuple(TupleExpression const& t)
     {
         SymRes ret = SymRes::Success;
         for ( auto const& e : t.expressions() )
@@ -217,7 +217,7 @@ public:
         return ret;
     }
 
-    result_t exprApply(ApplyExpression const& a)
+    Result exprApply(ApplyExpression const& a)
     {
         // todo: failover to implicit proc call semantics
         SymRes ret = SymRes::Success;
@@ -231,7 +231,7 @@ public:
         return ret;
     }
 
-    result_t exprSymbol(SymbolExpression const& s)
+    Result exprSymbol(SymbolExpression const& s)
     {
         SymRes ret = SymRes::Success;
         if ( s.token().kind() == lexer::TokenKind::Identifier )
@@ -243,7 +243,7 @@ public:
         return ret;
     }
 
-    result_t exprDot(DotExpression const& d)
+    Result exprDot(DotExpression const& d)
     {
         SymRes ret = SymRes::Success;
         for ( auto const& e : d.expressions() )
@@ -252,34 +252,34 @@ public:
         return ret;
     }
 
-    result_t exprAssign(AssignExpression const& v)
+    Result exprAssign(AssignExpression const& v)
     {
         return dispatch(v.left()) | dispatch(v.right());
     }
 
-    result_t exprLambda(LambdaExpression const& l)
+    Result exprLambda(LambdaExpression const& l)
     {
         return declProcedure(l.procedure());
     }
 
-    result_t exprArrow(ArrowExpression const& a)
+    Result exprArrow(ArrowExpression const& a)
     {
         return dispatch(a.from()) | dispatch(a.to());
     }
 
-    result_t exprUniverse(UniverseExpression const&)
+    Result exprUniverse(UniverseExpression const&)
     {
         return SymRes::Success;
     }
 
     // statements
 public:
-    result_t stmtExpression(ExpressionStatement const& s)
+    Result stmtExpression(ExpressionStatement const& s)
     {
         return dispatch(s.expression());
     }
 
-    result_t stmtVariable(VariableStatement const& s)
+    Result stmtVariable(VariableStatement const& s)
     {
         auto ret = dispatch(s.variable());
         if ( s.initializer() )
@@ -288,7 +288,7 @@ public:
         return ret;
     }
 
-    result_t juncBranch(BranchJunction const& b)
+    Result juncBranch(BranchJunction const& b)
     {
         SymRes ret = SymRes::Success;
         if ( b.condition() )
@@ -301,7 +301,7 @@ public:
         return ret;
     }
 
-    result_t juncReturn(ReturnJunction const& r)
+    Result juncReturn(ReturnJunction const& r)
     {
         SymRes ret = SymRes::Success;
         if ( r.expression() )
@@ -310,26 +310,26 @@ public:
         return ret;
     }
 
-    result_t juncJump(JumpJunction const&)
+    Result juncJump(JumpJunction const&)
     {
         return SymRes::Success;
     }
 
     // declarations
 public:
-    result_t declDataType(DataTypeDeclaration const& dt)
+    Result declDataType(DataTypeDeclaration const& dt)
     {
         REVERT = pushLocal(dt);
         return traceDecl(dt);
     }
 
-    result_t declField(Field const& dpField)
+    Result declField(Field const& dpField)
     {
         REVERT = pushLocal(dpField);
         return traceDecl(dpField);
     }
 
-    result_t declSymbol(SymbolDeclaration const& s)
+    Result declSymbol(SymbolDeclaration const& s)
     {
         REVERT = pushLocal(s);
         auto ret = traceDecl(s);
@@ -339,7 +339,7 @@ public:
         return ret;
     }
 
-    result_t declProcedure(ProcedureDeclaration const& proc)
+    Result declProcedure(ProcedureDeclaration const& proc)
     {
         REVERT = pushLocal(proc);
         SymRes ret = traceDecl(proc);
@@ -349,12 +349,12 @@ public:
         return ret;
     }
 
-    result_t declProcedureParameter(ProcedureParameter const&)
+    Result declProcedureParameter(ProcedureParameter const&)
     {
         return SymRes::Success;
     }
 
-    result_t declVariable(VariableDeclaration const& var)
+    Result declVariable(VariableDeclaration const& var)
     {
         REVERT = pushLocal(var);
         auto ret = traceDecl(var);
@@ -364,20 +364,20 @@ public:
         return ret;
     }
 
-    result_t declImport(ImportDeclaration const&)
+    Result declImport(ImportDeclaration const&)
     {
         return SymRes::Success;
     }
 
-    result_t declSymbolVariable(SymbolVariable const&)
+    Result declSymbolVariable(SymbolVariable const&)
     {
         return SymRes::Success;
     }
 
-    result_t declTemplate(TemplateDeclaration const& templ)
+    Result declTemplate(TemplateDeclaration const& templ)
     {
         REVERT = pushLocal(templ);
-        result_t ret = traceDecl(templ);
+        Result ret = traceDecl(templ);
         for ( auto const& d : templ.definition()->childDeclarations() )
             ret |= dispatch(*d);
 
@@ -459,10 +459,10 @@ struct MatchEquivalent
                 return false;
 
             // todo: check var constraints
-            if ( leftDecl->kind() == DeclKind::SymbolVariable )
-                return rightDecl->kind() == DeclKind::SymbolVariable;
+            if ( leftDecl->kind() == Declaration::Kind::SymbolVariable )
+                return rightDecl->kind() == Declaration::Kind::SymbolVariable;
 
-            if ( rightDecl->kind() == DeclKind::SymbolVariable )
+            if ( rightDecl->kind() == Declaration::Kind::SymbolVariable )
                 return true;
 
             return leftDecl == rightDecl;
@@ -528,10 +528,10 @@ Declaration const* resolveIndirections(Declaration const* decl)
     while ( decl ) {
         Expression const* expr = nullptr;
         switch (decl->kind()) {
-        case DeclKind::Symbol:
+        case Declaration::Kind::Symbol:
             expr = static_cast<SymbolDeclaration const*>(decl)->expression();
             break;
-        case DeclKind::SymbolVariable:
+        case Declaration::Kind::SymbolVariable:
             expr = static_cast<SymbolVariable const*>(decl)->boundExpression();
             break;
         default:
@@ -565,10 +565,10 @@ Expression const* resolveIndirections(Expression const* expr)
 
         Expression const* next = nullptr;
         switch ( decl->kind() ) {
-        case DeclKind::Symbol:
+        case Declaration::Kind::Symbol:
             next = static_cast<SymbolDeclaration const*>(decl)->expression();
             break;
-        case DeclKind::SymbolVariable:
+        case Declaration::Kind::SymbolVariable:
             next = static_cast<SymbolVariable const*>(decl)->boundExpression();
             break;
 
@@ -860,24 +860,24 @@ UnificationResult unify(Context& ctx, Report::Subject gov, Slice<Expression cons
 template <typename Dispatcher>
 struct MetaVariableVisitor
 {
-    using result_t = bool;
+    using Result = bool;
     Dispatcher& dispatch;
     
-    using visitor_t = std::function<void(IdentifierExpression&)>;
-    visitor_t visitor;
+    using Visitor = std::function<void(IdentifierExpression&)>;
+    Visitor visitor;
 
-    MetaVariableVisitor(Dispatcher& dispatch, visitor_t visitor)
+    MetaVariableVisitor(Dispatcher& dispatch, Visitor visitor)
         : dispatch(dispatch)
         , visitor(visitor)
     {
     }
 
-    result_t exprLiteral(LiteralExpression&)
+    Result exprLiteral(LiteralExpression&)
     {
         return false;
     }
 
-    result_t exprIdentifier(IdentifierExpression& p)
+    Result exprIdentifier(IdentifierExpression& p)
     {
         if ( p.token().kind() == lexer::TokenKind::MetaVariable ) {
             visitor(p);
@@ -887,34 +887,34 @@ struct MetaVariableVisitor
         return false;
     }
 
-    result_t exprTuple(TupleExpression& t)
+    Result exprTuple(TupleExpression& t)
     {
         return dispatch(t.expressions());
     }
 
-    result_t exprApply(ApplyExpression& a)
+    Result exprApply(ApplyExpression& a)
     {
         return dispatch(a.expressions());
     }
 
-    result_t exprSymbol(SymbolExpression& s)
+    Result exprSymbol(SymbolExpression& s)
     {
         return dispatch(s.expressions());
     }
 
-    result_t exprDot(DotExpression& d)
+    Result exprDot(DotExpression& d)
     {
         return dispatch(d.expressions());
     }
 
-    result_t exprAssign(AssignExpression& v)
+    Result exprAssign(AssignExpression& v)
     {
         return dispatch(v.left()) | dispatch(v.right());
     }
 
-    result_t exprLambda(LambdaExpression& l)
+    Result exprLambda(LambdaExpression& l)
     {
-        result_t ret = false;
+        Result ret = false;
         for ( auto p : l.procedure().parameters() )
             ret |= dispatch(p->constraints());
 
@@ -925,22 +925,22 @@ struct MetaVariableVisitor
         return ret;
     }
 
-    result_t exprArrow(ArrowExpression& a)
+    Result exprArrow(ArrowExpression& a)
     {
         return dispatch(a.from()) | dispatch(a.to());
     }
 
-    result_t exprUniverse(UniverseExpression&)
+    Result exprUniverse(UniverseExpression&)
     {
         return false;
     }
 
-    result_t stmtExpression(ExpressionStatement& s)
+    Result stmtExpression(ExpressionStatement& s)
     {
         return dispatch(s.expression());
     }
 
-    result_t stmtVariable(VariableStatement& s)
+    Result stmtVariable(VariableStatement& s)
     {
         auto ret = dispatch(s.variable());
         if ( s.initializer() )
@@ -949,9 +949,9 @@ struct MetaVariableVisitor
         return ret;
     }
 
-    result_t juncBranch(BranchJunction& b)
+    Result juncBranch(BranchJunction& b)
     {
-        result_t ret = false;
+        Result ret = false;
         if ( b.condition() )
             ret |= dispatch(*b.condition());
 
@@ -962,7 +962,7 @@ struct MetaVariableVisitor
         return ret;
     }
 
-    result_t juncReturn(ReturnJunction& r)
+    Result juncReturn(ReturnJunction& r)
     {
         if ( r.expression() )
             return dispatch(r.expression());
@@ -970,7 +970,7 @@ struct MetaVariableVisitor
         return false;
     }
 
-    result_t juncJump(JumpJunction&)
+    Result juncJump(JumpJunction&)
     {
         return false;
     }
@@ -996,7 +996,7 @@ std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr)
 template <typename Dispatcher>
 struct HasMetaVariable
 {
-    using result_t = bool;
+    using Result = bool;
     Dispatcher& dispatch;
 
     HasMetaVariable(Dispatcher& dispatch)
@@ -1004,17 +1004,17 @@ struct HasMetaVariable
     {
     }
 
-    result_t exprLiteral(LiteralExpression const&)
+    Result exprLiteral(LiteralExpression const&)
     {
         return false;
     }
 
-    result_t exprIdentifier(IdentifierExpression const& p)
+    Result exprIdentifier(IdentifierExpression const& p)
     {
         return p.token().kind() == lexer::TokenKind::MetaVariable;
     }
 
-    result_t exprTuple(TupleExpression const& t)
+    Result exprTuple(TupleExpression const& t)
     {
         for ( auto const& e : t.expressions() )
             if ( dispatch(*e) )
@@ -1023,7 +1023,7 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t exprApply(ApplyExpression const& a)
+    Result exprApply(ApplyExpression const& a)
     {
         for ( auto const& e : a.expressions() )
             if ( dispatch(*e) )
@@ -1032,7 +1032,7 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t exprSymbol(SymbolExpression const& s)
+    Result exprSymbol(SymbolExpression const& s)
     {
         for ( auto const& e : s.expressions() )
             if ( dispatch(*e) )
@@ -1041,7 +1041,7 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t exprDot(DotExpression const& d)
+    Result exprDot(DotExpression const& d)
     {
         for ( auto const& e : d.expressions() )
             if ( dispatch(*e) )
@@ -1050,12 +1050,12 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t exprAssign(AssignExpression const& v)
+    Result exprAssign(AssignExpression const& v)
     {
         return dispatch(v.left()) || dispatch(v.right());
     }
 
-    result_t exprLambda(LambdaExpression const& l)
+    Result exprLambda(LambdaExpression const& l)
     {
         for ( auto p : l.procedure().parameters() ) {
             for ( auto c : p->constraints() ) {
@@ -1071,27 +1071,27 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t exprArrow(ArrowExpression const& a)
+    Result exprArrow(ArrowExpression const& a)
     {
         return dispatch(a.from()) || dispatch(a.to());
     }
 
-    result_t exprUniverse(UniverseExpression const&)
+    Result exprUniverse(UniverseExpression const&)
     {
         return false;
     }
 
-    result_t stmtExpression(ExpressionStatement const& s)
+    Result stmtExpression(ExpressionStatement const& s)
     {
         return dispatch(s.expression());
     }
 
-    result_t stmtVariable(VariableStatement const& s)
+    Result stmtVariable(VariableStatement const& s)
     {
         return dispatch(s.variable()) | dispatch(s.initializer());
     }
 
-    result_t juncBranch(BranchJunction const& b)
+    Result juncBranch(BranchJunction const& b)
     {
         if ( b.condition() && dispatch(*b.condition()) )
             return true;
@@ -1106,7 +1106,7 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t juncReturn(ReturnJunction const& r)
+    Result juncReturn(ReturnJunction const& r)
     {
         if ( r.expression() )
             return dispatch(r.expression());
@@ -1114,7 +1114,7 @@ struct HasMetaVariable
         return false;
     }
 
-    result_t juncJump(JumpJunction const&)
+    Result juncJump(JumpJunction const&)
     {
         return false;
     }
@@ -1129,7 +1129,7 @@ bool hasMetaVariable(Expression const& expr)
 template <typename Dispatcher>
 struct FrontToken
 {
-    using result_t = lexer::Token const&;
+    using Result = lexer::Token const&;
 
     Dispatcher& dispatch;
 
@@ -1138,17 +1138,17 @@ struct FrontToken
     {
     }
 
-    result_t exprLiteral(LiteralExpression const& p)
+    Result exprLiteral(LiteralExpression const& p)
     {
         return p.token();
     }
 
-    result_t exprIdentifier(IdentifierExpression const& p)
+    Result exprIdentifier(IdentifierExpression const& p)
     {
         return p.token();
     }
 
-    result_t exprTuple(TupleExpression const& t)
+    Result exprTuple(TupleExpression const& t)
     {
         if ( !t.expressions() )
             return t.openToken();
@@ -1156,12 +1156,12 @@ struct FrontToken
         return dispatch(*t.expressions()[0]);
     }
 
-    result_t exprApply(ApplyExpression const& a)
+    Result exprApply(ApplyExpression const& a)
     {
         return dispatch(*a.expressions()[0]);
     }
 
-    result_t exprSymbol(SymbolExpression const& s)
+    Result exprSymbol(SymbolExpression const& s)
     {
         if ( s.token().kind() != lexer::TokenKind::Undefined )
             return s.token();
@@ -1172,17 +1172,17 @@ struct FrontToken
         return dispatch(*s.expressions()[0]);
     }
 
-    result_t exprDot(DotExpression const& d)
+    Result exprDot(DotExpression const& d)
     {
         return dispatch(*d.expressions()[0]);
     }
 
-    result_t exprAssign(AssignExpression const& v)
+    Result exprAssign(AssignExpression const& v)
     {
         return dispatch(v.left());
     }
 
-    result_t exprLambda(LambdaExpression const& l)
+    Result exprLambda(LambdaExpression const& l)
     {
         if ( l.procedure().parameters() )
             return l.procedure().parameters().front()->symbol().token();
@@ -1194,37 +1194,37 @@ struct FrontToken
         return dispatch(*bb->statements().front());
     }
 
-    result_t exprArrow(ArrowExpression const& a)
+    Result exprArrow(ArrowExpression const& a)
     {
         return dispatch(a.from());
     }
 
-    result_t exprUniverse(UniverseExpression const&)
+    Result exprUniverse(UniverseExpression const&)
     {
         ENFORCEU("no front token for universe-expression");
     }
 
-    result_t stmtExpression(ExpressionStatement const& s)
+    Result stmtExpression(ExpressionStatement const& s)
     {
         return dispatch(s.expression());
     }
 
-    result_t stmtVariable(VariableStatement const& s)
+    Result stmtVariable(VariableStatement const& s)
     {
         return s.variable().symbol().token();
     }
 
-    result_t juncBranch(BranchJunction const& b)
+    Result juncBranch(BranchJunction const& b)
     {
         return b.token();
     }
 
-    result_t juncReturn(ReturnJunction const& r)
+    Result juncReturn(ReturnJunction const& r)
     {
         return r.token();
     }
 
-    result_t juncJump(JumpJunction const& j)
+    Result juncJump(JumpJunction const& j)
     {
         return j.token();
     }
@@ -1261,7 +1261,7 @@ lexer::Token const& front(Declaration const& decl)
 template <typename Dispatcher>
 struct PrintOperator
 {
-    using result_t = void;
+    using Result = void;
 
     Dispatcher& dispatch;
     DefaultOutStream& sink;
@@ -1273,15 +1273,24 @@ struct PrintOperator
     {
     }
 
-    result_t printConstraints(Expression const& expr)
+    Result printConstraints(Slice<Expression const*> exprs)
     {
-        for ( auto c : expr.constraints() ) {
+        for ( auto c : exprs ) {
+            if ( auto id = c->as<IdentifierExpression>() )
+                if ( id->token().kind() == lexer::TokenKind::Undefined )
+                    continue;
+
             sink(" : ");
             dispatch(*c);
         }
     }
 
-    result_t printType(Expression const& expr)
+    Result printConstraints(Expression const& expr)
+    {
+        return printConstraints(expr.constraints());
+    }
+
+    Result printType(Expression const& expr)
     {
         if ( expr.type() ) {
             sink(" : ");
@@ -1291,23 +1300,32 @@ struct PrintOperator
         sink(" : ~err");
     }
 
-    result_t showTyped(Expression const& expr)
+    Result showTyped(Expression const& expr)
     {
         dispatch(expr);
         printType(expr);
     }
 
-    result_t exprLiteral(LiteralExpression const& p)
+    Result exprLiteral(LiteralExpression const& p)
     {
         sink(p.token().lexeme());
+        printConstraints(p);
     }
 
-    result_t exprIdentifier(IdentifierExpression const& id)
+    Result exprIdentifier(IdentifierExpression const& id)
     {
-        sink(id.token().lexeme());
+        auto beg = id.token().lexeme().begin();
+        if ( id.token().kind() == lexer::TokenKind::MetaVariable )
+            --beg;
+        sink(slice(beg, id.token().lexeme().end()));
+        printConstraints(id);
+
+        if ( auto decl = getDeclaration(id) )
+            if ( auto binder = getBinder(*decl) )
+                printConstraints(binder->constraints());
     }
 
-    result_t exprTuple(TupleExpression const& t)
+    Result exprTuple(TupleExpression const& t)
     {
         sink(presentTupleOpen(t.kind()));
 
@@ -1321,9 +1339,10 @@ struct PrintOperator
         }
 
         sink(presentTupleClose(t.kind()));
+        printConstraints(t);
     }
 
-    result_t exprApply(ApplyExpression const& a)
+    Result exprApply(ApplyExpression const& a)
     {
         if ( nest )
             sink("(");
@@ -1346,9 +1365,11 @@ struct PrintOperator
         --nest;
         if ( nest )
             sink(")");
+
+        printConstraints(a);
     }
 
-    result_t exprSymbol(SymbolExpression const& s)
+    Result exprSymbol(SymbolExpression const& s)
     {
         auto const& id = s.token().lexeme();
         if ( id )
@@ -1364,14 +1385,16 @@ struct PrintOperator
             }
 
             sink('>');
-            return;
+
+            return printConstraints(s);
         }
 
         if ( !id )
             sink("<>");
+        printConstraints(s);
     }
 
-    result_t exprDot(DotExpression const& d)
+    Result exprDot(DotExpression const& d)
     {
         if ( d.isModuleScope() )
             sink(".");
@@ -1386,9 +1409,11 @@ struct PrintOperator
             sink(".");
             dispatch(*(*l));
         }
+
+        printConstraints(d);
     }
 
-    result_t exprAssign(AssignExpression const& v)
+    Result exprAssign(AssignExpression const& v)
     {
         if ( auto decl = getDeclaration(v.left()) ) {
             if ( auto var = decl->as<VariableDeclaration>() )
@@ -1405,9 +1430,11 @@ struct PrintOperator
 
         if ( nest )
             sink(")");
+
+        printConstraints(v);
     }
 
-    result_t exprLambda(LambdaExpression const& l)
+    Result exprLambda(LambdaExpression const& l)
     {
         sink("(");
         for ( auto p : l.procedure().parameters() ) {
@@ -1420,28 +1447,33 @@ struct PrintOperator
         }
 
         sink(")");
+        printConstraints(l);
     }
 
-    result_t exprArrow(ArrowExpression const& a)
+    Result exprArrow(ArrowExpression const& a)
     {
         dispatch(a.from());
         sink(" -> ");
         dispatch(a.to());
+
+        printConstraints(a);
     }
 
-    result_t exprUniverse(UniverseExpression const& u)
+    Result exprUniverse(UniverseExpression const& u)
     {
         sink("Universe<");
         sink(u.level());
         sink(">");
+
+        printConstraints(u);
     }
 
-    result_t stmtExpression(ExpressionStatement const& s)
+    Result stmtExpression(ExpressionStatement const& s)
     {
         return dispatch(s.expression());
     }
 
-    result_t stmtVariable(VariableStatement const& s)
+    Result stmtVariable(VariableStatement const& s)
     {
         sink(":= ");
         sink(s.variable().symbol().token().lexeme());
@@ -1451,19 +1483,19 @@ struct PrintOperator
         }
     }
 
-    result_t juncBranch(BranchJunction const& b)
+    Result juncBranch(BranchJunction const& b)
     {
         sink(":? ");
         return dispatch(*b.condition());
     }
 
-    result_t juncReturn(ReturnJunction const& r)
+    Result juncReturn(ReturnJunction const& r)
     {
         sink("return ");
         return dispatch(r.expression());
     }
 
-    result_t juncJump(JumpJunction const& j)
+    Result juncJump(JumpJunction const& j)
     {
         sink(j.token().lexeme());
         if ( j.targetLabel().kind() != lexer::TokenKind::Undefined )
@@ -1474,7 +1506,7 @@ struct PrintOperator
 template <typename Dispatcher>
 struct LevelFinder
 {
-    using result_t = uz;
+    using Result = uz;
 
     Dispatcher& dispatch;
 
@@ -1483,17 +1515,17 @@ struct LevelFinder
     {
     }
 
-    result_t exprLiteral(LiteralExpression const&)
+    Result exprLiteral(LiteralExpression const&)
     {
         return 0;
     }
 
-    result_t exprIdentifier(IdentifierExpression const&)
+    Result exprIdentifier(IdentifierExpression const&)
     {
         return 1; // todo: higher level types
     }
 
-    result_t max(Slice<Expression const*> exprs)
+    Result max(Slice<Expression const*> exprs)
     {
         if ( !exprs )
             return 0;
@@ -1505,46 +1537,46 @@ struct LevelFinder
         return max;
     }
 
-    result_t exprTuple(TupleExpression const& t)
+    Result exprTuple(TupleExpression const& t)
     {
         return max(t.expressions());
     }
 
-    result_t exprApply(ApplyExpression const& a)
+    Result exprApply(ApplyExpression const& a)
     {
         return max(a.expressions());
     }
 
-    result_t exprSymbol(SymbolExpression const& s)
+    Result exprSymbol(SymbolExpression const& s)
     {
         return exprIdentifier(s);
     }
 
-    result_t exprDot(DotExpression const& d)
+    Result exprDot(DotExpression const& d)
     {
         return dispatch(*d.expressions().back());
     }
 
-    result_t exprAssign(AssignExpression const& v)
+    Result exprAssign(AssignExpression const& v)
     {
         return std::max(dispatch(v.left()), dispatch(v.right()));
     }
 
-    result_t exprLambda(LambdaExpression const& l)
+    Result exprLambda(LambdaExpression const& l)
     {
-        result_t ret = 1;
+        Result ret = 1;
         for ( auto const p : l.procedure().parameters() )
             ret = std::max(ret, dispatch(*p->type()));
 
         return std::max(ret, dispatch(*l.procedure().result()->type()));
     }
 
-    result_t exprArrow(ArrowExpression const& a)
+    Result exprArrow(ArrowExpression const& a)
     {
         return std::max(dispatch(a.from()), dispatch(a.to()));
     }
 
-    result_t exprUniverse(UniverseExpression const& u)
+    Result exprUniverse(UniverseExpression const& u)
     {
         return u.level();
     }

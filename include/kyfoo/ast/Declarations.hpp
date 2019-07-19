@@ -31,15 +31,6 @@ namespace kyfoo {
     X(SymbolVariable    , "symbol variable"    , SymbolVariable        ) \
     X(Template          , "template"           , TemplateDeclaration   )
 
-enum class DeclKind
-{
-#define X(a,b,c) a,
-    DECLARATION_KINDS(X)
-#undef X
-};
-
-const char* to_string(DeclKind kind);
-
 class Scope;
 class DataTypeScope;
 class ExpressionStatement;
@@ -53,9 +44,16 @@ class Declaration
 public:
     friend class Context;
 
+    enum class Kind
+    {
+#define X(a,b,c) a,
+        DECLARATION_KINDS(X)
+#undef X
+    };
+
 protected:
-    Declaration(DeclKind kind,
-                Symbol&& symbol,
+    Declaration(Kind kind,
+                Symbol symbol,
                 Scope* scope);
 
     Declaration(Declaration const& rhs);
@@ -79,10 +77,9 @@ public:
     SymRes resolveAttributes(Context& ctx);
 
 public:
-    DeclKind kind() const;
+    Kind kind() const;
     Symbol& symbol();
     Symbol const& symbol() const;
-    lexer::Token const& token() const;
 
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
@@ -92,7 +89,7 @@ public:
     Scope const& scope() const;
     void setScope(Scope& scope);
 
-    void setAttributes(std::vector<Box<Expression>>&& exprs);
+    void setAttributes(std::vector<Box<Expression>> exprs);
     Slice<ExpressionStatement const> attributes() const;
     Slice<ExpressionStatement> attributes();
 
@@ -102,7 +99,7 @@ public:
     void setCodegenData(Box<codegen::CustomData> data) const;
 
 protected:
-    DeclKind myKind;
+    Kind myKind;
     Box<Symbol> mySymbol;
     Scope* myScope = nullptr;
     std::vector<ExpressionStatement> myAttributes;
@@ -112,7 +109,7 @@ protected:
 class DefinableDeclaration : public Declaration
 {
 public:
-    explicit DefinableDeclaration(DeclKind kind, Symbol&& symbol);
+    explicit DefinableDeclaration(Kind kind, Symbol symbol);
 
 protected:
     DefinableDeclaration(DefinableDeclaration const& rhs);
@@ -164,20 +161,21 @@ public:
 class Binder : public Declaration
 {
 protected:
-    Binder(DeclKind kind,
-           Symbol&& symbol,
+    Binder(Kind kind,
+           Symbol symbol,
            Scope* scope,
            std::vector<Box<Expression>> constraints);
 
-    Binder(DeclKind kind,
-           Symbol&& symbol,
+    Binder(Kind kind,
+           Symbol symbol,
            Scope* scope,
            Expression const* type);
 
     Binder(Binder const& rhs);
-    Binder& operator = (Binder const& rhs) = delete;
+    Binder& operator = (Binder const&) = delete;
 
     Binder(Binder&&) = delete;
+    Binder& operator = (Binder&&) = delete;
 
 public:
     ~Binder() KYFOO_DEBUG_OVERRIDE;
@@ -192,8 +190,8 @@ protected:
     SymRes resolveSymbols(Context& ctx);
 
 public:
-    void addConstraint(Box<Expression> c);
-    void addConstraints(std::vector<Box<Expression>>&& exprs);
+    void appendConstraint(Box<Expression> c);
+    void appendConstraints(std::vector<Box<Expression>> exprs);
 
     Slice<Expression*> constraints();
     Slice<Expression const*> const constraints() const;
@@ -213,7 +211,7 @@ public:
 
 public:
     Field(DataTypeDeclaration& parent,
-          Symbol&& symbol,
+          Symbol symbol,
           std::vector<Box<Expression>> constraints,
           Box<Expression> init);
 
@@ -247,11 +245,11 @@ private:
 class DataTypeDeclaration : public DefinableMixin<DataTypeScope>
 {
 public:
-    using base_t = DefinableMixin;
+    using Base = DefinableMixin;
     friend class Context;
 
 public:
-    explicit DataTypeDeclaration(Symbol&& symbol,
+    explicit DataTypeDeclaration(Symbol symbol,
                                  DataTypeDeclaration const* super = nullptr);
 
 protected:
@@ -285,7 +283,7 @@ public:
     friend class Context;
 
 public:
-    SymbolDeclaration(Symbol&& symbol,
+    SymbolDeclaration(Symbol symbol,
                       Box<Expression> expression);
 
 protected:
@@ -320,11 +318,11 @@ public:
     friend class Context;
 
 public:
-    VariableDeclaration(Symbol&& symbol,
+    VariableDeclaration(Symbol symbol,
                         ProcedureScope& scope,
                         std::vector<Box<Expression>> constraints);
 
-    VariableDeclaration(Symbol&& symbol,
+    VariableDeclaration(Symbol symbol,
                         ProcedureScope& scope,
                         Expression const& type);
 
@@ -358,11 +356,11 @@ public:
     friend class ProcedureDeclaration;
 
 public:
-    ProcedureParameter(Symbol&& symbol,
+    ProcedureParameter(Symbol symbol,
                        ProcedureDeclaration& proc,
-                       std::vector<Box<Expression>>&& constraints);
+                       std::vector<Box<Expression>> constraints);
 
-    ProcedureParameter(Symbol&& symbol,
+    ProcedureParameter(Symbol symbol,
                        ProcedureDeclaration& proc,
                        Expression const* type);
 
@@ -388,11 +386,11 @@ protected:
 class ProcedureDeclaration : public DefinableMixin<ProcedureScope>
 {
 public:
-    using base_t = DefinableMixin;
+    using Base = DefinableMixin;
     friend class Context;
 
 public:
-    ProcedureDeclaration(Symbol&& symbol,
+    ProcedureDeclaration(Symbol symbol,
                          Box<Expression> returnExpression);
 
 protected:
@@ -445,7 +443,7 @@ public:
     friend class Context;
 
 public:
-    explicit ImportDeclaration(Symbol&& sym);
+    explicit ImportDeclaration(Symbol sym);
     explicit ImportDeclaration(std::vector<lexer::Token>&& modulePath);
 
 protected:
@@ -470,7 +468,7 @@ private:
     std::vector<lexer::Token> myModulePath;
 };
 
-class SymbolVariable : public Declaration
+class SymbolVariable : public Binder
 {
 public:
     friend class Context;
@@ -478,13 +476,16 @@ public:
 public:
     SymbolVariable(lexer::Token tok,
                    Scope& scope,
+                   std::vector<Box<Expression>> constraints,
                    Expression const& expr);
     SymbolVariable(lexer::Token tok,
-                   Scope& scope);
+                   Scope& scope,
+                   std::vector<Box<Expression>> constraints);
 
 protected:
     SymbolVariable(lexer::Token tok,
                    Scope* scope,
+                   std::vector<Box<Expression>> constraints,
                    Expression const* expr);
 
     SymbolVariable(SymbolVariable const& rhs);
@@ -506,25 +507,22 @@ protected:
 
 public:
     Expression const* boundExpression() const;
-    Slice<Expression const*> constraints() const;
 
 public:
     void bindExpression(Expression const* expr);
-    void appendConstraint(Expression const& expr);
 
 private:
     Expression const* myBoundExpression = nullptr;
-    std::vector<Expression const*> myConstraints;
 };
 
 class TemplateDeclaration : public DefinableMixin<TemplateScope>
 {
 public:
-    using base_t = DefinableMixin;
+    using Base = DefinableMixin;
     friend class Context;
 
 public:
-    explicit TemplateDeclaration(Symbol&& sym);
+    explicit TemplateDeclaration(Symbol sym);
 
 protected:
     TemplateDeclaration(TemplateDeclaration const& rhs);
@@ -548,18 +546,18 @@ public:
     void merge(TemplateDeclaration& rhs);
 };
 
-// sugar to avoid switching on DeclKind
-#define X(a,b,c) template<> inline c* Declaration::as<c>() { return myKind == DeclKind::a ? static_cast<c*>(this) : nullptr; }
+// sugar to avoid switching on Declaration::Kind
+#define X(a,b,c) template<> inline c* Declaration::as<c>() { return myKind == Declaration::Kind::a ? static_cast<c*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
-#define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == DeclKind::a ? static_cast<c const*>(this) : nullptr; }
+#define X(a,b,c) template<> inline c const* Declaration::as<c>() const { return myKind == Declaration::Kind::a ? static_cast<c const*>(this) : nullptr; }
     DECLARATION_KINDS(X)
 #undef X
 
-inline Box<Declaration> beginClone(Declaration const& decl, clone_map_t& map)
+inline Box<Declaration> beginClone(Declaration const& decl, CloneMap& map)
 {
     switch (decl.kind()) {
-#define X(a,b,c) case DeclKind::a: return static_cast<c const&>(decl).beginClone(map);
+#define X(a,b,c) case Declaration::Kind::a: return static_cast<c const&>(decl).beginClone(map);
     DECLARATION_KINDS(X)
 #undef X
     }
@@ -567,10 +565,10 @@ inline Box<Declaration> beginClone(Declaration const& decl, clone_map_t& map)
     ENFORCEU("invalid declaration type");
 }
 
-inline void remap(Declaration& decl, clone_map_t const& map)
+inline void remap(Declaration& decl, CloneMap const& map)
 {
     switch (decl.kind()) {
-#define X(a,b,c) case DeclKind::a: return static_cast<c&>(decl).remapReferences(map);
+#define X(a,b,c) case Declaration::Kind::a: return static_cast<c&>(decl).remapReferences(map);
     DECLARATION_KINDS(X)
 #undef X
     }
@@ -578,17 +576,19 @@ inline void remap(Declaration& decl, clone_map_t const& map)
     ENFORCEU("invalid declaration type");
 }
 
-bool isBinder(DeclKind kind);
+const char* to_string(Declaration::Kind kind);
+
+bool isBinder(Declaration::Kind kind);
 Binder const* getBinder(Declaration const& decl);
 Binder const* getBinder(Expression const& expr);
-bool isCallableDeclaration(DeclKind kind);
-bool isMacroDeclaration(DeclKind kind);
+bool isCallableDeclaration(Declaration::Kind kind);
+bool isMacroDeclaration(Declaration::Kind kind);
 Expression const* getType(Declaration const& decl);
-bool hasIndirection(DeclKind kind);
+bool hasIndirection(Declaration::Kind kind);
 bool hasIndirection(Expression const& expr);
 TemplateDeclaration const* parentTemplate(ProcedureDeclaration const& proc);
 bool isDtor(ProcedureDeclaration const& proc);
-bool isDefinableDeclaration(DeclKind kind);
+bool isDefinableDeclaration(Declaration::Kind kind);
 DefinableDeclaration const* getDefinableDeclaration(Declaration const& decl);
 DefinableDeclaration* getDefinableDeclaration(Declaration& decl);
 Scope const* getDefinition(Declaration const& decl);

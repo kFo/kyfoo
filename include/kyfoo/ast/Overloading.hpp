@@ -164,8 +164,8 @@ public:
     Result result() const;
 
 public:
-    void append(OverloadViability&& viability, Prototype& proto, Substitutions&& substs);
-    void merge(ViableSet&& rhs);
+    void append(OverloadViability viability, Prototype& proto, Substitutions substs);
+    void merge(ViableSet rhs);
 
     void condense(Context& ctx);
     void clear();
@@ -251,10 +251,10 @@ public:
 
 public:
     void appendTrace(SymbolSpace const& space);
-    Lookup& resolveTo(ViableSet&& set);
+    Lookup& resolveTo(ViableSet set);
     Lookup& resolveTo(Declaration& decl);
 
-    Lookup& append(Lookup&& rhs);
+    Lookup& append(Lookup rhs);
 
 public:
     SymbolReference query() const;

@@ -150,12 +150,12 @@ IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP(myType)
 IMPL_CLONE_REMAP_END
 
-void Expression::addConstraint(Box<Expression> expr)
+void Expression::appendConstraint(Box<Expression> expr)
 {
     myConstraints.emplace_back(std::move(expr));
 }
 
-void Expression::addConstraints(std::vector<Box<Expression>>&& exprs)
+void Expression::appendConstraints(std::vector<Box<Expression>> exprs)
 {
     move(begin(exprs), end(exprs), back_inserter(myConstraints));
 }
@@ -186,7 +186,7 @@ void Expression::setType(Expression const* type)
 void Expression::setType(Box<Expression> type)
 {
     auto ptr = type.get();
-    addConstraint(std::move(type));
+    appendConstraint(std::move(type));
     setType(ptr);
 }
 
@@ -455,8 +455,8 @@ void IdentifierExpression::setDeclaration(Declaration const& decl)
 {
     if ( myDeclaration ) {
         switch ( resolveIndirections(myDeclaration)->kind() ) {
-        case DeclKind::DataType:
-        case DeclKind::Template:
+        case Declaration::Kind::DataType:
+        case Declaration::Kind::Template:
             break;
         default:
             ENFORCEU("identifier resolved more than once");
@@ -481,13 +481,13 @@ void IdentifierExpression::setToken(lexer::Token const& token)
 // SymbolExpression
 
 SymbolExpression::SymbolExpression(lexer::Token token,
-                                   std::vector<Box<Expression>>&& expressions)
+                                   std::vector<Box<Expression>> expressions)
     : IdentifierExpression(Expression::Kind::Symbol, std::move(token), nullptr)
     , myExpressions(std::move(expressions))
 {
 }
 
-SymbolExpression::SymbolExpression(std::vector<Box<Expression>>&& expressions)
+SymbolExpression::SymbolExpression(std::vector<Box<Expression>> expressions)
     : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
 {
@@ -495,7 +495,7 @@ SymbolExpression::SymbolExpression(std::vector<Box<Expression>>&& expressions)
 
 SymbolExpression::SymbolExpression(lexer::Token open,
                                    lexer::Token close,
-                                   std::vector<Box<Expression>>&& expressions)
+                                   std::vector<Box<Expression>> expressions)
     : IdentifierExpression(Expression::Kind::Symbol, lexer::Token(), nullptr)
     , myExpressions(std::move(expressions))
     , myOpenToken(std::move(open))
@@ -573,7 +573,8 @@ SymRes SymbolExpression::resolveSymbols(Context& ctx)
 
     auto decl = hit.single();
     if ( !decl ) {
-        ctx.error(diag::instantiate_error, *this);
+        ctx.error(diag::instantiate_error, *this)
+            .see(std::move(hit));
         return SymRes::Fail;
     }
 
@@ -615,7 +616,7 @@ std::vector<Box<Expression>>& SymbolExpression::internalExpressions()
 // DotExpression
 
 DotExpression::DotExpression(bool modScope,
-                             std::vector<Box<Expression>>&& exprs)
+                             std::vector<Box<Expression>> exprs)
     : Expression(Kind::Dot)
     , myExpressions(std::move(exprs))
     , myModScope(modScope)
@@ -872,7 +873,7 @@ Box<Expression> DotExpression::takeTop(uz index)
 //
 // ApplyExpression
 
-ApplyExpression::ApplyExpression(std::vector<Box<Expression>>&& expressions)
+ApplyExpression::ApplyExpression(std::vector<Box<Expression>> expressions)
     : Expression(Expression::Kind::Apply)
     , myExpressions(std::move(expressions))
 {
@@ -970,7 +971,7 @@ L_restart:
                 return ret;
 
             auto decl = getDeclaration(dot->top());
-            if ( decl && (decl->kind() == DeclKind::Procedure || decl->kind() == DeclKind::Template) ) {
+            if ( decl && (decl->kind() == Declaration::Kind::Procedure || decl->kind() == Declaration::Kind::Template) ) {
                 auto thisDecl = getDeclaration(dot->top(1));
                 if ( !thisDecl || !isDefinableDeclaration(thisDecl->kind()) ) {
                     myExpressions.emplace(begin(myExpressions), dot->takeTop());
@@ -1495,7 +1496,7 @@ const char* presentTupleWeave(TupleKind)
 }
 
 TupleExpression::TupleExpression(TupleKind kind,
-                                 std::vector<Box<Expression>>&& expressions)
+                                 std::vector<Box<Expression>> expressions)
     : Expression(Expression::Kind::Tuple)
     , myKind(kind)
     , myExpressions(std::move(expressions))
@@ -1504,7 +1505,7 @@ TupleExpression::TupleExpression(TupleKind kind,
 
 TupleExpression::TupleExpression(lexer::Token const& open,
                                  lexer::Token const& close,
-                                 std::vector<Box<Expression>>&& expressions)
+                                 std::vector<Box<Expression>> expressions)
     : Expression(Expression::Kind::Tuple)
     , myKind(toTupleKind(open.kind(), close.kind()))
     , myExpressions(std::move(expressions))
@@ -1513,7 +1514,7 @@ TupleExpression::TupleExpression(lexer::Token const& open,
 {
 }
 
-TupleExpression::TupleExpression(std::vector<Box<Expression>>&& expressions,
+TupleExpression::TupleExpression(std::vector<Box<Expression>> expressions,
                                  Box<Expression> cardExpression)
     : Expression(Expression::Kind::Tuple)
     , myKind(TupleKind::Closed)
@@ -1780,7 +1781,7 @@ Box<Expression> ArrowExpression::takeTo()
 //
 // UniverseExpression
 
-UniverseExpression::UniverseExpression(natural_t level)
+UniverseExpression::UniverseExpression(Natural level)
     : Expression(Kind::Universe)
     , myLevel(level)
 {
@@ -1814,7 +1815,7 @@ SymRes UniverseExpression::resolveSymbols(Context&)
     return SymRes::Success;
 }
 
-UniverseExpression::natural_t UniverseExpression::level() const
+UniverseExpression::Natural UniverseExpression::level() const
 {
     return myLevel;
 }
@@ -1831,7 +1832,7 @@ Expression const* createInferredType(Expression& expr, Declaration const& decl)
 {
     auto e = createIdentifier(decl);
     auto ret = e.get();
-    expr.addConstraint(std::move(e));
+    expr.appendConstraint(std::move(e));
     return ret;
 }
 

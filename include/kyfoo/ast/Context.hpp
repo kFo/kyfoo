@@ -18,6 +18,7 @@ namespace kyfoo {
 
 class AxiomsModule;
 class BasicBlock;
+class Binder;
 class Junction;
 class Scope;
 class Statement;
@@ -32,8 +33,8 @@ class Resolver
 {
 public:
     
-    using options_t = u32;
-    enum Options : options_t
+    using Options = u32;
+    enum Option : Options
     {
         None                  = 0,
         Narrow                = 1 << 0,
@@ -42,8 +43,8 @@ public:
     };
 
 public:
-    explicit Resolver(Scope& scope, options_t opts = None);
-    explicit Resolver(Scope const& scope, options_t opts = None);
+    explicit Resolver(Scope& scope, Options opts = None);
+    explicit Resolver(Scope const& scope, Options opts = None);
 
     ~Resolver();
 
@@ -54,7 +55,7 @@ public:
     Scope const& scope() const;
     Scope& scope();
 
-    options_t options() const;
+    Options options() const;
 
     Lookup matchEquivalent(SymbolReference const& symbol) const;
     Lookup matchOverload(Context& ctx, SymbolReference const& symbol);
@@ -65,23 +66,26 @@ public:
 
 private:
     Scope* myScope = nullptr;
-    options_t myOptions = None;
+    Options myOptions = None;
     std::vector<PatternsPrototype*> mySupplementaryPrototypes;
 };
+
+class ResolverReverter;
 
 class Context
 {
 public:
     friend class ResolverReverter;
 
-    using options_t = u32;
-    enum Options : options_t
+    using Options = u32;
+    enum Option : Options
     {
+        None                               = 0,
         DisableCacheTemplateInstantiations = 1 << 0,
     };
 
 public:
-    Context(Module& module, Diagnostics& dgn, Resolver& resolver, options_t options);
+    Context(Module& module, Diagnostics& dgn, Resolver& resolver, Options options);
     Context(Module& module, Diagnostics& dgn, Resolver& resolver);
     ~Context();
 
@@ -104,13 +108,13 @@ public:
     uz errorCount() const;
 
     Lookup matchOverload(Scope const& scope,
-                         Resolver::options_t options,
+                         Resolver::Options options,
                          SymbolReference const& sym);
     Lookup matchOverload(SymbolReference const& sym);
     Lookup matchOverloadUsingImplicitConversions(stringv name,
                                                  Slice<Box<Expression>> args);
     Lookup matchOverloadUsingImplicitConversions(Scope const& scope,
-                                                 Resolver::options_t options,
+                                                 Resolver::Options options,
                                                  stringv name,
                                                  Slice<Box<Expression>> args);
     Lookup matchOverloadUsingImplicitConversions(Resolver& resolver,
@@ -156,13 +160,13 @@ public:
 protected:
     SymRes resolveSymbols(Expression& expr);
     SymRes resolveSymbols(Statement& stmt);
-    Lookup trackForModule(Lookup&& hit);
+    Lookup trackForModule(Lookup hit);
 
 private:
     Module* myModule = nullptr;
     Diagnostics* myDiagnostics = nullptr;
     Resolver* myResolver = nullptr;
-    options_t myOptions = 0;
+    Options myOptions = None;
     Statement* myStatement = nullptr;
     Box<Expression> myRewrite;
     std::function<Box<Expression>(Box<Expression>&)> myLazyRewrite;

@@ -21,7 +21,7 @@ namespace kyfoo {
 //
 // Declaration
 
-const char* to_string(DeclKind kind)
+const char* to_string(Declaration::Kind kind)
 {
     static const char* s[] = {
 #define X(a,b,c) b,
@@ -32,8 +32,8 @@ const char* to_string(DeclKind kind)
     return s[static_cast<uz>(kind)];
 }
 
-Declaration::Declaration(DeclKind kind,
-                         Symbol&& symbol,
+Declaration::Declaration(Declaration::Kind kind,
+                         Symbol symbol,
                          Scope* scope)
     : myKind(kind)
     , mySymbol(mk<Symbol>(std::move(symbol)))
@@ -81,7 +81,7 @@ SymRes Declaration::resolveAttributes(Context& ctx)
     return ret;
 }
 
-DeclKind Declaration::kind() const
+Declaration::Kind Declaration::kind() const
 {
     return myKind;
 }
@@ -96,11 +96,6 @@ Symbol const& Declaration::symbol() const
     return *mySymbol;
 }
 
-lexer::Token const& Declaration::token() const
-{
-    return mySymbol->token();
-}
-
 Scope& Declaration::scope()
 {
     return *myScope;
@@ -113,13 +108,13 @@ Scope const& Declaration::scope() const
 
 void Declaration::setScope(Scope& scope)
 {
-    ENFORCE(!myScope || myScope == &scope || myScope->declaration()->kind() == DeclKind::Template,
+    ENFORCE(!myScope || myScope == &scope || myScope->declaration()->kind() == Declaration::Kind::Template,
             "declaration parent set twice");
 
     myScope = &scope;
 }
 
-void Declaration::setAttributes(std::vector<Box<Expression>>&& exprs)
+void Declaration::setAttributes(std::vector<Box<Expression>> exprs)
 {
     for ( auto& e : exprs )
         myAttributes.emplace_back(std::move(e));
@@ -162,8 +157,8 @@ void Declaration::setCodegenData(Box<codegen::CustomData> data) const
 //
 // DefinableDeclaration
 
-DefinableDeclaration::DefinableDeclaration(DeclKind kind, Symbol&& symbol)
-    : Declaration(kind, std::forward<Symbol&&>(symbol), nullptr)
+DefinableDeclaration::DefinableDeclaration(Declaration::Kind kind, Symbol symbol)
+    : Declaration(kind, std::forward<Symbol>(symbol), nullptr)
 {
 }
 
@@ -202,8 +197,8 @@ Scope const* DefinableDeclaration::definition() const
 //
 // Binder
 
-Binder::Binder(DeclKind kind,
-               Symbol&& symbol,
+Binder::Binder(Declaration::Kind kind,
+               Symbol symbol,
                Scope* scope,
                std::vector<Box<Expression>> constraints)
     : Declaration(kind, std::move(symbol), scope)
@@ -211,8 +206,8 @@ Binder::Binder(DeclKind kind,
 {
 }
 
-Binder::Binder(DeclKind kind,
-               Symbol&& symbol,
+Binder::Binder(Declaration::Kind kind,
+               Symbol symbol,
                Scope* scope,
                Expression const* type)
     : Declaration(kind, std::move(symbol), scope)
@@ -267,12 +262,12 @@ SymRes Binder::resolveSymbols(Context& ctx)
     return ret;
 }
 
-void Binder::addConstraint(Box<Expression> c)
+void Binder::appendConstraint(Box<Expression> c)
 {
     myConstraints.emplace_back(std::move(c));
 }
 
-void Binder::addConstraints(std::vector<Box<Expression>>&& exprs)
+void Binder::appendConstraints(std::vector<Box<Expression>> exprs)
 {
     move(begin(exprs), end(exprs), back_inserter(myConstraints));
 }
@@ -296,10 +291,10 @@ Expression const* Binder::type() const
 // Field
 
 Field::Field(DataTypeDeclaration& parent,
-             Symbol&& symbol,
+             Symbol symbol,
              std::vector<Box<Expression>> constraints,
              Box<Expression> init)
-    : Binder(DeclKind::Field, std::move(symbol), nullptr, std::move(constraints))
+    : Binder(Declaration::Kind::Field, std::move(symbol), nullptr, std::move(constraints))
     , myParent(&parent)
     , myInitializer(std::move(init))
 {
@@ -363,8 +358,8 @@ DataTypeDeclaration const* Field::parent() const
 //
 // DataTypeDeclaration
 
-DataTypeDeclaration::DataTypeDeclaration(Symbol&& symbol, DataTypeDeclaration const* super)
-    : base_t(DeclKind::DataType, std::move(symbol))
+DataTypeDeclaration::DataTypeDeclaration(Symbol symbol, DataTypeDeclaration const* super)
+    : Base(Declaration::Kind::DataType, std::move(symbol))
     , mySuper(super)
 {
 }
@@ -375,20 +370,20 @@ DataTypeDeclaration::~DataTypeDeclaration() = default;
 
 void DataTypeDeclaration::swap(DataTypeDeclaration& rhs) noexcept
 {
-    base_t::swap(rhs);
+    Base::swap(rhs);
     using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
-IMPL_CLONE_BEGIN(DataTypeDeclaration, base_t, Declaration)
+IMPL_CLONE_BEGIN(DataTypeDeclaration, Base, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(DataTypeDeclaration, base_t)
+IMPL_CLONE_REMAP_BEGIN(DataTypeDeclaration, Base)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
 SymRes DataTypeDeclaration::resolveSymbols(Context& ctx)
 {
-    return base_t::resolveSymbols(ctx);
+    return Base::resolveSymbols(ctx);
 }
 
 DataTypeDeclaration const* DataTypeDeclaration::super() const
@@ -399,9 +394,9 @@ DataTypeDeclaration const* DataTypeDeclaration::super() const
 //
 // SymbolDeclaration
 
-SymbolDeclaration::SymbolDeclaration(Symbol&& symbol,
+SymbolDeclaration::SymbolDeclaration(Symbol symbol,
                                      Box<Expression> expression)
-    : Declaration(DeclKind::Symbol, std::move(symbol), nullptr)
+    : Declaration(Declaration::Kind::Symbol, std::move(symbol), nullptr)
     , myExpression(std::move(expression))
 {
 }
@@ -458,17 +453,17 @@ Expression const* SymbolDeclaration::expression() const
 //
 // VariableDeclaration
 
-VariableDeclaration::VariableDeclaration(Symbol&& symbol,
+VariableDeclaration::VariableDeclaration(Symbol symbol,
                                          ProcedureScope& scope,
                                          std::vector<Box<Expression>> constraints)
-    : Binder(DeclKind::Variable, std::move(symbol), &scope, std::move(constraints))
+    : Binder(Declaration::Kind::Variable, std::move(symbol), &scope, std::move(constraints))
 {
 }
 
-VariableDeclaration::VariableDeclaration(Symbol&& symbol,
+VariableDeclaration::VariableDeclaration(Symbol symbol,
                                          ProcedureScope& scope,
                                          Expression const& type)
-    : Binder(DeclKind::Variable, std::move(symbol), &scope, &type)
+    : Binder(Declaration::Kind::Variable, std::move(symbol), &scope, &type)
 {
 }
 
@@ -518,17 +513,17 @@ SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 //
 // ProcedureParameter
 
-ProcedureParameter::ProcedureParameter(Symbol&& symbol,
+ProcedureParameter::ProcedureParameter(Symbol symbol,
                                        ProcedureDeclaration& proc,
-                                       std::vector<Box<Expression>>&& constraints)
-    : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), std::move(constraints))
+                                       std::vector<Box<Expression>> constraints)
+    : Binder(Declaration::Kind::ProcedureParameter, std::move(symbol), &proc.scope(), std::move(constraints))
 {
 }
 
-ProcedureParameter::ProcedureParameter(Symbol&& symbol,
+ProcedureParameter::ProcedureParameter(Symbol symbol,
                                        ProcedureDeclaration& proc,
                                        Expression const* type)
-    : Binder(DeclKind::ProcedureParameter, std::move(symbol), &proc.scope(), type)
+    : Binder(Declaration::Kind::ProcedureParameter, std::move(symbol), &proc.scope(), type)
 {
 }
 
@@ -569,15 +564,15 @@ SymRes ProcedureParameter::resolveSymbols(Context& ctx)
 //
 // ProcedureDeclaration
 
-ProcedureDeclaration::ProcedureDeclaration(Symbol&& symbol,
+ProcedureDeclaration::ProcedureDeclaration(Symbol symbol,
                                            Box<Expression> returnExpression)
-    : base_t(DeclKind::Procedure, std::move(symbol))
+    : Base(Declaration::Kind::Procedure, std::move(symbol))
     , myReturnExpression(std::move(returnExpression))
 {
 }
 
 ProcedureDeclaration::ProcedureDeclaration(ProcedureDeclaration const& rhs)
-    : base_t(rhs)
+    : Base(rhs)
     , myOrdinals(rhs.myOrdinals)
 {
 }
@@ -592,7 +587,7 @@ ProcedureDeclaration::~ProcedureDeclaration() = default;
 
 void ProcedureDeclaration::swap(ProcedureDeclaration& rhs) noexcept
 {
-    base_t::swap(rhs);
+    Base::swap(rhs);
     using kyfoo::swap;
     swap(myReturnExpression, rhs.myReturnExpression);
     swap(myParameters, rhs.myParameters);
@@ -601,13 +596,13 @@ void ProcedureDeclaration::swap(ProcedureDeclaration& rhs) noexcept
     swap(myDefinition, rhs.myDefinition);
 }
 
-IMPL_CLONE_BEGIN(ProcedureDeclaration, base_t, Declaration)
+IMPL_CLONE_BEGIN(ProcedureDeclaration, Base, Declaration)
 IMPL_CLONE_CHILD(myType)
 IMPL_CLONE_CHILD(myReturnExpression)
 IMPL_CLONE_CHILD(myParameters)
 IMPL_CLONE_CHILD(myResult)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, base_t)
+IMPL_CLONE_REMAP_BEGIN(ProcedureDeclaration, Base)
 IMPL_CLONE_REMAP(myType)
 IMPL_CLONE_REMAP(myReturnExpression)
 IMPL_CLONE_REMAP(myParameters)
@@ -617,7 +612,11 @@ IMPL_CLONE_REMAP_END
 
 SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 {
-    // todo: hack
+    /* todo(hack):
+        Type binder declarations need to be resolved first due to the following ast edits
+        that may or may not clone portions of the ast. Cloning an expression that 
+        introduces a declaration will result in a multiple_declaration error otherwise.
+    */
     {
         Resolver resolver(scope());
         REVERT = ctx.changeResolver(resolver);
@@ -648,9 +647,9 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
                 protoPattern[i] = std::move(a->myExpressions[0]);
                 for ( uz j = 1; j < a->myExpressions.size(); ++j ) {
                     protoPattern.emplace(begin(protoPattern) + i + j, std::move(a->myExpressions[j]));
-                    protoPattern[i + j]->addConstraints(ast::clone(a->constraints()));
+                    protoPattern[i + j]->appendConstraints(ast::clone(a->constraints()));
                 }
-                protoPattern[i]->addConstraints(a->takeConstraints());
+                protoPattern[i]->appendConstraints(a->takeConstraints());
             }
 
             auto& e = *mySymbol->prototype().pattern()[i];
@@ -659,8 +658,8 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
                 myOrdinals.push_back(static_cast<int>(myParameters.size()));
                 myParameters.emplace_back(
                     mk<ProcedureParameter>(Symbol(p->token()),
-                                                         *this,
-                                                         e.takeConstraints()));
+                                           *this,
+                                           e.takeConstraints()));
                 p->setDeclaration(*myParameters.back());
             }
             else {
@@ -776,14 +775,14 @@ ProcedureParameter const* ProcedureDeclaration::findParameter(stringv token) con
 //
 // ImportDeclaration
 
-ImportDeclaration::ImportDeclaration(Symbol&& sym)
-    : Declaration(DeclKind::Import, std::move(sym), nullptr)
+ImportDeclaration::ImportDeclaration(Symbol sym)
+    : Declaration(Declaration::Kind::Import, std::move(sym), nullptr)
 {
     myModulePath.push_back(symbol().token());
 }
 
 ImportDeclaration::ImportDeclaration(std::vector<lexer::Token>&& modulePath)
-    : Declaration(DeclKind::Import, Symbol(modulePath.back()), nullptr)
+    : Declaration(Declaration::Kind::Import, Symbol(modulePath.back()), nullptr)
     , myModulePath(std::move(modulePath))
 {
 }
@@ -821,21 +820,27 @@ SymRes ImportDeclaration::resolveSymbols(Context& ctx)
 
 SymbolVariable::SymbolVariable(lexer::Token tok,
                                Scope& scope,
+                               std::vector<Box<Expression>> constraints,
                                Expression const& expr)
-    : SymbolVariable(std::move(tok), &scope, &expr)
+    : SymbolVariable(std::move(tok), &scope, std::move(constraints), &expr)
 {
 }
 
 SymbolVariable::SymbolVariable(lexer::Token tok,
-                               Scope& scope)
-    : SymbolVariable(std::move(tok), &scope, nullptr)
+                               Scope& scope,
+                               std::vector<Box<Expression>> constraints)
+    : SymbolVariable(std::move(tok), &scope, std::move(constraints), nullptr)
 {
 }
 
 SymbolVariable::SymbolVariable(lexer::Token tok,
                                Scope* scope,
+                               std::vector<Box<Expression>> constraints,
                                Expression const* expr)
-    : Declaration(DeclKind::SymbolVariable, Symbol(std::move(tok)), scope)
+    : Binder(Declaration::Kind::SymbolVariable,
+             Symbol(std::move(tok)),
+             scope,
+             std::move(constraints))
     , myBoundExpression(expr)
 {
 }
@@ -852,27 +857,20 @@ SymbolVariable::~SymbolVariable() = default;
 
 void SymbolVariable::swap(SymbolVariable& rhs) noexcept
 {
-    Declaration::swap(rhs);
+    Binder::swap(rhs);
     using kyfoo::swap;
     swap(myBoundExpression, rhs.myBoundExpression);
-    swap(myConstraints, rhs.myConstraints);
 }
 
-IMPL_CLONE_BEGIN(SymbolVariable, Declaration, Declaration)
+IMPL_CLONE_BEGIN(SymbolVariable, Binder, Declaration)
 IMPL_CLONE_END
 IMPL_CLONE_REMAP_BEGIN(SymbolVariable, Declaration)
 IMPL_CLONE_REMAP(myBoundExpression)
-IMPL_CLONE_REMAP(myConstraints)
 IMPL_CLONE_REMAP_END
 
 SymRes SymbolVariable::resolveSymbols(Context&)
 {
     ENFORCEU("symbol variables should not be resolved");
-}
-
-void SymbolVariable::appendConstraint(Expression const& expr)
-{
-    myConstraints.emplace_back(&expr);
 }
 
 void SymbolVariable::bindExpression(Expression const* expr)
@@ -887,16 +885,11 @@ Expression const* SymbolVariable::boundExpression() const
     return myBoundExpression;
 }
 
-Slice<Expression const*> SymbolVariable::constraints() const
-{
-    return myConstraints;
-}
-
 //
 // TemplateDeclaration
 
-TemplateDeclaration::TemplateDeclaration(Symbol&& sym)
-    : base_t(DeclKind::Template, std::move(sym))
+TemplateDeclaration::TemplateDeclaration(Symbol sym)
+    : Base(Declaration::Kind::Template, std::move(sym))
 {
 }
 
@@ -912,14 +905,14 @@ TemplateDeclaration::~TemplateDeclaration() = default;
 
 void TemplateDeclaration::swap(TemplateDeclaration& rhs) noexcept
 {
-    base_t::swap(rhs);
+    Base::swap(rhs);
     using kyfoo::swap;
     swap(myDefinition, rhs.myDefinition);
 }
 
-IMPL_CLONE_BEGIN(TemplateDeclaration, base_t, Declaration)
+IMPL_CLONE_BEGIN(TemplateDeclaration, Base, Declaration)
 IMPL_CLONE_END
-IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, base_t)
+IMPL_CLONE_REMAP_BEGIN(TemplateDeclaration, Base)
 IMPL_CLONE_REMAP(myDefinition)
 IMPL_CLONE_REMAP_END
 
@@ -937,12 +930,13 @@ void TemplateDeclaration::merge(TemplateDeclaration& rhs)
 //
 // Utilities
 
-bool isBinder(DeclKind kind)
+bool isBinder(Declaration::Kind kind)
 {
     switch ( kind ) {
-    case DeclKind::Field:
-    case DeclKind::ProcedureParameter:
-    case DeclKind::Variable:
+    case Declaration::Kind::Field:
+    case Declaration::Kind::ProcedureParameter:
+    case Declaration::Kind::Variable:
+    case Declaration::Kind::SymbolVariable:
         return true;
 
     default:
@@ -966,11 +960,11 @@ Binder const* getBinder(Expression const& expr)
     return nullptr;
 }
 
-bool isCallableDeclaration(DeclKind kind)
+bool isCallableDeclaration(Declaration::Kind kind)
 {
     switch ( kind ) {
-    case DeclKind::DataType:
-    case DeclKind::Procedure:
+    case Declaration::Kind::DataType:
+    case Declaration::Kind::Procedure:
         return true;
 
     default:
@@ -978,10 +972,10 @@ bool isCallableDeclaration(DeclKind kind)
     }
 }
 
-bool isMacroDeclaration(DeclKind kind)
+bool isMacroDeclaration(Declaration::Kind kind)
 {
     switch (kind) {
-    case DeclKind::Symbol:
+    case Declaration::Kind::Symbol:
         return true;
 
     default:
@@ -989,9 +983,9 @@ bool isMacroDeclaration(DeclKind kind)
     }
 }
 
-bool hasIndirection(DeclKind kind)
+bool hasIndirection(Declaration::Kind kind)
 {
-    return isMacroDeclaration(kind) || kind == DeclKind::SymbolVariable;
+    return isMacroDeclaration(kind) || kind == Declaration::Kind::SymbolVariable;
 }
 
 bool hasIndirection(Expression const& expr)
@@ -1050,13 +1044,13 @@ bool isDtor(ProcedureDeclaration const& proc)
     return templ->symbol().token().lexeme() == "dtor";
 }
 
-bool isDefinableDeclaration(DeclKind kind)
+bool isDefinableDeclaration(Declaration::Kind kind)
 {
     switch (kind)
     {
-    case DeclKind::DataType:
-    case DeclKind::Procedure:
-    case DeclKind::Template:
+    case Declaration::Kind::DataType:
+    case Declaration::Kind::Procedure:
+    case Declaration::Kind::Template:
         return true;
 
     default:
@@ -1110,9 +1104,9 @@ void define(Declaration& decl, Scope& defn)
 template <typename Dispatch>
 struct DeclarationPrinter
 {
-    using result_t = DefaultOutStream&;
+    using Result = DefaultOutStream&;
     Dispatch& dispatch;
-    result_t stream;
+    Result stream;
 
     explicit DeclarationPrinter(Dispatch& dispatch, DefaultOutStream& stream)
         : dispatch(dispatch)
@@ -1120,22 +1114,22 @@ struct DeclarationPrinter
     {
     }
 
-    result_t declDataType(DataTypeDeclaration const& dt)
+    Result declDataType(DataTypeDeclaration const& dt)
     {
-        return stream(dt.symbol().token().lexeme());
+        return stream(dt.symbol());
     }
 
-    result_t declField(Field const& f)
+    Result declField(Field const& f)
     {
-        return stream(f.symbol().token().lexeme());
+        return stream(f.symbol());
     }
 
-    result_t declSymbol(SymbolDeclaration const& s)
+    Result declSymbol(SymbolDeclaration const& s)
     {
-        return stream(s.symbol().token().lexeme());
+        return stream(s.symbol());
     }
 
-    result_t declProcedure(ProcedureDeclaration const& proc)
+    Result declProcedure(ProcedureDeclaration const& proc)
     {
         if ( auto templ = parentTemplate(proc) )
             stream(templ->symbol());
@@ -1173,37 +1167,37 @@ struct DeclarationPrinter
         return stream;
     }
 
-    result_t declProcedureParameter(ProcedureParameter const& p)
+    Result declProcedureParameter(ProcedureParameter const& p)
     {
-        stream(p.token().lexeme());
-        for ( auto const& c : p.constraints() ) {
+        stream(p.symbol().token().lexeme());
+        for ( auto const& c : p.constraints() )
             stream(" : ")(*c);
-        }
+
         return stream;
     }
 
-    result_t declVariable(VariableDeclaration const& var)
+    Result declVariable(VariableDeclaration const& var)
     {
-        stream(var.symbol().token().lexeme());
-        for ( auto const& c : var.constraints() ) {
+        stream(var.symbol());
+        for ( auto const& c : var.constraints() )
             stream(" : ")(*c);
-        }
+
         return stream;
     }
 
-    result_t declImport(ImportDeclaration const& imp)
+    Result declImport(ImportDeclaration const& imp)
     {
-        return stream(imp.symbol().token().lexeme());
+        return stream(imp.symbol());
     }
 
-    result_t declSymbolVariable(SymbolVariable const& symVar)
+    Result declSymbolVariable(SymbolVariable const& symVar)
     {
-        return stream(symVar.symbol().token().lexeme());
+        return stream(symVar.symbol());
     }
 
-    result_t declTemplate(TemplateDeclaration const& t)
+    Result declTemplate(TemplateDeclaration const& t)
     {
-        return stream(t.symbol().token().lexeme());
+        return stream(t.symbol());
     }
 };
 

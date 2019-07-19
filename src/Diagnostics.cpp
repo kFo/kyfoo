@@ -238,7 +238,7 @@ void reportLine(DefaultOutStream& sink, ast::Module const& mod, lexer::SourceLoc
 void reportAnchor(DefaultOutStream& sink, Anchor anchor)
 {
     if ( auto decl = anchor.as<ast::Declaration>() ) {
-        reportLine(sink, decl->scope().module(), decl->token().location());
+        reportLine(sink, decl->scope().module(), decl->symbol().token().location());
         sink(": see '")(*decl)("' declared as ")(to_string(decl->kind()))('\n');
         return;
     }
@@ -266,7 +266,7 @@ void reportLookup(DefaultOutStream& sink, ast::Lookup const& lookup)
             sink(": did not match any of:\n");
             for ( auto const& p : lookup.symSpace()->prototypes() ) {
                 auto d = p.proto.decl;
-                reportLine(sink, d->scope().module(), d->token().location());
+                reportLine(sink, d->scope().module(), d->symbol().token().location());
                 sink(": ")(*d)('\n');
             }
         }
@@ -289,7 +289,7 @@ void reportLookup(DefaultOutStream& sink, ast::Lookup const& lookup)
                 break;
 
             auto d = v.prototype().proto.decl;
-            reportLine(sink, d->scope().module(), d->token().location());
+            reportLine(sink, d->scope().module(), d->symbol().token().location());
             sink(": ")(*d)('\n');
         }
         break;

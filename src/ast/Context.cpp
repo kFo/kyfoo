@@ -13,13 +13,13 @@ namespace kyfoo::ast {
 //
 // Resolver
 
-Resolver::Resolver(Scope& scope, options_t opts)
+Resolver::Resolver(Scope& scope, Options opts)
     : myScope(&scope)
     , myOptions(opts)
 {
 }
 
-Resolver::Resolver(Scope const& scope, options_t opts)
+Resolver::Resolver(Scope const& scope, Options opts)
     : myScope(const_cast<Scope*>(&scope))
     , myOptions(opts)
 {
@@ -45,7 +45,7 @@ Scope& Resolver::scope()
     return *myScope;
 }
 
-Resolver::options_t Resolver::options() const
+Resolver::Options Resolver::options() const
 {
     return myOptions;
 }
@@ -132,7 +132,7 @@ Lookup Resolver::matchSupplementary(SymbolReference const& symbol) const
 //
 // Context
 
-Context::Context(Module& module, Diagnostics& dgn, Resolver& resolver, options_t options)
+Context::Context(Module& module, Diagnostics& dgn, Resolver& resolver, Options options)
     : myModule(&module)
     , myDiagnostics(&dgn)
     , myResolver(&resolver)
@@ -205,7 +205,7 @@ uz Context::errorCount() const
 }
 
 Lookup Context::matchOverload(Scope const& scope,
-                              Resolver::options_t options,
+                              Resolver::Options options,
                               SymbolReference const& sym)
 {
     Resolver resolver(scope, options);
@@ -225,7 +225,7 @@ Lookup Context::matchOverloadUsingImplicitConversions(stringv name,
 }
 
 Lookup Context::matchOverloadUsingImplicitConversions(Scope const& scope,
-                                                      Resolver::options_t options,
+                                                      Resolver::Options options,
                                                       stringv name,
                                                       Slice<Box<Expression>> args)
 {
@@ -297,7 +297,7 @@ SymRes Context::resolveDeclaration(Declaration& decl)
     Resolver resolver(decl.scope());
     REVERT = pushResolver(resolver);
     switch (decl.kind()) {
-#define X(a,b,c) case DeclKind::a: return static_cast<c&>(decl).resolveSymbols(*this);
+#define X(a,b,c) case Declaration::Kind::a: return static_cast<c&>(decl).resolveSymbols(*this);
         DECLARATION_KINDS(X)
 #undef X
     }
@@ -403,7 +403,7 @@ SymRes Context::resolveExpression(Box<Expression>& expr)
             myDiagnostics->bunkExpression(std::move(expr));
 
         expr = std::move(myRewrite);
-        expr->addConstraints(std::move(c));
+        expr->appendConstraints(std::move(c));
         myResolver = originalResolver;
         ret = resolveSymbols(*expr);
     }
@@ -512,7 +512,7 @@ SymRes Context::resolveSymbols(Statement& stmt)
     ENFORCEU("unhandled statement");
 }
 
-Lookup Context::trackForModule(Lookup&& hit)
+Lookup Context::trackForModule(Lookup hit)
 {
     if ( !(myOptions & DisableCacheTemplateInstantiations) ) {
         auto decl = hit.single();

@@ -153,7 +153,7 @@ Declaration* Via::instantiate(Context& ctx)
     }
 
     // create new instantiation
-    clone_map_t cloneMap;
+    CloneMap cloneMap;
     myProto->ownDeclarations.emplace_back(ast::beginClone(myProto->proto.decl, cloneMap));
     auto instanceDecl = myProto->ownDeclarations.back().get();
     remap(*instanceDecl, cloneMap);
@@ -296,14 +296,14 @@ ViableSet::Result ViableSet::result() const
     return Single;
 }
 
-void ViableSet::append(OverloadViability&& viability, Prototype& proto, Substitutions&& substs)
+void ViableSet::append(OverloadViability viability, Prototype& proto, Substitutions substs)
 {
     auto r = rank(viability.variance(), !substs.empty());
     Via c(r, std::move(viability), proto, std::move(substs));
     myVias.emplace(upper_bound(begin(), end(), c), std::move(c));
 }
 
-void ViableSet::merge(ViableSet&& rhs)
+void ViableSet::merge(ViableSet rhs)
 {
     for ( auto& e : rhs.myVias )
         myVias.emplace(upper_bound(begin(), end(), e), std::move(e));
@@ -463,7 +463,7 @@ void Lookup::appendTrace(SymbolSpace const& space)
     mySpaces.push_back(&space);
 }
 
-Lookup& Lookup::resolveTo(ViableSet&& set)
+Lookup& Lookup::resolveTo(ViableSet set)
 {
     mySet = std::move(set);
 
@@ -481,7 +481,7 @@ Lookup& Lookup::resolveTo(Declaration& decl)
     return *this;
 }
 
-Lookup& Lookup::append(Lookup&& rhs)
+Lookup& Lookup::append(Lookup rhs)
 {
     mySpaces.insert(end(mySpaces),
                     begin(rhs.mySpaces), end(rhs.mySpaces));

@@ -145,8 +145,8 @@ public:
     DECL_CLONE_ALL_NOBASE(Expression);
 
 public:
-    void addConstraint(Box<Expression> expr);
-    void addConstraints(std::vector<Box<Expression>>&& exprs);
+    void appendConstraint(Box<Expression> expr);
+    void appendConstraints(std::vector<Box<Expression>> exprs);
 
 public:
     Kind kind() const;
@@ -258,11 +258,11 @@ public:
 
 public:
     SymbolExpression(lexer::Token token,
-                     std::vector<Box<Expression>>&& expressions);
-    SymbolExpression(std::vector<Box<Expression>>&& expressions);
+                     std::vector<Box<Expression>> expressions);
+    SymbolExpression(std::vector<Box<Expression>> expressions);
     SymbolExpression(lexer::Token open,
                      lexer::Token close,
-                     std::vector<Box<Expression>>&& expressions);
+                     std::vector<Box<Expression>> expressions);
 
 protected:
     SymbolExpression(SymbolExpression const& rhs);
@@ -305,7 +305,7 @@ public:
 
 public:
     DotExpression(bool modScope,
-                  std::vector<Box<Expression>>&& exprs);
+                  std::vector<Box<Expression>> exprs);
 
 protected:
     DotExpression(DotExpression const& rhs);
@@ -348,7 +348,7 @@ public:
     friend class ProcedureDeclaration;
 
 public:
-    ApplyExpression(std::vector<Box<Expression>>&& expressions);
+    ApplyExpression(std::vector<Box<Expression>> expressions);
 
 protected:
     ApplyExpression(ApplyExpression const& rhs);
@@ -546,12 +546,12 @@ public:
 
 public:
     TupleExpression(TupleKind kind,
-                    std::vector<Box<Expression>>&& expressions);
+                    std::vector<Box<Expression>> expressions);
     TupleExpression(lexer::Token const& open,
                     lexer::Token const& close,
-                    std::vector<Box<Expression>>&& expressions);
+                    std::vector<Box<Expression>> expressions);
 
-    TupleExpression(std::vector<Box<Expression>>&& expressions,
+    TupleExpression(std::vector<Box<Expression>> expressions,
                     Box<Expression> cardExpression);
 
 protected:
@@ -653,10 +653,10 @@ class UniverseExpression : public Expression
 public:
     friend class Context;
     friend class Strata;
-    using natural_t = uz; // todo
+    using Natural = uz; // todo
 
 private:
-    explicit UniverseExpression(natural_t level);
+    explicit UniverseExpression(Natural level);
 
 protected:
     UniverseExpression(UniverseExpression const& rhs);
@@ -673,10 +673,10 @@ protected:
     SymRes resolveSymbols(Context& ctx);
 
 public:
-    natural_t level() const;
+    Natural level() const;
 
 private:
-    natural_t myLevel = 0;
+    Natural myLevel = 0;
 };
 
 #define X(a, b) template <> inline b* Expression::as<b>() { return myKind == Expression::Kind::a ? static_cast<b*>(this) : nullptr; }
@@ -687,7 +687,7 @@ EXPRESSION_KINDS(X)
 EXPRESSION_KINDS(X)
 #undef X
 
-inline Box<Expression> beginClone(Expression const& expr, clone_map_t& map)
+inline Box<Expression> beginClone(Expression const& expr, CloneMap& map)
 {
     switch (expr.kind()) {
 #define X(a,b) case Expression::Kind::a: return static_cast<b const&>(expr).beginClone(map);
@@ -698,7 +698,7 @@ inline Box<Expression> beginClone(Expression const& expr, clone_map_t& map)
     ENFORCEU("invalid expression type");
 }
 
-inline void remap(Expression& expr, clone_map_t const& map)
+inline void remap(Expression& expr, CloneMap const& map)
 {
     switch (expr.kind()) {
 #define X(a,b) case Expression::Kind::a: return static_cast<b&>(expr).remapReferences(map);

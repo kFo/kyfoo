@@ -168,11 +168,11 @@ protected:
     SymRes resolveDefinitions(Context& ctx);
 
 public:
-    void appendField(Symbol&& symbol,
+    void appendField(Symbol symbol,
                      std::vector<Box<Expression>> constraints,
                      Box<Expression> init);
 
-    void appendVariation(Symbol&& sym);
+    void appendVariation(Symbol sym);
 
     DataTypeDeclaration* declaration();
 
@@ -322,7 +322,7 @@ SCOPE_KINDS(X)
 SCOPE_KINDS(X)
 #undef X
 
-inline Box<Scope> beginClone(Scope const& scope, clone_map_t& map)
+inline Box<Scope> beginClone(Scope const& scope, CloneMap& map)
 {
     switch (scope.kind()) {
 #define X(a,b) case Scope::Kind::a: return static_cast<b const&>(scope).beginClone(map);
@@ -333,7 +333,7 @@ inline Box<Scope> beginClone(Scope const& scope, clone_map_t& map)
     ENFORCEU("invalid scope type");
 }
 
-inline void remap(Scope& scope, clone_map_t const& map)
+inline void remap(Scope& scope, CloneMap const& map)
 {
     switch (scope.kind()) {
 #define X(a,b) case Scope::Kind::a: return static_cast<b&>(scope).remapReferences(map);

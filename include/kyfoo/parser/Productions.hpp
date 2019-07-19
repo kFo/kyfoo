@@ -126,7 +126,7 @@ struct Filter
 };
 
 template <ExpressionProperties Prop, template<ExpressionProperties> typename T>
-using pred_expr_t = typename Filter<Prop, T>::type;
+using PredExpr = typename Filter<Prop, T>::type;
 
 // Recursive expressions
 using Expression = Defer<AssignExpression<Default>>;
@@ -221,7 +221,7 @@ expressions(DeclarationScopeParser& parser, std::vector<Expression>& rhs)
 
 inline Box<ast::TupleExpression>
 createTuple(ast::TupleKind kind,
-            std::vector<Box<ast::Expression>>&& expressions)
+            std::vector<Box<ast::Expression>> expressions)
 {
     return mk<ast::TupleExpression>(kind, std::move(expressions));
 }
@@ -229,7 +229,7 @@ createTuple(ast::TupleKind kind,
 inline Box<ast::TupleExpression>
 createTuple(lexer::Token const& open,
             lexer::Token const& close,
-            std::vector<Box<ast::Expression>>&& expressions)
+            std::vector<Box<ast::Expression>> expressions)
 {
     return mk<ast::TupleExpression>(open, close, std::move(expressions));
 }
@@ -297,15 +297,15 @@ struct ApplyMixin :
 
 template <ExpressionProperties Prop>
 struct ApplyHyphenExpression :
-    ApplyMixin<g::OneOrMore2<pred_expr_t<Prop, ApplyHyphenExpression>, hyphen>>
+    ApplyMixin<g::OneOrMore2<PredExpr<Prop, ApplyHyphenExpression>, hyphen>>
 {
 };
 
 template <ExpressionProperties Prop>
 struct DotExpression :
     g::And<g::Opt<dot>
-         , pred_expr_t<Prop, DotExpression>
-         , g::Repeat<g::And<g::Or<dot, vacuum>, pred_expr_t<Prop, DotExpression>>>>
+         , PredExpr<Prop, DotExpression>
+         , g::Repeat<g::And<g::Or<dot, vacuum>, PredExpr<Prop, DotExpression>>>>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -348,8 +348,8 @@ struct DotExpression :
 template <ExpressionProperties Prop>
 struct RangeExpression :
     g::Or<
-        g::And<g::OneOrMore2<pred_expr_t<Prop, RangeExpression>, dotdot>, g::Opt<dotdot>>
-      , g::And<dotdot, g::OneOrMore2<pred_expr_t<Prop, RangeExpression>, dotdot>, g::Opt<dotdot>>
+        g::And<g::OneOrMore2<PredExpr<Prop, RangeExpression>, dotdot>, g::Opt<dotdot>>
+      , g::And<dotdot, g::OneOrMore2<PredExpr<Prop, RangeExpression>, dotdot>, g::Opt<dotdot>>
       , dotdot
     >
 {
@@ -387,13 +387,13 @@ struct RangeExpression :
 
 template <ExpressionProperties Prop>
 struct ApplyExpression :
-    ApplyMixin<g::OneOrMore<pred_expr_t<Prop, ApplyExpression>>>
+    ApplyMixin<g::OneOrMore<PredExpr<Prop, ApplyExpression>>>
 {
 };
 
 template <ExpressionProperties Prop>
 struct TightArrowExpression :
-    g::OneOrMore2<pred_expr_t<Prop, TightArrowExpression>, g::And<vacuum, arrow>>
+    g::OneOrMore2<PredExpr<Prop, TightArrowExpression>, g::And<vacuum, arrow>>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -408,7 +408,7 @@ struct TightArrowExpression :
 
 template <ExpressionProperties Prop>
 struct ArrowExpression :
-    g::OneOrMore2<pred_expr_t<Prop, ArrowExpression>, arrow>
+    g::OneOrMore2<PredExpr<Prop, ArrowExpression>, arrow>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
@@ -425,7 +425,7 @@ using LambdaSingleLine = g::And<yield, g::Opt<colonDot>>;
 
 template <ExpressionProperties Prop>
 struct TightLambdaExpression :
-    g::And<pred_expr_t<Prop, TightLambdaExpression>
+    g::And<PredExpr<Prop, TightLambdaExpression>
          , g::Opt<g::And<vacuum, LambdaSingleLine, Expression>>>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
@@ -440,7 +440,7 @@ struct TightLambdaExpression :
 
 template <ExpressionProperties Prop>
 struct LambdaExpression :
-    g::And<pred_expr_t<Prop, LambdaExpression>
+    g::And<PredExpr<Prop, LambdaExpression>
          , g::Opt<g::And<LambdaSingleLine, Expression>>>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
@@ -455,13 +455,13 @@ struct LambdaExpression :
 
 template <ExpressionProperties Prop>
 struct ConstraintExpression :
-    g::OneOrMore2<pred_expr_t<Prop, ConstraintExpression>, colon>
+    g::OneOrMore2<PredExpr<Prop, ConstraintExpression>, colon>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto ret = this->captures().front().make(parser);
         for ( uz i = 1; i < this->captures().size(); ++i )
-            ret->addConstraint(this->captures()[i].make(parser));
+            ret->appendConstraint(this->captures()[i].make(parser));
 
         return ret;
     }
@@ -469,7 +469,7 @@ struct ConstraintExpression :
 
 template <ExpressionProperties Prop>
 struct AssignWithLambdaExpression :
-    g::And<g::OneOrMore2<pred_expr_t<Prop, AssignExpression>, equal>
+    g::And<g::OneOrMore2<PredExpr<Prop, AssignExpression>, equal>
          , g::Opt<g::And<yield, Scope<ast::ProcedureScope>>>>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
@@ -493,7 +493,7 @@ struct AssignWithLambdaExpression :
 
 template <ExpressionProperties Prop>
 struct AssignNoLambdaExpression :
-    g::OneOrMore2<pred_expr_t<Prop, AssignExpression>, equal>
+    g::OneOrMore2<PredExpr<Prop, AssignExpression>, equal>
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {

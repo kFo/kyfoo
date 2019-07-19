@@ -21,8 +21,8 @@ inline constexpr uz bit_count_v = bit_count<T>::value;
 class BigInt
 {
 public:
-    using limb_t = u32;
-    using double_limb_t = u64;
+    using Limb = u32;
+    using DoubleLimb = u64;
 
     enum Sign
     {
@@ -40,10 +40,10 @@ public:
 public:
     explicit BigInt(u64 rhs)
     {
-        static_assert(sizeof(rhs) >= sizeof(limb_t));
+        static_assert(sizeof(rhs) >= sizeof(Limb));
 
-        auto const size = sizeof(rhs) / sizeof(limb_t);
-        auto first = reinterpret_cast<limb_t*>(&rhs);
+        auto const size = sizeof(rhs) / sizeof(Limb);
+        auto first = reinterpret_cast<Limb*>(&rhs);
         auto last = first + size;
 
         myLimbs.assign(first, last);
@@ -158,7 +158,7 @@ public:
 
     BigInt& operator<<=(uz rhs)
     {
-        auto constexpr limbBits = bit_count_v<limb_t>;
+        auto constexpr limbBits = bit_count_v<Limb>;
 
         uz const offset = rhs / limbBits;
         uz const shift = rhs % limbBits;
@@ -181,7 +181,7 @@ public:
 
     BigInt& operator>>=(uz rhs)
     {
-        auto constexpr limbBits = bit_count_v<limb_t>;
+        auto constexpr limbBits = bit_count_v<Limb>;
 
         uz const offset = rhs / limbBits;
         uz const shift = rhs % limbBits;
@@ -214,41 +214,41 @@ public:
 private:
     void magAdd(BigInt const& rhs)
     {
-        auto constexpr limbBits = bit_count_v<limb_t>;
-        double_limb_t constexpr lsl = ~limb_t(0);
+        auto constexpr limbBits = bit_count_v<Limb>;
+        DoubleLimb constexpr lsl = ~Limb(0);
 
         auto const lhsSize = myLimbs.size();
         auto const rhsSize = rhs.myLimbs.size();
         auto const minSize = std::min(lhsSize, rhsSize);
 
-        double_limb_t carry = 0;
+        DoubleLimb carry = 0;
         uz i = 0;
         for ( ; i < minSize; ++i ) {
             carry += myLimbs[i];
             carry += rhs.myLimbs[i];
-            myLimbs[i] = static_cast<limb_t>(carry & lsl);
+            myLimbs[i] = static_cast<Limb>(carry & lsl);
             carry >>= limbBits;
         }
 
         for ( ; i < lhsSize; ++i ) {
             carry += myLimbs[i];
-            myLimbs[i] = static_cast<limb_t>(carry & lsl);
+            myLimbs[i] = static_cast<Limb>(carry & lsl);
             carry >>= limbBits;
         }
 
         for ( ; i < rhsSize; ++i ) {
             carry += rhs.myLimbs[i];
-            myLimbs.emplace_back(static_cast<limb_t>(carry & lsl));
+            myLimbs.emplace_back(static_cast<Limb>(carry & lsl));
             carry >>= limbBits;
         }
 
         if ( carry )
-            myLimbs.emplace_back(static_cast<limb_t>(carry & lsl));
+            myLimbs.emplace_back(static_cast<Limb>(carry & lsl));
     }
 
     void magSub(BigInt const& rhs)
     {
-        auto constexpr limbBits = bit_count_v<limb_t>;
+        auto constexpr limbBits = bit_count_v<Limb>;
 
         auto const lhsSize = myLimbs.size();
         auto const rhsSize = rhs.myLimbs.size();
@@ -256,8 +256,8 @@ private:
 
         myLimbs.resize(maxSize);
 
-        limb_t const* bigger;
-        limb_t const* smaller;
+        Limb const* bigger;
+        Limb const* smaller;
         if ( auto c = magCmp(rhs); c == LT ) {
             bigger = rhs.myLimbs.data();
             smaller = myLimbs.data();
@@ -274,21 +274,21 @@ private:
             return;
         }
 
-        double_limb_t borrow = 0;
+        DoubleLimb borrow = 0;
         uz i = 0;
         for ( ; i < minSize; ++i ) {
-            double_limb_t const b = bigger[i];
-            double_limb_t const s = smaller[i];
+            DoubleLimb const b = bigger[i];
+            DoubleLimb const s = smaller[i];
 
             borrow = b - s - borrow;
-            myLimbs[i] = static_cast<limb_t>(borrow);
+            myLimbs[i] = static_cast<Limb>(borrow);
             borrow = (borrow >> limbBits) & 1;
         }
 
         for ( ; borrow && i < maxSize; ++i ) {
-            double_limb_t const b = bigger[i];
+            DoubleLimb const b = bigger[i];
             borrow = b - borrow;
-            myLimbs[i] = static_cast<limb_t>(borrow);
+            myLimbs[i] = static_cast<Limb>(borrow);
             borrow = (borrow >> limbBits) & 1;
         }
 
@@ -328,7 +328,7 @@ private:
     }
 
 private:
-    std::vector<limb_t> myLimbs;
+    std::vector<Limb> myLimbs;
     Sign mySign = Positive;
 };
 

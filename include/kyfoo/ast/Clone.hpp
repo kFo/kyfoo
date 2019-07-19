@@ -5,21 +5,21 @@
 
 #include <kyfoo/Slice.hpp>
 
-#define DECL_CLONE(kind)                                 \
-    auto beginClone(clone_map_t& map) const              \
-        -> Box<std::decay_t<decltype(*this)>>;           \
-    void cloneChildren(kind& c, clone_map_t& map) const;
+#define DECL_CLONE(kind)                              \
+    auto beginClone(CloneMap& map) const              \
+        -> Box<std::decay_t<decltype(*this)>>;        \
+    void cloneChildren(kind& c, CloneMap& map) const;
 
-#define DECL_CLONE_NOBASE(kind)                          \
-    auto beginClone(clone_map_t& map) const              \
-        -> Box<std::decay_t<decltype(*this)>>;           \
-    void cloneChildren(kind& c, clone_map_t& map) const;
+#define DECL_CLONE_NOBASE(kind)                       \
+    auto beginClone(CloneMap& map) const              \
+        -> Box<std::decay_t<decltype(*this)>>;        \
+    void cloneChildren(kind& c, CloneMap& map) const;
 
 #define DECL_CLONE_REMAP \
-    void remapReferences(clone_map_t const& map);
+    void remapReferences(CloneMap const& map);
 
 #define DECL_CLONE_REMAP_NOBASE \
-    void remapReferences(clone_map_t const& map);
+    void remapReferences(CloneMap const& map);
 
 #define DECL_CLONE_ALL(kind) \
     DECL_CLONE(kind)         \
@@ -29,19 +29,19 @@
     DECL_CLONE_NOBASE(kind)         \
     DECL_CLONE_REMAP_NOBASE
 
-#define IMPL_CLONE(type)                               \
-    Box<type> type::beginClone(clone_map_t& map) const \
-    {                                                  \
-        Box<type> ret(new type(*this));                \
-        map[this] = ret.get();                         \
-        cloneChildren(*ret, map);                      \
-        return ret;                                    \
+#define IMPL_CLONE(type)                            \
+    Box<type> type::beginClone(CloneMap& map) const \
+    {                                               \
+        Box<type> ret(new type(*this));             \
+        map[this] = ret.get();                      \
+        cloneChildren(*ret, map);                   \
+        return ret;                                 \
     }
 
-#define IMPL_CLONE_NOBASE_BEGIN(type, kind)                          \
-    IMPL_CLONE(type)                                                 \
-    void type::cloneChildren(kind& c[[maybe_unused]],                \
-                             clone_map_t& map[[maybe_unused]]) const \
+#define IMPL_CLONE_NOBASE_BEGIN(type, kind)                       \
+    IMPL_CLONE(type)                                              \
+    void type::cloneChildren(kind& c[[maybe_unused]],             \
+                             CloneMap& map[[maybe_unused]]) const \
     {
 
 #define IMPL_CLONE_BEGIN(type, base, kind) \
@@ -53,8 +53,8 @@
 
 #define IMPL_CLONE_END }
 
-#define IMPL_CLONE_REMAP_NOBASE_BEGIN(type)                            \
-    void type::remapReferences(clone_map_t const& map[[maybe_unused]]) \
+#define IMPL_CLONE_REMAP_NOBASE_BEGIN(type)                         \
+    void type::remapReferences(CloneMap const& map[[maybe_unused]]) \
     {
 
 #define IMPL_CLONE_REMAP_BEGIN(type, base) \
@@ -68,14 +68,14 @@
 
 namespace kyfoo::ast {
 
-using clone_map_t = std::map<void const*, void*>;
+using CloneMap = std::map<void const*, void*>;
 
 template <typename T>
 Box<std::enable_if_t<!std::is_pointer_v<T>
                   && !is_slice_v<T>, T>>
 clone(T const& rhs)
 {
-    clone_map_t map;
+    CloneMap map;
     auto ret = beginClone(rhs, map);
     remap(*ret, map);
 
@@ -129,7 +129,7 @@ std::vector<Box<std::remove_const_t<T>>> beginClone(Slice<T*> rhs, D& dict)
 template <typename T>
 std::vector<Box<std::remove_const_t<T>>> clone(Slice<T*> rhs)
 {
-    clone_map_t map;
+    CloneMap map;
     auto ret = beginClone(rhs, map);
     remap(ret, map);
     return ret;
@@ -149,7 +149,7 @@ std::vector<Box<T>> beginClone(std::vector<Box<T>> const& rhs, D& dict)
 template <typename T>
 std::vector<Box<T>> clone(std::vector<Box<T>> const& rhs)
 {
-    clone_map_t map;
+    CloneMap map;
     std::vector<Box<T>> ret;
     ret.reserve(rhs.size());
     for ( auto const& e : rhs )
@@ -162,21 +162,21 @@ std::vector<Box<T>> clone(std::vector<Box<T>> const& rhs)
 }
 
 template <typename T>
-void remap(Box<T>& rhs, clone_map_t const& map)
+void remap(Box<T>& rhs, CloneMap const& map)
 {
     if ( rhs )
         remap(*rhs, map);
 }
 
 template <typename T>
-void remap(std::vector<T>& rhs, clone_map_t const& map)
+void remap(std::vector<T>& rhs, CloneMap const& map)
 {
     for ( auto& e : rhs )
         remap(e, map);
 }
 
 template <typename T>
-void remap(T*& rhs, clone_map_t const& map)
+void remap(T*& rhs, CloneMap const& map)
 {
     auto e = map.find(rhs);
     if ( e != end(map) )

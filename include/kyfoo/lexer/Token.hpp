@@ -6,16 +6,16 @@
 
 namespace kyfoo::lexer {
 
-using line_index_t = u32;
-using column_index_t = u32;
+using LineIndex = u32;
+using ColumnIndex = u32;
 
 struct SourceLocation
 {
-    line_index_t line = 0;
-    column_index_t column = 0;
+    LineIndex line = 0;
+    ColumnIndex column = 0;
 
     constexpr SourceLocation() noexcept = default;
-    constexpr SourceLocation(line_index_t line, column_index_t col) noexcept
+    constexpr SourceLocation(LineIndex line, ColumnIndex col) noexcept
         : line(line)
         , column(col)
     {
@@ -71,8 +71,8 @@ public:
     constexpr TokenKind      kind    () const noexcept { return myKind      ; }
     constexpr stringv        lexeme  () const noexcept { return myLexeme    ; }
     constexpr SourceLocation location() const noexcept { return myLoc       ; }
-    constexpr line_index_t   line    () const noexcept { return myLoc.line  ; }
-    constexpr column_index_t column  () const noexcept { return myLoc.column; }
+    constexpr LineIndex   line    () const noexcept { return myLoc.line  ; }
+    constexpr ColumnIndex column  () const noexcept { return myLoc.column; }
 
 private:
     TokenKind myKind = TokenKind::Undefined;

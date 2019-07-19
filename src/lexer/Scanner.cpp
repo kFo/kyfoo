@@ -128,7 +128,7 @@ Scanner::Scanner(DefaultTokenFactory& tokenFactory, Slice<char const> stream)
 {
 }
 
-Scanner::Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*>&& buffer)
+Scanner::Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*> buffer)
     : myTokenFactory(tokenFactory)
     , myState(InternalScanState{ 0 })
     , myBuffer(std::move(buffer))
@@ -211,14 +211,14 @@ Scanner::operator bool() const
     return !eof() && !myError;
 }
 
-Token const& Scanner::indent(SourceLocation loc, indent_width_t indent)
+Token const& Scanner::indent(SourceLocation loc, IndentWidth indent)
 {
     auto token = [this, &loc](TokenKind kind) -> Token const& {
         myLastTokenKind = kind;
         return myTokenFactory.mkToken(kind, loc);
     };
 
-    indent_width_t current = 0;
+    IndentWidth current = 0;
     if ( !myIndents.empty() )
         current = myIndents.back();
 
@@ -298,7 +298,7 @@ Token const& Scanner::readNext()
         return myTokenFactory.mkToken(kind, myTok.take(), loc);
     };
 
-    indent_width_t spaces = 0;
+    IndentWidth spaces = 0;
     bool freshline = false;
 
     if ( false ) {

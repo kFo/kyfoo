@@ -6,7 +6,7 @@ template <template<class> typename Op>
 class ShallowApply
 {
 public:
-    using operator_t = Op<ShallowApply>;
+    using Operator = Op<ShallowApply>;
 
     ShallowApply()
         : myOperator(*this)
@@ -21,7 +21,7 @@ public:
 
     // Expressions
 
-    typename operator_t::result_t operator()(Expression const& expr)
+    typename Operator::Result operator()(Expression const& expr)
     {
 #define X(a,b) if ( auto e = expr.as<b>() ) return myOperator.expr##a(*e);
         EXPRESSION_KINDS(X)
@@ -30,7 +30,7 @@ public:
         ENFORCEU("invalid expression kind");
     }
 
-    typename operator_t::result_t operator()(Expression& expr)
+    typename Operator::Result operator()(Expression& expr)
     {
 #define X(a,b) if ( auto e = expr.as<b>() ) return myOperator.expr##a(*e);
         EXPRESSION_KINDS(X)
@@ -41,7 +41,7 @@ public:
 
     // Statements
 
-    typename operator_t::result_t operator()(Statement const& stmt)
+    typename Operator::Result operator()(Statement const& stmt)
     {
 #define X(a,b) if ( auto e = stmt.as<b>() ) return myOperator.stmt##a(*e);
         STATEMENT_KINDS(X)
@@ -50,7 +50,7 @@ public:
         ENFORCEU("invalid statement kind");
     }
 
-    typename operator_t::result_t operator()(Statement& stmt)
+    typename Operator::Result operator()(Statement& stmt)
     {
 #define X(a,b) if ( auto e = stmt.as<b>() ) return myOperator.stmt##a(*e);
         STATEMENT_KINDS(X)
@@ -61,7 +61,7 @@ public:
 
     // Junctions
 
-    typename operator_t::result_t operator()(Junction const& junc)
+    typename Operator::Result operator()(Junction const& junc)
     {
 #define X(a,b) if ( auto e = junc.as<b>() ) return myOperator.junc##a(*e);
         JUNCTION_KINDS(X)
@@ -70,7 +70,7 @@ public:
         ENFORCEU("invalid control-junction kind");
     }
 
-    typename operator_t::result_t operator()(Junction& junc)
+    typename Operator::Result operator()(Junction& junc)
     {
 #define X(a,b) if ( auto e = junc.as<b>() ) return myOperator.junc##a(*e);
         JUNCTION_KINDS(X)
@@ -81,7 +81,7 @@ public:
 
     // Declarations
 
-    typename operator_t::result_t operator()(Declaration& decl)
+    typename Operator::Result operator()(Declaration& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
         DECLARATION_KINDS(X)
@@ -90,7 +90,7 @@ public:
         ENFORCEU("invalid declaration kind");
     }
 
-    typename operator_t::result_t operator()(Declaration const& decl)
+    typename Operator::Result operator()(Declaration const& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
         DECLARATION_KINDS(X)
@@ -99,7 +99,7 @@ public:
         ENFORCEU("invalid declaration kind");
     }
 
-    operator_t& getOperator()
+    Operator& getOperator()
     {
         return myOperator;
     }
@@ -116,15 +116,15 @@ public:
     }
 
 private:
-    operator_t myOperator;
+    Operator myOperator;
 };
 
 template <template<class> typename Op>
 class DeepApply
 {
 public:
-    using operator_t = Op<DeepApply>;
-    using result_t = typename operator_t::result_t;
+    using Operator = Op<DeepApply>;
+    using Result = typename Operator::Result;
 
     DeepApply()
         : myOperator(*this)
@@ -137,25 +137,25 @@ public:
     {
     }
 
-    result_t operator()(Expression const& expr)
+    Result operator()(Expression const& expr)
     {
-#define X(a,b) if ( auto e = expr.as<b>() ) { result_t ret = myOperator.expr##a(*e); for ( auto c : e->constraints() ) ret |= operator()(*c); return ret; }
+#define X(a,b) if ( auto e = expr.as<b>() ) { Result ret = myOperator.expr##a(*e); for ( auto c : e->constraints() ) ret |= operator()(*c); return ret; }
         EXPRESSION_KINDS(X)
 #undef X
 
         ENFORCEU("invalid expression kind");
     }
 
-    result_t operator()(Expression& expr)
+    Result operator()(Expression& expr)
     {
-#define X(a,b) if ( auto e = expr.as<b>() ) { result_t ret = myOperator.expr##a(*e); for ( auto c : e->constraints() ) ret |= operator()(*c); return ret; }
+#define X(a,b) if ( auto e = expr.as<b>() ) { Result ret = myOperator.expr##a(*e); for ( auto c : e->constraints() ) ret |= operator()(*c); return ret; }
         EXPRESSION_KINDS(X)
 #undef X
 
         ENFORCEU("invalid expression kind");
     }
 
-    result_t operator()(Declaration& decl)
+    Result operator()(Declaration& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
         DECLARATION_KINDS(X)
@@ -164,7 +164,7 @@ public:
         ENFORCEU("invalid declaration kind");
     }
 
-    result_t operator()(Declaration const& decl)
+    Result operator()(Declaration const& decl)
     {
 #define X(a,b,c) if ( auto d = decl.as<c>() ) return myOperator.decl##a(*d);
         DECLARATION_KINDS(X)
@@ -173,18 +173,18 @@ public:
         ENFORCEU("invalid declaration kind");
     }
 
-    result_t operator()(Slice<Expression*> exprs)
+    Result operator()(Slice<Expression*> exprs)
     {
-        auto ret = result_t();
+        auto ret = Result();
         for ( ; exprs; exprs.popFront() )
             ret |= operator()(*exprs.front());
 
         return ret;
     }
 
-    result_t operator()(Slice<Expression const*> exprs)
+    Result operator()(Slice<Expression const*> exprs)
     {
-        result_t ret;
+        Result ret;
         for ( ; exprs; exprs.popFront() )
             ret |= operator()(*exprs.front());
 
@@ -192,7 +192,7 @@ public:
     }
 
 private:
-    operator_t myOperator;
+    Operator myOperator;
 };
 
 template <typename O>

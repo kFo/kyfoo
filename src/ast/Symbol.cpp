@@ -20,7 +20,7 @@ namespace kyfoo::ast {
 
 PatternsPrototype::PatternsPrototype() = default;
 
-PatternsPrototype::PatternsPrototype(std::vector<Box<Expression>>&& pattern)
+PatternsPrototype::PatternsPrototype(std::vector<Box<Expression>> pattern)
     : myPattern(std::move(pattern))
 {
 }
@@ -74,8 +74,8 @@ SymRes PatternsPrototype::resolveVariables(Context& ctx)
     SymRes ret;
     if ( myVariables.empty() ) {
         for ( auto const& param : myPattern ) {
-            auto fv = gatherMetaVariables(*param);
-            for ( auto& p : fv ) {
+            auto variables = gatherMetaVariables(*param);
+            for ( auto p : variables ) {
                 if ( auto hit = ctx.matchOverload(p->token().lexeme()) ) {
                     ctx.error(diag::multiple_definition, p->token())
                         .see(*hit.single());
@@ -93,10 +93,8 @@ SymRes PatternsPrototype::resolveVariables(Context& ctx)
                     continue;
                 }
 
-                myVariables.emplace_back(mk<SymbolVariable>(p->token(), ctx.resolver().scope()));
+                myVariables.emplace_back(mk<SymbolVariable>(p->token(), ctx.resolver().scope(), p->takeConstraints()));
                 p->setDeclaration(*myVariables.back());
-                for ( auto c : p->constraints() )
-                    myVariables.back()->appendConstraint(*c);
             }
         }
     }
@@ -109,9 +107,7 @@ SymRes PatternsPrototype::resolveSymbols(Context& ctx)
     Resolver resolver(ctx.resolver().scope());
     resolver.addSupplementaryPrototype(*this);
     REVERT = ctx.pushResolver(resolver);
-    auto ret = ctx.resolveExpressions(myPattern);
-
-    return ret;
+    return ctx.resolveExpressions(myPattern);
 }
 
 Slice<Expression*> PatternsPrototype::pattern()
@@ -146,7 +142,7 @@ void PatternsPrototype::bindVariables(Substitutions const& substs)
 SymbolVariable* PatternsPrototype::findVariable(stringv token)
 {
     for ( auto& e : myVariables )
-        if ( e->token().lexeme() == token )
+        if ( e->symbol().token().lexeme() == token )
             return e.get();
 
     return nullptr;
@@ -176,7 +172,7 @@ uz PatternsPrototype::metaVariableCount() const
 // Symbol
 
 Symbol::Symbol(lexer::Token token,
-               PatternsPrototype&& params)
+               PatternsPrototype params)
     : myToken(std::move(token))
     , myPrototype(mk<PatternsPrototype>(std::move(params)))
 {
@@ -272,7 +268,7 @@ Symbol const* Symbol::prototypeParent() const
 //
 // SymbolReference
 
-SymbolReference::SymbolReference(stringv name, const_pattern_t pattern)
+SymbolReference::SymbolReference(stringv name, ConstPatternSlice pattern)
     : myName(name)
     , myPattern(pattern)
 {
@@ -284,7 +280,7 @@ SymbolReference::SymbolReference(Symbol const& sym)
 }
 
 SymbolReference::SymbolReference(stringv name)
-    : SymbolReference(name, pattern_t())
+    : SymbolReference(name, PatternSlice())
 {
 }
 
@@ -302,7 +298,7 @@ stringv SymbolReference::name() const
     return myName;
 }
 
-const_pattern_t const& SymbolReference::pattern() const
+ConstPatternSlice const& SymbolReference::pattern() const
 {
     return myPattern;
 }

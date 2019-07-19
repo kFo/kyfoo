@@ -16,14 +16,16 @@ namespace kyfoo {
 
     namespace ast {
 
+class Binder;
 class Context;
 class Declaration;
-class Scope;
-class Resolver;
 class Expression;
+class IdentifierExpression;
 class Module;
 class LiteralExpression;
 class OverloadViability;
+class Resolver;
+class Scope;
 class SymbolExpression;
 class SymbolDeclaration;
 class SymbolVariable;
@@ -32,17 +34,18 @@ class Variance;
 class ViableSet;
 
 using Pattern = std::vector<Box<Expression>>;
-using pattern_t = Slice<Expression*>;
-using const_pattern_t = Slice<Expression const*>;
+using PatternSlice = Slice<Expression*>;
+using ConstPatternSlice = Slice<Expression const*>;
 
 class PatternsPrototype
 {
 public:
     friend class ProcedureDeclaration;
+    friend class PatternsPrototypeBinderHandler;
 
 public:
     PatternsPrototype();
-    PatternsPrototype(std::vector<Box<Expression>>&& pattern);
+    PatternsPrototype(std::vector<Box<Expression>> pattern);
 
 protected:
     PatternsPrototype(PatternsPrototype const& rhs);
@@ -88,7 +91,7 @@ public:
 
 public:
     Symbol(lexer::Token token,
-           PatternsPrototype&& params);
+           PatternsPrototype params);
     explicit Symbol(lexer::Token token);
     Symbol(Box<SymbolExpression> symExpr);
 
@@ -128,7 +131,7 @@ private:
 class SymbolReference
 {
 public:
-    SymbolReference(stringv name, const_pattern_t pattern);
+    SymbolReference(stringv name, ConstPatternSlice pattern);
     /*implicit*/ SymbolReference(Symbol const& sym);
     /*implicit*/ SymbolReference(stringv name);
 
@@ -150,29 +153,29 @@ public:
 
 public:
     stringv name() const;
-    const_pattern_t const& pattern() const;
+    ConstPatternSlice const& pattern() const;
 
 private:
     stringv myName;
-    const_pattern_t myPattern;
+    ConstPatternSlice myPattern;
 };
 
-inline Box<PatternsPrototype> beginClone(PatternsPrototype const& proto, clone_map_t& map)
+inline Box<PatternsPrototype> beginClone(PatternsPrototype const& proto, CloneMap& map)
 {
     return proto.beginClone(map);
 }
 
-inline void remap(PatternsPrototype& proto, clone_map_t const& map)
+inline void remap(PatternsPrototype& proto, CloneMap const& map)
 {
     return proto.remapReferences(map);
 }
 
-inline Box<Symbol> beginClone(Symbol const& sym, clone_map_t& map)
+inline Box<Symbol> beginClone(Symbol const& sym, CloneMap& map)
 {
     return sym.beginClone(map);
 }
 
-inline void remap(Symbol& sym, clone_map_t const& map)
+inline void remap(Symbol& sym, CloneMap const& map)
 {
     return sym.remapReferences(map);
 }

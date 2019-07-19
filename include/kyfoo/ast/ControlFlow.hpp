@@ -495,7 +495,7 @@ STATEMENT_KINDS(X)
 STATEMENT_KINDS(X)
 #undef X
 
-inline Box<Statement> beginClone(Statement const& stmt, clone_map_t& map)
+inline Box<Statement> beginClone(Statement const& stmt, CloneMap& map)
 {
     switch (stmt.kind()) {
 #define X(a,b) case Statement::Kind::a: return static_cast<b const&>(stmt).beginClone(map);
@@ -506,7 +506,7 @@ inline Box<Statement> beginClone(Statement const& stmt, clone_map_t& map)
     ENFORCEU("invalid statement kind");
 }
 
-inline void remap(Statement& stmt, clone_map_t const& map)
+inline void remap(Statement& stmt, CloneMap const& map)
 {
     switch (stmt.kind()) {
 #define X(a,b) case Statement::Kind::a: return static_cast<b&>(stmt).remapReferences(map);
@@ -525,7 +525,7 @@ JUNCTION_KINDS(X)
 JUNCTION_KINDS(X)
 #undef X
 
-inline Box<Junction> beginClone(Junction const& junc, clone_map_t& map)
+inline Box<Junction> beginClone(Junction const& junc, CloneMap& map)
 {
     switch (junc.kind()) {
 #define X(a,b) case Junction::Kind::a: return static_cast<b const&>(junc).beginClone(map);
@@ -536,7 +536,7 @@ inline Box<Junction> beginClone(Junction const& junc, clone_map_t& map)
     ENFORCEU("invalid junction type");
 }
 
-inline void remap(Junction& junc, clone_map_t const& map)
+inline void remap(Junction& junc, CloneMap const& map)
 {
     switch (junc.kind()) {
 #define X(a,b) case Junction::Kind::a: return static_cast<b&>(junc).remapReferences(map);
@@ -547,12 +547,12 @@ inline void remap(Junction& junc, clone_map_t const& map)
     ENFORCEU("invalid junction type");
 }
 
-inline Box<BasicBlock> beginClone(BasicBlock const& bb, clone_map_t& map)
+inline Box<BasicBlock> beginClone(BasicBlock const& bb, CloneMap& map)
 {
     return bb.beginClone(map);
 }
 
-inline void remap(BasicBlock& bb, clone_map_t const& map)
+inline void remap(BasicBlock& bb, CloneMap const& map)
 {
     return bb.remapReferences(map);
 }

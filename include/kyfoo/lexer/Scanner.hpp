@@ -15,7 +15,7 @@
 
 namespace kyfoo::lexer {
 
-using indent_width_t = uz;
+using IndentWidth = uz;
 
 /**
  * Non-ASCII meta characters
@@ -33,15 +33,15 @@ template <typename T>
 class Tokenizer
 {
 public:
-    using unit_t = char;
-    using parent_view_t = Slice<char const>;
-    using window_t = Slice<char const>;
-    using pointer_t = parent_view_t::pointer;
+    using Unit = char;
+    using ParentView = Slice<char const>;
+    using Window = Slice<char const>;
+    using Pointer = ParentView::pointer;
 
 public:
     Tokenizer() = default;
 
-    explicit Tokenizer(parent_view_t buffer)
+    explicit Tokenizer(ParentView buffer)
         : myWindow(buffer.data(), 1)
         , myEnd(buffer.end())
     {
@@ -53,33 +53,33 @@ public:
         return myWindow.begin() != myEnd;
     }
 
-    window_t next()
+    Window next()
     {
         return take();
     }
 
 public:
-    window_t take()
+    Window take()
     {
         auto ret = window();
         bump();
         return ret;
     }
 
-    window_t window() const
+    Window window() const
     {
         return myWindow;
     }
 
     void bump()
     {
-        myWindow = window_t(myWindow.end(), 1);
+        myWindow = Window(myWindow.end(), 1);
     }
 
     template <uz N = 1u>
     void grow()
     {
-        myWindow = window_t(myWindow.data(), myWindow.card() + N);
+        myWindow = Window(myWindow.data(), myWindow.card() + N);
     }
 
     void shrinkLeft()
@@ -87,13 +87,13 @@ public:
         myWindow.popFront();
     }
 
-    unit_t current() const
+    Unit current() const
     {
         return myWindow.back();
     }
 
     template <uz N = 1u>
-    unit_t peek() const
+    Unit peek() const
     {
         auto end = myWindow.end() + N - 1;
         if ( myEnd <= end )
@@ -102,7 +102,7 @@ public:
         return *end;
     }
 
-    unit_t peek(uz n) const
+    Unit peek(uz n) const
     {
         auto end = myWindow.end() + n - 1;
         if ( myEnd <= end )
@@ -118,8 +118,8 @@ public:
     }
 
 private:
-    window_t myWindow;
-    pointer_t myEnd;
+    Window myWindow;
+    Pointer myEnd;
 };
 
 template <typename Allocator>
@@ -153,7 +153,7 @@ class Scanner
 {
 public:
     explicit Scanner(DefaultTokenFactory& tokenFactory, Slice<char const> stream);
-    explicit Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*>&& buffer);
+    explicit Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*> buffer);
 
 public:
     Scanner(Scanner const&) = delete;
@@ -175,7 +175,7 @@ public:
 protected:
     Token const& readNext();
 
-    Token const& indent(SourceLocation loc, indent_width_t indent);
+    Token const& indent(SourceLocation loc, IndentWidth indent);
     void bumpLine();
 
     void addNest();
@@ -193,7 +193,7 @@ private:
     InternalScanState myState;
 
     std::vector<InternalScanState> mySavePoints;
-    std::vector<indent_width_t> myIndents;
+    std::vector<IndentWidth> myIndents;
     std::deque<Token const*> myBuffer;
 
     SourceLocation myLoc = { 1, 1 };

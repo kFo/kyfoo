@@ -259,7 +259,7 @@ SymRes VariableStatement::resolveSymbols(Context& ctx)
         return SymRes::Fail;
     }
 
-    myVariable->addConstraint(clone(*myInitializer->type()));
+    myVariable->appendConstraint(clone(*myInitializer->type()));
     ret |= ctx.resolveDeclaration(*myVariable);
     if ( !ret )
         return ret;
@@ -1115,13 +1115,13 @@ FlowTracer::Shape FlowTracer::checkRepetition()
 template <typename Dispatcher>
 struct Sequencer
 {
-    using result_t = void;
-    using extent_set_t = std::set<Extent*, ExtentCompare>;
+    using Result = void;
+    using ExtentSet = std::set<Extent*, ExtentCompare>;
 
     Dispatcher& dispatch;
 
     Context& ctx;
-    extent_set_t& extents;
+    ExtentSet& extents;
     BasicBlock const& basicBlock;
     Statement const* currentStmt = nullptr;
     bool refCtx = false;
@@ -1129,7 +1129,7 @@ struct Sequencer
 
     Sequencer(Dispatcher& dispatch,
               Context& ctx,
-              extent_set_t& extents,
+              ExtentSet& extents,
               BasicBlock const& bb)
         : dispatch(dispatch)
         , ctx(ctx)
@@ -1138,7 +1138,7 @@ struct Sequencer
     {
     }
 
-    result_t recurse(Slice<Expression const*> exprs)
+    Result recurse(Slice<Expression const*> exprs)
     {
         for ( auto e : exprs )
             dispatch(*e);
@@ -1155,14 +1155,14 @@ struct Sequencer
         return Extent::Usage::Read;
     }
 
-    result_t stmtExpression(ExpressionStatement const& estmt)
+    Result stmtExpression(ExpressionStatement const& estmt)
     {
         currentStmt = &estmt;
         recurse(estmt.tempExpressions());
         return dispatch(estmt.expression());
     }
 
-    result_t stmtVariable(VariableStatement const& vstmt)
+    Result stmtVariable(VariableStatement const& vstmt)
     {
         if ( auto expr = vstmt.initializer() ) {
             currentStmt = &vstmt;
@@ -1174,7 +1174,7 @@ struct Sequencer
         }
     }
 
-    result_t juncBranch(BranchJunction const& br)
+    Result juncBranch(BranchJunction const& br)
     {
         if ( br.statement() ) {
             currentStmt = br.statement();
@@ -1182,23 +1182,23 @@ struct Sequencer
         }
     }
 
-    result_t juncReturn(ReturnJunction const& ret)
+    Result juncReturn(ReturnJunction const& ret)
     {
         currentStmt = &ret.statement();
         return dispatch(ret.expression());
     }
 
-    result_t juncJump(JumpJunction const&)
+    Result juncJump(JumpJunction const&)
     {
         // nop
     }
 
-    result_t exprLiteral(LiteralExpression const&)
+    Result exprLiteral(LiteralExpression const&)
     {
         // nop
     }
 
-    result_t exprIdentifier(IdentifierExpression const& id)
+    Result exprIdentifier(IdentifierExpression const& id)
     {
         if ( auto d = id.declaration() ) {
             auto ext = extents.find(*d);
@@ -1207,12 +1207,12 @@ struct Sequencer
         }
     }
 
-    result_t exprTuple(TupleExpression const& t)
+    Result exprTuple(TupleExpression const& t)
     {
         recurse(t.expressions());
     }
 
-    result_t exprApply(ApplyExpression const& a)
+    Result exprApply(ApplyExpression const& a)
     {
         check_point writeCtx;
         writeCtx = false;
@@ -1239,7 +1239,7 @@ struct Sequencer
         recurse(args);
     }
 
-    result_t exprSymbol(SymbolExpression const& s)
+    Result exprSymbol(SymbolExpression const& s)
     {
         check_point refCtx;
         check_point writeCtx;
@@ -1249,7 +1249,7 @@ struct Sequencer
         exprIdentifier(s);
     }
 
-    result_t exprDot(DotExpression const& d)
+    Result exprDot(DotExpression const& d)
     {
         {
             check_point writeCtx;
@@ -1264,7 +1264,7 @@ struct Sequencer
         dispatch(*d.expressions().back());
     }
 
-    result_t exprAssign(AssignExpression const& v)
+    Result exprAssign(AssignExpression const& v)
     {
         check_point writeCtx;
         check_point refCtx;
@@ -1275,12 +1275,12 @@ struct Sequencer
         dispatch(v.left());
     }
 
-    result_t exprLambda(LambdaExpression const&)
+    Result exprLambda(LambdaExpression const&)
     {
         // nop
     }
 
-    result_t exprArrow(ArrowExpression const& a)
+    Result exprArrow(ArrowExpression const& a)
     {
         check_point writeCtx;
         check_point refCtx;
@@ -1290,7 +1290,7 @@ struct Sequencer
         dispatch(a.to());
     }
 
-    result_t exprUniverse(UniverseExpression const&)
+    Result exprUniverse(UniverseExpression const&)
     {
         // nop
     }
@@ -1308,14 +1308,14 @@ SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, std::vector<Exte
     ycomb(
         [&extents](auto rec, ProcedureScope const& scope) -> void {
             for ( auto d : scope.childDeclarations() )
-                if ( d->kind() == DeclKind::Variable )
+                if ( d->kind() == Declaration::Kind::Variable )
                     extents.emplace_back(*d);
 
             for ( auto s : scope.childScopes() )
                 rec(*s);
         })(proc);
 
-    Sequencer<ShallowApply<Sequencer>>::extent_set_t extentSet;
+    Sequencer<ShallowApply<Sequencer>>::ExtentSet extentSet;
     for ( auto& ext : extents )
         extentSet.insert(&ext);
 
