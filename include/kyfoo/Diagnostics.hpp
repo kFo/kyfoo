@@ -2,8 +2,8 @@
 
 #include <chrono>
 #include <sstream>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Stream.hpp>
 #include <kyfoo/Types.hpp>
@@ -392,7 +392,7 @@ private:
     ast::Module const* myModule = nullptr;
     diag myCode;
     Subject mySubject;
-    std::vector<Word> mySentence;
+    ab<Word> mySentence;
 };
 
 class ReportProxy;
@@ -419,9 +419,9 @@ public:
 
 private:
     const char* myDieReason = nullptr;
-    std::vector<Box<Report>> myErrors;
-    std::vector<Box<ast::Expression>> myBunkedExpressions;
-    std::vector<Box<ast::Lookup>> myBunkedLookups;
+    ab<Box<Report>> myErrors;
+    ab<Box<ast::Expression>> myBunkedExpressions;
+    ab<Box<ast::Lookup>> myBunkedLookups;
 };
 
 class DiagnosticsContext

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <algorithm>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/ast/Declarations.hpp>
 #include <kyfoo/ast/Substitutions.hpp>
@@ -55,11 +55,11 @@ public:
     void append(Viability pv);
 
 public:
-    std::vector<Viability>::const_iterator begin() const;
-    std::vector<Viability>::iterator begin();
+    ab<Viability>::ConstIterator begin() const;
+    ab<Viability>::Iterator begin();
 
-    std::vector<Viability>::const_iterator end() const;
-    std::vector<Viability>::iterator end();
+    ab<Viability>::ConstIterator end() const;
+    ab<Viability>::Iterator end();
 
     bool empty() const;
     uz card() const;
@@ -72,7 +72,7 @@ public:
     explicit operator bool() const;
 
 private:
-    std::vector<Viability> myViabilities;
+    ab<Viability> myViabilities;
 };
 
 class Via
@@ -146,11 +146,11 @@ public:
     bool empty() const;
     uz card() const;
 
-    std::vector<Via>::const_iterator begin() const;
-    std::vector<Via>::iterator       begin();
+    ab<Via>::ConstIterator begin() const;
+    ab<Via>::Iterator       begin();
 
-    std::vector<Via>::const_iterator end() const;
-    std::vector<Via>::iterator       end();
+    ab<Via>::ConstIterator end() const;
+    ab<Via>::Iterator       end();
 
     Via const& operator [] (uz index) const;
     Via& operator [] (uz index);
@@ -171,14 +171,14 @@ public:
     void clear();
 
 private:
-    std::vector<Via> myVias;
+    ab<Via> myVias;
     Declaration* myDeclaration = nullptr;
 };
 
-inline std::vector<Via>::const_iterator begin(ViableSet const& v) { return v.begin(); }
-inline std::vector<Via>::iterator       begin(ViableSet      & v) { return v.begin(); }
-inline std::vector<Via>::const_iterator end  (ViableSet const& v) { return v.end  (); }
-inline std::vector<Via>::iterator       end  (ViableSet      & v) { return v.end  (); }
+inline ab<Via>::ConstIterator begin(ViableSet const& v) { return v.begin(); }
+inline ab<Via>::Iterator       begin(ViableSet      & v) { return v.begin(); }
+inline ab<Via>::ConstIterator end  (ViableSet const& v) { return v.end  (); }
+inline ab<Via>::Iterator       end  (ViableSet      & v) { return v.end  (); }
 
 struct PatternsDecl {
     PatternsPrototype const* params;
@@ -192,10 +192,10 @@ struct Prototype {
     }
 
     PatternsDecl proto;
-    std::vector<PatternsDecl> instances;
+    ab<PatternsDecl> instances;
 
-    std::vector<Box<Declaration>> ownDeclarations;
-    std::vector<Box<Scope>> ownDefinitions;
+    ab<Box<Declaration>> ownDeclarations;
+    ab<Box<Scope>> ownDefinitions;
 };
 
 class SymbolSpace
@@ -228,7 +228,7 @@ public:
 private:
     Scope* myScope = nullptr;
     std::string myName;
-    std::vector<Prototype> myPrototypes;
+    ab<Prototype> myPrototypes;
 };
 
 class Lookup
@@ -288,7 +288,7 @@ public:
 
 private:
     SymbolReference myQuery;
-    std::vector<SymbolSpace const*> mySpaces;
+    ab<SymbolSpace const*> mySpaces;
     ViableSet mySet;
     Declaration* myDecl = nullptr;
 };

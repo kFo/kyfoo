@@ -4,7 +4,7 @@
 #include <functional>
 #include <set>
 
-#include <kyfoo/Algorithm.hpp>
+#include <kyfoo/Algorithms.hpp>
 #include <kyfoo/Diagnostics.hpp>
 
 #include <kyfoo/lexer/TokenKind.hpp>
@@ -54,13 +54,13 @@ SymbolDependencyTracker::SymbolDependencyTracker(Module& mod, Diagnostics& dgn)
 
 SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::create(std::string name, uz arity)
 {
-    groups.emplace_back(mk<SymGroup>(std::move(name), arity));
+    groups.append(mk<SymGroup>(std::move(name), arity));
     return groups.back().get();
 }
 
 SymbolDependencyTracker::SymGroup* SymbolDependencyTracker::findOrCreate(stringv name, uz arity)
 {
-    for ( auto const& e : groups )
+    for ( auto& e : groups )
         if ( e->name == name && e->arity == arity )
             return e.get();
 
@@ -97,8 +97,8 @@ SymRes SymbolDependencyTracker::addDependency(Declaration& dependent,
 
 void SymbolDependencyTracker::sortPasses()
 {
-    stable_sort(begin(groups), end(groups),
-                [](auto const& lhs, auto const& rhs) { return lhs->level < rhs->level; });
+    std::stable_sort(begin(groups), end(groups),
+                     [](auto const& lhs, auto const& rhs) { return lhs->level < rhs->level; });
 }
 
 //
@@ -113,10 +113,10 @@ struct SymbolDependencyBuilder
     Declaration& dependent;
 
     struct LocalDecl {
-        std::vector<stringv> names;
+        ab<stringv> names;
     };
 
-    std::vector<LocalDecl> localDecls;
+    ab<LocalDecl> localDecls;
 
     SymbolDependencyBuilder(Dispatcher& dispatch,
                             SymbolDependencyTracker& tracker,
@@ -131,8 +131,8 @@ private:
     Result addDep(stringv name, uz arity)
     {
         if ( arity == 0 )
-            for ( auto localDecl = localDecls.rbegin(); localDecl != localDecls.rend(); ++localDecl )
-                for ( auto const& n : localDecl->names )
+            for ( auto localDecl : Retro(localDecls()) )
+                for ( auto const& n : localDecl.names )
                     if ( n == name )
                         return SymRes::Success;
 
@@ -142,18 +142,18 @@ private:
     struct Pop {
         SymbolDependencyBuilder& outer;
         Pop(SymbolDependencyBuilder& outer) : outer(outer) {}
-        ~Pop() { outer.localDecls.pop_back(); }
+        ~Pop() { outer.localDecls.pop(); }
     };
 
     Pop pushLocal(Declaration const&)
     {
-        localDecls.emplace_back();
+        localDecls.append();
         return Pop(*this);
     }
 
     void pushName(stringv name)
     {
-        localDecls.back().names.push_back(name);
+        localDecls.back().names.append(name);
     }
 
     SymRes traceDecl(Declaration const& decl)
@@ -806,21 +806,21 @@ uz variationOrdinal(DataTypeDeclaration const& dt)
 
 UnificationResult unify(Context& ctx, Report::Subject gov, Slice<Expression const*> exprs)
 {
-    std::vector<Expression const*> potentialTypes;
+    ab<Expression const*> potentialTypes;
     potentialTypes.reserve(exprs.card());
     for ( auto e : exprs )
-        potentialTypes.emplace_back(e->type()); // todo: type?
+        potentialTypes.append(e->type()); // todo: type?
 
-    if ( potentialTypes.empty() ) {
+    if ( !potentialTypes ) {
         ctx.error(diag::no_type, gov);
         return { SymRes::Fail, nullptr };
     }
 
-    if ( potentialTypes.size() == 1 )
+    if ( potentialTypes.card() == 1 )
         return { SymRes::Success, potentialTypes.front() };
 
     auto commonKind = potentialTypes.front()->kind();
-    auto const card = potentialTypes.size();
+    auto const card = potentialTypes.card();
     for ( uz i = 1; i < card; ++i ) {
         if ( potentialTypes[i]->kind() != commonKind ) {
             ctx.error(diag::conflict_types, gov)
@@ -983,11 +983,11 @@ void visitMetaVariables(Expression& expr, F&& f)
     op(expr);
 }
 
-std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr)
+ab<IdentifierExpression*> gatherMetaVariables(Expression& expr)
 {
-    std::vector<IdentifierExpression*> ret;
+    ab<IdentifierExpression*> ret;
     visitMetaVariables(expr, [&ret](IdentifierExpression& p) {
-        ret.push_back(&p);
+        ret.append(&p);
     });
 
     return ret;

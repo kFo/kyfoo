@@ -115,7 +115,7 @@ Lookup Resolver::matchOverload(Context& ctx, SymbolReference const& symbol)
 
 void Resolver::addSupplementaryPrototype(PatternsPrototype& proto)
 {
-    mySupplementaryPrototypes.push_back(&proto);
+    mySupplementaryPrototypes.append(&proto);
 }
 
 Lookup Resolver::matchSupplementary(SymbolReference const& symbol) const
@@ -318,7 +318,7 @@ SymRes Context::resolveScopeDeclarations(Scope& scope)
         ENFORCEU("unhandled scope");
     }
 
-    ENFORCE(myInstantiatedDeclarations.empty(), "instantiated declarations not elaborated");
+    ENFORCE(!myInstantiatedDeclarations, "instantiated declarations not elaborated");
     return ret;
 }
 
@@ -336,7 +336,7 @@ SymRes Context::resolveScopeDefinitions(Scope& scope)
     }
     
     // Resolve any accrued definitions
-    for ( auto defns = takeInstantiatedDefinitions(); !defns.empty(); defns = takeInstantiatedDefinitions() )
+    for ( auto defns = takeInstantiatedDefinitions(); defns; defns = takeInstantiatedDefinitions() )
         for ( auto d : defns )
             if ( d->declaration()->symbol().prototype().isConcrete() )
                 ret |= resolveScopeDefinitions(*d);
@@ -416,8 +416,8 @@ SymRes Context::resolveExpression(Box<Expression>& expr)
     return ret;
 }
 
-SymRes Context::resolveExpressions(std::vector<Box<Expression>>::iterator left,
-                                   std::vector<Box<Expression>>::iterator right)
+SymRes Context::resolveExpressions(ab<Box<Expression>>::Iterator left,
+                                   ab<Box<Expression>>::Iterator right)
 {
     myRewrite.reset();
     SymRes ret;
@@ -427,7 +427,7 @@ SymRes Context::resolveExpressions(std::vector<Box<Expression>>::iterator left,
     return ret;
 }
 
-SymRes Context::resolveExpressions(std::vector<Box<Expression>>& exprs)
+SymRes Context::resolveExpressions(ab<Box<Expression>>& exprs)
 {
     return resolveExpressions(begin(exprs), end(exprs));
 }
@@ -441,8 +441,8 @@ SymRes Context::resolveStatement(Statement& stmt)
     return ret;
 }
 
-SymRes Context::resolveStatements(std::vector<Statement>::iterator left,
-                                  std::vector<Statement>::iterator right)
+SymRes Context::resolveStatements(ab<Statement>::Iterator left,
+                                  ab<Statement>::Iterator right)
 {
     SymRes ret = SymRes::Success;
     for ( ; left != right; ++left ) {
@@ -454,7 +454,7 @@ SymRes Context::resolveStatements(std::vector<Statement>::iterator left,
     return ret;
 }
 
-SymRes Context::resolveStatements(std::vector<Statement>& stmts)
+SymRes Context::resolveStatements(ab<Statement>& stmts)
 {
     return resolveStatements(begin(stmts), end(stmts));
 }
@@ -477,10 +477,10 @@ bool Context::isTopLevel() const
 
 void Context::appendInstantiatedDefinition(Scope& defn)
 {
-    myInstantiatedDefinitions.push_back(&defn);
+    myInstantiatedDefinitions.append(&defn);
 }
 
-std::vector<Scope*>&& Context::takeInstantiatedDefinitions()
+ab<Scope*>&& Context::takeInstantiatedDefinitions()
 {
     return std::move(myInstantiatedDefinitions);
 }

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <tuple>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Types.hpp>
 
 namespace kyfoo {
@@ -52,7 +52,7 @@ public:
     ParseResult parseNonProcedural();
     ParseResult parseProcedural();
 
-    std::vector<Box<ast::Expression>> parameterContext() const;
+    ab<Box<ast::Expression>> parameterContext() const;
 
 protected:
     void append(Box<ast::Declaration> decl);
@@ -73,8 +73,8 @@ protected:
     Diagnostics* myDiagnostics = nullptr;
     lexer::Scanner* myScanner = nullptr;
     ast::Scope* myScope = nullptr;
-    std::vector<Box<ast::Expression>> myAttributes;
-    std::vector<Box<ast::Expression>> myParameterContext;
+    ab<Box<ast::Expression>> myAttributes;
+    ab<Box<ast::Expression>> myParameterContext;
 };
 
 class DataTypeScopeParser : public DeclarationScopeParser

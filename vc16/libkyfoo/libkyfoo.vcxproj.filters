@@ -225,9 +225,6 @@
     <ClInclude Include="..\..\include\kyfoo\parser\Productions.hpp">
       <Filter>include\kyfoo\parser</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\kyfoo\Algorithm.hpp">
-      <Filter>include\kyfoo</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Allocators.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
@@ -298,6 +295,9 @@
       <Filter>include\kyfoo</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\kyfoo\Ascii.hpp">
+      <Filter>include\kyfoo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\kyfoo\Algorithms.hpp">
       <Filter>include\kyfoo</Filter>
     </ClInclude>
   </ItemGroup>

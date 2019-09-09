@@ -6,46 +6,78 @@
 
 namespace kyfoo {
 
-#ifdef KYFOO_BOX_CUSTOM
+struct Deleter
+{
+    template <typename T>
+    void operator () (T* p) const
+    {
+        delete p;
+    }
+};
 
-template <typename T>
-class Box
+struct LeakyDeleter
+{
+    template <typename T>
+    void operator()(T* p) const
+    {
+        p->~T();
+    }
+};
+
+#ifndef KYFOO_BOX_LEAK
+
+using DefaultBoxDeleter = Deleter;
+
+#else // KYFOO_BOX_LEAK
+
+using DefaultBoxDeleter = LeakyDeleter;
+
+#endif // KYFOO_BOX_LEAK
+
+template <typename T, typename D = DefaultBoxDeleter>
+class Box : private D
 {
 public:
-    template <typename U>
+    template <typename TOther, typename DOther>
     friend class Box;
 
-    using pointer = T*;
+    using Element = T;
 
 public:
-    constexpr Box() noexcept = default;
+    constexpr /*implicit*/ Box() noexcept = default;
 
-    /*implicit*/ constexpr Box(std::nullptr_t) noexcept
+    constexpr /*implicit*/ Box(std::nullptr_t) noexcept
         : Box()
     {
     }
 
-    Box& operator = (std::nullptr_t) noexcept
+    constexpr Box& operator = (std::nullptr_t) noexcept
     {
         reset();
     }
 
-    explicit Box(T* p) noexcept
+    constexpr /*implicit*/ Box(T* p) noexcept
         : myPtr(p)
     {
+    }
+
+    constexpr Box& operator = (T* p) noexcept
+    {
+        reset(p);
+        return *this;
     }
 
     Box(Box const&) = delete;
     void operator = (Box const&) = delete;
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-    /*implicit*/ Box(Box<U>&& rhs) noexcept
+    constexpr /*implicit*/ Box(Box<U, D>&& rhs) noexcept
         : myPtr(rhs.release())
     {
     }
 
     template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-    Box& operator = (Box<U>&& rhs) noexcept
+    constexpr Box& operator = (Box<U, D>&& rhs) noexcept
     {
         reset(rhs.release());
         return *this;
@@ -56,90 +88,96 @@ public:
         reset();
     }
 
-    void swap(Box& rhs) noexcept
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    constexpr void swap(Box<U, D>& rhs) noexcept
     {
         using kyfoo::swap;
         swap(myPtr, rhs.myPtr);
     }
 
 public:
-    T* operator -> () const noexcept
+    constexpr T* operator -> () noexcept
     {
         return myPtr;
     }
 
-    T& operator * () const noexcept
+    constexpr T const* operator -> () const noexcept
+    {
+        return myPtr;
+    }
+
+    constexpr T& operator * () noexcept
     {
         return *myPtr;
     }
 
-    explicit operator bool () const noexcept
+    constexpr T const& operator * () const noexcept
+    {
+        return *myPtr;
+    }
+
+    constexpr explicit operator bool () const noexcept
     {
         return myPtr != nullptr;
     }
 
-    T* get() const noexcept
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    constexpr bool operator == (Box<U, D> const& rhs) const noexcept
+    {
+        return myPtr == rhs.myPtr;
+    }
+
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    constexpr bool operator != (Box<U, D> const& rhs) const noexcept
+    {
+        return !operator==(rhs);
+    }
+
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    constexpr bool operator == (U const* rhs) const noexcept
+    {
+        return myPtr == rhs;
+    }
+
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    constexpr bool operator != (U const* rhs) const noexcept
+    {
+        return !operator==(rhs);
+    }
+
+    constexpr T* get() noexcept
     {
         return myPtr;
     }
 
-    T* release() noexcept
+    constexpr T const* get() const noexcept
+    {
+        return myPtr;
+    }
+
+    constexpr T* release() noexcept
     {
         auto ret = myPtr;
         myPtr = nullptr;
         return ret;
     }
 
-    void reset(T* p = pointer()) noexcept
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+    constexpr void reset(U* p) noexcept
     {
-#ifndef KYFOO_BOX_LEAK
-        delete myPtr;
-#else
-        if ( myPtr )
-            myPtr->~T();
-#endif
+        operator()(myPtr);
         myPtr = p;
     }
 
-    void reset(std::nullptr_t) noexcept
+    constexpr void reset() noexcept
     {
-#ifndef KYFOO_BOX_LEAK
-        delete myPtr;
+        operator()(myPtr);
         myPtr = nullptr;
-#else
-        if ( myPtr ) {
-            myPtr->~T();
-            myPtr = nullptr;
-        }
-#endif
     }
 
 private:
     T* myPtr = nullptr;
 };
-
-#else // KYFOO_BOX_CUSTOM
-
-#ifndef KYFOO_BOX_LEAK
-
-template <typename T>
-using Box = std::unique_ptr<T>;
-
-#else // KYFOO_BOX_LEAK
-
-struct LeakyDeleter {
-    template <typename T>
-    void operator()(T* p) const {
-        p->~T();
-    }
-};
-
-template <typename T>
-using Box = std::unique_ptr<T, LeakyDeleter>;
-
-#endif // KYFOO_BOX_LEAK
-
-#endif // KYFOO_BOX_CUSTOM
 
 template <typename T, typename... Args>
 Box<T> mk(Args&&... args)

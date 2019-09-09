@@ -65,7 +65,7 @@ Slice<Word const> Report::sentence() const
 
 void Report::append(Word word)
 {
-    mySentence.emplace_back(std::move(word));
+    mySentence.append(std::move(word));
 }
 
 lexer::Token const& front(Report::Subject const& subj)
@@ -88,13 +88,13 @@ void Diagnostics::die(const char* reason)
 
 ReportProxy Diagnostics::error(ast::Module const& mod, diag code)
 {
-    myErrors.emplace_back(mk<Report>(mod, code));
+    myErrors.append(mk<Report>(mod, code));
     return { *this, *myErrors.back() };
 }
 
 ReportProxy Diagnostics::error(ast::Module const& mod, diag code, Report::Subject subj)
 {
-    myErrors.emplace_back(mk<Report>(mod, code, subj));
+    myErrors.append(mk<Report>(mod, code, subj));
     return { *this, *myErrors.back() };
 }
 
@@ -105,7 +105,7 @@ const char* Diagnostics::dieReason() const
 
 uz Diagnostics::errorCount() const
 {
-    return myErrors.size();
+    return myErrors.card();
 }
 
 void Diagnostics::dumpErrors(DefaultOutStream& stream)
@@ -116,13 +116,13 @@ void Diagnostics::dumpErrors(DefaultOutStream& stream)
 
 ast::Expression const& Diagnostics::bunkExpression(Box<ast::Expression> expr)
 {
-    myBunkedExpressions.emplace_back(std::move(expr));
+    myBunkedExpressions.append(std::move(expr));
     return *myBunkedExpressions.back();
 }
 
 ast::Lookup const& Diagnostics::bunkLookup(ast::Lookup lookup)
 {
-    myBunkedLookups.emplace_back(mk<ast::Lookup>(std::move(lookup)));
+    myBunkedLookups.append(mk<ast::Lookup>(std::move(lookup)));
     return *myBunkedLookups.back();
 }
 

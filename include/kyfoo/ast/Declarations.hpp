@@ -89,7 +89,7 @@ public:
     Scope const& scope() const;
     void setScope(Scope& scope);
 
-    void setAttributes(std::vector<Box<Expression>> exprs);
+    void setAttributes(ab<Box<Expression>> exprs);
     Slice<ExpressionStatement const> attributes() const;
     Slice<ExpressionStatement> attributes();
 
@@ -102,7 +102,7 @@ protected:
     Kind myKind;
     Box<Symbol> mySymbol;
     Scope* myScope = nullptr;
-    std::vector<ExpressionStatement> myAttributes;
+    ab<ExpressionStatement> myAttributes;
     mutable Box<codegen::CustomData> myCodeGenData;
 };
 
@@ -164,7 +164,7 @@ protected:
     Binder(Kind kind,
            Symbol symbol,
            Scope* scope,
-           std::vector<Box<Expression>> constraints);
+           ab<Box<Expression>> constraints);
 
     Binder(Kind kind,
            Symbol symbol,
@@ -191,7 +191,7 @@ protected:
 
 public:
     void appendConstraint(Box<Expression> c);
-    void appendConstraints(std::vector<Box<Expression>> exprs);
+    void appendConstraints(ab<Box<Expression>> exprs);
 
     Slice<Expression*> constraints();
     Slice<Expression const*> const constraints() const;
@@ -199,7 +199,7 @@ public:
     Expression const* type() const;
 
 protected:
-    std::vector<Box<Expression>> myConstraints;
+    ab<Box<Expression>> myConstraints;
     Expression const* myType = nullptr;
 };
 
@@ -212,7 +212,7 @@ public:
 public:
     Field(DataTypeDeclaration& parent,
           Symbol symbol,
-          std::vector<Box<Expression>> constraints,
+          ab<Box<Expression>> constraints,
           Box<Expression> init);
 
 protected:
@@ -320,7 +320,7 @@ public:
 public:
     VariableDeclaration(Symbol symbol,
                         ProcedureScope& scope,
-                        std::vector<Box<Expression>> constraints);
+                        ab<Box<Expression>> constraints);
 
     VariableDeclaration(Symbol symbol,
                         ProcedureScope& scope,
@@ -358,7 +358,7 @@ public:
 public:
     ProcedureParameter(Symbol symbol,
                        ProcedureDeclaration& proc,
-                       std::vector<Box<Expression>> constraints);
+                       ab<Box<Expression>> constraints);
 
     ProcedureParameter(Symbol symbol,
                        ProcedureDeclaration& proc,
@@ -431,8 +431,8 @@ private:
     Box<ArrowExpression> myType;
     Box<Expression> myReturnExpression; // todo: merge with myResult
 
-    std::vector<Box<ProcedureParameter>> myParameters;
-    std::vector<int> myOrdinals;
+    ab<Box<ProcedureParameter>> myParameters;
+    ab<int> myOrdinals;
 
     Box<ProcedureParameter> myResult;
 };
@@ -444,7 +444,7 @@ public:
 
 public:
     explicit ImportDeclaration(Symbol sym);
-    explicit ImportDeclaration(std::vector<lexer::Token>&& modulePath);
+    explicit ImportDeclaration(ab<lexer::Token>&& modulePath);
 
 protected:
     ImportDeclaration(ImportDeclaration const& rhs);
@@ -465,7 +465,7 @@ protected:
     SymRes resolveSymbols(Context& ctx);
 
 private:
-    std::vector<lexer::Token> myModulePath;
+    ab<lexer::Token> myModulePath;
 };
 
 class SymbolVariable : public Binder
@@ -476,16 +476,16 @@ public:
 public:
     SymbolVariable(lexer::Token tok,
                    Scope& scope,
-                   std::vector<Box<Expression>> constraints,
+                   ab<Box<Expression>> constraints,
                    Expression const& expr);
     SymbolVariable(lexer::Token tok,
                    Scope& scope,
-                   std::vector<Box<Expression>> constraints);
+                   ab<Box<Expression>> constraints);
 
 protected:
     SymbolVariable(lexer::Token tok,
                    Scope* scope,
-                   std::vector<Box<Expression>> constraints,
+                   ab<Box<Expression>> constraints,
                    Expression const* expr);
 
     SymbolVariable(SymbolVariable const& rhs);

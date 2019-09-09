@@ -64,9 +64,10 @@ template <typename T, typename A> Slice<T> alignedAllocate(A&& alloc, uz n) { re
 template <typename T, typename A> Slice<T> allocateZeroed(A&& alloc, uz n) { return alloc.allocateZeroed(n * sizeof(T)).template cast<T>(); }
 
 template <typename T, typename A>
-bool expand(A&& alloc, Slice<T>& m, uz n)
+std::enable_if_t<!std::is_const_v<T>,
+bool> expand(A&& alloc, Slice<T>& m, uz n)
 {
-    mems block(m.begin(), m.end());
+    auto block = type_erase(m);
     if ( alloc.expand(block, n * sizeof(T)) ) {
         m = block.cast<T>();
         return true;
@@ -76,9 +77,10 @@ bool expand(A&& alloc, Slice<T>& m, uz n)
 }
 
 template <typename T, typename A>
-bool reallocate(A&& alloc, Slice<T>& m, uz n)
+std::enable_if_t<!std::is_const_v<T>,
+bool> reallocate(A&& alloc, Slice<T>& m, uz n)
 {
-    mems block(m);
+    auto block = type_erase(m);
     if ( alloc.reallocate(block, n * sizeof(T)) ) {
         m = block.cast<T>();
         return true;
@@ -88,9 +90,10 @@ bool reallocate(A&& alloc, Slice<T>& m, uz n)
 }
 
 template <typename T, typename A>
-bool alignedReallocate(A&& alloc, Slice<T>& m, uz n)
+std::enable_if_t<!std::is_const_v<T>,
+bool> alignedReallocate(A&& alloc, Slice<T>& m, uz n)
 {
-    mems block(m);
+    auto block = type_erase(m);
     if ( alloc.alignedReallocate(block, n * sizeof(T)) ) {
         m = block.cast<T>();
         return true;

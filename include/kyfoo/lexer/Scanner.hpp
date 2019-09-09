@@ -1,13 +1,13 @@
 #pragma once
 
 #include <deque>
-#include <vector>
 
 #include <kyfoo/allocators/AscendingAllocator.hpp>
 #include <kyfoo/allocators/AscendingPageAllocator.hpp>
 #include <kyfoo/allocators/Mallocator.hpp>
 #include <kyfoo/allocators/Region.hpp>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Allocators.hpp>
 #include <kyfoo/Factory.hpp>
 #include <kyfoo/Slice.hpp>
@@ -36,7 +36,7 @@ public:
     using Unit = char;
     using ParentView = Slice<char const>;
     using Window = Slice<char const>;
-    using Pointer = ParentView::pointer;
+    using Pointer = ParentView::Pointer;
 
 public:
     Tokenizer() = default;
@@ -192,8 +192,8 @@ private:
     };
     InternalScanState myState;
 
-    std::vector<InternalScanState> mySavePoints;
-    std::vector<IndentWidth> myIndents;
+    ab<InternalScanState> mySavePoints;
+    ab<IndentWidth> myIndents;
     std::deque<Token const*> myBuffer;
 
     SourceLocation myLoc = { 1, 1 };

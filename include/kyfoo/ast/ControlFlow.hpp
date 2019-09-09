@@ -70,8 +70,8 @@ public:
 
 protected:
     Kind myKind;
-    std::vector<Box<VariableDeclaration>> myTempVariables;
-    std::vector<Box<Expression>> myTempExpressions;
+    ab<Box<VariableDeclaration>> myTempVariables;
+    ab<Box<Expression>> myTempExpressions;
 };
 
 class ExpressionStatement : public Statement
@@ -373,8 +373,8 @@ public:
 private:
     ProcedureScope* myScope = nullptr;
 
-    std::vector<BasicBlock*> myIncoming;
-    std::vector<Box<Statement>> myStatements;
+    ab<BasicBlock*> myIncoming;
+    ab<Box<Statement>> myStatements;
     Box<Junction> myJunction;
 
     mutable FlatSet<BasicBlock*> myDominators;
@@ -412,9 +412,9 @@ public:
         }
 
         BasicBlock const* bb;
-        std::vector<Usage> uses;
-        std::vector<Block*> pred;
-        std::vector<Block*> succ;
+        ab<Usage> uses;
+        ab<Block*> pred;
+        ab<Block*> succ;
         Requirement in = Requirement::None;
         Provision out = Provision::None;
     };
@@ -441,8 +441,8 @@ private:
 
 private:
     Declaration const* myDeclaration = nullptr;
-    std::vector<Box<Block>> myBlocks;
-    std::vector<Block*> myFirstUses;
+    ab<Box<Block>> myBlocks;
+    ab<Block*> myFirstUses;
 };
 
 class FlowTracer
@@ -468,7 +468,7 @@ private:
     Shape checkRepetition();
 
 private:
-    std::vector<BasicBlock const*> myPath;
+    ab<BasicBlock const*> myPath;
 };
 
 struct ExtentCompare {
@@ -557,6 +557,6 @@ inline void remap(BasicBlock& bb, CloneMap const& map)
     return bb.remapReferences(map);
 }
 
-SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, std::vector<Extent>& extents);
+SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, ab<Extent>& extents);
 
 } // namespace kyfoo::ast

@@ -3,8 +3,8 @@
 #include <cassert>
 
 #include <algorithm>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Types.hpp>
 
 namespace kyfoo {
@@ -42,11 +42,8 @@ public:
     {
         static_assert(sizeof(rhs) >= sizeof(Limb));
 
-        auto const size = sizeof(rhs) / sizeof(Limb);
-        auto first = reinterpret_cast<Limb*>(&rhs);
-        auto last = first + size;
-
-        myLimbs.assign(first, last);
+        auto const card = sizeof(rhs) / sizeof(Limb);
+        myLimbs.appendRange(Slice{reinterpret_cast<Limb*>(&rhs), card});
         normalize();
     }
 
@@ -164,8 +161,8 @@ public:
         uz const shift = rhs % limbBits;
         uz const invShift = limbBits - shift;
 
-        myLimbs.resize(myLimbs.size() + offset);
-        for ( uz i = myLimbs.size() - 1; i > offset; --i ) {
+        myLimbs.appendRange(Replicate<u32>(offset));
+        for ( uz i = myLimbs.card() - 1; i > offset; --i ) {
             auto s = myLimbs[i - offset] << shift;
             auto ss = myLimbs[i - offset - 1] >> invShift;
             myLimbs[i] = s | ss;
@@ -187,7 +184,7 @@ public:
         uz const shift = rhs % limbBits;
         uz const invShift = limbBits - shift;
 
-        auto const size = myLimbs.size();
+        auto const size = myLimbs.card();
         auto const msl = size - offset - 1;
         for ( uz i = 0; i < msl; ++i ) {
             auto const s = myLimbs[i + offset] >> shift;
@@ -196,7 +193,7 @@ public:
         }
 
         myLimbs[msl] = myLimbs[msl + offset] >> shift;
-        myLimbs.resize(msl + 1);
+        myLimbs.trunc(msl + 1);
 
         normalize();
 
@@ -217,8 +214,8 @@ private:
         auto constexpr limbBits = bit_count_v<Limb>;
         DoubleLimb constexpr lsl = ~Limb(0);
 
-        auto const lhsSize = myLimbs.size();
-        auto const rhsSize = rhs.myLimbs.size();
+        auto const lhsSize = myLimbs.card();
+        auto const rhsSize = rhs.myLimbs.card();
         auto const minSize = std::min(lhsSize, rhsSize);
 
         DoubleLimb carry = 0;
@@ -238,23 +235,23 @@ private:
 
         for ( ; i < rhsSize; ++i ) {
             carry += rhs.myLimbs[i];
-            myLimbs.emplace_back(static_cast<Limb>(carry & lsl));
+            myLimbs.append(static_cast<Limb>(carry & lsl));
             carry >>= limbBits;
         }
 
         if ( carry )
-            myLimbs.emplace_back(static_cast<Limb>(carry & lsl));
+            myLimbs.append(static_cast<Limb>(carry & lsl));
     }
 
     void magSub(BigInt const& rhs)
     {
         auto constexpr limbBits = bit_count_v<Limb>;
 
-        auto const lhsSize = myLimbs.size();
-        auto const rhsSize = rhs.myLimbs.size();
+        auto const lhsSize = myLimbs.card();
+        auto const rhsSize = rhs.myLimbs.card();
         auto const [minSize, maxSize] = std::minmax(lhsSize, rhsSize);
 
-        myLimbs.resize(maxSize);
+        myLimbs.appendRange(Replicate<u32>(maxSize - myLimbs.card()));
 
         Limb const* bigger;
         Limb const* smaller;
@@ -268,7 +265,7 @@ private:
             smaller = rhs.myLimbs.data();
         }
         else {
-            myLimbs.resize(1);
+            myLimbs.trunc(1);
             myLimbs[0] = 0;
             mySign = Positive;
             return;
@@ -300,8 +297,8 @@ private:
 
     Ordering magCmp(BigInt const& rhs) const
     {
-        auto const lhsSize = myLimbs.size();
-        auto const rhsSize = rhs.myLimbs.size();
+        auto const lhsSize = myLimbs.card();
+        auto const rhsSize = rhs.myLimbs.card();
 
         if ( lhsSize < rhsSize )
             return LT;
@@ -323,12 +320,12 @@ private:
 
     void normalize()
     {
-        while ( myLimbs.size() > 1 && !myLimbs.back() )
-            myLimbs.pop_back();
+        while ( myLimbs.card() > 1 && !myLimbs.back() )
+            myLimbs.pop();
     }
 
 private:
-    std::vector<Limb> myLimbs;
+    ab<Limb> myLimbs;
     Sign mySign = Positive;
 };
 

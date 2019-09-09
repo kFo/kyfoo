@@ -1,6 +1,6 @@
 #include <catch2/catch.hpp>
 
-#include <kyfoo/Algorithm.hpp>
+#include <kyfoo/Algorithms.hpp>
 #include <kyfoo/Range.hpp>
 #include <kyfoo/Slice.hpp>
 
@@ -10,9 +10,10 @@ static_assert(is_input_range<Slice<int>>);
 static_assert(is_bidirectional_range<Slice<int>>);
 static_assert(is_random_access_range<Slice<int>>);
 
-TEST_CASE("iota", "[Iota]") {
+TEST_CASE("iota", "[Iota]")
+{
     {
-        Iota n { 0, 6 };
+        Iota n { 6 };
         for ( auto e : {0, 1, 2, 3, 4, 5} ) {
             REQUIRE(n);
             CHECK(e == n.front());
@@ -42,7 +43,8 @@ TEST_CASE("iota", "[Iota]") {
     }
 }
 
-TEST_CASE("map", "[Map]") {
+TEST_CASE("map", "[Map]")
+{
     Map sqs { [](int x){return x*x;}, Iota{10} };
     for ( auto e : {0*0, 1*1, 2*2, 3*3, 4*4, 5*5, 6*6, 7*7, 8*8, 9*9} ) {
         REQUIRE(sqs);
@@ -52,7 +54,8 @@ TEST_CASE("map", "[Map]") {
     CHECK(!sqs);
 }
 
-TEST_CASE("retro", "[Retro]") {
+TEST_CASE("retro", "[Retro]")
+{
     Retro r { Iota{5} };
     for ( auto e : {4, 3, 2, 1, 0} ) {
         REQUIRE(r);
@@ -62,7 +65,8 @@ TEST_CASE("retro", "[Retro]") {
     CHECK(!r);
 }
 
-TEST_CASE("repeat", "[Repeat][Take]") {
+TEST_CASE("repeat", "[Repeat][Take]")
+{
     Repeat sp { 0 };
     Take r {5, sp};
     REQUIRE(r.card() == 5);

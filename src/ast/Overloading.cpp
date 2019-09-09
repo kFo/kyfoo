@@ -39,42 +39,42 @@ Viability::operator bool() const
 
 void OverloadViability::append(Variance v, ProcedureDeclaration const* conversion)
 {
-    myViabilities.emplace_back(v, conversion);
+    myViabilities.append(v, conversion);
 }
 
 void OverloadViability::append(Viability pv)
 {
-    myViabilities.emplace_back(std::move(pv));
+    myViabilities.append(std::move(pv));
 }
 
-std::vector<Viability>::const_iterator OverloadViability::begin() const
+ab<Viability>::ConstIterator OverloadViability::begin() const
 {
     return myViabilities.begin();
 }
 
-std::vector<Viability>::iterator OverloadViability::begin()
+ab<Viability>::Iterator OverloadViability::begin()
 {
     return myViabilities.begin();
 }
 
-std::vector<Viability>::const_iterator OverloadViability::end() const
+ab<Viability>::ConstIterator OverloadViability::end() const
 {
     return myViabilities.end();
 }
 
-std::vector<Viability>::iterator OverloadViability::end()
+ab<Viability>::Iterator OverloadViability::end()
 {
     return myViabilities.end();
 }
 
 bool OverloadViability::empty() const
 {
-    return myViabilities.empty();
+    return !myViabilities;
 }
 
 uz OverloadViability::card() const
 {
-    return myViabilities.empty();
+    return myViabilities.card();
 }
 
 Viability const& OverloadViability::operator [] (uz index) const
@@ -104,7 +104,7 @@ Variance OverloadViability::variance() const
 
 OverloadViability::operator bool() const
 {
-    return all_of(myViabilities.begin(), myViabilities.end(), $);
+    return std::all_of(myViabilities.begin(), myViabilities.end(), $);
 }
 
 //
@@ -129,7 +129,7 @@ Declaration* Via::instantiate(Context& ctx)
     }
 
     // use existing instantiation if it exists
-    for ( uz i = 0; i < myProto->instances.size(); ++i ) {
+    for ( uz i = 0; i < myProto->instances.card(); ++i ) {
         auto const& inst = myProto->instances[i];
         auto const& instVars = inst.params->symbolVariables();
         ENFORCE(instVars.card() == mySubsts.card(), "invalid template instance");
@@ -154,7 +154,7 @@ Declaration* Via::instantiate(Context& ctx)
 
     // create new instantiation
     CloneMap cloneMap;
-    myProto->ownDeclarations.emplace_back(ast::beginClone(myProto->proto.decl, cloneMap));
+    myProto->ownDeclarations.append(ast::beginClone(myProto->proto.decl, cloneMap));
     auto instanceDecl = myProto->ownDeclarations.back().get();
     remap(*instanceDecl, cloneMap);
 
@@ -162,13 +162,13 @@ Declaration* Via::instantiate(Context& ctx)
     auto res = ctx.resolveDeclaration(*instanceDecl);
     ENFORCE(!res.error(), "invalid substitution");
 
-    myProto->instances.emplace_back(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
+    myProto->instances.append(PatternsDecl{&instanceDecl->symbol().prototype(), instanceDecl});
 
     if ( !res )
         return instanceDecl;
 
     if ( auto defn = getDefinition(*myProto->proto.decl) ) {
-        myProto->ownDefinitions.emplace_back(ast::beginClone(defn, cloneMap));
+        myProto->ownDefinitions.append(ast::beginClone(defn, cloneMap));
         auto instanceDefn = myProto->ownDefinitions.back().get();
         remap(*instanceDefn, cloneMap);
         define(*instanceDecl, *instanceDefn);
@@ -224,30 +224,30 @@ void ViableSet::swap(ViableSet& rhs) noexcept
 
 bool ViableSet::empty() const
 {
-    return myVias.empty();
+    return !myVias;
 }
 
 uz ViableSet::card() const
 {
-    return myVias.size();
+    return myVias.card();
 }
 
-std::vector<Via>::const_iterator ViableSet::begin() const
+ab<Via>::ConstIterator ViableSet::begin() const
 {
     return myVias.begin();
 }
 
-std::vector<Via>::iterator ViableSet::begin()
+ab<Via>::Iterator ViableSet::begin()
 {
     return myVias.begin();
 }
 
-std::vector<Via>::const_iterator ViableSet::end() const
+ab<Via>::ConstIterator ViableSet::end() const
 {
     return myVias.end();
 }
 
-std::vector<Via>::iterator ViableSet::end()
+ab<Via>::Iterator ViableSet::end()
 {
     return myVias.end();
 }
@@ -287,7 +287,7 @@ ViableSet::Result ViableSet::result() const
     if ( empty() )
         return None;
 
-    if ( myVias.size() > 1 && myVias[0].rank() == myVias[1].rank() )
+    if ( myVias.card() > 1 && myVias[0].rank() == myVias[1].rank() )
         return Ambiguous;
 
     if ( myVias[0].rank() == Via::Conversion )
@@ -300,13 +300,13 @@ void ViableSet::append(OverloadViability viability, Prototype& proto, Substituti
 {
     auto r = rank(viability.variance(), !substs.empty());
     Via c(r, std::move(viability), proto, std::move(substs));
-    myVias.emplace(upper_bound(begin(), end(), c), std::move(c));
+    myVias.insert(std::upper_bound(begin(), end(), c), std::move(c));
 }
 
 void ViableSet::merge(ViableSet rhs)
 {
     for ( auto& e : rhs.myVias )
-        myVias.emplace(upper_bound(begin(), end(), e), std::move(e));
+        myVias.insert(std::upper_bound(begin(), end(), e), std::move(e));
 
     if ( !myDeclaration )
         myDeclaration = rhs.myDeclaration;
@@ -376,7 +376,7 @@ Slice<Prototype const> SymbolSpace::prototypes() const
 void SymbolSpace::append(PatternsPrototype const& prototype,
                          Declaration& declaration)
 {
-    myPrototypes.emplace_back(prototype, declaration);
+    myPrototypes.append(prototype, declaration);
 }
 
 Declaration const* SymbolSpace::findEquivalent(Slice<Expression const*> paramlist) const
@@ -460,7 +460,7 @@ Lookup::operator bool () const
 
 void Lookup::appendTrace(SymbolSpace const& space)
 {
-    mySpaces.push_back(&space);
+    mySpaces.append(&space);
 }
 
 Lookup& Lookup::resolveTo(ViableSet set)
@@ -483,8 +483,7 @@ Lookup& Lookup::resolveTo(Declaration& decl)
 
 Lookup& Lookup::append(Lookup rhs)
 {
-    mySpaces.insert(end(mySpaces),
-                    begin(rhs.mySpaces), end(rhs.mySpaces));
+    mySpaces.appendRange(rhs.mySpaces());
     myDecl = rhs.myDecl;
     mySet.merge(std::move(rhs.mySet));
 
@@ -501,7 +500,7 @@ SymbolReference Lookup::query() const
 
 SymbolSpace const* Lookup::symSpace() const
 {
-    if ( !mySpaces.empty() )
+    if ( mySpaces )
         return mySpaces.front();
 
     return nullptr;
@@ -509,7 +508,7 @@ SymbolSpace const* Lookup::symSpace() const
 
 Slice<SymbolSpace const* const> Lookup::trace() const
 {
-    return mySpaces;
+    return mySpaces();
 }
 
 ViableSet const& Lookup::viable() const

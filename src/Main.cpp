@@ -1,8 +1,8 @@
 #include <filesystem>
 #include <queue>
 #include <set>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Stream.hpp>
 
@@ -164,7 +164,7 @@ enum Options
     IR            = 1 << 2,
 };
 
-int compile(DefaultOutStream& out, std::vector<std::filesystem::path> const& files, u32 options)
+int compile(DefaultOutStream& out, ab<std::filesystem::path> const& files, u32 options)
 {
     auto ret = EXIT_SUCCESS;
     lexer::DefaultTokenFactory tokenFactory;
@@ -254,14 +254,14 @@ int compile(DefaultOutStream& out, std::vector<std::filesystem::path> const& fil
         return ret;
 
     // semantic pass
-    std::vector<ast::Module*> allModules(begin(moduleSet.modules()), end(moduleSet.modules()));
-    allModules.erase(find(begin(allModules), end(allModules), &moduleSet.axioms()));
+    ab<ast::Module*> allModules(moduleSet.modules());
+    allModules.zap(&moduleSet.axioms());
 
     for ( auto m = begin(allModules); m != end(allModules); ++m ) {
-        for ( auto mm = next(m); mm != end(allModules); ++mm ) {
+        for ( auto mm = std::next(m); mm != end(allModules); ++mm ) {
             if ( (*m)->imports(*mm) ) {
-                iter_swap(m, mm);
-                mm = next(m);
+                std::iter_swap(m, mm);
+                mm = std::next(m);
             }
         }
     }
@@ -355,9 +355,9 @@ int main(int argc, char const* argv[])
         }
 
         if ( command == "semantics" || command == "sem" || command == "semdump" ) {
-            std::vector<std::filesystem::path> files;
+            ab<std::filesystem::path> files;
             for ( int i = 2; i != argc; ++i )
-                files.emplace_back(argv[i]);
+                files.append(argv[i]);
 
             u32 options = SemanticsOnly;
             if ( command == "semdump" )
@@ -367,9 +367,9 @@ int main(int argc, char const* argv[])
         }
 
         if ( command == "compile" || command == "c" || command == "ir" ) {
-            std::vector<std::filesystem::path> files;
+            ab<std::filesystem::path> files;
             for ( int i = 2; i != argc; ++i )
-                files.emplace_back(argv[i]);
+                files.append(argv[i]);
 
             return compile(out, files, command == "ir" ? IR : None);
         }

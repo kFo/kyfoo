@@ -124,18 +124,18 @@ protected:
     Module* myModule = nullptr;
     DefinableDeclaration* myDeclaration = nullptr;
     Scope* myParent = nullptr;
-    std::vector<Box<Declaration>> myDeclarations;
-    std::vector<Box<Scope>> myDefinitions;
-    std::vector<Box<ProcedureDeclaration>> myLambdas;
-    std::vector<Box<SymbolVariable>> myMetaVariables;
-    std::vector<std::string> myMetaVariableNames;
+    ab<Box<Declaration>> myDeclarations;
+    ab<Box<Scope>> myDefinitions;
+    ab<Box<ProcedureDeclaration>> myLambdas;
+    ab<Box<SymbolVariable>> myMetaVariables;
+    ab<std::string> myMetaVariableNames;
 
     // cache resolution
     mutable std::optional<SymRes> myAttribRes;
     mutable std::optional<SymRes> myDeclRes;
     mutable std::optional<SymRes> myDefnRes;
 
-    mutable std::vector<SymbolSpace> mySymbols;
+    mutable ab<SymbolSpace> mySymbols;
     mutable std::map<std::string, ImportDeclaration*> myImports;
 };
 
@@ -169,7 +169,7 @@ protected:
 
 public:
     void appendField(Symbol symbol,
-                     std::vector<Box<Expression>> constraints,
+                     ab<Box<Expression>> constraints,
                      Box<Expression> init);
 
     void appendVariation(Symbol sym);
@@ -183,8 +183,8 @@ public:
     Slice<DataTypeDeclaration const*> variations() const;
 
 private:
-    std::vector<Field*> myFields;
-    std::vector<DataTypeDeclaration*> myVariations;
+    ab<Field*> myFields;
+    ab<DataTypeDeclaration*> myVariations;
 };
 
 class ProcedureScope : public Scope
@@ -276,10 +276,10 @@ private:
     lexer::Token myOpenToken;
     lexer::Token myLabel;
 
-    std::vector<Box<ProcedureScope>> myChildScopes;
-    std::vector<Box<BasicBlock>> myBasicBlocks;
+    ab<Box<ProcedureScope>> myChildScopes;
+    ab<Box<BasicBlock>> myBasicBlocks;
 
-    mutable std::vector<Extent> myExtents;
+    mutable ab<Extent> myExtents;
 };
 
 class TemplateScope : public Scope

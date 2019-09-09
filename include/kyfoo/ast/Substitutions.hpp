@@ -1,7 +1,6 @@
 #pragma once
 
-#include <vector>
-
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Slice.hpp>
 
 namespace kyfoo::ast {
@@ -67,8 +66,8 @@ private:
 
 private:
     State myState = 0;
-    std::vector<SymbolVariable const*> myVariables;
-    std::vector<Expression const*> myContexts;
+    ab<SymbolVariable const*> myVariables;
+    ab<Expression const*> myContexts;
 };
 
 } // namespace kyfoo::ast

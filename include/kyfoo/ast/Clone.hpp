@@ -3,6 +3,7 @@
 #include <type_traits>
 #include <map>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Slice.hpp>
 
 #define DECL_CLONE(kind)                              \
@@ -116,18 +117,18 @@ Box<T> clone(Box<T> const& rhs)
 }
 
 template <typename T, typename D>
-std::vector<Box<std::remove_const_t<T>>> beginClone(Slice<T*> rhs, D& dict)
+ab<Box<std::remove_const_t<T>>> beginClone(Slice<T*> rhs, D& dict)
 {
-    std::vector<Box<std::remove_const_t<T>>> ret;
+    ab<Box<std::remove_const_t<T>>> ret;
     ret.reserve(rhs.card());
     for ( auto e : rhs )
-        ret.emplace_back(beginClone(e, dict));
+        ret.append(beginClone(e, dict));
 
     return ret;
 }
 
 template <typename T>
-std::vector<Box<std::remove_const_t<T>>> clone(Slice<T*> rhs)
+ab<Box<std::remove_const_t<T>>> clone(Slice<T*> rhs)
 {
     CloneMap map;
     auto ret = beginClone(rhs, map);
@@ -136,24 +137,24 @@ std::vector<Box<std::remove_const_t<T>>> clone(Slice<T*> rhs)
 }
 
 template <typename T, typename D>
-std::vector<Box<T>> beginClone(std::vector<Box<T>> const& rhs, D& dict)
+ab<Box<T>> beginClone(ab<Box<T>> const& rhs, D& dict)
 {
-    std::vector<Box<T>> ret;
-    ret.reserve(rhs.size());
+    ab<Box<T>> ret;
+    ret.reserve(rhs.card());
     for ( auto const& e : rhs )
-        ret.emplace_back(beginClone(e, dict));
+        ret.append(beginClone(e, dict));
 
     return ret;
 }
 
 template <typename T>
-std::vector<Box<T>> clone(std::vector<Box<T>> const& rhs)
+ab<Box<T>> clone(ab<Box<T>> const& rhs)
 {
     CloneMap map;
-    std::vector<Box<T>> ret;
-    ret.reserve(rhs.size());
+    ab<Box<T>> ret;
+    ret.reserve(rhs.card());
     for ( auto const& e : rhs )
-        ret.emplace_back(beginClone(e, map));
+        ret.append(beginClone(e, map));
 
     for ( auto& e : ret )
         remap(e, map);
@@ -169,7 +170,7 @@ void remap(Box<T>& rhs, CloneMap const& map)
 }
 
 template <typename T>
-void remap(std::vector<T>& rhs, CloneMap const& map)
+void remap(ab<T>& rhs, CloneMap const& map)
 {
     for ( auto& e : rhs )
         remap(e, map);

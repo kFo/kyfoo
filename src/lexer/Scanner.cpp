@@ -137,14 +137,14 @@ Scanner::Scanner(DefaultTokenFactory& tokenFactory, std::deque<Token const*> buf
 
 Token const& Scanner::next()
 {
-    if ( !mySavePoints.empty() ) {
+    if ( mySavePoints ) {
         if ( myState.readIndex + 1 >= myBuffer.size() )
             peek(myState.readIndex + 1);
     }
 
     if ( !myBuffer.empty() ) {
         auto const& ret = *myBuffer[myState.readIndex];
-        if ( mySavePoints.empty() ) {
+        if ( !mySavePoints ) {
             assert(myState.readIndex == 0);
             myBuffer.pop_front();
         }
@@ -177,14 +177,14 @@ Token const& Scanner::peek(uz lookAhead)
 
 void Scanner::beginScan()
 {
-    mySavePoints.push_back(myState);
+    mySavePoints.append(myState);
 }
 
 void Scanner::endScan()
 {
-    mySavePoints.pop_back();
+    mySavePoints.pop();
 
-    if ( mySavePoints.empty() ) {
+    if ( !mySavePoints ) {
         myBuffer.erase(begin(myBuffer), begin(myBuffer) + myState.readIndex);
         myState.readIndex = 0;
     }
@@ -193,7 +193,7 @@ void Scanner::endScan()
 void Scanner::rollbackScan()
 {
     myState = mySavePoints.back();
-    mySavePoints.pop_back();
+    mySavePoints.pop();
 }
 
 bool Scanner::eof() const
@@ -219,30 +219,30 @@ Token const& Scanner::indent(SourceLocation loc, IndentWidth indent)
     };
 
     IndentWidth current = 0;
-    if ( !myIndents.empty() )
+    if ( myIndents )
         current = myIndents.back();
 
     if ( indent == current )
         return token(TokenKind::IndentEQ);
 
     if ( indent > current ) {
-        myIndents.push_back(indent);
+        myIndents.append(indent);
         return token(TokenKind::IndentGT);
     }
 
-    myIndents.pop_back();
+    myIndents.pop();
 
-    while ( !myIndents.empty() && myIndents.back() != indent ) {
+    while ( myIndents && myIndents.back() != indent ) {
         if ( myIndents.back() < indent ) {
             myError = true;
             return token(TokenKind::IndentError);
         }
         
         myBuffer.emplace_back(&myTokenFactory.mkToken(TokenKind::IndentLT, loc));
-        myIndents.pop_back();
+        myIndents.pop();
     }
 
-    if ( myIndents.empty() && indent != 0 ) {
+    if ( !myIndents && indent != 0 ) {
         myError = true;
         return token(TokenKind::IndentError);
     }
@@ -309,7 +309,7 @@ Token const& Scanner::readNext()
     }
 
     if ( !myTok ) {
-        if ( !myIndents.empty() )
+        if ( myIndents )
             return indent(myLoc, 0);
 
         // todo: cache eoi

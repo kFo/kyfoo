@@ -114,10 +114,10 @@ void Declaration::setScope(Scope& scope)
     myScope = &scope;
 }
 
-void Declaration::setAttributes(std::vector<Box<Expression>> exprs)
+void Declaration::setAttributes(ab<Box<Expression>> exprs)
 {
     for ( auto& e : exprs )
-        myAttributes.emplace_back(std::move(e));
+        myAttributes.append(std::move(e));
 
     exprs.clear();
 }
@@ -200,7 +200,7 @@ Scope const* DefinableDeclaration::definition() const
 Binder::Binder(Declaration::Kind kind,
                Symbol symbol,
                Scope* scope,
-               std::vector<Box<Expression>> constraints)
+               ab<Box<Expression>> constraints)
     : Declaration(kind, std::move(symbol), scope)
     , myConstraints(std::move(constraints))
 {
@@ -264,12 +264,12 @@ SymRes Binder::resolveSymbols(Context& ctx)
 
 void Binder::appendConstraint(Box<Expression> c)
 {
-    myConstraints.emplace_back(std::move(c));
+    myConstraints.append(std::move(c));
 }
 
-void Binder::appendConstraints(std::vector<Box<Expression>> exprs)
+void Binder::appendConstraints(ab<Box<Expression>> exprs)
 {
-    move(begin(exprs), end(exprs), back_inserter(myConstraints));
+    myConstraints.appendRange(MoveRange(exprs()));
 }
 
 Slice<Expression*> Binder::constraints()
@@ -292,7 +292,7 @@ Expression const* Binder::type() const
 
 Field::Field(DataTypeDeclaration& parent,
              Symbol symbol,
-             std::vector<Box<Expression>> constraints,
+             ab<Box<Expression>> constraints,
              Box<Expression> init)
     : Binder(Declaration::Kind::Field, std::move(symbol), nullptr, std::move(constraints))
     , myParent(&parent)
@@ -455,7 +455,7 @@ Expression const* SymbolDeclaration::expression() const
 
 VariableDeclaration::VariableDeclaration(Symbol symbol,
                                          ProcedureScope& scope,
-                                         std::vector<Box<Expression>> constraints)
+                                         ab<Box<Expression>> constraints)
     : Binder(Declaration::Kind::Variable, std::move(symbol), &scope, std::move(constraints))
 {
 }
@@ -515,7 +515,7 @@ SymRes VariableDeclaration::resolveSymbols(Context& ctx)
 
 ProcedureParameter::ProcedureParameter(Symbol symbol,
                                        ProcedureDeclaration& proc,
-                                       std::vector<Box<Expression>> constraints)
+                                       ab<Box<Expression>> constraints)
     : Binder(Declaration::Kind::ProcedureParameter, std::move(symbol), &proc.scope(), std::move(constraints))
 {
 }
@@ -625,7 +625,7 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
     // deduce parameters
     auto const& id = symbol().token();
-    if ( myParameters.empty() ) {
+    if ( !myParameters ) {
         auto canBeParam = [&ctx](Expression const& e) {
             auto p = e.as<IdentifierExpression>();
             if ( !p || p->token().kind() != lexer::TokenKind::Identifier )
@@ -639,14 +639,14 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
 
         for ( uz i = 0; i < mySymbol->prototype().pattern().card(); ++i ) {
             auto& protoPattern = mySymbol->prototype().myPattern;
-            while ( TupleExpression::tryExpandTuple(protoPattern, next(begin(protoPattern), i)) )
+            while ( TupleExpression::tryExpandTuple(protoPattern, std::next(begin(protoPattern), i)) )
                 continue;
 
             if ( auto app = mySymbol->prototype().pattern()[i]->as<ApplyExpression>() ) {
                 auto a = std::move(reinterpret_cast<Box<ApplyExpression>&>(protoPattern[i]));
                 protoPattern[i] = std::move(a->myExpressions[0]);
-                for ( uz j = 1; j < a->myExpressions.size(); ++j ) {
-                    protoPattern.emplace(begin(protoPattern) + i + j, std::move(a->myExpressions[j]));
+                for ( uz j = 1; j < a->myExpressions.card(); ++j ) {
+                    protoPattern.insert(begin(protoPattern) + i + j, std::move(a->myExpressions[j]));
                     protoPattern[i + j]->appendConstraints(ast::clone(a->constraints()));
                 }
                 protoPattern[i]->appendConstraints(a->takeConstraints());
@@ -655,15 +655,15 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
             auto& e = *mySymbol->prototype().pattern()[i];
             if ( canBeParam(e) ) {
                 auto p = e.as<IdentifierExpression>();
-                myOrdinals.push_back(static_cast<int>(myParameters.size()));
-                myParameters.emplace_back(
+                myOrdinals.append(static_cast<int>(myParameters.card()));
+                myParameters.append(
                     mk<ProcedureParameter>(Symbol(p->token()),
                                            *this,
                                            e.takeConstraints()));
                 p->setDeclaration(*myParameters.back());
             }
             else {
-                myOrdinals.push_back(-1);
+                myOrdinals.append(-1);
             }
         }
     }
@@ -706,10 +706,10 @@ SymRes ProcedureDeclaration::resolveSymbols(Context& ctx)
     if ( !ret )
         return ret;
 
-    std::vector<Box<Expression>> paramTypes;
-    paramTypes.reserve(myParameters.size());
+    ab<Box<Expression>> paramTypes;
+    paramTypes.reserve(myParameters.card());
     for ( auto const& p : myParameters )
-        paramTypes.emplace_back(ast::clone(p->type()));
+        paramTypes.append(ast::clone(p->type()));
 
     myType = mk<ArrowExpression>(mk<TupleExpression>(TupleKind::Open, std::move(paramTypes)),
                                  ast::clone(myResult->type()));
@@ -760,7 +760,7 @@ Slice<int const> ProcedureDeclaration::ordinals() const
 
 ProcedureParameter* ProcedureDeclaration::findParameter(stringv token)
 {
-    for ( auto const& p : myParameters )
+    for ( auto& p : myParameters )
         if ( p->symbol().token().lexeme() == token )
             return p.get();
 
@@ -778,10 +778,10 @@ ProcedureParameter const* ProcedureDeclaration::findParameter(stringv token) con
 ImportDeclaration::ImportDeclaration(Symbol sym)
     : Declaration(Declaration::Kind::Import, std::move(sym), nullptr)
 {
-    myModulePath.push_back(symbol().token());
+    myModulePath.append(symbol().token());
 }
 
-ImportDeclaration::ImportDeclaration(std::vector<lexer::Token>&& modulePath)
+ImportDeclaration::ImportDeclaration(ab<lexer::Token>&& modulePath)
     : Declaration(Declaration::Kind::Import, Symbol(modulePath.back()), nullptr)
     , myModulePath(std::move(modulePath))
 {
@@ -820,7 +820,7 @@ SymRes ImportDeclaration::resolveSymbols(Context& ctx)
 
 SymbolVariable::SymbolVariable(lexer::Token tok,
                                Scope& scope,
-                               std::vector<Box<Expression>> constraints,
+                               ab<Box<Expression>> constraints,
                                Expression const& expr)
     : SymbolVariable(std::move(tok), &scope, std::move(constraints), &expr)
 {
@@ -828,14 +828,14 @@ SymbolVariable::SymbolVariable(lexer::Token tok,
 
 SymbolVariable::SymbolVariable(lexer::Token tok,
                                Scope& scope,
-                               std::vector<Box<Expression>> constraints)
+                               ab<Box<Expression>> constraints)
     : SymbolVariable(std::move(tok), &scope, std::move(constraints), nullptr)
 {
 }
 
 SymbolVariable::SymbolVariable(lexer::Token tok,
                                Scope* scope,
-                               std::vector<Box<Expression>> constraints,
+                               ab<Box<Expression>> constraints,
                                Expression const* expr)
     : Binder(Declaration::Kind::SymbolVariable,
              Symbol(std::move(tok)),

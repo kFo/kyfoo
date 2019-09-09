@@ -4,6 +4,7 @@
 
 #include <filesystem>
 
+#include <kyfoo/Algorithms.hpp>
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Stream.hpp>
 
@@ -26,7 +27,7 @@ ModuleSet::ModuleSet(lexer::DefaultTokenFactory& tokenFactory)
     : myAxioms(new AxiomsModule(this, "axioms"))
     , myTokenFactory(tokenFactory)
 {
-    myModules.emplace_back(myAxioms);
+    myModules.append(myAxioms);
 }
 
 ModuleSet::~ModuleSet() = default;
@@ -34,7 +35,7 @@ ModuleSet::~ModuleSet() = default;
 bool ModuleSet::init(Diagnostics& dgn)
 {
     if ( myAxioms->init(dgn) ) {
-        myImpliedImports.push_back(myAxioms);
+        myImpliedImports.append(myAxioms);
         return true;
     }
 
@@ -43,7 +44,7 @@ bool ModuleSet::init(Diagnostics& dgn)
 
 void ModuleSet::initBaseModules()
 {
-    if ( myModules.empty() )
+    if ( !myModules )
         return;
 
     std::filesystem::path commonPath;
@@ -66,7 +67,7 @@ Module* ModuleSet::create(std::string name)
     if ( m )
         return m;
 
-    myModules.emplace_back(mk<Module>(this, std::move(name)));
+    myModules.append(mk<Module>(this, std::move(name)));
     m = myModules.back().get();
 
     for ( auto& i : myImpliedImports )
@@ -81,7 +82,7 @@ Module* ModuleSet::create(std::filesystem::path const& path)
     if ( m )
         return m;
 
-    myModules.emplace_back(mk<Module>(this, path));
+    myModules.append(mk<Module>(this, path));
     m = myModules.back().get();
 
     for ( auto& i : myImpliedImports )
@@ -96,8 +97,8 @@ Module* ModuleSet::createImplied(std::string name)
     if ( m )
         return m;
 
-    myModules.emplace_back(mk<Module>(this, std::move(name)));
-    myImpliedImports.push_back(myModules.back().get());
+    myModules.append(mk<Module>(this, std::move(name)));
+    myImpliedImports.append(myModules.back().get());
     return myImpliedImports.back();
 }
 
@@ -223,11 +224,11 @@ void Module::semantics(Diagnostics& dgn)
 
 Module const* Module::import(Module* module)
 {
-    auto m = find(begin(myImports), end(myImports), module);
-    if ( m != end(myImports) )
-        return *m;
+    auto m = scan(myImports, module);
+    if ( m )
+        return m.front();
 
-    myImports.push_back(module);
+    myImports.append(module);
     return myImports.back();
 }
 
@@ -253,15 +254,15 @@ Module const* Module::import(Diagnostics& dgn, lexer::Token const& token)
         if ( m == mod )
             return m;
 
-    myImports.push_back(mod);
+    myImports.append(mod);
     return myImports.back();
 }
 
 void Module::appendTemplateInstance(Declaration const* instance)
 {
-    auto e = find(begin(myTemplateInstantiations), end(myTemplateInstantiations), instance);
-    if ( e == end(myTemplateInstantiations) )
-        myTemplateInstantiations.push_back(instance);
+    auto e = scan(myTemplateInstantiations, instance);
+    if ( e )
+        myTemplateInstantiations.append(instance);
 }
 
 ModuleSet& Module::moduleSet()
@@ -306,7 +307,7 @@ Scope const* Module::scope() const
 
 bool Module::imports(Module* module) const
 {
-    return find(begin(myImports), end(myImports), module) != end(myImports);
+    return bool(scan(myImports, module));
 }
 
 bool Module::parsed() const
@@ -403,13 +404,13 @@ Slice<Declaration const*> Module::templateInstantiations() const
 
 Declaration* Module::fabricate(Box<Declaration> decl)
 {
-    myFabDeclarations.emplace_back(std::move(decl));
+    myFabDeclarations.append(std::move(decl));
     return myFabDeclarations.back().get();
 }
 
 Expression* Module::fabricate(Box<Expression> expr)
 {
-    myFabExpressions.emplace_back(std::move(expr));
+    myFabExpressions.append(std::move(expr));
     return myFabExpressions.back().get();
 }
 

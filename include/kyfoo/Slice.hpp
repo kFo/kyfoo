@@ -2,7 +2,6 @@
 
 #include <initializer_list>
 #include <iterator>
-#include <vector>
 #include <type_traits>
 
 #include <kyfoo/Types.hpp>
@@ -32,15 +31,11 @@ template <typename T>
 class SliceBase
 {
 public:
-    using value_type = T;
-    using pointer =
-        std::conditional_t<std::is_pointer_v<value_type>
-                        && std::is_const_v<std::remove_pointer_t<value_type>>,
-                           value_type const*, value_type*>;
-    using const_pointer = value_type const*;
-    using iterator = pointer;
-    using const_iterator = const_pointer;
-    using size_type = uz;
+    using Element = T;
+    using Pointer = Element*;
+    using ConstPointer = Element const*;
+    using Iterator = Pointer;
+    using ConstIterator = ConstPointer;
 
 public:
     constexpr SliceBase() noexcept = default;
@@ -51,26 +46,28 @@ public:
     constexpr SliceBase& operator = (SliceBase&&) noexcept = default;
     ~SliceBase() noexcept = default;
 
-    constexpr SliceBase(pointer p, size_type len) noexcept
+    constexpr SliceBase(Pointer p, uz card) noexcept
         : myData(p)
-        , myCard(len)
+        , myCard(card)
     {
     }
 
-    constexpr SliceBase(pointer begin, pointer end) noexcept
+    constexpr SliceBase(Pointer begin, Pointer end) noexcept
         : SliceBase(begin, ptrdist(begin, end))
     {
     }
 
-    template <typename U>
-    constexpr /*implicit*/ SliceBase(SliceBase<U> const& s) noexcept
-        : SliceBase(s.begin(), s.end())
+    template <typename U,
+              typename = std::enable_if_t<std::is_convertible_v<SliceBase<U>::Pointer, Pointer>>>
+    constexpr /*implicit*/ SliceBase(SliceBase<U> s) noexcept
+        : SliceBase(s.data(), s.card())
     {
     }
 
-    template <typename U>
-    constexpr /*implicit*/ SliceBase(SliceBase<U>& s) noexcept
-        : SliceBase(s.begin(), s.end())
+    template <typename = std::enable_if_t<std::is_pointer_v<Element>
+                                       && std::is_const_v<std::remove_pointer_t<Element>>>>
+    constexpr /*implicit*/ SliceBase(SliceBase<std::remove_const_t<std::remove_pointer_t<Element>>*> const& s) noexcept
+        : SliceBase(const_cast<Pointer>(s.data()), s.card())
     {
     }
 
@@ -82,27 +79,27 @@ public:
     }
 
 public:
-    constexpr iterator       begin()       noexcept { return myData; }
-    constexpr const_iterator begin() const noexcept { return myData; }
+    constexpr Iterator      begin()       noexcept { return myData; }
+    constexpr ConstIterator begin() const noexcept { return myData; }
 
-    constexpr const_iterator cbegin() noexcept { return myData; }
-    constexpr const_iterator cbegin() const noexcept { return myData; }
+    constexpr ConstIterator cbegin()       noexcept { return myData; }
+    constexpr ConstIterator cbegin() const noexcept { return myData; }
 
-    constexpr iterator end() noexcept
+    constexpr Iterator end() noexcept
     {
-        if constexpr(std::is_void_v<value_type>)
-            return reinterpret_cast<std::conditional_t<std::is_const_v<value_type>, u8 const*, u8*>>(myData)
+        if constexpr(std::is_void_v<Element>)
+            return reinterpret_cast<std::conditional_t<std::is_const_v<Element>, u8 const*, u8*>>(myData)
                  + myCard;
         else
             return myData + myCard;
     }
 
-    constexpr const_iterator end () const noexcept { return const_cast<SliceBase*>(this)->end(); }
-    constexpr const_iterator cend()       noexcept { return end(); }
-    constexpr const_iterator cend() const noexcept { return end(); }
+    constexpr ConstIterator end () const noexcept { return const_cast<SliceBase*>(this)->end(); }
+    constexpr ConstIterator cend()       noexcept { return end(); }
+    constexpr ConstIterator cend() const noexcept { return end(); }
 
-    constexpr pointer data() noexcept { return myData; }
-    constexpr const_pointer data() const noexcept { return myData; }
+    constexpr Pointer      data()       noexcept { return myData; }
+    constexpr ConstPointer data() const noexcept { return myData; }
 
     constexpr uz card() const noexcept { return myCard; }
 
@@ -110,23 +107,22 @@ public:
     constexpr void popBack () noexcept { --myCard; }
 
 protected:
-    pointer myData = nullptr;
-    size_type myCard = 0;
+    Pointer myData = nullptr;
+    uz myCard = 0;
 };
 
 template <typename T>
 class SliceBaseDereferenceable : public SliceBase<T>
 {
 public:
-    using value_type     = typename SliceBase<T>::value_type;
-    using pointer        = typename SliceBase<T>::pointer;
-    using const_pointer  = typename SliceBase<T>::const_pointer;
-    using iterator       = typename SliceBase<T>::iterator;
-    using const_iterator = typename SliceBase<T>::const_iterator;
-    using size_type      = typename SliceBase<T>::size_type;
+    using Element       = typename SliceBase<T>::Element;
+    using Pointer       = typename SliceBase<T>::Pointer;
+    using ConstPointer  = typename SliceBase<T>::ConstPointer;
+    using Iterator      = typename SliceBase<T>::Iterator;
+    using ConstIterator = typename SliceBase<T>::ConstIterator;
 
-    using reference = std::remove_pointer_t<typename SliceBase<T>::pointer>&;
-    using const_reference = value_type const&;
+    using Reference      = std::remove_pointer_t<typename SliceBase<T>::Pointer>&;
+    using ConstReference = Element const&;
 
 public:
     constexpr SliceBaseDereferenceable() noexcept = default;
@@ -134,14 +130,14 @@ public:
     using SliceBase<T>::SliceBase;
 
 public:
-    template <typename U, typename = std::enable_if_t<std::is_same_v<const U, value_type>>>
+    template <typename U>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::initializer_list<U> list) noexcept
         : SliceBaseDereferenceable(list.begin(), list.end())
     {
     }
 
     template <uz N>
-    constexpr /*implicit*/ SliceBaseDereferenceable(value_type (&str)[N]) noexcept
+    constexpr /*implicit*/ SliceBaseDereferenceable(Element (&str)[N]) noexcept
         : SliceBaseDereferenceable(str, N-1)
     {
     }
@@ -149,13 +145,13 @@ public:
     template <typename U>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::basic_string<U>&&) = delete;
 
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, pointer>>>
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, Pointer>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::basic_string<U> const& s) noexcept
         : SliceBaseDereferenceable(s.data(), s.size())
     {
     }
 
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, pointer>>>
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U*, Pointer>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::basic_string<U>& s) noexcept
         : SliceBaseDereferenceable(s.data(), s.size())
     {
@@ -164,74 +160,93 @@ public:
     template <typename U>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::vector<U>&&) = delete;
 
-    constexpr /*implicit*/ SliceBaseDereferenceable(std::vector<std::remove_const_t<value_type>>& v) noexcept
+    constexpr /*implicit*/ SliceBaseDereferenceable(std::vector<std::remove_const_t<Element>>& v) noexcept
         : SliceBaseDereferenceable(v.data(), v.size())
     {
     }
 
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, pointer>>>
+    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U const*, Pointer>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::vector<U> const& v) noexcept
         : SliceBaseDereferenceable(v.data(), v.size())
     {
     }
 
     template <typename U,
-              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
-                                       && std::is_pointer_v<value_type>
-                                       && std::is_convertible_v<U const*, value_type>>>
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(Element)
+                                       && std::is_pointer_v<Element>
+                                       && std::is_convertible_v<U const*, Element>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::vector<Box<U>> const& v) noexcept
-        : SliceBaseDereferenceable(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))),
+        : SliceBaseDereferenceable(reinterpret_cast<ConstPointer>(const_cast<void*>(reinterpret_cast<void const*>(v.data()))),
                                    v.size())
     {
     }
 
     template <typename U,
-              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
-                                       && std::is_pointer_v<value_type>
-                                       && std::is_convertible_v<U*, value_type>>>
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(Element)
+                                       && std::is_pointer_v<Element>
+                                       && std::is_convertible_v<U*, Element>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(std::vector<Box<U>>& v) noexcept
-        : SliceBaseDereferenceable(reinterpret_cast<pointer>(reinterpret_cast<void*>(v.data())),
+        : SliceBaseDereferenceable(reinterpret_cast<Pointer>(reinterpret_cast<void*>(v.data())),
                                    v.size())
     {
     }
 
     template <typename U,
-              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
-                                       && std::is_pointer_v<value_type>
-                                       && std::is_convertible_v<U const*, value_type>>>
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(Element)
+                                       && std::is_pointer_v<Element>
+                                       && std::is_convertible_v<U const*, Element>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(SliceBaseDereferenceable<Box<U>> const& s) noexcept
-        : SliceBaseDereferenceable(reinterpret_cast<pointer>(const_cast<void*>(reinterpret_cast<void const*>(s.data()))),
+        : SliceBaseDereferenceable(reinterpret_cast<Pointer>(const_cast<void*>(reinterpret_cast<void const*>(s.data()))),
                                    s.card())
     {
     }
 
     template <typename U,
-              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(value_type)
-                                       && std::is_pointer_v<value_type>
-                                       && std::is_convertible_v<U*, value_type>>>
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(Element)
+                                       && std::is_pointer_v<Element>
+                                       && std::is_convertible_v<U*, Element>>>
     constexpr /*implicit*/ SliceBaseDereferenceable(SliceBaseDereferenceable<Box<U>>& s) noexcept
-        : SliceBaseDereferenceable(reinterpret_cast<pointer>(reinterpret_cast<void*>(s.data())),
+        : SliceBaseDereferenceable(reinterpret_cast<Pointer>(reinterpret_cast<void*>(s.data())),
+                                   s.card())
+    {
+    }
+
+    template <typename U,
+              typename = std::enable_if_t<sizeof(Box<U>) == sizeof(Element)
+                                       && std::is_pointer_v<Element>
+                                       && std::is_convertible_v<U*, Element>>>
+    constexpr /*implicit*/ SliceBaseDereferenceable(SliceBaseDereferenceable<const Box<U>>& s) noexcept
+        : SliceBaseDereferenceable(reinterpret_cast<Pointer>(const_cast<void const**>(reinterpret_cast<void const* const*>(s.data()))),
                                    s.card())
     {
     }
 
 public:
-    constexpr reference       operator [] (size_type index)       noexcept { return this->myData[index]; }
-    constexpr const_reference operator [] (size_type index) const noexcept { return this->myData[index]; }
+    constexpr Reference      operator [] (uz index)       noexcept { return this->myData[index]; }
+    constexpr ConstReference operator [] (uz index) const noexcept { return this->myData[index]; }
 
     template <typename Unary>
-    std::enable_if_t<std::is_nothrow_invocable_r_v<size_type, Unary, size_type>,
-    reference> operator [] (Unary&& f) noexcept { return this->myData[f(this->myCard)]; }
+    std::enable_if_t<std::is_nothrow_invocable_r_v<uz, Unary, uz>,
+    Reference> operator [] (Unary&& f) noexcept { return this->myData[f(this->myCard)]; }
 
     template <typename Unary>
-    std::enable_if_t<std::is_nothrow_invocable_r_v<size_type, Unary, size_type>,
-    const_reference> operator [] (Unary&& f) const noexcept { return this->myData[f(this->myCard)]; }
+    std::enable_if_t<std::is_nothrow_invocable_r_v<uz, Unary, uz>,
+    ConstReference> operator [] (Unary&& f) const noexcept { return this->myData[f(this->myCard)]; }
 
-    constexpr reference       front()       noexcept { return *this->myData; }
-    constexpr const_reference front() const noexcept { return *this->myData; }
+    constexpr Reference      operator () (uz i)       noexcept { return this->myData[i]; }
+    constexpr ConstReference operator () (uz i) const noexcept { return this->myData[i]; }
 
-    constexpr reference       back()       noexcept { return this->myData[this->myCard - 1]; }
-    constexpr const_reference back() const noexcept { return this->myData[this->myCard - 1]; }
+    template <typename Unary>
+    constexpr std::enable_if_t<std::is_nothrow_invocable_r_v<uz, Unary, uz>, Reference> operator () (Unary&& fn) noexcept { return this->myData[fn(this->myCard)]; }
+
+    template <typename Unary>
+    constexpr std::enable_if_t<std::is_nothrow_invocable_r_v<uz, Unary, uz>, ConstReference> operator () (Unary&& fn) const noexcept { return this->myData[fn(this->myCard)]; }
+
+    constexpr Reference      front()       noexcept { return *this->myData; }
+    constexpr ConstReference front() const noexcept { return *this->myData; }
+
+    constexpr Reference      back()       noexcept { return this->myData[this->myCard - 1]; }
+    constexpr ConstReference back() const noexcept { return this->myData[this->myCard - 1]; }
 
 public:
     template <typename U>
@@ -316,12 +331,11 @@ public:
                                     SliceBase<T>,
                                     SliceBaseDereferenceable<T>>;
 
-    using value_type     = typename Base::value_type;
-    using pointer        = typename Base::pointer;
-    using const_pointer  = typename Base::const_pointer;
-    using iterator       = typename Base::iterator;
-    using const_iterator = typename Base::const_iterator;
-    using size_type      = typename Base::size_type;
+    using Element       = typename Base::Element;
+    using Pointer       = typename Base::Pointer;
+    using ConstPointer  = typename Base::ConstPointer;
+    using Iterator      = typename Base::Iterator;
+    using ConstIterator = typename Base::ConstIterator;
 
 public:
     constexpr Slice() noexcept = default;
@@ -343,16 +357,16 @@ public:
     }
 
 public:
-    Slice operator () (size_type start, size_type end) const noexcept
+    Slice operator () (uz start, uz end) const noexcept
     {
         return Slice(this->myData + start, end - start);
     }
 
     template <typename Unary>
     std::enable_if_t<
-        std::is_nothrow_invocable_r_v<size_type, Unary, size_type>,
+        std::is_nothrow_invocable_r_v<uz, Unary, uz>,
         Slice>
-    operator () (size_type start, Unary&& f) const noexcept
+    operator () (uz start, Unary&& f) const noexcept
     {
         return Slice(this->myData + start, f(this->myCard) - start);
     }
@@ -365,15 +379,15 @@ public:
     template <typename U>
     Slice<U> cast() noexcept
     {
-        return Slice<U>(static_cast<typename Slice<U>::iterator>(this->begin()),
-                        static_cast<typename Slice<U>::iterator>(this->end()));
+        return Slice<U>(static_cast<typename Slice<U>::Iterator>(this->begin()),
+                        static_cast<typename Slice<U>::Iterator>(this->end()));
     }
 
     template <typename U>
     Slice<U> cast() const noexcept
     {
-        return Slice<U>(static_cast<typename Slice<U>::const_iterator>(this->begin()),
-                        static_cast<typename Slice<U>::const_iterator>(this->end()));
+        return Slice<U>(static_cast<typename Slice<U>::ConstIterator>(this->begin()),
+                        static_cast<typename Slice<U>::ConstIterator>(this->end()));
     }
 };
 
@@ -439,51 +453,57 @@ bool operator != (SliceBaseDereferenceable<T> lhs, std::basic_string<U> const& r
 // accessors
 
 template <typename T>
-typename Slice<T>::iterator begin(Slice<T>& rhs)
+typename Slice<T>::Iterator begin(Slice<T>& rhs)
 {
     return rhs.begin();
 }
 
 template <typename T>
-typename Slice<T>::const_iterator begin(Slice<T> const& rhs)
+typename Slice<T>::ConstIterator begin(Slice<T> const& rhs)
 {
     return rhs.begin();
 }
 
 template <typename T>
-typename Slice<T>::const_iterator cbegin(Slice<T>& rhs)
+typename Slice<T>::ConstIterator cbegin(Slice<T>& rhs)
 {
     return rhs.cbegin();
 }
 
 template <typename T>
-typename Slice<T>::const_iterator cbegin(Slice<T> const& rhs)
+typename Slice<T>::ConstIterator cbegin(Slice<T> const& rhs)
 {
     return rhs.cbegin();
 }
 
 template <typename T>
-typename Slice<T>::iterator end(Slice<T>& rhs)
+typename Slice<T>::Iterator end(Slice<T>& rhs)
 {
     return rhs.end();
 }
 
 template <typename T>
-typename Slice<T>::const_iterator end(Slice<T> const& rhs)
+typename Slice<T>::ConstIterator end(Slice<T> const& rhs)
 {
     return rhs.end();
 }
 
 template <typename T>
-typename Slice<T>::const_iterator cend(Slice<T>& rhs)
+typename Slice<T>::ConstIterator cend(Slice<T>& rhs)
 {
     return rhs.cend();
 }
 
 template <typename T>
-typename Slice<T>::const_iterator cend(Slice<T> const& rhs)
+typename Slice<T>::ConstIterator cend(Slice<T> const& rhs)
 {
     return rhs.cend();
+}
+
+template <typename T>
+Slice<void> type_erase(Slice<T> rhs)
+{
+    return { (void*)(rhs.data()), rhs.card() * sizeof(T) };
 }
 
 //
@@ -541,7 +561,7 @@ Slice<T> slice(T& rhs)
 template <typename T>
 Slice<T const*> sliceBox(Box<T> const& rhs)
 {
-    return Slice<T const*>(reinterpret_cast<T const* const*>(reinterpret_cast<void const* const*>(&rhs)), 1);
+    return Slice<T const*>(const_cast<T const**>(reinterpret_cast<T const* const*>(reinterpret_cast<void const* const*>(&rhs))), 1);
 }
 
 inline Slice<char const> sliceCString(char const* str)

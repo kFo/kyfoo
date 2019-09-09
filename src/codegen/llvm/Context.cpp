@@ -133,7 +133,7 @@ void Context::generate(ast::DataTypeDeclaration const& dt)
         return;
     }
 
-    std::vector<::llvm::Type*> fieldTypes;
+    ab<::llvm::Type*> fieldTypes;
     auto fields = defn->fields();
     auto variations = defn->variations();
     {
@@ -148,12 +148,12 @@ void Context::generate(ast::DataTypeDeclaration const& dt)
     }
 
     if ( dt.super() )
-        fieldTypes.push_back(toType(*dt.super()));
+        fieldTypes.append(toType(*dt.super()));
 
     if ( variations ) {
         auto const bits = trunc<unsigned>(log2(roundUpToPow2(variations.card())));
         dtData->tagType = ::llvm::cast<::llvm::IntegerType>(myDefaultDataLayout->getSmallestLegalIntType(*myContext, bits));
-        fieldTypes.push_back(dtData->tagType);
+        fieldTypes.append(dtData->tagType);
     }
 
     for ( uz i = 0; i < fields.card(); ++i ) {
@@ -165,13 +165,13 @@ void Context::generate(ast::DataTypeDeclaration const& dt)
         if ( !type )
             myDgn.die("type is not registered");
 
-        fieldTypes.push_back(type);
+        fieldTypes.append(type);
     }
 
     constexpr auto isPacked = false;
     dtData->type = ::llvm::StructType::create(
         *myContext,
-        fieldTypes,
+        arrRef(fieldTypes()),
         strRef(dt.symbol().token().lexeme()),
         isPacked);
 
@@ -237,12 +237,12 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
 
         ::llvm::Type* elementType = nullptr;
         if ( t->expressions().card() > 1 ) {
-            std::vector<::llvm::Type*> types;
+            ab<::llvm::Type*> types;
             types.reserve(t->expressions().card());
             for ( auto const& te : t->expressions() )
-                types.push_back(toType(*te));
+                types.append(toType(*te));
 
-            elementType = ::llvm::StructType::get(*myContext, types);
+            elementType = ::llvm::StructType::get(*myContext, arrRef(types()));
         }
         else {
             elementType = toType(*t->expressions()[0]);
@@ -256,7 +256,7 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
 
     if ( auto a = e->as<ast::ArrowExpression>() ) {
         enum { NotVarArg = false };
-        std::vector<::llvm::Type*> params;
+        ab<::llvm::Type*> params;
         if ( auto tup = a->from().as<ast::TupleExpression>() ) {
             if ( !tup->expressions() )
                 return ::llvm::PointerType::getUnqual(::llvm::FunctionType::get(toType(a->to()), NotVarArg));
@@ -264,14 +264,14 @@ std::optional<uz> Context::sizeOf(ast::Expression const& expr)
             if ( tup->kind() == ast::TupleKind::Open ) {
                 params.reserve(tup->expressions().card());
                 for ( auto texpr : tup->expressions() )
-                    params.push_back(toType(*texpr));
+                    params.append(toType(*texpr));
             }
         }
 
-        if ( params.empty() )
-            params.push_back(toType(a->from()));
+        if ( !params )
+            params.append(toType(a->from()));
 
-        return ::llvm::PointerType::getUnqual(::llvm::FunctionType::get(toType(a->to()), params, NotVarArg));
+        return ::llvm::PointerType::getUnqual(::llvm::FunctionType::get(toType(a->to()), arrRef(params()), NotVarArg));
     }
 
     return nullptr;

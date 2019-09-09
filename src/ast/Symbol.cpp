@@ -20,7 +20,7 @@ namespace kyfoo::ast {
 
 PatternsPrototype::PatternsPrototype() = default;
 
-PatternsPrototype::PatternsPrototype(std::vector<Box<Expression>> pattern)
+PatternsPrototype::PatternsPrototype(ab<Box<Expression>> pattern)
     : myPattern(std::move(pattern))
 {
 }
@@ -72,8 +72,8 @@ IMPL_CLONE_REMAP_END
 SymRes PatternsPrototype::resolveVariables(Context& ctx)
 {
     SymRes ret;
-    if ( myVariables.empty() ) {
-        for ( auto const& param : myPattern ) {
+    if ( !myVariables ) {
+        for ( auto& param : myPattern ) {
             auto variables = gatherMetaVariables(*param);
             for ( auto p : variables ) {
                 if ( auto hit = ctx.matchOverload(p->token().lexeme()) ) {
@@ -83,7 +83,7 @@ SymRes PatternsPrototype::resolveVariables(Context& ctx)
                     continue;
                 }
 
-                auto existing = find_if(begin(myVariables), end(myVariables), [&](auto const& var) {
+                auto existing = std::find_if(begin(myVariables), end(myVariables), [&](auto const& var) {
                     return var->symbol().token().lexeme() == p->token().lexeme();
                     });
                 if ( existing != end(myVariables) ) {
@@ -93,7 +93,7 @@ SymRes PatternsPrototype::resolveVariables(Context& ctx)
                     continue;
                 }
 
-                myVariables.emplace_back(mk<SymbolVariable>(p->token(), ctx.resolver().scope(), p->takeConstraints()));
+                myVariables.append(mk<SymbolVariable>(p->token(), ctx.resolver().scope(), p->takeConstraints()));
                 p->setDeclaration(*myVariables.back());
             }
         }
@@ -127,7 +127,7 @@ Slice<SymbolVariable const*> PatternsPrototype::symbolVariables() const
 
 void PatternsPrototype::bindVariables(Substitutions const& substs)
 {
-    ENFORCE(substs.card() == myVariables.size(), "template parameter binding mismatch");
+    ENFORCE(substs.card() == myVariables.card(), "template parameter binding mismatch");
 
     for ( uz i = 0; i < substs.card(); ++i ) {
         auto const& key = substs.var(i);
@@ -165,7 +165,7 @@ bool PatternsPrototype::isConcrete() const
 
 uz PatternsPrototype::metaVariableCount() const
 {
-    return myVariables.size();
+    return myVariables.card();
 }
 
 //

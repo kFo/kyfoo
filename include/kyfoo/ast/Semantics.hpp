@@ -1,10 +1,10 @@
 #pragma once
 
 #include <algorithm>
-#include <vector>
 #include <map>
 #include <set>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/Stream.hpp>
@@ -28,8 +28,8 @@ struct SymbolDependencyTracker
         std::string name;
         uz arity;
         int level = 0;
-        std::vector<Declaration*> declarations;
-        std::vector<SymGroup*> dependents;
+        ab<Declaration*> declarations;
+        ab<SymGroup*> dependents;
         bool upstreamErrors = false;
 
         SymGroup(std::string name, uz arity)
@@ -50,12 +50,12 @@ struct SymbolDependencyTracker
 
         void add(Declaration& decl)
         {
-            declarations.push_back(&decl);
+            declarations.append(&decl);
         }
 
         void addDependent(SymGroup& group)
         {
-            dependents.push_back(&group);
+            dependents.append(&group);
         }
 
         bool defer(SymGroup* startSym, int deferPass)
@@ -77,7 +77,7 @@ struct SymbolDependencyTracker
 
     Module& mod;
     Diagnostics& dgn;
-    std::vector<Box<SymGroup>> groups;
+    ab<Box<SymGroup>> groups;
 
     SymbolDependencyTracker(Module& mod, Diagnostics& dgn);
 
@@ -146,7 +146,7 @@ UnificationResult unify(Context& ctx, Report::Subject gov, Slice<Expression cons
 bool matchEquivalent(Expression const& lhs, Expression const& rhs);
 bool matchEquivalent(Slice<Expression const*> lhs, Slice<Expression const*> rhs);
 
-std::vector<IdentifierExpression*> gatherMetaVariables(Expression& expr);
+ab<IdentifierExpression*> gatherMetaVariables(Expression& expr);
 bool hasMetaVariable(Expression const& expr);
 
 lexer::Token const& front(lexer::Token const& tok);

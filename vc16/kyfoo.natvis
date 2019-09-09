@@ -33,4 +33,22 @@
             </ArrayItems>
         </Expand>
     </Type>
+    <Type Name="kyfoo::Array&lt;*&gt;">
+        <DisplayString>{{ card={myCard} }}</DisplayString>
+        <Expand>
+            <ArrayItems>
+                <Size>myCard</Size>
+                <ValuePointer>myData</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="kyfoo::ArrayBuilder&lt;*&gt;">
+        <DisplayString>{{ card={myCard} }}</DisplayString>
+        <Expand>
+            <ArrayItems>
+                <Size>myCard</Size>
+                <ValuePointer>myData</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
 </AutoVisualizer>

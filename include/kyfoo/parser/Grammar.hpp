@@ -458,24 +458,24 @@ public:
         while ( pattern.match(scan, m) ) {
             matches += m;
             m = 0;
-            myCaptures.emplace_back(std::move(pattern));
+            myCaptures.append(std::move(pattern));
         }
 
         return scan.commit();
     }
 
-    std::vector<T> const& captures() const
+    ab<T> const& captures() const
     {
         return myCaptures;
     }
 
-    std::vector<T>& captures()
+    ab<T>& captures()
     {
         return myCaptures;
     }
 
 private:
-    std::vector<T> myCaptures;
+    ab<T> myCaptures;
 };
 
 template <typename U, typename V>
@@ -494,7 +494,7 @@ public:
         if ( !pattern.match(scan, m0) )
             return scan.commit();
 
-        myCaptures.emplace_back(std::move(pattern));
+        myCaptures.append(std::move(pattern));
         matches += m0;
         m0 = 0;
 
@@ -505,32 +505,32 @@ public:
             if ( !weave.match(scan, m0) || !pattern.match(scan, m1) ) 
                 break;
 
-            myCaptures.emplace_back(std::move(pattern));
+            myCaptures.append(std::move(pattern));
             matches += m0 + m1;
         }
 
         return scan.commit();
     }
 
-    std::vector<U> const& captures() const
+    ab<U> const& captures() const
     {
         return myCaptures;
     }
 
-    std::vector<U>& captures()
+    ab<U>& captures()
     {
         return myCaptures;
     }
 
 private:
-    std::vector<U> myCaptures;
+    ab<U> myCaptures;
 };
 
 template <typename T>
 class OneOrMore
 {
 public:
-    using CaptureVector = std::vector<T>;
+    using CaptureVector = ab<T>;
 
 public:
     OneOrMore() = default;
@@ -548,7 +548,7 @@ public:
         do {
             matches += m;
             m = 0;
-            myCaptures.emplace_back(std::move(pattern));
+            myCaptures.append(std::move(pattern));
         } while ( pattern.match(scan, m) );
 
         return scan.commit();
@@ -572,7 +572,7 @@ template <typename U, typename V>
 class OneOrMore2
 {
 public:
-    using CaptureVector = std::vector<U>;
+    using CaptureVector = ab<U>;
 
 public:
     OneOrMore2() = default;
@@ -588,7 +588,7 @@ public:
             return false;
 
         matches += m0;
-        myCaptures.emplace_back(std::move(pattern));
+        myCaptures.append(std::move(pattern));
 
         for (;;) {
             m0 = 0;
@@ -598,7 +598,7 @@ public:
                 break;
 
             matches += m0 + m1;
-            myCaptures.emplace_back(std::move(pattern));
+            myCaptures.append(std::move(pattern));
         }
 
         return scan.commit();

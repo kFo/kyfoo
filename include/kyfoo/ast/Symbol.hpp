@@ -1,8 +1,8 @@
 #pragma once
 
 #include <map>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Slice.hpp>
 #include <kyfoo/String.hpp>
 #include <kyfoo/Types.hpp>
@@ -33,7 +33,7 @@ class SymRes;
 class Variance;
 class ViableSet;
 
-using Pattern = std::vector<Box<Expression>>;
+using Pattern = ab<Box<Expression>>;
 using PatternSlice = Slice<Expression*>;
 using ConstPatternSlice = Slice<Expression const*>;
 
@@ -45,7 +45,7 @@ public:
 
 public:
     PatternsPrototype();
-    PatternsPrototype(std::vector<Box<Expression>> pattern);
+    PatternsPrototype(ab<Box<Expression>> pattern);
 
 protected:
     PatternsPrototype(PatternsPrototype const& rhs);
@@ -81,7 +81,7 @@ public:
 
 private:
     Pattern myPattern;
-    std::vector<Box<SymbolVariable>> myVariables;
+    ab<Box<SymbolVariable>> myVariables;
 };
 
 class Symbol

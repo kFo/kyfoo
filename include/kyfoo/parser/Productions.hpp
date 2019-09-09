@@ -163,12 +163,12 @@ struct Primary :
 
 Box<ast::ProcedureDeclaration> makeProc(DeclarationScopeParser& parser,
                                         lexer::Token const& start,
-                                        std::vector<Expression>& paramExprs,
+                                        ab<Expression>& paramExprs,
                                         NonLambdaExpression* returnExpr)
 {
     ast::Pattern pattern = parser.parameterContext();
     for ( auto& e : paramExprs )
-        pattern.emplace_back(e.make(parser));
+        pattern.append(e.make(parser));
 
     Box<ast::Expression> returnTypeExpression;
     if ( returnExpr )
@@ -209,19 +209,19 @@ struct Scope :
     }
 };
 
-inline std::vector<Box<ast::Expression>>
-expressions(DeclarationScopeParser& parser, std::vector<Expression>& rhs)
+inline ab<Box<ast::Expression>>
+expressions(DeclarationScopeParser& parser, ab<Expression>& rhs)
 {
-    std::vector<Box<ast::Expression>> ret;
+    ab<Box<ast::Expression>> ret;
     for ( auto& e : rhs )
-        ret.emplace_back(e.make(parser));
+        ret.append(e.make(parser));
 
     return ret;
 }
 
 inline Box<ast::TupleExpression>
 createTuple(ast::TupleKind kind,
-            std::vector<Box<ast::Expression>> expressions)
+            ab<Box<ast::Expression>> expressions)
 {
     return mk<ast::TupleExpression>(kind, std::move(expressions));
 }
@@ -229,7 +229,7 @@ createTuple(ast::TupleKind kind,
 inline Box<ast::TupleExpression>
 createTuple(lexer::Token const& open,
             lexer::Token const& close,
-            std::vector<Box<ast::Expression>> expressions)
+            ab<Box<ast::Expression>> expressions)
 {
     return mk<ast::TupleExpression>(open, close, std::move(expressions));
 }
@@ -283,13 +283,13 @@ struct ApplyMixin :
 {
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
-        if ( this->captures().size() == 1 )
+        if ( this->captures().card() == 1 )
             return this->captures().front().make(parser);
 
-        std::vector<Box<ast::Expression>> exprs;
-        exprs.reserve(this->captures().size());
+        ab<Box<ast::Expression>> exprs;
+        exprs.reserve(this->captures().card());
         for ( auto& c : this->captures() )
-            exprs.emplace_back(c.make(parser));
+            exprs.append(c.make(parser));
 
         return mk<ast::ApplyExpression>(std::move(exprs));
     }
@@ -310,8 +310,8 @@ struct DotExpression :
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto global = this->template factor<0>().capture() != nullptr;
-        std::vector<Box<ast::Expression>> exprs;
-        exprs.emplace_back(this->template factor<1>().make(parser));
+        ab<Box<ast::Expression>> exprs;
+        exprs.append(this->template factor<1>().make(parser));
 
         enum { Dot = 0, Apply = 1, Unknown = 2 };
         uz current = global ? Dot : Unknown;
@@ -328,14 +328,14 @@ struct DotExpression :
                     prev = mk<ast::ApplyExpression>(std::move(exprs));
                 }
 
-                exprs.emplace_back(std::move(prev));
+                exprs.append(std::move(prev));
             }
 
-            exprs.emplace_back(e.template factor<1>().make(parser));
+            exprs.append(e.template factor<1>().make(parser));
             current = index;
         }
 
-        if ( exprs.size() == 1 )
+        if ( exprs.card() == 1 )
             return std::move(exprs.front());
 
         if ( current == Dot )
@@ -358,7 +358,7 @@ struct RangeExpression :
         if ( this->index() == 0 ) {
             auto& c = this->template term<0>().template factor<0>().captures();
             Box<ast::Expression> from = c[0].make(parser);
-            for ( uz i = 1; i < c.size(); ++i )
+            for ( uz i = 1; i < c.card(); ++i )
                 from = mk<ast::TupleExpression>(ast::createPtrList<ast::Expression>(std::move(from)),
                                                               c[i].make(parser));
 
@@ -399,7 +399,7 @@ struct TightArrowExpression :
     {
         auto& c = this->captures();
         auto ret = c.front().make(parser);
-        for ( uz i = 1, card = c.size(); i < card; ++i )
+        for ( uz i = 1, card = c.card(); i < card; ++i )
             ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
 
         return ret;
@@ -414,7 +414,7 @@ struct ArrowExpression :
     {
         auto& c = this->captures();
         auto ret = c.front().make(parser);
-        for ( uz i = 1, card = c.size(); i < card; ++i )
+        for ( uz i = 1, card = c.card(); i < card; ++i )
             ret = mk<ast::ArrowExpression>(std::move(ret), c[i].make(parser));
 
         return ret;
@@ -460,7 +460,7 @@ struct ConstraintExpression :
     Box<ast::Expression> make(DeclarationScopeParser& parser)
     {
         auto ret = this->captures().front().make(parser);
-        for ( uz i = 1; i < this->captures().size(); ++i )
+        for ( uz i = 1; i < this->captures().card(); ++i )
             ret->appendConstraint(this->captures()[i].make(parser));
 
         return ret;
@@ -484,7 +484,7 @@ struct AssignWithLambdaExpression :
             parser.scope().appendLambda(std::move(proc), std::move(defn));
         }
 
-        for ( uz i = c.size() - 2; ~i; --i )
+        for ( uz i = c.card() - 2; ~i; --i )
             ret = mk<ast::AssignExpression>(c[i].make(parser), std::move(ret));
 
         return ret;
@@ -499,7 +499,7 @@ struct AssignNoLambdaExpression :
     {
         auto& c = this->captures();
         auto ret = c.back().make(parser);
-        for ( uz i = c.size() - 2; ~i; --i )
+        for ( uz i = c.card() - 2; ~i; --i )
             ret = mk<ast::AssignExpression>(c[i].make(parser), std::move(ret));
 
         return ret;
@@ -544,7 +544,7 @@ struct ImplicitProcedureTemplateDeclaration :
 struct VarDecl
 {
     lexer::Token token;
-    std::vector<Box<ast::Expression>> constraints;
+    ab<Box<ast::Expression>> constraints;
     Box<ast::Expression> initializer;
 };
 
@@ -556,7 +556,7 @@ struct VariableDeclaration :
 {
     VarDecl make(DeclarationScopeParser& parser)
     {
-        std::vector<Box<ast::Expression>> constraints;
+        ab<Box<ast::Expression>> constraints;
         if ( auto c = factor<2>().capture() )
             constraints = flattenConstraints(c->factor<1>().make(parser));
 
@@ -726,9 +726,9 @@ struct ImportDeclaration :
 {
     Box<ast::ImportDeclaration> make(DeclarationScopeParser&)
     {
-        std::vector<lexer::Token> modulePath;
+        ab<lexer::Token> modulePath;
         for ( auto& e : factor<1>().captures() )
-            modulePath.emplace_back(e.token());
+            modulePath.append(e.token());
 
         return mk<ast::ImportDeclaration>(std::move(modulePath));
     }
@@ -755,7 +755,7 @@ struct DataTypeDeclaration :
 struct Field
 {
     ast::Symbol symbol;
-    std::vector<Box<ast::Expression>> constraints;
+    ab<Box<ast::Expression>> constraints;
     Box<ast::Expression> init;
 };
 

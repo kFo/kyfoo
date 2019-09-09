@@ -108,8 +108,8 @@ public:
     TupleExpression const& tuple(Slice<Expression const*> exprs);
 
 private:
-    std::vector<Box<UniverseExpression>> myUniverses;
-    std::vector<Box<TupleExpression>> myTuples;
+    ab<Box<UniverseExpression>> myUniverses;
+    ab<Box<TupleExpression>> myTuples;
 };
 
 class Expression
@@ -117,7 +117,7 @@ class Expression
 public:
     friend class Context;
     friend class DotExpression;
-    friend std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr);
+    friend ab<Box<Expression>> flattenConstraints(Box<Expression> expr);
 
     enum class Kind
     {
@@ -146,7 +146,7 @@ public:
 
 public:
     void appendConstraint(Box<Expression> expr);
-    void appendConstraints(std::vector<Box<Expression>> exprs);
+    void appendConstraints(ab<Box<Expression>> exprs);
 
 public:
     Kind kind() const;
@@ -159,7 +159,7 @@ public:
     Slice<Expression*> constraints();
     Slice<Expression const*> constraints() const;
 
-    std::vector<Box<Expression>>&& takeConstraints();
+    ab<Box<Expression>>&& takeConstraints();
 
     template <typename T> T* as() = delete;
     template <typename T> T const* as() const = delete;
@@ -168,7 +168,7 @@ private:
     Kind myKind;
 
 protected:
-    std::vector<Box<Expression>> myConstraints;
+    ab<Box<Expression>> myConstraints;
 
     static Strata g_strata;
     mutable Expression const* myType = nullptr;
@@ -258,11 +258,11 @@ public:
 
 public:
     SymbolExpression(lexer::Token token,
-                     std::vector<Box<Expression>> expressions);
-    SymbolExpression(std::vector<Box<Expression>> expressions);
+                     ab<Box<Expression>> expressions);
+    SymbolExpression(ab<Box<Expression>> expressions);
     SymbolExpression(lexer::Token open,
                      lexer::Token close,
-                     std::vector<Box<Expression>> expressions);
+                     ab<Box<Expression>> expressions);
 
 protected:
     SymbolExpression(SymbolExpression const& rhs);
@@ -287,11 +287,11 @@ public:
     lexer::Token const& openToken() const;
     lexer::Token const& closeToken() const;
 
-    std::vector<Box<Expression>>& internalExpressions();
+    ab<Box<Expression>>& internalExpressions();
 
 private:
     // AST state
-    std::vector<Box<Expression>> myExpressions;
+    ab<Box<Expression>> myExpressions;
 
     lexer::Token myOpenToken;
     lexer::Token myCloseToken;
@@ -305,7 +305,7 @@ public:
 
 public:
     DotExpression(bool modScope,
-                  std::vector<Box<Expression>> exprs);
+                  ab<Box<Expression>> exprs);
 
 protected:
     DotExpression(DotExpression const& rhs);
@@ -336,7 +336,7 @@ protected:
     Box<Expression> takeTop(uz index = 0);
 
 private:
-    std::vector<Box<Expression>> myExpressions;
+    ab<Box<Expression>> myExpressions;
     Box<Expression> myTypeAsRef;
     bool myModScope = false;
 };
@@ -348,7 +348,7 @@ public:
     friend class ProcedureDeclaration;
 
 public:
-    ApplyExpression(std::vector<Box<Expression>> expressions);
+    ApplyExpression(ab<Box<Expression>> expressions);
 
 protected:
     ApplyExpression(ApplyExpression const& rhs);
@@ -370,7 +370,7 @@ public:
     SymRes lowerToStaticCall(Context& ctx);
     SymRes elaborateTuple(Context& ctx);
     void flatten();
-    void flatten(std::vector<Box<Expression>>::iterator first);
+    void flatten(ab<Box<Expression>>::Iterator first);
 
 public:
     Slice<Expression*> expressions();
@@ -389,7 +389,7 @@ protected:
 
 private:
     // AST state
-    std::vector<Box<Expression>> myExpressions;
+    ab<Box<Expression>> myExpressions;
     ProcedureDeclaration const* myProc = nullptr;
 };
 
@@ -471,14 +471,14 @@ public:
         uz i;
     };
 
-    class iterator
+    class Iterator
     {
         Slice<Expression const*> const* s;
         uz ei = 0;
         uz ai = 0;
 
     public:
-        explicit iterator(Slice<Expression const*> const& s)
+        explicit Iterator(Slice<Expression const*> const& s)
             : s(&s)
         {
         }
@@ -519,7 +519,7 @@ public:
     }
 
 public:
-    iterator begin() const { return iterator(exprs); }
+    Iterator begin() const { return Iterator(exprs); }
     iterator_end end() const { return iterator_end{n}; }
 
     uz card() const { return exprs.card() * n; }
@@ -535,7 +535,7 @@ private:
     uz n = 1;
 };
 
-inline ExpressionArray::iterator begin(ExpressionArray const& rhs) { return rhs.begin(); }
+inline ExpressionArray::Iterator begin(ExpressionArray const& rhs) { return rhs.begin(); }
 inline ExpressionArray::iterator_end end(ExpressionArray const& rhs) { return rhs.end(); }
 
 class TupleExpression : public Expression
@@ -546,12 +546,12 @@ public:
 
 public:
     TupleExpression(TupleKind kind,
-                    std::vector<Box<Expression>> expressions);
+                    ab<Box<Expression>> expressions);
     TupleExpression(lexer::Token const& open,
                     lexer::Token const& close,
-                    std::vector<Box<Expression>> expressions);
+                    ab<Box<Expression>> expressions);
 
-    TupleExpression(std::vector<Box<Expression>> expressions,
+    TupleExpression(ab<Box<Expression>> expressions,
                     Box<Expression> cardExpression);
 
 protected:
@@ -580,25 +580,25 @@ public:
     uz elementsCount() const;
 
 public:
-    static std::optional<std::vector<Box<Expression>>::iterator>
-    tryExpandTuple(std::vector<Box<Expression>>& exprs,
-                   std::vector<Box<Expression>>::iterator i);
+    static std::optional<ab<Box<Expression>>::Iterator>
+    tryExpandTuple(ab<Box<Expression>>& exprs,
+                   ab<Box<Expression>>::Iterator i);
 
-    static std::vector<Box<Expression>>::iterator
-    expandTuple(std::vector<Box<Expression>>& exprs,
-                std::vector<Box<Expression>>::iterator i);
+    static ab<Box<Expression>>::Iterator
+    expandTuple(ab<Box<Expression>>& exprs,
+                ab<Box<Expression>>::Iterator i);
 
-    static std::vector<Box<Expression>>::iterator
+    static ab<Box<Expression>>::Iterator
     expandIntoList(TupleExpression& tup,
-                   std::vector<Box<Expression>>& exprs,
-                   std::vector<Box<Expression>>::iterator i);
+                   ab<Box<Expression>>& exprs,
+                   ab<Box<Expression>>::Iterator i);
 
-    static void flattenOpenTuples(std::vector<Box<Expression>>& exprs);
+    static void flattenOpenTuples(ab<Box<Expression>>& exprs);
 
 private:
     // AST state
     TupleKind myKind;
-    std::vector<Box<Expression>> myExpressions;
+    ab<Box<Expression>> myExpressions;
     Box<Expression> myCardExpression;
     uz myCard = 0;
 
@@ -735,7 +735,7 @@ T const* as(Expression const* expr)
     return nullptr;
 }
 
-std::vector<Box<Expression>> flattenConstraints(Box<Expression> expr);
+ab<Box<Expression>> flattenConstraints(Box<Expression> expr);
 bool isUnit(Expression const& expr);
 
 ProcedureDeclaration const* getProcedure(Expression const& expr);

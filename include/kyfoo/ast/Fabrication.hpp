@@ -1,8 +1,8 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/ast/ControlFlow.hpp>
 #include <kyfoo/ast/Declarations.hpp>
@@ -25,7 +25,7 @@ mkToken(stringv id, lexer::TokenKind kind, lexer::SourceLocation loc = {})
 }
 
 inline Symbol
-makeSym(lexer::Token const& token, std::vector<Box<Expression>> exprs)
+makeSym(lexer::Token const& token, ab<Box<Expression>> exprs)
 {
     return Symbol(token, PatternsPrototype(std::move(exprs)));
 }
@@ -45,18 +45,18 @@ makeSym(Symbol const& sym)
 inline Symbol
 copyProcSym(Symbol const& s)
 {
-    std::vector<Box<Expression>> exprs;
+    ab<Box<Expression>> exprs;
     exprs.reserve(s.prototype().pattern().card());
     for ( auto const& p : s.prototype().pattern() ) {
         if ( auto decl = getDeclaration(*p) ) {
             if ( auto param = decl->as<ProcedureParameter>() ) {
-                exprs.emplace_back(mk<IdentifierExpression>(param->symbol().token()));
+                exprs.append(mk<IdentifierExpression>(param->symbol().token()));
                 exprs.back()->appendConstraints(ast::clone(param->constraints()));
                 continue;
             }
         }
 
-        exprs.emplace_back(ast::clone(p));
+        exprs.append(ast::clone(p));
     }
 
     return makeSym(s.token(), std::move(exprs));
@@ -65,7 +65,7 @@ copyProcSym(Symbol const& s)
 inline Box<TupleExpression>
 createEmptyExpression()
 {
-    return mk<TupleExpression>(TupleKind::Open, std::vector<Box<Expression>>());
+    return mk<TupleExpression>(TupleKind::Open, ab<Box<Expression>>());
 }
 
 inline Box<TupleExpression>
@@ -73,7 +73,7 @@ createEmptyExpression(lexer::SourceLocation loc)
 {
     return mk<TupleExpression>(lexer::Token(lexer::TokenKind::OpenParen, "(", loc),
                                lexer::Token(lexer::TokenKind::CloseParen, ")", loc),
-                               std::vector<Box<Expression>>());
+                               ab<Box<Expression>>());
 }
 
 inline Box<IdentifierExpression>
@@ -101,25 +101,25 @@ mkIntegerLiteral(const char* lexeme, lexer::SourceLocation loc = {})
 }
 
 template <typename T, typename F, typename Head, typename... Args>
-void appendExprList_impl(std::vector<T>& members,
+void appendExprList_impl(ab<T>& members,
                          F&& f,
                          Head&& member,
                          Args&&... args)
 {
-    members.emplace_back(f(std::forward<Head&&>(member)));
+    members.append(f(std::forward<Head&&>(member)));
     appendExprList_impl<T>(members, std::forward<F&&>(f), std::forward<Args>(args)...);
 }
 
 template <typename T, typename F>
-void appendExprList_impl(std::vector<T>&, F&&)
+void appendExprList_impl(ab<T>&, F&&)
 {
 }
 
 template <typename T, typename... Args>
-std::vector<T>
+ab<T>
 createList(Args&&... args)
 {
-    std::vector<T> ret;
+    ab<T> ret;
     ret.reserve(sizeof...(Args));
     auto id = [](auto&& r) { return std::forward<decltype(r)>(r); };
     appendExprList_impl<T>(ret, id, std::forward<Args>(args)...);
@@ -127,7 +127,7 @@ createList(Args&&... args)
 }
 
 template <typename T, typename... Args>
-std::vector<Box<T>>
+ab<Box<T>>
 createPtrList(Args&&... args)
 {
     return createList<Box<T>>(std::forward<Args>(args)...);
@@ -137,7 +137,7 @@ template <typename... Decls>
 Box<DotExpression>
 createMemberAccess(Decls&&... decls)
 {
-    std::vector<Box<Expression>> members;
+    ab<Box<Expression>> members;
     members.reserve(sizeof...(Decls));
 
     Box<IdentifierExpression> (*f)(Declaration const&) = &createIdentifier;
@@ -165,7 +165,7 @@ createApply(Args&&... exprs)
 }
 
 inline Box<TupleExpression>
-createTuple(std::vector<Box<Expression>>&& exprs)
+createTuple(ab<Box<Expression>>&& exprs)
 {
     return mk<TupleExpression>(TupleKind::Open, std::move(exprs));
 }

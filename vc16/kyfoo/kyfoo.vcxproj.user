@@ -2,22 +2,22 @@
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LocalDebuggerCommandArguments>c print.kf</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>$(ProjectDir)..\..\test</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>..\..\test</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LocalDebuggerCommandArguments>c print.kf</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>$(ProjectDir)..\..\test</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>c symbol.kf</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>..\..\test\accept</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LocalDebuggerCommandArguments>c print.kf</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>$(ProjectDir)..\..\test</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerWorkingDirectory>..\..\test</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>c print.kf</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>$(ProjectDir)..\..\test</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>c symbol.kf</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>..\..\test\accept</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

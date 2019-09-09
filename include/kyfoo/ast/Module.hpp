@@ -61,8 +61,8 @@ public:
 
 private:
     AxiomsModule* myAxioms;
-    std::vector<Box<Module>> myModules;
-    std::vector<Module*> myImpliedImports;
+    ab<Box<Module>> myModules;
+    ab<Module*> myImpliedImports;
     std::filesystem::path myPath;
     lexer::DefaultTokenFactory& myTokenFactory;
 };
@@ -121,11 +121,11 @@ protected:
     std::string myName;
     MMFile myFile;
     Box<Scope> myScope;
-    std::vector<Declaration const*> myTemplateInstantiations;
-    std::vector<Box<Declaration>> myFabDeclarations;
-    std::vector<Box<Expression>> myFabExpressions;
+    ab<Declaration const*> myTemplateInstantiations;
+    ab<Box<Declaration>> myFabDeclarations;
+    ab<Box<Expression>> myFabExpressions;
 
-    mutable std::vector<Module*> myImports;
+    mutable ab<Module*> myImports;
     mutable std::map<std::string, std::string, StringComp> myStrings; // todo: shared
 
     mutable Box<codegen::CustomData> myCodegenData;

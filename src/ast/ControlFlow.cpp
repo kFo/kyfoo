@@ -1,6 +1,6 @@
 #include <kyfoo/ast/ControlFlow.hpp>
 
-#include <kyfoo/Algorithm.hpp>
+#include <kyfoo/Algorithms.hpp>
 #include <kyfoo/Utilities.hpp>
 
 #include <kyfoo/ast/Context.hpp>
@@ -105,8 +105,8 @@ VariableDeclaration const& Statement::createTemp(ProcedureScope& scope,
                                                  Expression const& type,
                                                  Box<Expression> expr)
 {
-    myTempVariables.emplace_back(mk<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
-    myTempExpressions.emplace_back(std::move(expr));
+    myTempVariables.append(mk<VariableDeclaration>(Symbol(lexer::Token()), scope, type));
+    myTempExpressions.append(std::move(expr));
     return *myTempVariables.back();
 }
 
@@ -385,14 +385,14 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         return SymRes::Fail;
     }
 
-    std::vector<BranchJunction*> branches;
+    ab<BranchJunction*> branches;
     for ( auto br = branch(1)->junction()->as<BranchJunction>(); br; ) {
         ret |= ctx.resolveJunction(*br, bb);
         if ( !ret )
             continue;
 
         if ( br->isElse() )
-            branches.emplace_back(br);
+            branches.append(br);
 
         if ( !br->branch(1) )
             break;
@@ -403,7 +403,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
     if ( !ret )
         return ret;
 
-    if ( branches.empty() ) {
+    if ( !branches ) {
         ctx.error(diag::no_match_branches, token());
         return SymRes::Fail;
     }
@@ -425,7 +425,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
         return SymRes::Fail;
     }
 
-    std::vector<DataTypeDeclaration const*> variationsFound(defn->variations().card(), nullptr);
+    ab<DataTypeDeclaration const*> variationsFound(Replicate<DataTypeDeclaration const*>{defn->variations().card()});
     for ( auto br : branches ) {
         if ( !br->condition() ) {
             ctx.error(diag::no_match_initial_branch, br->token());
@@ -454,7 +454,7 @@ SymRes BranchJunction::resolveSymbols(Context& ctx, BasicBlock& bb)
     if ( !ret )
         return ret;
 
-    for ( uz i = 0; i < variationsFound.size(); ++i ) {
+    for ( uz i = 0; i < variationsFound.card(); ++i ) {
         if ( !variationsFound[i] ) {
             ctx.error(diag::missing_match_variation, token())
                 .see(*defn->variations()[i]);
@@ -762,7 +762,7 @@ SymRes BasicBlock::resolveSymbols(Context& ctx)
     if ( !junction() ) {
         if ( isUnit(*scope()->declaration()->returnType()) ) {
             lexer::Token tok;
-            if ( !myStatements.empty() )
+            if ( myStatements )
                 tok = front(*myStatements.back());
             setJunction(mk<ReturnJunction>(tok, createEmptyExpression(tok.location())));
         }
@@ -818,20 +818,20 @@ Junction* BasicBlock::junction()
 
 bool BasicBlock::empty() const
 {
-    return myIncoming.empty()
-        && myStatements.empty()
+    return !myIncoming
+        && !myStatements
         && !myJunction;
 }
 
 void BasicBlock::appendIncoming(BasicBlock& from)
 {
-    if ( find(begin(myIncoming), end(myIncoming), &from) == end(myIncoming) )
-        myIncoming.push_back(&from);
+    if ( !scan(myIncoming, &from) )
+        myIncoming.append(&from);
 }
 
 void BasicBlock::append(Box<Statement> stmt)
 {
-    myStatements.emplace_back(std::move(stmt));
+    myStatements.append(std::move(stmt));
 }
 
 void BasicBlock::setJunction(Box<Junction> junction)
@@ -891,62 +891,61 @@ Slice<Extent::Block*> Extent::firstUses()
 
 void Extent::appendBlock(BasicBlock const& bb)
 {
-    myBlocks.emplace_back(mk<Block>(&bb));
+    myBlocks.append(mk<Block>(&bb));
 
     // assumes graph construction begins at the entry
-    if ( myFirstUses.empty() )
-        myFirstUses.emplace_back(myBlocks.back().get());
+    if ( !myFirstUses )
+        myFirstUses.append(myBlocks.back().get());
 }
 
 void Extent::appendUsage(BasicBlock const& bb, Statement const& stmt, Usage::Kind kind)
 {
     ensureBlock(bb);
-    myBlocks.back()->uses.emplace_back(Usage{&stmt, nullptr, kind});
+    myBlocks.back()->uses.append(Usage{&stmt, nullptr, kind});
 }
 
 void Extent::appendUsage(BasicBlock const& bb, Statement const& stmt, Expression const& expr, Usage::Kind kind)
 {
     ensureBlock(bb);
-    myBlocks.back()->uses.emplace_back(Usage{&stmt, &expr, kind});
+    myBlocks.back()->uses.append(Usage{&stmt, &expr, kind});
 }
 
 void Extent::pruneEmptyBlocks()
 {
     for ( auto b = begin(myBlocks); b != end(myBlocks); ) {
-        if ( !(*b)->uses.empty() ) {
+        if ( (*b)->uses ) {
             ++b;
             continue;
         }
 
         for ( auto p : (*b)->pred ) {
             for ( auto s : (*b)->succ ) {
-                if ( find(p->succ.begin(), p->succ.end(), s) == p->succ.end() ) {
-                    p->succ.emplace_back(s);
-                    s->pred.emplace_back(p);
+                if ( !scan(p->succ, s) ) {
+                    p->succ.append(s);
+                    s->pred.append(p);
                 }
             }
 
-            p->succ.erase(find(p->succ.begin(), p->succ.end(), b->get()));
+            p->succ.zap(b->get());
         }
 
         for ( auto s : (*b)->succ )
-            s->pred.erase(find(s->pred.begin(), s->pred.end(), b->get()));
+            s->pred.zap(b->get());
 
-        if ( auto e = find(begin(myFirstUses), end(myFirstUses), b->get()); e != end(myFirstUses) ) {
-            myFirstUses.erase(e);
+        if ( myFirstUses.zap(b->get()) ) {
             for ( auto s : (*b)->succ ) {
-                if ( find(begin(myFirstUses), end(myFirstUses), s) == end(myFirstUses) )
-                    myFirstUses.emplace_back(s);
+                if ( !scan(myFirstUses, s) )
+                    myFirstUses.append(s);
             }
         }
 
-        b = myBlocks.erase(b);
+        b = myBlocks.remove(b);
     }
 }
 
 SymRes Extent::cacheLocalFlows(Context& ctx)
 {
-    if ( myBlocks.empty() ) {
+    if ( !myBlocks ) {
         ctx.error(diag::unused, *myDeclaration);
         return SymRes::Fail;
     }
@@ -988,13 +987,13 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
     }
 
     FlatSet<Block*> visited;
-    std::vector<Block*> stack;
-    std::vector<Block*> frontier;
+    ab<Block*> stack;
+    ab<Block*> frontier;
     for ( auto entryBlock : myFirstUses ) {
-        frontier.emplace_back(entryBlock);
-        while ( !frontier.empty() ) {
-            stack.emplace_back(frontier.back());
-            frontier.pop_back();
+        frontier.append(entryBlock);
+        while ( frontier ) {
+            stack.append(frontier.back());
+            frontier.pop();
 
             auto b = stack.back();
             if ( auto [_, isNew] = visited.insert(b); !isNew )
@@ -1005,12 +1004,12 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
                 if ( pv && !providesValue(s) )
                     s->out = Provision::Defines;
 
-                if ( find(begin(stack), end(stack), s) != end(stack) ) {
+                if ( scan(stack, s) ) {
                     // cycle -- skip
                     continue;
                 }
 
-                frontier.emplace_back(s);
+                frontier.append(s);
             }
         }
     }
@@ -1041,7 +1040,7 @@ SymRes Extent::cacheLocalFlows(Context& ctx)
 
 void Extent::ensureBlock(BasicBlock const& bb)
 {
-    if ( myBlocks.empty() || myBlocks.back()->bb != &bb )
+    if ( !myBlocks || myBlocks.back()->bb != &bb )
         appendBlock(bb);
 }
 
@@ -1062,14 +1061,14 @@ FlowTracer::Shape FlowTracer::advanceBlock()
 {
     auto bb = myPath.back();
     if ( auto br = bb->junction()->as<BranchJunction>() ) {
-        myPath.push_back(br->branch(0) ? br->branch(0) : br->branch(1));
+        myPath.append(br->branch(0) ? br->branch(0) : br->branch(1));
         return checkRepetition();
     }
     else if ( auto ret = bb->junction()->as<ReturnJunction>() ) {
         return None;
     }
     else if ( auto j = bb->junction()->as<JumpJunction>() ) {
-        myPath.push_back(j->targetBlock());
+        myPath.append(j->targetBlock());
         return checkRepetition();
     }
 
@@ -1078,9 +1077,9 @@ FlowTracer::Shape FlowTracer::advanceBlock()
 
 FlowTracer::Shape FlowTracer::advancePath()
 {
-    while ( myPath.size() > 1 ) {
-        auto bb = myPath[myPath.size() - 1];
-        auto pred = myPath[myPath.size() - 2];
+    while ( myPath.card() > 1 ) {
+        auto bb = myPath[myPath.card() - 1];
+        auto pred = myPath[myPath.card() - 2];
         if ( auto br = pred->junction()->as<BranchJunction>() ) {
             if ( bb == br->branch(0) ) {
                 myPath.back() = br->branch(1);
@@ -1088,7 +1087,7 @@ FlowTracer::Shape FlowTracer::advancePath()
             }
         }
 
-        myPath.pop_back();
+        myPath.pop();
     }
 
     return None;
@@ -1102,7 +1101,7 @@ Slice<BasicBlock const*> FlowTracer::currentPath() const
 FlowTracer::Shape FlowTracer::checkRepetition()
 {
     auto bb = myPath.back();
-    for ( auto i = myPath.size() - 2; ~i; --i )
+    for ( auto i = myPath.card() - 2; ~i; --i )
         if ( myPath[i] == bb )
             return Repeat;
 
@@ -1296,20 +1295,20 @@ struct Sequencer
     }
 };
 
-SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, std::vector<Extent>& extents)
+SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, ab<Extent>& extents)
 {
     // todo: crawl over declarations searching for uses
     /*for ( auto sym : declaration()->symbol().prototype().symbolVariables() )
         myExtents.emplace_back(*sym);*/
 
     for ( auto param : proc.declaration()->parameters() )
-        extents.emplace_back(*param);
+        extents.append(*param);
 
     ycomb(
         [&extents](auto rec, ProcedureScope const& scope) -> void {
             for ( auto d : scope.childDeclarations() )
                 if ( d->kind() == Declaration::Kind::Variable )
-                    extents.emplace_back(*d);
+                    extents.append(*d);
 
             for ( auto s : scope.childScopes() )
                 rec(*s);
@@ -1346,8 +1345,8 @@ SymRes buildVariableExtents(Context& ctx, ProcedureScope& proc, std::vector<Exte
             for ( auto incoming : b->bb->incoming() ) {
                 for ( auto b2 : ext.blocks() ) {
                     if ( b2->bb == incoming ) {
-                        b2->succ.push_back(b);
-                        b->pred.push_back(b2);
+                        b2->succ.append(b);
+                        b->pred.append(b2);
                         break;
                     }
                 }

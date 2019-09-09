@@ -35,7 +35,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include <kyfoo/Algorithm.hpp>
+#include <kyfoo/Algorithms.hpp>
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Math.hpp>
 
@@ -57,6 +57,12 @@ namespace {
     inline ::llvm::StringRef strRef(kyfoo::stringv s)
     {
         return ::llvm::StringRef(s.data(), s.card());
+    }
+
+    template <typename T>
+    ::llvm::ArrayRef<T> arrRef(kyfoo::Slice<T> rhs)
+    {
+        return ::llvm::ArrayRef(rhs.data(), rhs.card());
     }
 }
 
@@ -191,7 +197,7 @@ struct CodeGenPass
     Context& ctx;
     ::llvm::Module* module;
     ast::Module const& sourceModule;
-    std::vector<ast::ProcedureDeclaration const*> procBodiesToCodegen;
+    ab<ast::ProcedureDeclaration const*> procBodiesToCodegen;
 
     CodeGenPass(Dispatcher& dispatch,
                 Diagnostics& dgn,
@@ -243,7 +249,7 @@ struct CodeGenPass
         if ( !returnType )
             die("missing return type");
 
-        std::vector<::llvm::Type*> params;
+        ab<::llvm::Type*> params;
         params.reserve(decl.parameters().card());
         for ( auto const& p : decl.parameters() ) {
             declProcedureParameter(*p);
@@ -259,10 +265,10 @@ struct CodeGenPass
                 }
             }
 
-            params.push_back(paramType);
+            params.append(paramType);
         }
 
-        auto type = ::llvm::FunctionType::get(returnType, params, /*isVarArg*/false);
+        auto type = ::llvm::FunctionType::get(returnType, arrRef(params()), /*isVarArg*/false);
 
         ::llvm::StringRef name;
         if ( decl.scope().declaration() )
@@ -284,12 +290,12 @@ struct CodeGenPass
         auto linkage = ::llvm::Function::ExternalLinkage;
 
         fdata->define(module, ::llvm::Function::Create(type, linkage, name, module));
-        procBodiesToCodegen.push_back(&decl);
+        procBodiesToCodegen.append(&decl);
     }
 
     void generateProcBodies()
     {
-        for ( auto procs = std::move(procBodiesToCodegen); !procs.empty(); procs = std::move(procBodiesToCodegen) ) {
+        for ( auto procs = std::move(procBodiesToCodegen); procs; procs = std::move(procBodiesToCodegen) ) {
             for ( auto p : procs )
                 generateProcBody(*p);
         }
@@ -345,11 +351,11 @@ struct CodeGenPass
         ::llvm::IRBuilder<> builder(bb);
 
         //uz cleanupDeclLast = 0;
-        //std::vector<::llvm::BasicBlock*> cleanupBlocks;
+        //ab<::llvm::BasicBlock*> cleanupBlocks;
 
         //auto createCleanupBlock = [&](lexer::Token const& token, bool exit) {
         //    auto const decls = scope.childDeclarations();
-        //    std::vector<ast::VariableDeclaration*> priorVars;
+        //    ab<ast::VariableDeclaration*> priorVars;
         //    for ( ; cleanupDeclLast < decls.size(); ++cleanupDeclLast ) {
         //        if ( token.kind() != lexer::TokenKind::Undefined && !isBefore(decls[cleanupDeclLast]->symbol().token(), token) )
         //            break;
@@ -464,19 +470,19 @@ struct CodeGenPass
                     unsigned idxs[] = { 0 };
                     subjTagVal = builder.CreateExtractValue(subjRef, idxs);
                 }
-                std::vector<ast::BranchJunction const*> branches;
+                ab<ast::BranchJunction const*> branches;
                 ast::BasicBlock const* merge = brJunc->branch(1);
                 for ( auto br = merge->junction()->as<ast::BranchJunction>();
                       br && br->isElse();
                       br = merge->junction()->as<ast::BranchJunction>() )
                 {
                     ENFORCE(merge->statements().card() == 0, "branch blocks should be empty");
-                    branches.emplace_back(br);
+                    branches.append(br);
                     merge = br->branch(1);
                 }
                 auto mergeBlock = ::llvm::BasicBlock::Create(module->getContext(), "", func);
                 toBlock(allocaBuilder, scope, *merge, func, mergeBlock, nullptr);
-                auto sw = builder.CreateSwitch(subjTagVal, mergeBlock, trunc<unsigned>(branches.size()));
+                auto sw = builder.CreateSwitch(subjTagVal, mergeBlock, trunc<unsigned>(branches.card()));
                 ::llvm::BasicBlock* lastBlock = nullptr;
                 for ( auto br : branches ) {
                     auto const ordinal = indexOf(dt->definition()->variations(), ast::as<ast::DataTypeDeclaration>(br->condition()));
@@ -812,7 +818,7 @@ private:
                 if ( tup->kind() == ast::TupleKind::Open )
                     formalParams = tup->expressions();
 
-            std::vector<::llvm::Value*> args;
+            ab<::llvm::Value*> args;
             args.reserve(exprs.card());
 
             for ( uz i = 1; i < exprs.card(); ++i ) {
@@ -827,13 +833,13 @@ private:
                 auto val = toValue(allocaBuilder, builder, paramType, *exprs[i]);
                 if ( !val )
                     die("cannot determine arg");
-                args.push_back(val);
+                args.append(val);
             }
 
             if ( proc )
-                return builder.CreateCall(cgd(*proc)->getFunction(module), args);
+                return builder.CreateCall(cgd(*proc)->getFunction(module), arrRef(args()));
 
-            return builder.CreateCall(fptr, args);
+            return builder.CreateCall(fptr, arrRef(args()));
         }
 
         if ( auto l = expr.as<ast::LambdaExpression>() ) {

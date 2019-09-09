@@ -17,7 +17,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\include;..\..\contrib</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
       <WarningLevel>Level4</WarningLevel>
       <AssemblerListingLocation>$(IntDir)$(SrcPre)%(RelativeDir)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)$(SrcPre)%(RelativeDir)</ObjectFileName>

@@ -208,12 +208,12 @@ bool Substitutions::deduce(Expression const& target, Expression const& query)
 
 bool Substitutions::empty() const
 {
-    return myVariables.empty();
+    return !myVariables;
 }
 
 uz Substitutions::card() const
 {
-    return myVariables.size();
+    return myVariables.card();
 }
 
 SymbolVariable const& Substitutions::var(uz index) const
@@ -229,10 +229,10 @@ Expression const& Substitutions::expr(uz index) const
 bool Substitutions::bind(SymbolVariable const& symVar, Expression const& expr)
 {
     auto const i = findVarIndex(symVar);
-    if ( i == myVariables.size() ) {
+    if ( i == myVariables.card() ) {
         // new substitution
-        myVariables.push_back(&symVar);
-        myContexts.push_back(&expr);
+        myVariables.append(&symVar);
+        myContexts.append(&expr);
         return true;
     }
 
@@ -248,7 +248,7 @@ Substitutions::operator bool() const
 
 uz Substitutions::findVarIndex(SymbolVariable const& symVar)
 {
-    return distance(begin(myVariables), find(begin(myVariables), end(myVariables), &symVar));
+    return std::distance(begin(myVariables), std::find(begin(myVariables), end(myVariables), &symVar));
 }
 
 void Substitutions::setMismatch()

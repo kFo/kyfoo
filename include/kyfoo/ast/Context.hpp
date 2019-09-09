@@ -2,8 +2,8 @@
 
 #include <functional>
 #include <variant>
-#include <vector>
 
+#include <kyfoo/Array.hpp>
 #include <kyfoo/Diagnostics.hpp>
 #include <kyfoo/Types.hpp>
 #include <kyfoo/ast/Symbol.hpp>
@@ -67,7 +67,7 @@ public:
 private:
     Scope* myScope = nullptr;
     Options myOptions = None;
-    std::vector<PatternsPrototype*> mySupplementaryPrototypes;
+    ab<PatternsPrototype*> mySupplementaryPrototypes;
 };
 
 class ResolverReverter;
@@ -138,21 +138,21 @@ public:
 
     SymRes resolveExpression(Expression& expr);
     SymRes resolveExpression(Box<Expression>& expr);
-    SymRes resolveExpressions(std::vector<Box<Expression>>::iterator left,
-                              std::vector<Box<Expression>>::iterator right);
-    SymRes resolveExpressions(std::vector<Box<Expression>>& exprs);
+    SymRes resolveExpressions(ab<Box<Expression>>::Iterator left,
+                              ab<Box<Expression>>::Iterator right);
+    SymRes resolveExpressions(ab<Box<Expression>>& exprs);
 
     SymRes resolveStatement(Statement& stmt);
-    SymRes resolveStatements(std::vector<Statement>::iterator left,
-                             std::vector<Statement>::iterator right);
-    SymRes resolveStatements(std::vector<Statement>& stmts);
+    SymRes resolveStatements(ab<Statement>::Iterator left,
+                             ab<Statement>::Iterator right);
+    SymRes resolveStatements(ab<Statement>& stmts);
 
     SymRes resolveJunction(Junction& junc, BasicBlock& bb);
 
     bool isTopLevel() const;
 
     void appendInstantiatedDefinition(Scope& defn);
-    std::vector<Scope*>&& takeInstantiatedDefinitions();
+    ab<Scope*>&& takeInstantiatedDefinitions();
 
 public:
     operator DiagnosticsContext();
@@ -171,8 +171,8 @@ private:
     Box<Expression> myRewrite;
     std::function<Box<Expression>(Box<Expression>&)> myLazyRewrite;
     int myExpressionDepth = -1;
-    std::vector<Declaration*> myInstantiatedDeclarations;
-    std::vector<Scope*> myInstantiatedDefinitions;
+    ab<Declaration*> myInstantiatedDeclarations;
+    ab<Scope*> myInstantiatedDefinitions;
 };
 
 class [[nodiscard]] ResolverReverter

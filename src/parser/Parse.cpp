@@ -141,7 +141,7 @@ DeclarationScopeParser::parseProcedural()
     return {false, nullptr};
 }
 
-std::vector<Box<ast::Expression>> DeclarationScopeParser::parameterContext() const
+ab<Box<ast::Expression>> DeclarationScopeParser::parameterContext() const
 {
     return ast::clone(myParameterContext);
 }
@@ -155,7 +155,7 @@ void DeclarationScopeParser::append(Box<ast::Declaration> decl)
 void DeclarationScopeParser::parseAttributes()
 {
     while ( auto attr = parse<Attribute>(*this) ) {
-        myAttributes.emplace_back(std::move(attr));
+        myAttributes.append(std::move(attr));
         if ( scanner().peek().kind() != lexer::TokenKind::IndentEQ ) {
             diagnostics().error(myScope->module(), diag::parser_expected_declaration, scanner().peek());
             return;
@@ -219,7 +219,7 @@ Box<DeclarationScopeParser> DeclarationScopeParser::next()
         }
         
         if ( newScopeParser )
-            return move(newScopeParser);
+            return std::move(newScopeParser);
 
         if ( scanner().peek().kind() != lexer::TokenKind::IndentEQ )
             return nullptr;
@@ -490,8 +490,8 @@ void parseScope(Box<DeclarationScopeParser> parser)
     auto& scanner = parser->scanner();
     auto const& mod = parser->scope().module();
 
-    std::vector<Box<parser::DeclarationScopeParser>> scopeStack;
-    scopeStack.emplace_back(std::move(parser));
+    ab<Box<parser::DeclarationScopeParser>> scopeStack;
+    scopeStack.append(std::move(parser));
 
     while ( scanner ) {
         if ( scanner.peek().kind() == lexer::TokenKind::IndentEQ )
@@ -499,13 +499,13 @@ void parseScope(Box<DeclarationScopeParser> parser)
 
         auto nextScope = scopeStack.back()->next();
         if ( nextScope ) {
-            scopeStack.push_back(std::move(nextScope));
+            scopeStack.append(std::move(nextScope));
         }
         else {
             switch (scanner.peek().kind()) {
             case lexer::TokenKind::EndOfInput:
-                if ( !scopeStack.empty() )
-                    scopeStack.resize(1);
+                if ( scopeStack )
+                    scopeStack.trunc(1);
 
             case lexer::TokenKind::IndentLT:
                 break;
@@ -523,12 +523,12 @@ void parseScope(Box<DeclarationScopeParser> parser)
             }
 
             while ( scanner.peek().kind() == lexer::TokenKind::IndentLT ) {
-                if ( scopeStack.empty() ) {
+                if ( !scopeStack ) {
                     dgn.error(mod, diag::parser_indentation_mismatch, scanner.peek());
                     dgn.die();
                 }
 
-                scopeStack.pop_back();
+                scopeStack.pop();
                 scanner.next();
             }
         }
@@ -539,7 +539,7 @@ void parseScope(Box<DeclarationScopeParser> parser)
         dgn.die();
     }
 
-    ENFORCE(scopeStack.size() == 1, "parser scope imbalance");
+    ENFORCE(scopeStack.card() == 1, "parser scope imbalance");
 }
 
 } // namespace kyfoo::parser

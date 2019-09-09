@@ -143,7 +143,7 @@ DEFINE_PLACEHOLDER_BINARY_ASSIGN_OPS(X)
 };
 
 template <unsigned N, typename Head, typename... Tail>
-decltype(auto) choose(Head&& head, Tail&&... tail)
+decltype(auto) choose([[maybe_unused]] Head&& head, [[maybe_unused]] Tail&&... tail)
 {
     if constexpr(N == 0)
         return std::forward<Head>(head);
@@ -292,5 +292,14 @@ inline static placeholders::Placeholder<0> $$;
 inline static placeholders::Placeholder<0> $$a;
 inline static placeholders::Placeholder<1> $$b;
 inline static placeholders::Placeholder<2> $$c;
+
+#define $0(nullary_expr) ([&](                                           ) noexcept { return nullary_expr; })
+#define $1(unary_expr)   ([&](auto const& a                              ) noexcept { return unary_expr;   })
+#define $2(binary_expr)  ([&](auto const& a, auto const& b               ) noexcept { return binary_expr;  })
+#define $3(ternary_expr) ([&](auto const& a, auto const& b, auto const& c) noexcept { return ternary_expr; })
+
+#define $$1(unary_expr)   ([&](auto& a                  ) noexcept { return unary_expr;   })
+#define $$2(binary_expr)  ([&](auto& a, auto& b         ) noexcept { return binary_expr;  })
+#define $$3(ternary_expr) ([&](auto& a, auto& b, auto& c) noexcept { return ternary_expr; })
 
 } // namespace kyfoo

@@ -30,7 +30,7 @@ Scope::Scope(Kind kind,
     , myModule(module)
     , myParent(parent)
 {
-    mySymbols.emplace_back(this, "");
+    mySymbols.append(this, "");
 }
 
 Scope::Scope(Module& module)
@@ -123,7 +123,7 @@ SymRes Scope::resolveDeclarations(Context& ctx)
 
     myDeclRes.emplace(SymRes::Success);
     SymbolDependencyTracker tracker(module(), ctx.diagnostics());
-    for ( auto const& d : myDeclarations )
+    for ( auto& d : myDeclarations )
         *myDeclRes |= traceDependencies(tracker, *d);
 
     if ( myDeclRes->error() )
@@ -210,13 +210,13 @@ Lookup Scope::findEquivalent(SymbolReference const& symbol) const
 SymbolVariable& Scope::createMetaVariable(lexer::Token const& tok)
 {
     ascii::Formatter<ArrayBuffer<>> buf(tok.lexeme().card() + 2 + 5);
-    buf('?')(myMetaVariables.size())('_')(tok.lexeme());
-    myMetaVariableNames.emplace_back(mkString(buf));
+    buf('?')(myMetaVariables.card())('_')(tok.lexeme());
+    myMetaVariableNames.append(mkString(buf));
 
     lexer::Token metaTok(lexer::TokenKind::MetaVariable,
                          myMetaVariableNames.back(),
                          tok.location());
-    myMetaVariables.emplace_back(mk<SymbolVariable>(std::move(metaTok), *this, std::vector<std::unique_ptr<Expression>>()));
+    myMetaVariables.append(mk<SymbolVariable>(std::move(metaTok), *this, ab<Box<Expression>>()));
     return *myMetaVariables.back();
 }
 
@@ -240,20 +240,20 @@ Lookup Scope::findOverload(Context& ctx, SymbolReference const& sym) const
 
 void Scope::append(Box<Declaration> declaration)
 {
-    myDeclarations.emplace_back(std::move(declaration));
+    myDeclarations.append(std::move(declaration));
     myDeclarations.back()->setScope(*this);
 }
 
 void Scope::append(Box<Scope> definition)
 {
-    myDefinitions.emplace_back(std::move(definition));
+    myDefinitions.append(std::move(definition));
     myDefinitions.back()->myParent = this;
 }
 
 void Scope::appendLambda(Box<ProcedureDeclaration> proc,
                          Box<ProcedureScope> defn)
 {
-    myLambdas.emplace_back(std::move(proc));
+    myLambdas.append(std::move(proc));
     myLambdas.back()->setScope(*this);
     append(std::move(defn));
 }
@@ -265,9 +265,9 @@ void Scope::import(Module& module)
 
 void Scope::merge(Scope& rhs)
 {
-    myDeclarations.reserve(myDeclarations.size() + rhs.myDeclarations.size());
+    myDeclarations.reserve(myDeclarations.card() + rhs.myDeclarations.card());
     for ( auto& e : rhs.myDeclarations ) {
-        myDeclarations.emplace_back(std::move(e));
+        myDeclarations.append(std::move(e));
         myDeclarations.back()->setScope(*this);
     }
 
@@ -304,7 +304,7 @@ bool Scope::addSymbol(Diagnostics& dgn, Symbol const& sym, Declaration& decl)
 SymbolSpace* Scope::createSymbolSpace(Diagnostics&, stringv name)
 {
     auto symLess = [](SymbolSpace const& s, stringv name) { return s.name() < name; };
-    auto l = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
+    auto l = std::lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( l != end(mySymbols) && l->name() == name )
         return &*l;
 
@@ -315,7 +315,7 @@ SymbolSpace* Scope::createSymbolSpace(Diagnostics&, stringv name)
 SymbolSpace* Scope::findSymbolSpace(stringv name) const
 {
     auto symLess = [](SymbolSpace const& s, stringv name) { return s.name() < name; };
-    auto symSet = lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
+    auto symSet = std::lower_bound(begin(mySymbols), end(mySymbols), name, symLess);
     if ( symSet != end(mySymbols) && symSet->name() == name )
         return &*symSet;
 
@@ -423,21 +423,21 @@ SymRes DataTypeScope::resolveDefinitions(Context& ctx)
 }
 
 void DataTypeScope::appendField(Symbol symbol,
-                                std::vector<Box<Expression>> constraints,
+                                ab<Box<Expression>> constraints,
                                 Box<Expression> init)
 {
     auto field = mk<Field>(*declaration(),
                            std::move(symbol),
                            std::move(constraints),
                            std::move(init));
-    myFields.emplace_back(field.get());
+    myFields.append(field.get());
     Scope::append(std::move(field));
 }
 
 void DataTypeScope::appendVariation(Symbol sym)
 {
     auto v = mk<DataTypeDeclaration>(std::move(sym), declaration());
-    myVariations.emplace_back(v.get());
+    myVariations.append(v.get());
     Scope::append(std::move(v));
 }
 
@@ -658,13 +658,13 @@ BasicBlock const* ProcedureScope::entryBlock() const
 
 Expression const* ProcedureScope::deduceReturnType(Context& ctx)
 {
-    std::vector<BasicBlock const*> returnBlocks;
-    std::vector<Expression const*> returnTypes;
+    ab<BasicBlock const*> returnBlocks;
+    ab<Expression const*> returnTypes;
     ycomb([&returnBlocks, &returnTypes](auto rec, ProcedureScope& scope) -> void {
         for ( auto b : scope.basicBlocks() ) {
             if ( auto ret = b->junction()->as<ReturnJunction>() ) {
-                returnBlocks.emplace_back(b);
-                returnTypes.emplace_back(&ret->expression());
+                returnBlocks.append(b);
+                returnTypes.append(&ret->expression());
             }
         }
 
@@ -693,13 +693,13 @@ void ProcedureScope::append(Box<VariableDeclaration> var, Box<Expression> expr)
 
 BasicBlock* ProcedureScope::createBasicBlock()
 {
-    myBasicBlocks.emplace_back(mk<BasicBlock>(this));
+    myBasicBlocks.append(mk<BasicBlock>(this));
     return myBasicBlocks.back().get();
 }
 
 void ProcedureScope::popBasicBlock()
 {
-    myBasicBlocks.pop_back();
+    myBasicBlocks.pop();
 }
 
 ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
@@ -707,7 +707,7 @@ ProcedureScope* ProcedureScope::createChildScope(BasicBlock* mergeBlock,
                                                  lexer::Token label)
 {
     Box<ProcedureScope> child(new ProcedureScope(*this, mergeBlock, std::move(openToken), std::move(label)));
-    myChildScopes.push_back(std::move(child));
+    myChildScopes.append(std::move(child));
     return myChildScopes.back().get();
 }
 
@@ -765,7 +765,7 @@ void ProcedureScope::cacheDominators()
     })(*this);
 
     auto allButEntry = all;
-    allButEntry.remove(entryBlock());
+    allButEntry.zap(entryBlock());
 
     for ( auto b : allButEntry )
         b->myDominators = all;
@@ -785,13 +785,13 @@ void ProcedureScope::cacheDominators()
 
     for ( auto b : allButEntry ) {
         auto idom = b->myDominators;
-        idom.remove(b);
+        idom.zap(b);
         for ( auto d : b->myDominators ) {
             if ( d == b )
                 continue;
 
             auto dd = d->myDominators;
-            dd.remove(d);
+            dd.zap(d);
             idom.diffWith(dd);
         }
 
@@ -802,7 +802,7 @@ void ProcedureScope::cacheDominators()
 
 SymRes ProcedureScope::cacheVariableExtents(Context& ctx)
 {
-    if ( myBasicBlocks.empty() )
+    if ( !myBasicBlocks )
         return SymRes::Success;
 
     return buildVariableExtents(ctx, *this, myExtents);

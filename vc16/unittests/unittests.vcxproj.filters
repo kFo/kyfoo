@@ -19,7 +19,10 @@
     <ClCompile Include="..\..\src\unittests\Ranges.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\unittests\Algorithm.cpp">
+    <ClCompile Include="..\..\src\unittests\Algorithms.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\unittests\Box.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

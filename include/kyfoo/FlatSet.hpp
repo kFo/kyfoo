@@ -1,7 +1,8 @@
 #pragma once
 
 #include <algorithm>
-#include <vector>
+
+#include <kyfoo/Array.hpp>
 
 namespace kyfoo {
 
@@ -9,19 +10,15 @@ template <typename T>
 class FlatSet
 {
 public:
-    using container_type = std::vector<T>;
+    using Container = ab<T>;
 
-    using value_type             = typename container_type::value_type            ;
-    using size_type              = typename container_type::size_type             ;
-    using difference_type        = typename container_type::difference_type       ;
-    using reference              = typename container_type::reference             ;
-    using const_reference        = typename container_type::const_reference       ;
-    using pointer                = typename container_type::pointer               ;
-    using const_pointer          = typename container_type::const_pointer         ;
-    using iterator               = typename container_type::iterator              ;
-    using const_iterator         = typename container_type::const_iterator        ;
-    using reverse_iterator       = typename container_type::reverse_iterator      ;
-    using const_reverse_iterator = typename container_type::const_reverse_iterator;
+    using Element        = typename Container::Element;
+    using Reference      = typename Container::Reference;
+    using ConstReference = typename Container::ConstReference;
+    using Pointer        = typename Container::Pointer;
+    using ConstPointer   = typename Container::ConstPointer;
+    using Iterator       = typename Container::Iterator;
+    using ConstIterator  = typename Container::ConstIterator;
 
 public:
     FlatSet() = default;
@@ -34,7 +31,7 @@ public:
             insert(*first++);
     }
 
-    explicit FlatSet(std::initializer_list<value_type> init)
+    explicit FlatSet(std::initializer_list<Element> init)
         : FlatSet(init.begin(), init.end())
     {
     }
@@ -49,51 +46,44 @@ public:
     }
 
 public:
-    iterator        begin()       noexcept { return myList. begin(); }
-    const_iterator  begin() const noexcept { return myList. begin(); }
-    const_iterator cbegin() const noexcept { return myList.cbegin(); }
+    Iterator       begin()       noexcept { return myList. begin(); }
+    ConstIterator  begin() const noexcept { return myList. begin(); }
+    ConstIterator cbegin() const noexcept { return myList.cbegin(); }
 
-    iterator        end()       noexcept { return myList. end(); }
-    const_iterator  end() const noexcept { return myList. end(); }
-    const_iterator cend() const noexcept { return myList.cend(); }
+    Iterator       end()       noexcept { return myList. end(); }
+    ConstIterator  end() const noexcept { return myList. end(); }
+    ConstIterator cend() const noexcept { return myList.cend(); }
 
-    iterator        rbegin()       noexcept { return myList. rbegin(); }
-    const_iterator  rbegin() const noexcept { return myList. rbegin(); }
-    const_iterator crbegin() const noexcept { return myList.crbegin(); }
+    explicit operator bool () const noexcept { return bool(myList); }
 
-    iterator        rend()       noexcept { return myList. rend(); }
-    const_iterator  rend() const noexcept { return myList. rend(); }
-    const_iterator crend() const noexcept { return myList.crend(); }
-
-    bool empty() const noexcept { return myList.empty(); }
-    size_type card() const noexcept { return myList.size(); }
-    size_type capacity() const noexcept { return myList.capacity(); }
-    size_type max_size() const noexcept { return myList.max_size(); }
+    uz card() const noexcept { return myList.card(); }
+    uz capacity() const noexcept { return myList.capacity(); }
+    uz max_size() const noexcept { return myList.max_size(); }
     
-    reference       operator[](size_type idx)       noexcept { return myList[idx]; }
-    const_reference operator[](size_type idx) const noexcept { return myList[idx]; }
+    Reference      operator[](uz idx)       noexcept { return myList[idx]; }
+    ConstReference operator[](uz idx) const noexcept { return myList[idx]; }
 
-    const_iterator lower_bound(const_reference value) const noexcept
+    ConstIterator lower_bound(ConstReference value) const noexcept
     {
         return std::lower_bound(myList.begin(), myList.end(), value);
     }
 
-    iterator lower_bound(const_reference value) noexcept
+    Iterator lower_bound(ConstReference value) noexcept
     {
         return std::lower_bound(myList.begin(), myList.end(), value);
     }
 
-    const_iterator upper_bound(const_reference value) const noexcept
+    ConstIterator upper_bound(ConstReference value) const noexcept
     {
         return std::upper_bound(myList.begin(), myList.end(), value);
     }
 
-    iterator upper_bound(const_reference value) noexcept
+    Iterator upper_bound(ConstReference value) noexcept
     {
         return std::upper_bound(myList.begin(), myList.end(), value);
     }
 
-    const_iterator find(const_reference value) const noexcept
+    Iterator find(ConstReference value) noexcept
     {
         auto e = lower_bound(value);
         if ( e != end() && *e == value )
@@ -102,17 +92,22 @@ public:
         return end();
     }
 
-    bool contains(const_reference value) const noexcept
+    ConstIterator find(ConstReference value) const noexcept
+    {
+        return const_cast<FlatSet*>(this)->find(value);
+    }
+
+    bool contains(ConstReference value) const noexcept
     {
         return find(value) != end();
     }
 
 public:
     void clear() { myList.clear(); }
-    void reserve(size_type new_cap ) { myList.reserve(new_cap); }
+    void reserve(uz new_cap ) { myList.reserve(new_cap); }
     void shrink_to_fit() { myList.shrink_to_fit(); }
 
-    std::pair<iterator, bool> insert(const_reference value)
+    std::pair<Iterator, bool> insert(ConstReference value)
     {
         auto e = lower_bound(value);
         if ( e == myList.end() || *e != value )
@@ -121,7 +116,7 @@ public:
         return { e, false };
     }
 
-    iterator insert(const_iterator hint, const_reference value)
+    Iterator insert(Iterator hint, ConstReference value)
     {
         do {
             if ( value == *hint )
@@ -136,18 +131,18 @@ public:
         return myList.insert(hint, value);
     }
 
-    iterator erase(const_iterator pos)
+    Iterator remove(Iterator pos)
     {
-        return myList.erase(pos);
+        return myList.remove(pos);
     }
 
-    bool remove(const_reference value)
+    bool zap(ConstReference value)
     {
         auto e = find(value);
         if ( e == end() )
             return false;
 
-        erase(e);
+        remove(e);
         return true;
     }
 
@@ -200,7 +195,7 @@ public:
             }
         }
 
-        myList.resize(distance(myList.begin(), out));
+        myList.trunc(std::distance(myList.begin(), out));
         return *this;
     }
 
@@ -231,7 +226,7 @@ public:
             }
         }
 
-        myList.resize(distance(begin(), out));
+        myList.trunc(std::distance(begin(), out));
         return *this;
     }
 
@@ -273,17 +268,17 @@ public:
         while ( out != end() ) {
             *out++ = *r++;
             if ( r == rhs.end() ) {
-                myList.resize(distance(begin(), out));
+                myList.trunc(std::distance(begin(), out));
                 return *this;
             }
         }
 
-        myList.insert(out, r, rhs.end());
+        myList.insertRange(out, iterRange(r, rhs.end()));
         return *this;
     }
 
 private:
-    std::vector<T> myList;
+    ab<T> myList;
 };
 
 template <typename T> auto  begin(FlatSet<T>      & rhs) { return rhs. begin(); }
